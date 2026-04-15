@@ -1,0 +1,772 @@
+import type {
+  ProposalActionInput,
+  ProposalCardModel,
+  ProposalStatus,
+  SceneDockViewModel,
+  SceneExecutionViewModel,
+  SceneInspectorViewModel,
+  SceneProseViewModel,
+  SceneSetupViewModel,
+  SceneWorkspaceViewModel,
+} from '@/features/scene/types/scene-view-models'
+
+interface SceneRecord {
+  workspace: SceneWorkspaceViewModel
+  setup: SceneSetupViewModel
+  execution: SceneExecutionViewModel
+  prose: SceneProseViewModel
+  inspector: SceneInspectorViewModel
+  dock: SceneDockViewModel
+}
+
+export interface SceneMockDatabase {
+  scenes: Record<string, SceneRecord>
+}
+
+const midnightPlatform: SceneRecord = {
+  workspace: {
+    id: 'scene-midnight-platform',
+    title: 'Midnight Platform',
+    chapterId: 'chapter-4',
+    chapterTitle: 'Signals in Rain',
+    status: 'review',
+    runStatus: 'paused',
+    objective: 'Force Ren to bargain for the ledger before the train departs.',
+    castIds: ['ren', 'mei', 'conductor'],
+    locationId: 'glass-platform',
+    latestRunId: 'run-07',
+    pendingProposalCount: 3,
+    warningCount: 2,
+    currentVersionLabel: 'Run 07',
+    activeThreadId: 'thread-main',
+    availableThreads: [
+      { id: 'thread-main', label: 'Mainline' },
+      { id: 'thread-branch-a', label: 'Alt Beat' },
+    ],
+  },
+  setup: {
+    sceneId: 'scene-midnight-platform',
+    identity: {
+      title: 'Midnight Platform',
+      chapterLabel: 'Signals in Rain / Scene 4',
+      locationLabel: 'Rain-soaked eastbound platform',
+      povCharacterId: 'ren',
+      timeboxLabel: '03:11-03:18',
+      summary: 'A wet, public bargain where every concession must survive witness scrutiny.',
+    },
+    objective: {
+      externalGoal: 'Force Mei to hand over the ledger before the eastbound train departs.',
+      emotionalGoal: 'Keep Ren composed long enough to hide how badly he needs the ledger.',
+      successSignal: 'Mei yields leverage without the ledger being opened onstage.',
+      failureCost: 'Ren loses the ledger and exposes his alias in front of the conductor.',
+    },
+    cast: [
+      { id: 'ren', name: 'Ren Voss', role: 'POV', agenda: 'Keep leverage without showing panic.', selected: true },
+      { id: 'mei', name: 'Mei Arden', role: 'Counterforce', agenda: 'Set a price that binds Ren later.', selected: true },
+      { id: 'conductor', name: 'Station Conductor', role: 'Witness', agenda: 'Notice enough to matter later.', selected: true },
+      { id: 'courier', name: 'Missing Courier', role: 'Offstage pressure', agenda: 'Stay implied, never appear.', selected: false },
+    ],
+    constraints: [
+      { id: 'constraint-1', label: 'Ledger stays shut', kind: 'canon', summary: 'No one opens or reads the ledger during the scene.' },
+      { id: 'constraint-2', label: 'Alias remains private', kind: 'tone', summary: 'Ren cannot publicly admit the dockside alias.' },
+      { id: 'constraint-3', label: 'Bell timing fixed', kind: 'timing', summary: 'Departure bell lands at the exit beat, not earlier.' },
+    ],
+    knowledgeBoundaries: [
+      {
+        id: 'boundary-1',
+        label: 'Ledger contents',
+        summary: 'Readers know the ledger matters, not what is written inside.',
+        status: 'guarded',
+      },
+      {
+        id: 'boundary-2',
+        label: 'Harbor fire culprit',
+        summary: 'Past guilt can be implied but the culprit remains unresolved.',
+        status: 'open-question',
+      },
+      {
+        id: 'boundary-3',
+        label: 'Courier signal meaning',
+        summary: 'Ren can read the signal; the witness cannot.',
+        status: 'known',
+      },
+    ],
+    runtimePreset: {
+      selectedPresetId: 'runtime-measured-pressure',
+      presetOptions: [
+        {
+          id: 'runtime-measured-pressure',
+          label: 'Measured Pressure',
+          focus: 'Controlled escalation',
+          intensity: 'Medium',
+          summary: 'Keep the scene deliberate so each acceptance survives canon review.',
+        },
+        {
+          id: 'runtime-pressure-cooker',
+          label: 'Pressure Cooker',
+          focus: 'Tighter beat turns',
+          intensity: 'High',
+          summary: 'Compress beats and push harder against the departure bell constraint.',
+        },
+        {
+          id: 'runtime-witness-heavy',
+          label: 'Witness Heavy',
+          focus: 'Public scrutiny',
+          intensity: 'Medium',
+          summary: 'Bias toward observable actions and reduce private exposition.',
+        },
+      ],
+    },
+  },
+  execution: {
+    runId: 'run-07',
+    objective: {
+      goal: 'Corner Mei into revealing whether the ledger is bait or leverage.',
+      tensionLabel: 'Escalating',
+      pacingLabel: 'Measured',
+      cast: [
+        { id: 'ren', name: 'Ren Voss', role: 'POV' },
+        { id: 'mei', name: 'Mei Arden', role: 'Counterforce' },
+        { id: 'conductor', name: 'Station Conductor', role: 'Witness' },
+      ],
+      location: { id: 'glass-platform', name: 'Rain-soaked eastbound platform' },
+      warningsCount: 2,
+      unresolvedCount: 3,
+      constraintSummary: [
+        'Keep the ledger unopened onstage.',
+        'No public reveal of Ren’s alias.',
+        'Exit beat must align with train departure bell.',
+      ],
+    },
+    beats: [
+      {
+        id: 'beat-arrival',
+        index: 1,
+        title: 'Arrival under the station lamps',
+        status: 'accepted',
+        proposalCount: 1,
+        warningCount: 0,
+        summary: 'Ren closes distance and spots the hidden courier signal.',
+      },
+      {
+        id: 'beat-bargain',
+        index: 2,
+        title: 'Bargain over the ledger',
+        status: 'review',
+        proposalCount: 2,
+        warningCount: 1,
+        summary: 'Mei offers terms while testing Ren’s patience.',
+      },
+      {
+        id: 'beat-departure',
+        index: 3,
+        title: 'Departure bell',
+        status: 'todo',
+        proposalCount: 1,
+        warningCount: 1,
+        summary: 'The platform compresses into a final choice.',
+      },
+    ],
+    proposals: [
+      {
+        id: 'proposal-1',
+        beatId: 'beat-bargain',
+        actor: { id: 'scene-manager', name: 'Scene Manager', type: 'scene-manager' },
+        kind: 'conflict',
+        title: 'Force the bargain into a visible stalemate',
+        summary: 'Ren refuses Mei’s first price and exposes the missing courier as leverage.',
+        detail: 'This keeps the ledger closed while sharpening the power shift before the bell.',
+        status: 'pending',
+        impactTags: ['stakes', 'power-shift'],
+        affects: [
+          {
+            path: 'scene.summary.conflict',
+            label: 'Conflict temperature',
+            deltaSummary: 'Escalates from negotiation to brinkmanship.',
+          },
+        ],
+        risks: [{ severity: 'warn', message: 'May crowd the conductor’s witness beat.' }],
+        evidencePeek: ['Beat 2 already seeded Ren’s suspicion.', 'Preserves no-open-ledger rule.'],
+        sourceTraceId: 'trace-41',
+      },
+      {
+        id: 'proposal-2',
+        beatId: 'beat-bargain',
+        actor: { id: 'mei', name: 'Mei Arden', type: 'character' },
+        kind: 'dialogue',
+        title: 'Let Mei name the cost in private terms',
+        summary: 'Mei asks for Ren’s silence about the harbor fire in exchange for the ledger.',
+        status: 'pending',
+        impactTags: ['subtext', 'history'],
+        affects: [
+          {
+            path: 'scene.accepted-facts.harbor-fire',
+            label: 'Harbor fire tie-in',
+            deltaSummary: 'Pulls an older secret into this scene without revealing the culprit.',
+          },
+        ],
+        risks: [{ severity: 'info', message: 'Need to avoid over-explaining the shared history.' }],
+        evidencePeek: ['Extends chapter-level guilt thread.'],
+        sourceTraceId: 'trace-42',
+      },
+      {
+        id: 'proposal-3',
+        beatId: 'beat-departure',
+        actor: { id: 'system', name: 'Consistency Watch', type: 'system' },
+        kind: 'state-change',
+        title: 'Hold the train bell until Ren commits to a choice',
+        summary: 'Delay the departure bell by one exchange so the decision lands on an explicit action.',
+        status: 'rewrite-requested',
+        impactTags: ['timing', 'continuity'],
+        affects: [
+          {
+            path: 'chapter.timeline.departure-bell',
+            label: 'Departure timing',
+            deltaSummary: 'Shifts the bell cue later than the chapter outline currently allows.',
+          },
+        ],
+        risks: [{ severity: 'high', message: 'Conflicts with chapter timing checkpoint.' }],
+        evidencePeek: ['Chapter outline marks the bell immediately after Mei’s final offer.'],
+        sourceTraceId: 'trace-43',
+      },
+    ],
+    acceptedSummary: {
+      sceneSummary:
+        'Accepted beats establish the rain-heavy platform, Ren’s leverage, and a pending bargain that still needs one canon-ready turn.',
+      acceptedFacts: [
+        { id: 'fact-1', label: 'Courier signal spotted', value: 'Ren catches the station-lamp pattern.' },
+        { id: 'fact-2', label: 'Ledger remains shut', value: 'No character opens or reads the ledger.' },
+      ],
+      readiness: 'draftable',
+      pendingProposalCount: 3,
+      warningCount: 2,
+      patchCandidateCount: 1,
+    },
+    runtimeSummary: {
+      runHealth: 'attention',
+      latencyLabel: '1.6s avg step',
+      tokenLabel: '8.2k tokens',
+      costLabel: '$0.19 est.',
+      latestFailureSummary: 'One continuity warning remains unresolved for the departure beat.',
+    },
+    consistencySummary: {
+      warningsCount: 2,
+      topIssues: ['Departure bell timing mismatch', 'Witness beat could be crowded by extra dialogue'],
+    },
+    canContinueRun: true,
+    canOpenProse: true,
+  },
+  prose: {
+    sceneId: 'scene-midnight-platform',
+    proseDraft:
+      'Rain struck the glass roof in soft volleys while Ren let Mei name a price she had no right to set. The ledger stayed between them like a shut eye, watching both of them refuse to blink first.',
+    revisionModes: ['rewrite', 'compress', 'expand', 'tone_adjust', 'continuity_fix'],
+    latestDiffSummary: 'No prose revision requested yet.',
+    warningsCount: 1,
+    focusModeAvailable: true,
+    revisionQueueCount: 0,
+    draftWordCount: 35,
+    statusLabel: 'Ready for local revise pass',
+  },
+  inspector: {
+    context: {
+      acceptedFacts: [
+        { id: 'fact-1', label: 'Courier signal spotted', value: 'Ren catches the station-lamp pattern.' },
+        { id: 'fact-2', label: 'Ledger remains shut', value: 'No character opens or reads the ledger.' },
+      ],
+      knowledgeBoundaries: [
+        'Ledger contents remain guarded from reader and cast.',
+        'Harbor fire culprit stays unresolved.',
+        'The conductor never decodes the courier signal.',
+      ],
+      localState: [
+        { id: 'state-1', label: 'Active beat', value: 'Bargain over the ledger' },
+        { id: 'state-2', label: 'Selected runtime preset', value: 'Measured Pressure' },
+        { id: 'state-3', label: 'Accepted patch candidates', value: '1 semantic candidate' },
+      ],
+      overrides: [
+        {
+          id: 'override-1',
+          label: 'Witness emphasis',
+          summary: 'Keep observer visibility high so accepted facts remain public-facing.',
+          status: 'active',
+        },
+        {
+          id: 'override-2',
+          label: 'Departure bell guardrail',
+          summary: 'Do not advance the bell before the final decision beat.',
+          status: 'watching',
+        },
+      ],
+    },
+    versions: {
+      checkpoints: [
+        {
+          id: 'checkpoint-1',
+          label: 'Run 07 / Beat 1 accepted',
+          summary: 'Arrival beat cleared with no further changes required.',
+          status: 'accepted',
+        },
+        {
+          id: 'checkpoint-2',
+          label: 'Run 07 / Beat 2 under review',
+          summary: 'Bargain beat still carries two pending proposals.',
+          status: 'review',
+        },
+      ],
+      acceptanceTimeline: [
+        {
+          id: 'timeline-1',
+          title: 'Arrival cue accepted',
+          detail: 'Courier signal remains canon-safe and visible to Ren only.',
+          meta: 'Accepted',
+          tone: 'success',
+        },
+        {
+          id: 'timeline-2',
+          title: 'Departure timing flagged',
+          detail: 'One proposed bell shift conflicts with chapter timing.',
+          meta: 'Watch',
+          tone: 'warn',
+        },
+      ],
+      patchCandidates: [
+        {
+          id: 'patch-1',
+          label: 'Visible stalemate summary',
+          summary: 'Semantic patch ready if the bargain stalemate is accepted into canon.',
+          status: 'ready_for_commit',
+        },
+        {
+          id: 'patch-2',
+          label: 'Departure bell delay',
+          summary: 'Still blocked by timing review; not commit-ready.',
+          status: 'needs_review',
+        },
+      ],
+    },
+    runtime: {
+      profile: {
+        label: 'Measured Pressure',
+        summary: 'Moderate turn speed with high continuity scrutiny and witness-safe staging.',
+      },
+      runHealth: 'attention',
+      metrics: {
+        latencyLabel: '1.6s avg step',
+        tokenLabel: '8.2k tokens',
+        costLabel: '$0.19 est.',
+      },
+      latestFailure: 'Departure bell timing warning still blocks a clean finish.',
+    },
+  },
+  dock: {
+    events: [
+      {
+        id: 'event-1',
+        title: 'Run paused at bargain beat',
+        detail: 'Execution review is holding on two pending proposals and one rewrite request.',
+        meta: 'Events',
+        tone: 'accent',
+      },
+      {
+        id: 'event-2',
+        title: 'Accepted state updated without commit',
+        detail: 'One semantic candidate is ready for later patch flow, but commit stays separate.',
+        meta: 'Patch',
+        tone: 'warn',
+      },
+    ],
+    trace: [
+      {
+        id: 'trace-1',
+        title: 'Trace 41 / leverage escalation',
+        detail: 'Conflict proposal cites accepted suspicion seed and the no-open-ledger rule.',
+        meta: 'Trace',
+        tone: 'neutral',
+      },
+      {
+        id: 'trace-2',
+        title: 'Trace 43 / timing collision',
+        detail: 'Bell-delay candidate conflicts with chapter timeline checkpoint.',
+        meta: 'Trace',
+        tone: 'warn',
+      },
+    ],
+    consistency: {
+      summary: 'Two review checks still need attention before prose can be treated as stable.',
+      checks: [
+        {
+          id: 'consistency-1',
+          label: 'Departure bell timing',
+          status: 'blocked',
+          detail: 'Current rewrite request still pushes the bell later than outline canon allows.',
+        },
+        {
+          id: 'consistency-2',
+          label: 'Witness visibility',
+          status: 'warn',
+          detail: 'Extra dialogue risks obscuring what the conductor actually notices.',
+        },
+        {
+          id: 'consistency-3',
+          label: 'Ledger containment',
+          status: 'pass',
+          detail: 'All accepted candidates preserve the closed-ledger rule.',
+        },
+      ],
+    },
+    problems: {
+      summary: 'Problems stay summarized here so the stage remains focused on scene work.',
+      items: [
+        {
+          id: 'problem-1',
+          title: 'Departure bell conflicts with chapter outline',
+          severity: 'high',
+          recommendation: 'Keep the bell at the exit cue and resolve the choice in one tighter exchange.',
+        },
+        {
+          id: 'problem-2',
+          title: 'Witness beat may be crowded',
+          severity: 'warn',
+          recommendation: 'Trim one explanation pass so the conductor remains legible as observer.',
+        },
+      ],
+    },
+    cost: {
+      currentWindowLabel: '$0.19 estimated for Run 07',
+      trendLabel: 'Down 8% from prior branch because proposals stayed structured.',
+      breakdown: [
+        { id: 'cost-1', label: 'Prompt tokens', value: '5.1k' },
+        { id: 'cost-2', label: 'Completion tokens', value: '3.1k' },
+        { id: 'cost-3', label: 'Continuity passes', value: '2 checks' },
+      ],
+    },
+  },
+}
+
+const warehouseBridge: SceneRecord = {
+  workspace: {
+    id: 'scene-warehouse-bridge',
+    title: 'Warehouse Bridge',
+    chapterId: 'chapter-5',
+    chapterTitle: 'Open Water Signals',
+    status: 'draft',
+    runStatus: 'idle',
+    objective: 'Stage the first handoff without committing to a final betrayal beat.',
+    castIds: ['tala', 'oren'],
+    locationId: 'bridge-catwalk',
+    latestRunId: undefined,
+    pendingProposalCount: 0,
+    warningCount: 0,
+    currentVersionLabel: 'Draft',
+    activeThreadId: 'thread-main',
+    availableThreads: [{ id: 'thread-main', label: 'Mainline' }],
+  },
+  setup: {
+    sceneId: 'scene-warehouse-bridge',
+    identity: {
+      title: 'Warehouse Bridge',
+      chapterLabel: 'Open Water Signals / Scene 2',
+      locationLabel: 'Salt-air catwalk over the warehouse canal',
+      povCharacterId: 'tala',
+      timeboxLabel: 'Dawn watch',
+      summary: 'An unfinished handoff scene still deciding who controls the tempo.',
+    },
+    objective: {
+      externalGoal: 'Get the package across the bridge without proving who arranged the exchange.',
+      emotionalGoal: 'Let Tala stay guarded while Oren tests the edges of trust.',
+      successSignal: 'The handoff lands and the betrayal beat remains deferred.',
+      failureCost: 'The scene resolves too early and burns future chapter tension.',
+    },
+    cast: [
+      { id: 'tala', name: 'Tala Soren', role: 'POV', agenda: 'Control the exchange.', selected: true },
+      { id: 'oren', name: 'Oren Vale', role: 'Counterforce', agenda: 'Measure Tala before committing.', selected: true },
+      { id: 'dockers', name: 'Dock Workers', role: 'Ambient pressure', agenda: 'Stay background only.', selected: false },
+    ],
+    constraints: [
+      { id: 'constraint-draft-1', label: 'No betrayal reveal yet', kind: 'canon', summary: 'Do not resolve the traitor question in this scene.' },
+    ],
+    knowledgeBoundaries: [
+      {
+        id: 'boundary-draft-1',
+        label: 'Package contents',
+        summary: 'The package matters, but no one opens it in this draft.',
+        status: 'guarded',
+      },
+    ],
+    runtimePreset: {
+      selectedPresetId: 'runtime-measured-pressure',
+      presetOptions: midnightPlatform.setup.runtimePreset.presetOptions,
+    },
+  },
+  execution: {
+    runId: undefined,
+    objective: {
+      goal: 'Draft still in setup; execution has not been started.',
+      tensionLabel: 'Dormant',
+      pacingLabel: 'Held',
+      cast: [
+        { id: 'tala', name: 'Tala Soren', role: 'POV' },
+        { id: 'oren', name: 'Oren Vale', role: 'Counterforce' },
+      ],
+      location: { id: 'bridge-catwalk', name: 'Warehouse bridge catwalk' },
+      warningsCount: 0,
+      unresolvedCount: 2,
+      constraintSummary: ['No betrayal reveal yet.'],
+    },
+    beats: [
+      {
+        id: 'beat-draft-1',
+        index: 1,
+        title: 'Handoff not started',
+        status: 'todo',
+        proposalCount: 0,
+        warningCount: 0,
+        summary: 'Setup is waiting for a first execution pass.',
+      },
+    ],
+    proposals: [],
+    acceptedSummary: {
+      sceneSummary: 'No accepted execution state yet; setup still owns the next move.',
+      acceptedFacts: [],
+      readiness: 'not-ready',
+      pendingProposalCount: 0,
+      warningCount: 0,
+      patchCandidateCount: 0,
+    },
+    runtimeSummary: {
+      runHealth: 'stable',
+      latencyLabel: 'Not started',
+      tokenLabel: '0 tokens',
+      costLabel: '$0.00',
+      latestFailureSummary: undefined,
+    },
+    consistencySummary: {
+      warningsCount: 0,
+      topIssues: [],
+    },
+    canContinueRun: false,
+    canOpenProse: false,
+  },
+  prose: {
+    sceneId: 'scene-warehouse-bridge',
+    proseDraft: undefined,
+    revisionModes: ['rewrite', 'compress', 'expand', 'tone_adjust', 'continuity_fix'],
+    latestDiffSummary: 'No prose draft yet.',
+    warningsCount: 0,
+    focusModeAvailable: false,
+    revisionQueueCount: 0,
+    draftWordCount: 0,
+    statusLabel: 'Setup draft only',
+  },
+  inspector: {
+    context: {
+      acceptedFacts: [],
+      knowledgeBoundaries: ['Package contents remain guarded.'],
+      localState: [{ id: 'draft-state-1', label: 'Execution status', value: 'Not started' }],
+      overrides: [],
+    },
+    versions: {
+      checkpoints: [],
+      acceptanceTimeline: [],
+      patchCandidates: [],
+    },
+    runtime: {
+      profile: {
+        label: 'Measured Pressure',
+        summary: 'Preset chosen, but runtime has not started.',
+      },
+      runHealth: 'stable',
+      metrics: {
+        latencyLabel: 'Not started',
+        tokenLabel: '0 tokens',
+        costLabel: '$0.00',
+      },
+      latestFailure: undefined,
+    },
+  },
+  dock: {
+    events: [],
+    trace: [],
+    consistency: {
+      summary: 'No runtime checks yet.',
+      checks: [],
+    },
+    problems: {
+      summary: 'No problems recorded yet.',
+      items: [],
+    },
+    cost: {
+      currentWindowLabel: '$0.00 estimated',
+      trendLabel: 'No execution yet.',
+      breakdown: [],
+    },
+  },
+}
+
+const baseDatabase: SceneMockDatabase = {
+  scenes: {
+    'scene-midnight-platform': midnightPlatform,
+    'scene-warehouse-bridge': warehouseBridge,
+  },
+}
+
+function clone<T>(value: T): T {
+  return structuredClone(value)
+}
+
+function updateProposalStatus(
+  proposals: ProposalCardModel[],
+  proposalId: string,
+  status: ProposalStatus,
+  input?: ProposalActionInput,
+) {
+  return proposals.map((proposal) => {
+    if (proposal.id !== proposalId) {
+      return proposal
+    }
+
+    return {
+      ...proposal,
+      status,
+      summary: input?.editedSummary ?? proposal.summary,
+      detail:
+        status === 'rewrite-requested' && input?.note
+          ? `${proposal.detail ?? ''}\nRewrite note: ${input.note}`.trim()
+          : proposal.detail,
+    }
+  })
+}
+
+export function createSceneMockDatabase(): SceneMockDatabase {
+  return clone(baseDatabase)
+}
+
+export function getSceneFixture(sceneId: string) {
+  const database = createSceneMockDatabase()
+  const scene = database.scenes[sceneId]
+  if (!scene) {
+    throw new Error(`Unknown scene "${sceneId}"`)
+  }
+
+  return scene
+}
+
+export function saveSceneSetup(database: SceneMockDatabase, sceneId: string, setup: SceneSetupViewModel) {
+  const scene = database.scenes[sceneId]
+  if (!scene) {
+    throw new Error(`Unknown scene "${sceneId}"`)
+  }
+
+  scene.setup = clone(setup)
+  scene.workspace.title = setup.identity.title
+  scene.workspace.objective = setup.objective.externalGoal
+  scene.workspace.locationId = setup.identity.locationLabel
+  scene.workspace.castIds = setup.cast.filter((member) => member.selected).map((member) => member.id)
+
+  scene.execution.objective.goal = setup.objective.externalGoal
+  scene.execution.objective.location = {
+    id: scene.execution.objective.location?.id ?? 'scene-location',
+    name: setup.identity.locationLabel,
+  }
+  scene.execution.objective.cast = setup.cast
+    .filter((member) => member.selected)
+    .map((member) => ({ id: member.id, name: member.name, role: member.role }))
+  scene.execution.objective.constraintSummary = setup.constraints.map((constraint) => constraint.summary)
+  scene.inspector.context.knowledgeBoundaries = setup.knowledgeBoundaries.map(
+    (boundary) => `${boundary.label}: ${boundary.summary}`,
+  )
+  scene.inspector.context.localState = [
+    { id: 'state-1', label: 'Active beat', value: scene.inspector.context.localState[0]?.value ?? 'Bargain over the ledger' },
+    {
+      id: 'state-2',
+      label: 'Selected runtime preset',
+      value: setup.runtimePreset.presetOptions.find((preset) => preset.id === setup.runtimePreset.selectedPresetId)?.label ?? 'Unassigned',
+    },
+    { id: 'state-3', label: 'Accepted patch candidates', value: '1 semantic candidate' },
+  ]
+  scene.inspector.runtime.profile = {
+    label:
+      setup.runtimePreset.presetOptions.find((preset) => preset.id === setup.runtimePreset.selectedPresetId)?.label ??
+      'Measured Pressure',
+    summary:
+      setup.runtimePreset.presetOptions.find((preset) => preset.id === setup.runtimePreset.selectedPresetId)?.summary ??
+      scene.inspector.runtime.profile.summary,
+  }
+}
+
+export function applyProseRevision(
+  database: SceneMockDatabase,
+  sceneId: string,
+  revisionMode: SceneProseViewModel['revisionModes'][number],
+) {
+  const scene = database.scenes[sceneId]
+  if (!scene) {
+    throw new Error(`Unknown scene "${sceneId}"`)
+  }
+
+  const modeLabels: Record<SceneProseViewModel['revisionModes'][number], string> = {
+    rewrite: 'rewrite',
+    compress: 'compress',
+    expand: 'expand',
+    tone_adjust: 'tone adjust',
+    continuity_fix: 'continuity fix',
+  }
+
+  scene.prose.latestDiffSummary = `Latest revise: ${modeLabels[revisionMode]} pass applied locally.`
+  scene.prose.revisionQueueCount = 1
+  scene.prose.statusLabel = '1 mock revision queued'
+  scene.prose.warningsCount = revisionMode === 'continuity_fix' ? 0 : 1
+}
+
+export function applyProposalAction(
+  database: SceneMockDatabase,
+  sceneId: string,
+  action: 'accept' | 'editAccept' | 'requestRewrite' | 'reject',
+  input: ProposalActionInput,
+) {
+  const scene = database.scenes[sceneId]
+  if (!scene) {
+    throw new Error(`Unknown scene "${sceneId}"`)
+  }
+
+  const nextStatus: ProposalStatus =
+    action === 'accept' || action === 'editAccept'
+      ? 'accepted'
+      : action === 'requestRewrite'
+        ? 'rewrite-requested'
+        : 'rejected'
+
+  scene.execution.proposals = updateProposalStatus(scene.execution.proposals, input.proposalId, nextStatus, input)
+
+  const pendingCount = scene.execution.proposals.filter((proposal) => proposal.status === 'pending').length
+  const selectedProposal = scene.execution.proposals.find((proposal) => proposal.id === input.proposalId)
+
+  scene.execution.acceptedSummary.pendingProposalCount = pendingCount
+  scene.workspace.pendingProposalCount = pendingCount
+
+  if (nextStatus === 'accepted' && selectedProposal) {
+    scene.execution.acceptedSummary.patchCandidateCount =
+      (scene.execution.acceptedSummary.patchCandidateCount ?? 0) + 1
+    scene.execution.acceptedSummary.sceneSummary =
+      `Accepted ${selectedProposal.title.toLowerCase()} into the scene state while leaving commit for patch preview.`
+    scene.execution.acceptedSummary.acceptedFacts = [
+      {
+        id: `fact-${scene.execution.acceptedSummary.acceptedFacts.length + 1}`,
+        label: selectedProposal.title,
+        value: input.editedSummary ?? selectedProposal.summary,
+      },
+      ...scene.execution.acceptedSummary.acceptedFacts,
+    ].slice(0, 4)
+  }
+
+  if (nextStatus === 'rewrite-requested') {
+    scene.execution.acceptedSummary.sceneSummary =
+      'A proposal was sent back for rewrite; accepted state remains unchanged until a new candidate clears review.'
+  }
+
+  if (nextStatus === 'rejected') {
+    scene.execution.acceptedSummary.sceneSummary =
+      'One proposal was rejected from execution review; accepted state remains focused on canon-safe decisions.'
+  }
+}

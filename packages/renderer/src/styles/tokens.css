@@ -1,0 +1,21 @@
+:root {
+  color-scheme: light;
+  --app-bg: #f5f4ed;
+  --surface-1: #faf9f5;
+  --surface-2: #f1efe6;
+  --surface-3: #ebe7db;
+  --line-soft: #e4dfd3;
+  --line-strong: #d1c9ba;
+  --text-main: #2f2b26;
+  --text-muted: #645f56;
+  --text-soft: #867f72;
+  --accent-primary: #c96442;
+  --accent-strong: #a85639;
+  --accent-muted: rgba(201, 100, 66, 0.14);
+  --success: #4c6a4e;
+  --warn: #9c7a3a;
+  --danger: #a24e45;
+  --ring-soft: rgba(107, 103, 95, 0.2);
+  --shadow-warm: rgba(20, 20, 19, 0.06);
+  --shadow-strong: rgba(20, 20, 19, 0.12);
+}

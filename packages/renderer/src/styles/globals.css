@@ -1,0 +1,57 @@
+@import './tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-line-soft;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    @apply m-0 bg-app font-sans text-text-main antialiased;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  button {
+    @apply rounded-md;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display font-medium tracking-normal text-text-main;
+  }
+}
+
+@layer components {
+  .ring-panel {
+    box-shadow: 0 0 0 1px var(--line-soft), 0 8px 24px var(--shadow-warm);
+  }
+
+  .muted-ring-panel {
+    box-shadow: 0 0 0 1px var(--line-soft);
+  }
+
+  .panel-surface {
+    @apply rounded-md bg-surface-1;
+  }
+
+  .panel-surface-muted {
+    @apply rounded-md bg-surface-2;
+  }
+}

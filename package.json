@@ -1,0 +1,11 @@
+{
+  "name": "new-narrative-novel",
+  "private": true,
+  "packageManager": "pnpm@10.8.0",
+  "scripts": {
+    "typecheck": "pnpm --filter @narrative-novel/renderer typecheck",
+    "test": "pnpm --filter @narrative-novel/renderer test",
+    "build": "pnpm --filter @narrative-novel/renderer build",
+    "storybook": "pnpm --filter @narrative-novel/renderer storybook"
+  }
+}
