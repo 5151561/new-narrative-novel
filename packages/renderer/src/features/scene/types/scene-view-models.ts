@@ -4,6 +4,7 @@ export type SceneRunStatus = 'idle' | 'running' | 'paused' | 'failed' | 'complet
 export type ProposalStatus = 'pending' | 'accepted' | 'rejected' | 'rewrite-requested'
 export type ProposalKind = 'action' | 'intent' | 'conflict' | 'state-change' | 'dialogue'
 export type ProposalSeverity = 'info' | 'warn' | 'high'
+export type SceneDockTabId = 'events' | 'trace' | 'consistency' | 'problems' | 'cost'
 
 export interface SceneWorkspaceViewModel {
   id: string
@@ -287,4 +288,18 @@ export interface SceneDockViewModel {
   consistency: SceneDockConsistencyModel
   problems: SceneDockProblemsModel
   cost: SceneDockCostModel
+}
+
+export interface ScenePatchPreviewViewModel {
+  patchId: string
+  label: string
+  summary: string
+  status: 'ready_for_commit' | 'needs_review' | 'deferred'
+  sceneSummary: string
+  acceptedFacts: Array<{ id: string; label: string; value: string }>
+  changes: Array<{
+    id: string
+    label: string
+    detail: string
+  }>
 }

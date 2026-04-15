@@ -8,12 +8,18 @@ interface AcceptedStateFooterProps {
   summary: SceneAcceptedSummaryModel
   canContinueRun: boolean
   canOpenProse: boolean
+  onContinueRun: () => void
+  onOpenPatchPreview: () => void
+  onOpenProse: () => void
 }
 
 export function AcceptedStateFooter({
   summary,
   canContinueRun,
   canOpenProse,
+  onContinueRun,
+  onOpenPatchPreview,
+  onOpenProse,
 }: AcceptedStateFooterProps) {
   return (
     <StickyFooter className="space-y-4">
@@ -34,6 +40,7 @@ export function AcceptedStateFooter({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
+            onClick={onContinueRun}
             className="rounded-md border border-line-soft bg-surface-2 px-3 py-2 text-sm"
             disabled={!canContinueRun}
           >
@@ -41,12 +48,14 @@ export function AcceptedStateFooter({
           </button>
           <button
             type="button"
+            onClick={onOpenPatchPreview}
             className="rounded-md border border-line-soft bg-surface-2 px-3 py-2 text-sm"
           >
             Patch Preview
           </button>
           <button
             type="button"
+            onClick={onOpenProse}
             className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
             disabled={!canOpenProse}
           >

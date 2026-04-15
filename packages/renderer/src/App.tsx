@@ -1,12 +1,26 @@
+import { useQuery } from '@tanstack/react-query'
+
 import { Badge } from '@/components/ui/Badge'
 import { PaneHeader } from '@/components/ui/PaneHeader'
 import { TimelineList } from '@/components/ui/TimelineList'
+import { sceneClient } from '@/features/scene/api/scene-client'
 import { SceneDockContainer } from '@/features/scene/containers/SceneDockContainer'
 import { SceneInspectorContainer } from '@/features/scene/containers/SceneInspectorContainer'
+import { sceneQueryKeys } from '@/features/scene/hooks/scene-query-keys'
+import { useSceneRouteState } from '@/features/scene/hooks/useSceneRouteState'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { SceneWorkspace } from '@/features/scene/containers/SceneWorkspace'
 
 function TopCommandBar() {
+  const runtimeInfo = useQuery({
+    queryKey: sceneQueryKeys.runtimeInfo(),
+    queryFn: () => sceneClient.getRuntimeInfo(),
+  })
+  const runtimeBadge = runtimeInfo.data ?? {
+    source: 'mock-fallback' as const,
+    label: 'Mock Fallback',
+  }
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
       <div className="space-y-1">
@@ -14,7 +28,7 @@ function TopCommandBar() {
         <h2 className="text-xl leading-tight">Scene Scope Workbench</h2>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="accent">Mock Runtime</Badge>
+        <Badge tone={runtimeBadge.source === 'preload-bridge' ? 'success' : 'accent'}>{runtimeBadge.label}</Badge>
         <button type="button" className="rounded-md border border-line-soft bg-surface-2 px-3 py-2 text-sm">
           Search
         </button>
@@ -70,7 +84,8 @@ function NavigatorPane() {
 }
 
 export default function App() {
-  const sceneId = 'scene-midnight-platform'
+  const { route } = useSceneRouteState()
+  const sceneId = route.sceneId
 
   return (
     <WorkbenchShell

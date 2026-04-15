@@ -2,9 +2,11 @@ import type {
   ProposalActionInput,
   ProposalCardModel,
   ProposalStatus,
+  SceneDockTabId,
   SceneDockViewModel,
   SceneExecutionViewModel,
   SceneInspectorViewModel,
+  ScenePatchPreviewViewModel,
   SceneProseViewModel,
   SceneSetupViewModel,
   SceneWorkspaceViewModel,
@@ -638,6 +640,86 @@ function updateProposalStatus(
   })
 }
 
+function ensureLocalStateItem(scene: SceneRecord, id: string, label: string, value: string) {
+  const existing = scene.inspector.context.localState.find((item) => item.id === id)
+
+  if (existing) {
+    scene.inspector.context.localState = scene.inspector.context.localState.map((item) =>
+      item.id === id ? { ...item, label, value } : item,
+    )
+    return
+  }
+
+  scene.inspector.context.localState = [
+    ...scene.inspector.context.localState,
+    { id, label, value },
+  ]
+}
+
+function syncPatchCandidateCount(scene: SceneRecord) {
+  scene.execution.acceptedSummary.patchCandidateCount = scene.inspector.versions.patchCandidates.filter(
+    (candidate) => candidate.status === 'ready_for_commit',
+  ).length
+  ensureLocalStateItem(
+    scene,
+    'state-3',
+    'Accepted patch candidates',
+    `${scene.execution.acceptedSummary.patchCandidateCount ?? 0} semantic candidate${scene.execution.acceptedSummary.patchCandidateCount === 1 ? '' : 's'}`,
+  )
+}
+
+function syncAcceptedFacts(scene: SceneRecord) {
+  scene.inspector.context.acceptedFacts = clone(scene.execution.acceptedSummary.acceptedFacts)
+}
+
+function buildAcceptedPatchCandidate(proposal: ProposalCardModel) {
+  return {
+    id: `patch-${proposal.id}`,
+    label: proposal.title,
+    summary: proposal.summary,
+    status: 'ready_for_commit' as const,
+  }
+}
+
+function buildDockSummary(dock: SceneDockViewModel): SceneDockViewModel {
+  return {
+    events: clone(dock.events),
+    trace: [],
+    consistency: {
+      summary: dock.consistency.summary,
+      checks: [],
+    },
+    problems: {
+      summary: dock.problems.summary,
+      items: [],
+    },
+    cost: {
+      currentWindowLabel: dock.cost.currentWindowLabel,
+      trendLabel: dock.cost.trendLabel,
+      breakdown: [],
+    },
+  }
+}
+
+function addDockEvent(
+  scene: SceneRecord,
+  title: string,
+  detail: string,
+  meta: string,
+  tone: SceneDockViewModel['events'][number]['tone'],
+) {
+  scene.dock.events = [
+    {
+      id: `${meta.toLowerCase()}-${scene.dock.events.length + 1}`,
+      title,
+      detail,
+      meta,
+      tone,
+    },
+    ...scene.dock.events,
+  ]
+}
+
 export function createSceneMockDatabase(): SceneMockDatabase {
   return clone(baseDatabase)
 }
@@ -693,6 +775,7 @@ export function saveSceneSetup(database: SceneMockDatabase, sceneId: string, set
       setup.runtimePreset.presetOptions.find((preset) => preset.id === setup.runtimePreset.selectedPresetId)?.summary ??
       scene.inspector.runtime.profile.summary,
   }
+  syncPatchCandidateCount(scene)
 }
 
 export function applyProseRevision(
@@ -717,6 +800,78 @@ export function applyProseRevision(
   scene.prose.revisionQueueCount = 1
   scene.prose.statusLabel = '1 mock revision queued'
   scene.prose.warningsCount = revisionMode === 'continuity_fix' ? 0 : 1
+}
+
+export function continueSceneRun(database: SceneMockDatabase, sceneId: string) {
+  const scene = database.scenes[sceneId]
+  if (!scene) {
+    throw new Error(`Unknown scene "${sceneId}"`)
+  }
+
+  scene.workspace.runStatus = 'running'
+  scene.workspace.status = 'running'
+  scene.workspace.latestRunId = 'run-08'
+  scene.workspace.currentVersionLabel = 'Run 08'
+  scene.execution.runId = 'run-08'
+  scene.execution.canContinueRun = false
+  scene.execution.runtimeSummary.runHealth = 'stable'
+  scene.execution.runtimeSummary.latestFailureSummary = undefined
+  scene.execution.acceptedSummary.sceneSummary =
+    'Run resumed from the accepted state and is now advancing toward the departure beat.'
+  scene.inspector.runtime.runHealth = 'stable'
+  scene.inspector.runtime.latestFailure = undefined
+  addDockEvent(
+    scene,
+    'Run resumed from accepted state',
+    'Execution moved forward into run 08 after the accepted state cleared the next beat.',
+    'Run',
+    'accent',
+  )
+}
+
+export function switchSceneThread(database: SceneMockDatabase, sceneId: string, threadId: string) {
+  const scene = database.scenes[sceneId]
+  if (!scene) {
+    throw new Error(`Unknown scene "${sceneId}"`)
+  }
+
+  if (!scene.workspace.availableThreads.some((thread) => thread.id === threadId)) {
+    throw new Error(`Unknown thread "${threadId}" for scene "${sceneId}"`)
+  }
+
+  scene.workspace.activeThreadId = threadId
+
+  if (threadId === 'thread-branch-a') {
+    scene.workspace.objective =
+      'Alternate thread keeps Mei on the stronger bargaining line while Ren yields no public ground.'
+    scene.execution.objective.goal = 'Test the alternate bargain thread where Mei controls the opening leverage.'
+    scene.prose.statusLabel = 'Alt Beat thread ready for local revise pass'
+    scene.inspector.context.localState = scene.inspector.context.localState.map((item) =>
+      item.id === 'state-1' ? { ...item, value: 'Alt Beat branch active' } : item,
+    )
+    addDockEvent(
+      scene,
+      'Thread switched to Alt Beat',
+      'Dock summaries now reflect the alternate bargain thread.',
+      'Thread',
+      'accent',
+    )
+    return
+  }
+
+  scene.workspace.objective = 'Force Ren to bargain for the ledger before the train departs.'
+  scene.execution.objective.goal = 'Corner Mei into revealing whether the ledger is bait or leverage.'
+  scene.prose.statusLabel = 'Ready for local revise pass'
+  scene.inspector.context.localState = scene.inspector.context.localState.map((item) =>
+    item.id === 'state-1' ? { ...item, value: 'Bargain over the ledger' } : item,
+  )
+  addDockEvent(
+    scene,
+    'Thread switched to Mainline',
+    'Dock summaries returned to the default execution thread.',
+    'Thread',
+    'neutral',
+  )
 }
 
 export function applyProposalAction(
@@ -746,8 +901,6 @@ export function applyProposalAction(
   scene.workspace.pendingProposalCount = pendingCount
 
   if (nextStatus === 'accepted' && selectedProposal) {
-    scene.execution.acceptedSummary.patchCandidateCount =
-      (scene.execution.acceptedSummary.patchCandidateCount ?? 0) + 1
     scene.execution.acceptedSummary.sceneSummary =
       `Accepted ${selectedProposal.title.toLowerCase()} into the scene state while leaving commit for patch preview.`
     scene.execution.acceptedSummary.acceptedFacts = [
@@ -758,15 +911,173 @@ export function applyProposalAction(
       },
       ...scene.execution.acceptedSummary.acceptedFacts,
     ].slice(0, 4)
+    scene.inspector.versions.patchCandidates = [
+      buildAcceptedPatchCandidate(selectedProposal),
+      ...scene.inspector.versions.patchCandidates.filter((candidate) => candidate.id !== `patch-${selectedProposal.id}`),
+    ]
+    scene.inspector.versions.acceptanceTimeline = [
+      {
+        id: `timeline-${selectedProposal.id}`,
+        title: 'Proposal accepted into patch preview',
+        detail: `${selectedProposal.title} is now available in patch preview without committing yet.`,
+        meta: 'Accepted',
+        tone: 'success',
+      },
+      ...scene.inspector.versions.acceptanceTimeline,
+    ]
+    addDockEvent(
+      scene,
+      'Accepted proposal queued for patch preview',
+      `${selectedProposal.title} updated accepted state and is waiting for patch commit.`,
+      'Patch',
+      'success',
+    )
   }
 
   if (nextStatus === 'rewrite-requested') {
     scene.execution.acceptedSummary.sceneSummary =
       'A proposal was sent back for rewrite; accepted state remains unchanged until a new candidate clears review.'
+    addDockEvent(
+      scene,
+      'Proposal sent back for rewrite',
+      selectedProposal ? `${selectedProposal.title} needs a tighter revision before it can re-enter review.` : 'A proposal was sent back for rewrite.',
+      'Review',
+      'warn',
+    )
   }
 
   if (nextStatus === 'rejected') {
     scene.execution.acceptedSummary.sceneSummary =
       'One proposal was rejected from execution review; accepted state remains focused on canon-safe decisions.'
+    addDockEvent(
+      scene,
+      'Proposal rejected from review',
+      selectedProposal ? `${selectedProposal.title} was rejected and will not enter the accepted patch queue.` : 'A proposal was rejected.',
+      'Review',
+      'danger',
+    )
   }
+
+  syncAcceptedFacts(scene)
+  syncPatchCandidateCount(scene)
+}
+
+export function getSceneDockSummary(database: SceneMockDatabase, sceneId: string) {
+  const scene = database.scenes[sceneId]
+  if (!scene) {
+    throw new Error(`Unknown scene "${sceneId}"`)
+  }
+
+  return buildDockSummary(scene.dock)
+}
+
+export function getSceneDockTab(database: SceneMockDatabase, sceneId: string, tab: SceneDockTabId) {
+  const scene = database.scenes[sceneId]
+  if (!scene) {
+    throw new Error(`Unknown scene "${sceneId}"`)
+  }
+
+  if (tab === 'events') {
+    return {
+      events: clone(scene.dock.events),
+    }
+  }
+
+  if (tab === 'trace') {
+    return {
+      trace: clone(scene.dock.trace),
+    }
+  }
+
+  if (tab === 'consistency') {
+    return {
+      consistency: clone(scene.dock.consistency),
+    }
+  }
+
+  if (tab === 'problems') {
+    return {
+      problems: clone(scene.dock.problems),
+    }
+  }
+
+  return {
+    cost: clone(scene.dock.cost),
+  }
+}
+
+export function previewAcceptedPatch(database: SceneMockDatabase, sceneId: string): ScenePatchPreviewViewModel | null {
+  const scene = database.scenes[sceneId]
+  if (!scene) {
+    throw new Error(`Unknown scene "${sceneId}"`)
+  }
+
+  const patchCandidate = scene.inspector.versions.patchCandidates.find((candidate) => candidate.status === 'ready_for_commit')
+  if (!patchCandidate) {
+    return null
+  }
+
+  return {
+    patchId: patchCandidate.id,
+    label: patchCandidate.label,
+    summary: patchCandidate.summary,
+    status: patchCandidate.status,
+    sceneSummary: scene.execution.acceptedSummary.sceneSummary,
+    acceptedFacts: clone(scene.execution.acceptedSummary.acceptedFacts),
+    changes: scene.execution.acceptedSummary.acceptedFacts.slice(0, 4).map((fact) => ({
+      id: `change-${fact.id}`,
+      label: fact.label,
+      detail: fact.value,
+    })),
+  }
+}
+
+export function commitAcceptedPatch(database: SceneMockDatabase, sceneId: string, patchId: string) {
+  const scene = database.scenes[sceneId]
+  if (!scene) {
+    throw new Error(`Unknown scene "${sceneId}"`)
+  }
+
+  const patchCandidate = scene.inspector.versions.patchCandidates.find((candidate) => candidate.id === patchId)
+  if (!patchCandidate) {
+    throw new Error(`Unknown patch "${patchId}" for scene "${sceneId}"`)
+  }
+
+  scene.inspector.versions.patchCandidates = scene.inspector.versions.patchCandidates.filter((candidate) => candidate.id !== patchId)
+  scene.workspace.status = 'committed'
+  scene.workspace.runStatus = 'completed'
+  scene.workspace.currentVersionLabel = `Committed / ${patchCandidate.label}`
+  scene.execution.acceptedSummary.readiness = 'ready'
+  scene.execution.acceptedSummary.sceneSummary = `${patchCandidate.label} committed from patch preview into the scene workspace.`
+  scene.execution.canContinueRun = false
+  scene.prose.statusLabel = 'Patch committed to prose handoff'
+  scene.prose.latestDiffSummary = `Committed patch preview: ${patchCandidate.label}.`
+  scene.inspector.versions.checkpoints = [
+    {
+      id: `checkpoint-${patchId}`,
+      label: `Committed / ${patchCandidate.label}`,
+      summary: `${patchCandidate.label} was committed from the accepted patch queue.`,
+      status: 'accepted',
+    },
+    ...scene.inspector.versions.checkpoints,
+  ]
+  scene.inspector.versions.acceptanceTimeline = [
+    {
+      id: `timeline-commit-${patchId}`,
+      title: 'Patch committed',
+      detail: `${patchCandidate.label} moved from accepted state into the committed workspace version.`,
+      meta: 'Commit',
+      tone: 'success',
+    },
+    ...scene.inspector.versions.acceptanceTimeline,
+  ]
+  addDockEvent(
+    scene,
+    'Accepted patch committed',
+    `${patchCandidate.label} was committed from patch preview into the scene workspace.`,
+    'Commit',
+    'success',
+  )
+  syncAcceptedFacts(scene)
+  syncPatchCandidateCount(scene)
 }

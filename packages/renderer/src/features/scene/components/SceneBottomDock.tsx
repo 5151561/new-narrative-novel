@@ -1,5 +1,3 @@
-import { useState } from 'react'
-
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { FactList } from '@/components/ui/FactList'
@@ -9,11 +7,9 @@ import { TimelineList } from '@/components/ui/TimelineList'
 
 import { cn } from '@/lib/cn'
 
-import type { SceneDockViewModel } from '../types/scene-view-models'
+import type { SceneDockTabId, SceneDockViewModel } from '../types/scene-view-models'
 
-type DockTabId = 'events' | 'trace' | 'consistency' | 'problems' | 'cost'
-
-const dockTabs: Array<{ id: DockTabId; label: string }> = [
+const dockTabs: Array<{ id: SceneDockTabId; label: string }> = [
   { id: 'events', label: 'Events' },
   { id: 'trace', label: 'Trace' },
   { id: 'consistency', label: 'Consistency' },
@@ -25,8 +21,8 @@ function DockTabs({
   activeTab,
   onChange,
 }: {
-  activeTab: DockTabId
-  onChange: (tab: DockTabId) => void
+  activeTab: SceneDockTabId
+  onChange: (tab: SceneDockTabId) => void
 }) {
   return (
     <div className="flex flex-wrap gap-2 border-b border-line-soft px-4 py-3">
@@ -137,24 +133,35 @@ function CostTab({ cost }: { cost: SceneDockViewModel['cost'] }) {
 
 interface SceneBottomDockProps {
   data: SceneDockViewModel
+  activeTab: SceneDockTabId
+  isHydratingTab?: boolean
+  onTabChange: (tab: SceneDockTabId) => void
 }
 
-export function SceneBottomDock({ data }: SceneBottomDockProps) {
-  const [activeTab, setActiveTab] = useState<DockTabId>('events')
-
+export function SceneBottomDock({ data, activeTab, isHydratingTab = false, onTabChange }: SceneBottomDockProps) {
   return (
     <>
       <PaneHeader
         title="Bottom Dock"
         description="Events, trace, consistency, problems, and cost stay docked here so the stage remains editorial."
       />
-      <DockTabs activeTab={activeTab} onChange={setActiveTab} />
+      <DockTabs activeTab={activeTab} onChange={onTabChange} />
       <div className="min-h-0 overflow-y-auto">
-        {activeTab === 'events' ? <EventsTab items={data.events} /> : null}
-        {activeTab === 'trace' ? <TraceTab items={data.trace} /> : null}
-        {activeTab === 'consistency' ? <ConsistencyTab consistency={data.consistency} /> : null}
-        {activeTab === 'problems' ? <ProblemsTab problems={data.problems} /> : null}
-        {activeTab === 'cost' ? <CostTab cost={data.cost} /> : null}
+        {isHydratingTab ? (
+          <div className="p-4">
+            <EmptyState title={`Loading ${activeTab}`} message="Hydrating the active dock tab without pulling every detail up front." />
+          </div>
+        ) : activeTab === 'events' ? (
+          <EventsTab items={data.events} />
+        ) : activeTab === 'trace' ? (
+          <TraceTab items={data.trace} />
+        ) : activeTab === 'consistency' ? (
+          <ConsistencyTab consistency={data.consistency} />
+        ) : activeTab === 'problems' ? (
+          <ProblemsTab problems={data.problems} />
+        ) : (
+          <CostTab cost={data.cost} />
+        )}
       </div>
     </>
   )

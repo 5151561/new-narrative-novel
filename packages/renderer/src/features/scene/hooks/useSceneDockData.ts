@@ -2,31 +2,42 @@ import { useQuery } from '@tanstack/react-query'
 
 import { sceneClient, type SceneClient } from '@/features/scene/api/scene-client'
 
+import type { SceneDockTabId } from '../types/scene-view-models'
 import { sceneQueryKeys } from './scene-query-keys'
 
-export function useSceneDockData(sceneId: string, client: SceneClient = sceneClient) {
-  const query = useQuery({
-    queryKey: sceneQueryKeys.dock(sceneId),
-    queryFn: () => client.getSceneDock(sceneId),
+export function useSceneDockData(sceneId: string, activeTab: SceneDockTabId, client: SceneClient = sceneClient) {
+  const summaryQuery = useQuery({
+    queryKey: sceneQueryKeys.dockSummary(sceneId),
+    queryFn: () => client.getSceneDockSummary(sceneId),
   })
 
+  const detailQuery = useQuery({
+    queryKey: sceneQueryKeys.dockTab(sceneId, activeTab),
+    queryFn: () => client.getSceneDockTab(sceneId, activeTab),
+    enabled: activeTab !== 'events',
+  })
+
+  const summary = summaryQuery.data
+  const detail = detailQuery.data
+
   return {
-    events: query.data?.events ?? [],
-    trace: query.data?.trace ?? [],
-    consistency: query.data?.consistency ?? {
+    events: detail?.events ?? summary?.events ?? [],
+    trace: detail?.trace ?? [],
+    consistency: detail?.consistency ?? summary?.consistency ?? {
       summary: '',
       checks: [],
     },
-    problems: query.data?.problems ?? {
+    problems: detail?.problems ?? summary?.problems ?? {
       summary: '',
       items: [],
     },
-    cost: query.data?.cost ?? {
+    cost: detail?.cost ?? summary?.cost ?? {
       currentWindowLabel: '',
       trendLabel: '',
       breakdown: [],
     },
-    isLoading: query.isLoading,
-    error: query.error,
+    isLoading: summaryQuery.isLoading,
+    isHydratingTab: activeTab !== 'events' && detailQuery.isLoading,
+    error: summaryQuery.error ?? detailQuery.error,
   }
 }

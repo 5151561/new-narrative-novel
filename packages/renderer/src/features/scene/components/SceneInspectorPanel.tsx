@@ -1,5 +1,3 @@
-import { useState } from 'react'
-
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { FactList } from '@/components/ui/FactList'
@@ -11,7 +9,7 @@ import { cn } from '@/lib/cn'
 
 import type { SceneInspectorViewModel } from '../types/scene-view-models'
 
-type InspectorTabId = 'context' | 'versions' | 'runtime'
+export type InspectorTabId = 'context' | 'versions' | 'runtime'
 
 const inspectorTabs: Array<{ id: InspectorTabId; label: string }> = [
   { id: 'context', label: 'Context' },
@@ -174,18 +172,18 @@ function RuntimeTab({ runtime }: { runtime: SceneInspectorViewModel['runtime'] }
 
 interface SceneInspectorPanelProps {
   data: SceneInspectorViewModel
+  activeTab: InspectorTabId
+  onTabChange: (tab: InspectorTabId) => void
 }
 
-export function SceneInspectorPanel({ data }: SceneInspectorPanelProps) {
-  const [activeTab, setActiveTab] = useState<InspectorTabId>('context')
-
+export function SceneInspectorPanel({ data, activeTab, onTabChange }: SceneInspectorPanelProps) {
   return (
     <>
       <PaneHeader
         title="Inspector"
         description="Scene-aware inspect and override summaries stay here instead of leaking into the main stage."
       />
-      <InspectorTabs activeTab={activeTab} onChange={setActiveTab} />
+      <InspectorTabs activeTab={activeTab} onChange={onTabChange} />
       <div className="min-h-0 overflow-y-auto">
         {activeTab === 'context' ? <ContextTab context={data.context} /> : null}
         {activeTab === 'versions' ? <VersionsTab versions={data.versions} /> : null}

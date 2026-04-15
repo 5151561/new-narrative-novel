@@ -19,6 +19,9 @@ export function useProposalActions(sceneId: string, client: SceneClient = sceneC
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: sceneQueryKeys.workspace(sceneId) }),
           queryClient.invalidateQueries({ queryKey: sceneQueryKeys.execution(sceneId) }),
+          queryClient.invalidateQueries({ queryKey: sceneQueryKeys.inspector(sceneId) }),
+          queryClient.invalidateQueries({ queryKey: sceneQueryKeys.dock(sceneId) }),
+          queryClient.invalidateQueries({ queryKey: sceneQueryKeys.patchPreview(sceneId) }),
         ])
       } finally {
         setIsMutating(false)

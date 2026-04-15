@@ -4,6 +4,7 @@ import { type SceneClient } from '@/features/scene/api/scene-client'
 
 import { SceneInspectorPanel } from '../components/SceneInspectorPanel'
 import { useSceneInspectorData } from '../hooks/useSceneInspectorData'
+import { useSceneUiStore } from '../store/scene-ui-store'
 
 interface SceneInspectorContainerProps {
   sceneId: string
@@ -12,6 +13,8 @@ interface SceneInspectorContainerProps {
 
 export function SceneInspectorContainer({ sceneId, client }: SceneInspectorContainerProps) {
   const inspector = useSceneInspectorData(sceneId, client)
+  const activeTab = useSceneUiStore((state) => state.inspectorTab)
+  const setInspectorTab = useSceneUiStore((state) => state.setInspectorTab)
 
   if (inspector.error) {
     return (
@@ -29,5 +32,5 @@ export function SceneInspectorContainer({ sceneId, client }: SceneInspectorConta
     )
   }
 
-  return <SceneInspectorPanel data={inspector} />
+  return <SceneInspectorPanel data={inspector} activeTab={activeTab} onTabChange={setInspectorTab} />
 }

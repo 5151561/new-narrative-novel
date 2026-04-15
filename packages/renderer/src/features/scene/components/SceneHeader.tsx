@@ -5,7 +5,9 @@ import type { SceneWorkspaceViewModel } from '../types/scene-view-models'
 
 interface SceneHeaderProps {
   scene: SceneWorkspaceViewModel
+  onOpenExport: () => void
   onSwitchThread: (threadId: string) => void
+  onOpenVersions: () => void
 }
 
 function statusTone(status: SceneWorkspaceViewModel['status']): 'neutral' | 'accent' | 'success' | 'warn' {
@@ -21,7 +23,7 @@ function statusTone(status: SceneWorkspaceViewModel['status']): 'neutral' | 'acc
   return 'neutral'
 }
 
-export function SceneHeader({ scene, onSwitchThread }: SceneHeaderProps) {
+export function SceneHeader({ scene, onOpenExport, onSwitchThread, onOpenVersions }: SceneHeaderProps) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-4 px-5 py-4">
       <div className="space-y-2">
@@ -53,10 +55,10 @@ export function SceneHeader({ scene, onSwitchThread }: SceneHeaderProps) {
             ))}
           </select>
         </label>
-        <button type="button" className="rounded-md border border-line-soft bg-surface-2 px-3 py-2 text-sm">
+        <button type="button" onClick={onOpenVersions} className="rounded-md border border-line-soft bg-surface-2 px-3 py-2 text-sm">
           Versions
         </button>
-        <button type="button" className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white">
+        <button type="button" onClick={onOpenExport} className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white">
           Export
         </button>
       </div>

@@ -1,0 +1,92 @@
+<h2>Scene Cockpit Layout</h2>
+<p class="subtitle">锁定方向：Review Cockpit。目标是让 Proposal Review 保持主舞台，Inspector / Dock 常驻但克制。</p>
+
+<div class="mockup">
+  <div class="mockup-header">Scene / Orchestrate / Execution</div>
+  <div class="mockup-body">
+    <div class="mock-nav">Breadcrumb | Scene Title | Status | Run Status | Thread | Export</div>
+    <div class="placeholder" style="margin-top:10px;">Objective Strip: goal / tension / pacing / cast / location / warnings / unresolved</div>
+    <div style="display:flex; gap:10px; margin-top:10px; min-height:280px;">
+      <div class="mock-sidebar" style="width:18%;">
+        Beat Rail
+        <div class="placeholder" style="margin-top:8px;">Beat 1</div>
+        <div class="placeholder">Beat 2</div>
+        <div class="placeholder">Beat 3</div>
+      </div>
+      <div class="mock-content" style="width:57%;">
+        Proposal Review Stack
+        <div class="placeholder" style="margin-top:8px;">Proposal Card / Accept / Edit Then Accept / Rewrite / Reject</div>
+        <div class="placeholder">Proposal Card / impact / evidence / risks</div>
+        <div class="placeholder">Proposal Card / filtered by beat</div>
+      </div>
+      <div class="mock-sidebar" style="width:25%;">
+        Inspector
+        <div class="placeholder" style="margin-top:8px;">Context</div>
+        <div class="placeholder">Versions</div>
+        <div class="placeholder">Runtime Summary</div>
+      </div>
+    </div>
+    <div class="placeholder" style="margin-top:10px;">Accepted State Footer: scene summary / accepted facts / readiness / continue run / patch preview / open prose</div>
+    <div class="placeholder" style="margin-top:10px;">Bottom Dock: Events / Trace / Consistency / Problems / Cost</div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>角色边界</h3>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>Main Stage</h4>
+      <ul>
+        <li>只承担运行、审阅、裁决</li>
+        <li>Proposal Stack 是视觉中心</li>
+        <li>Accepted Footer 是稳定汇总层，不变成第二主舞台</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>Not Here</h4>
+      <ul>
+        <li>Inspector 不承载主决策动作</li>
+        <li>Dock 不把 raw trace 冲上主区</li>
+        <li>Execution 不重新长回聊天页或日志墙</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>参考源码借法</h3>
+  <div class="options">
+    <div class="option">
+      <div class="letter">O</div>
+      <div class="content">
+        <h3>Outline</h3>
+        <p>借左侧导航与整体留白气质，不借 doc-first 页面心智。</p>
+      </div>
+    </div>
+    <div class="option">
+      <div class="letter">L</div>
+      <div class="content">
+        <h3>Logseq</h3>
+        <p>借右侧 sidebar 的“辅助工作区”定位和多 pane 行为，不借知识卡片堆叠噪音。</p>
+      </div>
+    </div>
+    <div class="option">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>BookStack</h3>
+        <p>借 tri-layout 的内容 / 信息区关系与响应式切换，不借传统 wiki 页结构。</p>
+      </div>
+    </div>
+    <div class="option">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>AppFlowy</h3>
+        <p>借 title bar、层级组织和面板尺寸交互，不把 Scene 做成数据库视图。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="subtitle">请只看一件事：这个结构分工本身对不对。如果对，我下一步就把组件边界和参考源码映射写成完整设计。</p>
+</div>

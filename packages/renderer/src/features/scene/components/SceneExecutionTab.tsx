@@ -21,6 +21,9 @@ interface SceneExecutionTabProps {
   acceptedSummary: SceneAcceptedSummaryModel
   canContinueRun: boolean
   canOpenProse: boolean
+  onContinueRun: () => void
+  onOpenPatchPreview: () => void
+  onOpenProse: () => void
   onSelectBeat: (beatId: string) => void
   onSelectProposal: (proposalId: string) => void
   onAccept: (proposalId: string) => void
@@ -40,6 +43,9 @@ export function SceneExecutionTab({
   acceptedSummary,
   canContinueRun,
   canOpenProse,
+  onContinueRun,
+  onOpenPatchPreview,
+  onOpenProse,
   onSelectBeat,
   onSelectProposal,
   onAccept,
@@ -69,6 +75,9 @@ export function SceneExecutionTab({
         summary={acceptedSummary}
         canContinueRun={canContinueRun}
         canOpenProse={canOpenProse}
+        onContinueRun={onContinueRun}
+        onOpenPatchPreview={onOpenPatchPreview}
+        onOpenProse={onOpenProse}
       />
     </div>
   )

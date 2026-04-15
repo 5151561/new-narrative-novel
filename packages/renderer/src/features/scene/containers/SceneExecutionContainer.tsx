@@ -5,7 +5,9 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { SceneExecutionTab } from '../components/SceneExecutionTab'
 import { useProposalActions } from '../hooks/useProposalActions'
 import { useProposalSelection } from '../hooks/useProposalSelection'
+import { useSceneRouteState } from '../hooks/useSceneRouteState'
 import { useSceneExecutionQuery } from '../hooks/useSceneExecutionQuery'
+import { useSceneWorkspaceActions } from '../hooks/useSceneWorkspaceActions'
 
 interface SceneExecutionContainerProps {
   sceneId: string
@@ -13,44 +15,63 @@ interface SceneExecutionContainerProps {
 
 export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProps) {
   const execution = useSceneExecutionQuery(sceneId)
-  const selection = useProposalSelection()
   const actions = useProposalActions(sceneId)
+  const workspaceActions = useSceneWorkspaceActions({ sceneId })
+  const { route, setRoute } = useSceneRouteState()
+  const filters = useProposalSelection((state) => state.filters)
+  const resetFilters = useProposalSelection((state) => state.resetFilters)
+
+  const selectedBeatId = route.sceneId === sceneId ? route.beatId : undefined
+  const selectedProposalId = route.sceneId === sceneId ? route.proposalId : undefined
+  const activeFilters = useMemo(
+    () => ({
+      ...filters,
+      beatId: selectedBeatId,
+    }),
+    [filters, selectedBeatId],
+  )
 
   const filteredProposals = useMemo(() => {
     return execution.proposals.filter((proposal) => {
-      if (selection.filters.beatId && proposal.beatId !== selection.filters.beatId) {
+      if (activeFilters.beatId && proposal.beatId !== activeFilters.beatId) {
         return false
       }
-      if (selection.filters.status && proposal.status !== selection.filters.status) {
+      if (activeFilters.status && proposal.status !== activeFilters.status) {
         return false
       }
-      if (selection.filters.kind && proposal.kind !== selection.filters.kind) {
+      if (activeFilters.kind && proposal.kind !== activeFilters.kind) {
         return false
       }
-      if (selection.filters.actorId && proposal.actor.id !== selection.filters.actorId) {
+      if (activeFilters.actorId && proposal.actor.id !== activeFilters.actorId) {
         return false
       }
-      if (selection.filters.severity) {
+      if (activeFilters.severity) {
         const severities = proposal.risks?.map((risk) => risk.severity) ?? []
-        if (!severities.includes(selection.filters.severity)) {
+        if (!severities.includes(activeFilters.severity)) {
           return false
         }
       }
       return true
     })
-  }, [execution.proposals, selection.filters])
+  }, [activeFilters, execution.proposals])
 
   useEffect(() => {
-    if (filteredProposals.length === 0) {
-      selection.setSelectedProposalId(undefined)
+    if (execution.isLoading) {
       return
     }
 
-    const currentVisible = filteredProposals.some((proposal) => proposal.id === selection.selectedProposalId)
-    if (!currentVisible) {
-      selection.setSelectedProposalId(filteredProposals[0]?.id)
+    if (filteredProposals.length === 0) {
+      if (selectedProposalId !== undefined) {
+        setRoute({ sceneId, proposalId: undefined }, { replace: true })
+      }
+      return
     }
-  }, [filteredProposals, selection])
+
+    const currentVisible = filteredProposals.some((proposal) => proposal.id === selectedProposalId)
+    if (!currentVisible) {
+      setRoute({ sceneId, proposalId: filteredProposals[0]?.id }, { replace: true })
+    }
+  }, [execution.isLoading, filteredProposals, sceneId, selectedProposalId, setRoute])
 
   if (execution.error) {
     return (
@@ -76,19 +97,29 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
       objective={execution.objective}
       beats={execution.beats}
       proposals={filteredProposals}
-      selectedBeatId={selection.selectedBeatId}
-      selectedProposalId={selection.selectedProposalId}
-      filters={selection.filters}
+      selectedBeatId={selectedBeatId}
+      selectedProposalId={selectedProposalId}
+      filters={activeFilters}
       acceptedSummary={execution.acceptedSummary}
       canContinueRun={execution.canContinueRun}
       canOpenProse={execution.canOpenProse}
-      onSelectBeat={(beatId) => selection.setFilters({ ...selection.filters, beatId })}
-      onSelectProposal={selection.setSelectedProposalId}
+      onContinueRun={() => void workspaceActions.continueRun()}
+      onOpenPatchPreview={workspaceActions.openPatchPreview}
+      onOpenProse={workspaceActions.openProse}
+      onSelectBeat={(beatId) => {
+        setRoute({ sceneId, beatId, proposalId: undefined })
+      }}
+      onSelectProposal={(proposalId) => {
+        setRoute({ sceneId, proposalId })
+      }}
       onAccept={(proposalId) => void actions.accept({ proposalId })}
       onEditAccept={(proposalId, editedSummary) => void actions.editAccept({ proposalId, editedSummary })}
       onRequestRewrite={(proposalId) => void actions.requestRewrite({ proposalId, note: 'Tighten continuity before resubmitting.' })}
       onReject={(proposalId) => void actions.reject({ proposalId, note: 'Rejected during mock review flow.' })}
-      onClearFilters={selection.resetFilters}
+      onClearFilters={() => {
+        resetFilters()
+        setRoute({ sceneId, beatId: undefined, proposalId: undefined })
+      }}
     />
   )
 }

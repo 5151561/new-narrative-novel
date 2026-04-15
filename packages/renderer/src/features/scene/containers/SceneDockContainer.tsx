@@ -4,6 +4,7 @@ import { type SceneClient } from '@/features/scene/api/scene-client'
 
 import { SceneBottomDock } from '../components/SceneBottomDock'
 import { useSceneDockData } from '../hooks/useSceneDockData'
+import { useSceneUiStore } from '../store/scene-ui-store'
 
 interface SceneDockContainerProps {
   sceneId: string
@@ -11,7 +12,9 @@ interface SceneDockContainerProps {
 }
 
 export function SceneDockContainer({ sceneId, client }: SceneDockContainerProps) {
-  const dock = useSceneDockData(sceneId, client)
+  const activeTab = useSceneUiStore((state) => state.dockTab)
+  const setDockTab = useSceneUiStore((state) => state.setDockTab)
+  const dock = useSceneDockData(sceneId, activeTab, client)
 
   if (dock.error) {
     return (
@@ -29,5 +32,12 @@ export function SceneDockContainer({ sceneId, client }: SceneDockContainerProps)
     )
   }
 
-  return <SceneBottomDock data={dock} />
+  return (
+    <SceneBottomDock
+      data={dock}
+      activeTab={activeTab}
+      isHydratingTab={dock.isHydratingTab}
+      onTabChange={setDockTab}
+    />
+  )
 }
