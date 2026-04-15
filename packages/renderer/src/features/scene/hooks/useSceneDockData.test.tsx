@@ -3,6 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { type PropsWithChildren } from 'react'
 
 import type { SceneClient } from '@/features/scene/api/scene-client'
+import type { SceneDockTabId } from '@/features/scene/types/scene-view-models'
 
 import { useSceneDockData } from './useSceneDockData'
 
@@ -56,8 +57,9 @@ describe('useSceneDockData', () => {
     } as Pick<SceneClient, 'getSceneDockSummary' | 'getSceneDockTab'> as SceneClient
 
     const wrapper = createWrapper()
-    const dockHook = renderHook(({ activeTab }) => useSceneDockData(sceneId, activeTab, client), {
-      initialProps: { activeTab: 'events' as const },
+    const initialProps: { activeTab: SceneDockTabId } = { activeTab: 'events' }
+    const dockHook = renderHook(({ activeTab }: { activeTab: SceneDockTabId }) => useSceneDockData(sceneId, activeTab, client), {
+      initialProps,
       wrapper,
     })
 

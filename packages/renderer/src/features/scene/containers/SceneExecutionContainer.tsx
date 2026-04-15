@@ -19,6 +19,7 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
   const workspaceActions = useSceneWorkspaceActions({ sceneId })
   const { route, setRoute } = useSceneRouteState()
   const filters = useProposalSelection((state) => state.filters)
+  const setFilters = useProposalSelection((state) => state.setFilters)
   const resetFilters = useProposalSelection((state) => state.resetFilters)
 
   const selectedBeatId = route.sceneId === sceneId ? route.beatId : undefined
@@ -54,6 +55,18 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
       return true
     })
   }, [activeFilters, execution.proposals])
+
+  const actorOptions = useMemo(() => {
+    const seen = new Map<string, string>()
+
+    for (const proposal of execution.proposals) {
+      if (!seen.has(proposal.actor.id)) {
+        seen.set(proposal.actor.id, proposal.actor.name)
+      }
+    }
+
+    return Array.from(seen.entries()).map(([id, label]) => ({ id, label }))
+  }, [execution.proposals])
 
   useEffect(() => {
     if (execution.isLoading) {
@@ -97,12 +110,14 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
       objective={execution.objective}
       beats={execution.beats}
       proposals={filteredProposals}
+      actorOptions={actorOptions}
       selectedBeatId={selectedBeatId}
       selectedProposalId={selectedProposalId}
       filters={activeFilters}
       acceptedSummary={execution.acceptedSummary}
       canContinueRun={execution.canContinueRun}
       canOpenProse={execution.canOpenProse}
+      onOpenSetup={() => workspaceActions.openTab('setup')}
       onContinueRun={() => void workspaceActions.continueRun()}
       onOpenPatchPreview={workspaceActions.openPatchPreview}
       onOpenProse={workspaceActions.openProse}
@@ -115,7 +130,13 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
       onAccept={(proposalId) => void actions.accept({ proposalId })}
       onEditAccept={(proposalId, editedSummary) => void actions.editAccept({ proposalId, editedSummary })}
       onRequestRewrite={(proposalId) => void actions.requestRewrite({ proposalId, note: 'Tighten continuity before resubmitting.' })}
-      onReject={(proposalId) => void actions.reject({ proposalId, note: 'Rejected during mock review flow.' })}
+      onReject={(proposalId) => void actions.reject({ proposalId, note: 'Does not fit the current scene contract.' })}
+      onChangeFilters={(next) => {
+        setFilters({
+          ...next,
+          beatId: selectedBeatId,
+        })
+      }}
       onClearFilters={() => {
         resetFilters()
         setRoute({ sceneId, beatId: undefined, proposalId: undefined })

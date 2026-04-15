@@ -196,7 +196,23 @@ export interface SceneSetupViewModel {
 
 export interface SceneInspectorContextModel {
   acceptedFacts: Array<{ id: string; label: string; value: string }>
-  knowledgeBoundaries: string[]
+  privateInfoGuard: {
+    summary: string
+    items: Array<{
+      id: string
+      label: string
+      summary: string
+      status: 'guarded' | 'watching' | 'clear'
+    }>
+  }
+  actorKnowledgeBoundaries: Array<{
+    actor: {
+      id: string
+      name: string
+      role?: string
+    }
+    boundaries: SceneKnowledgeBoundaryModel[]
+  }>
   localState: Array<{ id: string; label: string; value: string }>
   overrides: Array<{
     id: string

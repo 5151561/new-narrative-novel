@@ -142,8 +142,8 @@ export function SceneBottomDock({ data, activeTab, isHydratingTab = false, onTab
   return (
     <>
       <PaneHeader
-        title="Bottom Dock"
-        description="Events, trace, consistency, problems, and cost stay docked here so the stage remains editorial."
+        title="Events / Trace / Consistency / Problems / Cost"
+        description="This dock owns the event stream, trace, consistency issues, problems, and cost so the review stage can stay editorial."
       />
       <DockTabs activeTab={activeTab} onChange={onTabChange} />
       <div className="min-h-0 overflow-y-auto">

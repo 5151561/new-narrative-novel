@@ -15,22 +15,27 @@ const tabs: Array<{ id: SceneTab; label: string }> = [
 
 export function SceneTabBar({ activeTab, onChange }: SceneTabBarProps) {
   return (
-    <div className="flex items-center gap-2 border-b border-line-soft px-5 py-3">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onChange(tab.id)}
-          className={cn(
-            'rounded-md px-3 py-2 text-sm font-medium transition-colors',
-            activeTab === tab.id
-              ? 'bg-surface-2 text-text-main shadow-ringwarm'
-              : 'text-text-muted hover:bg-surface-2 hover:text-text-main',
-          )}
-        >
-          {tab.label}
-        </button>
-      ))}
+    <div className="border-b border-line-soft px-5 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">Scene cockpit</p>
+        <div className="flex items-center gap-2">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onChange(tab.id)}
+              className={cn(
+                'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                activeTab === tab.id
+                  ? 'bg-surface-2 text-text-main shadow-ringwarm'
+                  : 'text-text-muted hover:bg-surface-2 hover:text-text-main',
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

@@ -121,7 +121,7 @@ function resolveWindowSceneBridge() {
 function buildRuntimeInfo(bridge: SceneRuntimeBridge | undefined): SceneRuntimeInfo {
   return {
     source: bridge ? 'preload-bridge' : 'mock-fallback',
-    label: bridge ? 'Preload Bridge' : 'Mock Fallback',
+    label: bridge ? 'Preload Bridge' : 'Preview Data',
     capabilities: Object.fromEntries(
       runtimeCapabilityList.map((capability) => [capability, Boolean(bridge?.[capability])]),
     ),

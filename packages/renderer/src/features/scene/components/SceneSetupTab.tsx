@@ -495,9 +495,22 @@ export function SceneSetupTab({
   onSave,
   onSaveAndRun,
 }: SceneSetupTabProps) {
+  const selectedCastCount = draft.cast.filter((member) => member.selected).length
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex-1 overflow-y-auto px-5 py-5">
+        <Toolbar className="mb-4 justify-between border border-line-soft bg-surface-1 px-4 py-3 shadow-ringwarm">
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">Scene Setup Brief</p>
+            <p className="text-sm text-text-muted">Lock the objective, cast, constraints, and runtime posture before you re-enter execution review.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="accent">{selectedCastCount} active cast</Badge>
+            <Badge tone="neutral">{draft.constraints.length} constraints</Badge>
+            <Badge tone="neutral">{draft.knowledgeBoundaries.length} boundaries</Badge>
+          </div>
+        </Toolbar>
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
           <div className="grid content-start gap-4">
             <SceneIdentitySection draft={draft} onUpdateDraft={onUpdateDraft} />

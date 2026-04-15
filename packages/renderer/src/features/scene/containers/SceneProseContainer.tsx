@@ -43,7 +43,7 @@ export function SceneProseContainer({ sceneId, client }: SceneProseContainerProp
       <div className="p-5">
         <EmptyState
           title="Loading prose"
-          message="Preparing the current draft, local revise modes, and prose status footer."
+          message="Preparing the current draft, revision modes, and prose status footer."
         />
       </div>
     )

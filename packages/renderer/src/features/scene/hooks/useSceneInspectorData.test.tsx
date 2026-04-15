@@ -32,7 +32,9 @@ describe('useSceneInspectorData', () => {
     })
 
     expect(hook.result.current.context.acceptedFacts.length).toBeGreaterThan(0)
-    expect(hook.result.current.context.knowledgeBoundaries[0]).toContain('Ledger')
+    expect(hook.result.current.context.privateInfoGuard.summary).toContain('guard')
+    expect(hook.result.current.context.actorKnowledgeBoundaries[0]?.actor.name).toBeTruthy()
+    expect(hook.result.current.context.actorKnowledgeBoundaries[0]?.boundaries.length).toBeGreaterThan(0)
     expect(hook.result.current.versions.checkpoints.length).toBeGreaterThan(0)
     expect(hook.result.current.versions.patchCandidates[0]?.status).toBe('ready_for_commit')
     expect(hook.result.current.runtime.profile.label).toBe('Measured Pressure')

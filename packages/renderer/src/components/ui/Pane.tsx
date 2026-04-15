@@ -10,8 +10,8 @@ export function Pane({ className, muted = false, ...props }: PaneProps) {
   return (
     <section
       className={cn(
-        'panel-surface ring-panel flex min-h-0 flex-col overflow-hidden rounded-md',
-        muted && 'panel-surface-muted shadow-ringwarm',
+        'flex min-h-0 flex-col overflow-hidden rounded-md',
+        muted ? 'panel-surface-muted muted-ring-panel' : 'panel-surface ring-panel',
         className,
       )}
       {...props}

@@ -54,7 +54,7 @@ export function RevisionActionBar({
 }: Pick<SceneProseTabProps, 'selectedMode' | 'isRevising' | 'onSelectMode' | 'onRevise'> &
   Pick<SceneProseViewModel, 'revisionModes'>) {
   return (
-    <SectionCard eyebrow="Local Mock" title="Revision Actions">
+    <SectionCard eyebrow="Revision" title="Revision Actions">
       <div className="flex flex-wrap gap-2">
         {revisionModes.map((mode) => {
           const isSelected = selectedMode === mode
@@ -77,7 +77,7 @@ export function RevisionActionBar({
         <div className="space-y-1">
           <p className="text-sm font-medium text-text-main">Selected pass</p>
           <p className="text-sm text-text-muted">
-            {revisionLabels[selectedMode]} keeps prose read-only and only updates local mock state.
+            {revisionLabels[selectedMode]} prepares the next revision pass against this scene draft without leaving the workbench.
           </p>
         </div>
         <button
@@ -100,9 +100,11 @@ export function ProseToolbar({
   onToggleFocusMode,
 }: Pick<SceneProseTabProps, 'prose' | 'selectedMode' | 'isFocusModeActive' | 'onToggleFocusMode'>) {
   return (
-    <Toolbar className="justify-between bg-surface-1 px-4 py-3 shadow-ringwarm">
+    <Toolbar className="justify-between border-b border-line-soft bg-surface-1 px-4 py-3 shadow-ringwarm">
       <div className="space-y-1">
         <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">Prose Toolbar</p>
+        <p className="text-sm font-medium text-text-main">Scene Prose Workbench</p>
+        <p className="text-sm text-text-muted">Read the accepted draft, choose a revision pass, and stay inside the scene cockpit.</p>
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone="accent">{revisionLabels[selectedMode]}</Badge>
           <Badge tone={prose.focusModeAvailable ? 'success' : 'neutral'}>
@@ -136,7 +138,7 @@ export function ProseStatusFooter({ prose, selectedMode }: Pick<SceneProseTabPro
           <Badge tone="accent">{revisionLabels[selectedMode]}</Badge>
         </div>
         <div className="space-y-1 text-right">
-          <p className="text-sm text-text-main">{prose.statusLabel ?? 'Ready for local revise pass'}</p>
+          <p className="text-sm text-text-main">{prose.statusLabel ?? 'Ready for revision pass'}</p>
           <p className="text-sm text-text-muted">{prose.latestDiffSummary ?? 'No prose revision requested yet.'}</p>
         </div>
       </div>
