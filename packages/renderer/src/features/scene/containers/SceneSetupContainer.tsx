@@ -1,3 +1,4 @@
+import { getSetupFormStatusLabel, useI18n } from '@/app/i18n'
 import { EmptyState } from '@/components/ui/EmptyState'
 
 import { type SceneClient } from '@/features/scene/api/scene-client'
@@ -12,6 +13,7 @@ interface SceneSetupContainerProps {
 }
 
 export function SceneSetupContainer({ sceneId, client, onSaveAndRun }: SceneSetupContainerProps) {
+  const { locale } = useI18n()
   const form = useSceneSetupForm({
     sceneId,
     client,
@@ -21,7 +23,7 @@ export function SceneSetupContainer({ sceneId, client, onSaveAndRun }: SceneSetu
   if (form.error) {
     return (
       <div className="p-5">
-        <EmptyState title="Setup data unavailable" message={form.error.message} />
+        <EmptyState title={locale === 'zh-CN' ? '设定数据不可用' : 'Setup data unavailable'} message={form.error.message} />
       </div>
     )
   }
@@ -30,8 +32,12 @@ export function SceneSetupContainer({ sceneId, client, onSaveAndRun }: SceneSetu
     return (
       <div className="p-5">
         <EmptyState
-          title="Loading setup"
-          message="Preparing scene identity, objective, cast, constraints, and runtime preset."
+          title={locale === 'zh-CN' ? '正在加载设定' : 'Loading setup'}
+          message={
+            locale === 'zh-CN'
+              ? '正在准备场景身份、目标、角色、约束和运行预设。'
+              : 'Preparing scene identity, objective, cast, constraints, and runtime preset.'
+          }
         />
       </div>
     )
@@ -42,7 +48,7 @@ export function SceneSetupContainer({ sceneId, client, onSaveAndRun }: SceneSetu
       draft={form.draft}
       isDirty={form.isDirty}
       isSaving={form.isSaving}
-      statusLabel={form.statusLabel}
+      statusLabel={getSetupFormStatusLabel(locale, form.statusKey)}
       onUpdateDraft={form.updateDraft}
       onDiscardChanges={form.discardChanges}
       onSave={() => void form.save()}

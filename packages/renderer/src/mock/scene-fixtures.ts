@@ -1,3 +1,5 @@
+import type { Locale } from '@/app/i18n'
+import { getSceneFixtureCopy, localizeSceneMockDatabase } from './scene-fixtures.locale'
 import type {
   ProposalActionInput,
   ProposalCardModel,
@@ -22,6 +24,7 @@ interface SceneRecord {
 }
 
 export interface SceneMockDatabase {
+  locale?: Locale
   scenes: Record<string, SceneRecord>
 }
 
@@ -734,6 +737,10 @@ function clone<T>(value: T): T {
   return structuredClone(value)
 }
 
+function getDatabaseLocale(database: SceneMockDatabase): Locale {
+  return database.locale ?? 'en'
+}
+
 function updateProposalStatus(
   proposals: ProposalCardModel[],
   proposalId: string,
@@ -773,15 +780,16 @@ function ensureLocalStateItem(scene: SceneRecord, id: string, label: string, val
   ]
 }
 
-function syncPatchCandidateCount(scene: SceneRecord) {
+function syncPatchCandidateCount(scene: SceneRecord, locale: Locale) {
+  const copy = getSceneFixtureCopy(locale)
   scene.execution.acceptedSummary.patchCandidateCount = scene.inspector.versions.patchCandidates.filter(
     (candidate) => candidate.status === 'ready_for_commit',
   ).length
   ensureLocalStateItem(
     scene,
     'state-3',
-    'Accepted patch candidates',
-    `${scene.execution.acceptedSummary.patchCandidateCount ?? 0} semantic candidate${scene.execution.acceptedSummary.patchCandidateCount === 1 ? '' : 's'}`,
+    copy.localState.acceptedPatchCandidatesLabel,
+    copy.localState.semanticCandidates(scene.execution.acceptedSummary.patchCandidateCount ?? 0),
   )
 }
 
@@ -791,18 +799,20 @@ function syncAcceptedFacts(scene: SceneRecord) {
 
 function buildPrivateInfoGuard(
   knowledgeBoundaries: SceneSetupViewModel['knowledgeBoundaries'],
+  locale: Locale,
 ): SceneInspectorViewModel['context']['privateInfoGuard'] {
+  const copy = getSceneFixtureCopy(locale)
   const guardedItems = knowledgeBoundaries.filter((boundary) => boundary.status !== 'known')
 
   if (guardedItems.length === 0) {
     return {
-      summary: 'No private-info guardrails are active for this scene.',
+      summary: copy.privateInfoGuard.none,
       items: [] as SceneInspectorViewModel['context']['privateInfoGuard']['items'],
     }
   }
 
   return {
-    summary: `Protect ${guardedItems.length} guarded reveal${guardedItems.length === 1 ? '' : 's'} while this scene stays in review.`,
+    summary: copy.privateInfoGuard.protect(guardedItems.length),
     items: guardedItems.map((boundary) => {
       const status: SceneInspectorViewModel['context']['privateInfoGuard']['items'][number]['status'] =
         boundary.status === 'guarded' ? 'guarded' : 'watching'
@@ -817,7 +827,8 @@ function buildPrivateInfoGuard(
   }
 }
 
-function buildActorKnowledgeBoundaries(setup: SceneSetupViewModel) {
+function buildActorKnowledgeBoundaries(setup: SceneSetupViewModel, locale: Locale) {
+  const copy = getSceneFixtureCopy(locale)
   return setup.cast
     .filter((member) => member.selected)
     .map((member) => ({
@@ -828,8 +839,8 @@ function buildActorKnowledgeBoundaries(setup: SceneSetupViewModel) {
           member.id === setup.identity.povCharacterId
             ? boundary.summary
             : boundary.status === 'known'
-              ? `${member.name} can work from observable scene knowledge: ${boundary.summary}`
-              : `${member.name} must respect this boundary: ${boundary.summary}`,
+              ? copy.actorKnowledge.known(member.name, boundary.summary)
+              : copy.actorKnowledge.guarded(member.name, boundary.summary),
       })),
     }))
 }
@@ -882,12 +893,12 @@ function addDockEvent(
   ]
 }
 
-export function createSceneMockDatabase(): SceneMockDatabase {
-  return clone(baseDatabase)
+export function createSceneMockDatabase(locale: Locale = 'en'): SceneMockDatabase {
+  return localizeSceneMockDatabase(locale, clone(baseDatabase)) as SceneMockDatabase
 }
 
-export function getSceneFixture(sceneId: string) {
-  const database = createSceneMockDatabase()
+export function getSceneFixture(sceneId: string, locale: Locale = 'en') {
+  const database = createSceneMockDatabase(locale)
   const scene = database.scenes[sceneId]
   if (!scene) {
     throw new Error(`Unknown scene "${sceneId}"`)
@@ -901,6 +912,8 @@ export function saveSceneSetup(database: SceneMockDatabase, sceneId: string, set
   if (!scene) {
     throw new Error(`Unknown scene "${sceneId}"`)
   }
+
+  const copy = getSceneFixtureCopy(getDatabaseLocale(database))
 
   scene.setup = clone(setup)
   scene.workspace.title = setup.identity.title
@@ -917,26 +930,36 @@ export function saveSceneSetup(database: SceneMockDatabase, sceneId: string, set
     .filter((member) => member.selected)
     .map((member) => ({ id: member.id, name: member.name, role: member.role }))
   scene.execution.objective.constraintSummary = setup.constraints.map((constraint) => constraint.summary)
-  scene.inspector.context.privateInfoGuard = buildPrivateInfoGuard(setup.knowledgeBoundaries)
-  scene.inspector.context.actorKnowledgeBoundaries = buildActorKnowledgeBoundaries(setup)
+  scene.inspector.context.privateInfoGuard = buildPrivateInfoGuard(setup.knowledgeBoundaries, getDatabaseLocale(database))
+  scene.inspector.context.actorKnowledgeBoundaries = buildActorKnowledgeBoundaries(setup, getDatabaseLocale(database))
   scene.inspector.context.localState = [
-    { id: 'state-1', label: 'Active beat', value: scene.inspector.context.localState[0]?.value ?? 'Bargain over the ledger' },
+    {
+      id: 'state-1',
+      label: getSceneFixtureCopy(getDatabaseLocale(database)).localState.activeBeatLabel,
+      value: scene.inspector.context.localState[0]?.value ?? (getDatabaseLocale(database) === 'zh-CN' ? '围绕账本的讨价还价' : 'Bargain over the ledger'),
+    },
     {
       id: 'state-2',
-      label: 'Selected runtime preset',
-      value: setup.runtimePreset.presetOptions.find((preset) => preset.id === setup.runtimePreset.selectedPresetId)?.label ?? 'Unassigned',
+      label: copy.localState.selectedRuntimePresetLabel,
+      value:
+        setup.runtimePreset.presetOptions.find((preset) => preset.id === setup.runtimePreset.selectedPresetId)?.label ??
+        copy.localState.unassigned,
     },
-    { id: 'state-3', label: 'Accepted patch candidates', value: '1 semantic candidate' },
+    {
+      id: 'state-3',
+      label: copy.localState.acceptedPatchCandidatesLabel,
+      value: copy.localState.semanticCandidates(1),
+    },
   ]
   scene.inspector.runtime.profile = {
     label:
       setup.runtimePreset.presetOptions.find((preset) => preset.id === setup.runtimePreset.selectedPresetId)?.label ??
-      'Measured Pressure',
+      copy.localState.defaultRuntimePreset,
     summary:
       setup.runtimePreset.presetOptions.find((preset) => preset.id === setup.runtimePreset.selectedPresetId)?.summary ??
       scene.inspector.runtime.profile.summary,
   }
-  syncPatchCandidateCount(scene)
+  syncPatchCandidateCount(scene, getDatabaseLocale(database))
 }
 
 export function applyProseRevision(
@@ -949,17 +972,12 @@ export function applyProseRevision(
     throw new Error(`Unknown scene "${sceneId}"`)
   }
 
-  const modeLabels: Record<SceneProseViewModel['revisionModes'][number], string> = {
-    rewrite: 'rewrite',
-    compress: 'compress',
-    expand: 'expand',
-    tone_adjust: 'tone adjust',
-    continuity_fix: 'continuity fix',
-  }
+  const copy = getSceneFixtureCopy(getDatabaseLocale(database))
+  const modeLabels = copy.proseRevision.modeLabels
 
-  scene.prose.latestDiffSummary = `Latest revision: ${modeLabels[revisionMode]} pass prepared for review.`
+  scene.prose.latestDiffSummary = copy.proseRevision.latestRevision(modeLabels[revisionMode])
   scene.prose.revisionQueueCount = 1
-  scene.prose.statusLabel = '1 revision queued'
+  scene.prose.statusLabel = copy.proseRevision.revisionQueued
   scene.prose.warningsCount = revisionMode === 'continuity_fix' ? 0 : 1
 }
 
@@ -972,20 +990,19 @@ export function continueSceneRun(database: SceneMockDatabase, sceneId: string) {
   scene.workspace.runStatus = 'running'
   scene.workspace.status = 'running'
   scene.workspace.latestRunId = 'run-08'
-  scene.workspace.currentVersionLabel = 'Run 08'
+  scene.workspace.currentVersionLabel = getSceneFixtureCopy(getDatabaseLocale(database)).continueRun.versionLabel
   scene.execution.runId = 'run-08'
   scene.execution.canContinueRun = false
   scene.execution.runtimeSummary.runHealth = 'stable'
   scene.execution.runtimeSummary.latestFailureSummary = undefined
-  scene.execution.acceptedSummary.sceneSummary =
-    'Run resumed from the accepted state and is now advancing toward the departure beat.'
+  scene.execution.acceptedSummary.sceneSummary = getSceneFixtureCopy(getDatabaseLocale(database)).continueRun.summary
   scene.inspector.runtime.runHealth = 'stable'
   scene.inspector.runtime.latestFailure = undefined
   addDockEvent(
     scene,
-    'Run resumed from accepted state',
-    'Execution moved forward into run 08 after the accepted state cleared the next beat.',
-    'Run',
+    getSceneFixtureCopy(getDatabaseLocale(database)).continueRun.dockTitle,
+    getSceneFixtureCopy(getDatabaseLocale(database)).continueRun.dockDetail,
+    getDatabaseLocale(database) === 'zh-CN' ? '运行' : 'Run',
     'accent',
   )
 }
@@ -1003,34 +1020,35 @@ export function switchSceneThread(database: SceneMockDatabase, sceneId: string, 
   scene.workspace.activeThreadId = threadId
 
   if (threadId === 'thread-branch-a') {
-    scene.workspace.objective =
-      'Alternate thread keeps Mei on the stronger bargaining line while Ren yields no public ground.'
-    scene.execution.objective.goal = 'Test the alternate bargain thread where Mei controls the opening leverage.'
-    scene.prose.statusLabel = 'Alt Beat thread ready for revision pass'
+    const copy = getSceneFixtureCopy(getDatabaseLocale(database)).switchThread
+    scene.workspace.objective = copy.altObjective
+    scene.execution.objective.goal = copy.altGoal
+    scene.prose.statusLabel = copy.altStatus
     scene.inspector.context.localState = scene.inspector.context.localState.map((item) =>
-      item.id === 'state-1' ? { ...item, value: 'Alt Beat branch active' } : item,
+      item.id === 'state-1' ? { ...item, value: copy.altLocalState } : item,
     )
     addDockEvent(
       scene,
-      'Thread switched to Alt Beat',
-      'Dock summaries now reflect the alternate bargain thread.',
-      'Thread',
+      copy.altDockTitle,
+      copy.altDockDetail,
+      getDatabaseLocale(database) === 'zh-CN' ? '线程' : 'Thread',
       'accent',
     )
     return
   }
 
-  scene.workspace.objective = 'Force Ren to bargain for the ledger before the train departs.'
-  scene.execution.objective.goal = 'Corner Mei into revealing whether the ledger is bait or leverage.'
-  scene.prose.statusLabel = 'Ready for revision pass'
+  const copy = getSceneFixtureCopy(getDatabaseLocale(database)).switchThread
+  scene.workspace.objective = copy.mainObjective
+  scene.execution.objective.goal = copy.mainGoal
+  scene.prose.statusLabel = copy.mainStatus
   scene.inspector.context.localState = scene.inspector.context.localState.map((item) =>
-    item.id === 'state-1' ? { ...item, value: 'Bargain over the ledger' } : item,
+    item.id === 'state-1' ? { ...item, value: copy.mainLocalState } : item,
   )
   addDockEvent(
     scene,
-    'Thread switched to Mainline',
-    'Dock summaries returned to the default execution thread.',
-    'Thread',
+    copy.mainDockTitle,
+    copy.mainDockDetail,
+    getDatabaseLocale(database) === 'zh-CN' ? '线程' : 'Thread',
     'neutral',
   )
 }
@@ -1062,8 +1080,8 @@ export function applyProposalAction(
   scene.workspace.pendingProposalCount = pendingCount
 
   if (nextStatus === 'accepted' && selectedProposal) {
-    scene.execution.acceptedSummary.sceneSummary =
-      `Accepted ${selectedProposal.title.toLowerCase()} into the scene state while leaving commit for patch preview.`
+    const copy = getSceneFixtureCopy(getDatabaseLocale(database)).proposalAction
+    scene.execution.acceptedSummary.sceneSummary = copy.acceptedSceneSummary(selectedProposal.title)
     scene.execution.acceptedSummary.acceptedFacts = [
       {
         id: `fact-${scene.execution.acceptedSummary.acceptedFacts.length + 1}`,
@@ -1079,48 +1097,48 @@ export function applyProposalAction(
     scene.inspector.versions.acceptanceTimeline = [
       {
         id: `timeline-${selectedProposal.id}`,
-        title: 'Proposal accepted into patch preview',
-        detail: `${selectedProposal.title} is now available in patch preview without committing yet.`,
-        meta: 'Accepted',
+        title: copy.acceptedTimelineTitle,
+        detail: copy.acceptedTimelineDetail(selectedProposal.title),
+        meta: getDatabaseLocale(database) === 'zh-CN' ? '已采纳' : 'Accepted',
         tone: 'success',
       },
       ...scene.inspector.versions.acceptanceTimeline,
     ]
     addDockEvent(
       scene,
-      'Accepted proposal queued for patch preview',
-      `${selectedProposal.title} updated accepted state and is waiting for patch commit.`,
-      'Patch',
+      copy.acceptedDockTitle,
+      copy.acceptedDockDetail(selectedProposal.title),
+      getDatabaseLocale(database) === 'zh-CN' ? '补丁' : 'Patch',
       'success',
     )
   }
 
   if (nextStatus === 'rewrite-requested') {
-    scene.execution.acceptedSummary.sceneSummary =
-      'A proposal was sent back for rewrite; accepted state remains unchanged until a new candidate clears review.'
+    const copy = getSceneFixtureCopy(getDatabaseLocale(database)).proposalAction
+    scene.execution.acceptedSummary.sceneSummary = copy.rewriteSceneSummary
     addDockEvent(
       scene,
-      'Proposal sent back for rewrite',
-      selectedProposal ? `${selectedProposal.title} needs a tighter revision before it can re-enter review.` : 'A proposal was sent back for rewrite.',
-      'Review',
+      copy.rewriteDockTitle,
+      copy.rewriteDockDetail(selectedProposal?.title),
+      getDatabaseLocale(database) === 'zh-CN' ? '评审' : 'Review',
       'warn',
     )
   }
 
   if (nextStatus === 'rejected') {
-    scene.execution.acceptedSummary.sceneSummary =
-      'One proposal was rejected from execution review; accepted state remains focused on canon-safe decisions.'
+    const copy = getSceneFixtureCopy(getDatabaseLocale(database)).proposalAction
+    scene.execution.acceptedSummary.sceneSummary = copy.rejectedSceneSummary
     addDockEvent(
       scene,
-      'Proposal rejected from review',
-      selectedProposal ? `${selectedProposal.title} was rejected and will not enter the accepted patch queue.` : 'A proposal was rejected.',
-      'Review',
+      copy.rejectedDockTitle,
+      copy.rejectedDockDetail(selectedProposal?.title),
+      getDatabaseLocale(database) === 'zh-CN' ? '评审' : 'Review',
       'danger',
     )
   }
 
   syncAcceptedFacts(scene)
-  syncPatchCandidateCount(scene)
+  syncPatchCandidateCount(scene, getDatabaseLocale(database))
 }
 
 export function getSceneDockSummary(database: SceneMockDatabase, sceneId: string) {
@@ -1207,17 +1225,18 @@ export function commitAcceptedPatch(database: SceneMockDatabase, sceneId: string
   scene.inspector.versions.patchCandidates = scene.inspector.versions.patchCandidates.filter((candidate) => candidate.id !== patchId)
   scene.workspace.status = 'committed'
   scene.workspace.runStatus = 'completed'
-  scene.workspace.currentVersionLabel = `Committed / ${patchCandidate.label}`
+  const copy = getSceneFixtureCopy(getDatabaseLocale(database)).commitPatch
+  scene.workspace.currentVersionLabel = copy.versionLabel(patchCandidate.label)
   scene.execution.acceptedSummary.readiness = 'ready'
-  scene.execution.acceptedSummary.sceneSummary = `${patchCandidate.label} committed from patch preview into the scene workspace.`
+  scene.execution.acceptedSummary.sceneSummary = copy.sceneSummary(patchCandidate.label)
   scene.execution.canContinueRun = false
-  scene.prose.statusLabel = 'Patch committed to prose handoff'
-  scene.prose.latestDiffSummary = `Committed patch preview: ${patchCandidate.label}.`
+  scene.prose.statusLabel = copy.proseStatus
+  scene.prose.latestDiffSummary = copy.proseDiff(patchCandidate.label)
   scene.inspector.versions.checkpoints = [
     {
       id: `checkpoint-${patchId}`,
-      label: `Committed / ${patchCandidate.label}`,
-      summary: `${patchCandidate.label} was committed from the accepted patch queue.`,
+      label: copy.checkpointLabel(patchCandidate.label),
+      summary: copy.checkpointSummary(patchCandidate.label),
       status: 'accepted',
     },
     ...scene.inspector.versions.checkpoints,
@@ -1225,20 +1244,20 @@ export function commitAcceptedPatch(database: SceneMockDatabase, sceneId: string
   scene.inspector.versions.acceptanceTimeline = [
     {
       id: `timeline-commit-${patchId}`,
-      title: 'Patch committed',
-      detail: `${patchCandidate.label} moved from accepted state into the committed workspace version.`,
-      meta: 'Commit',
+      title: copy.timelineTitle,
+      detail: copy.timelineDetail(patchCandidate.label),
+      meta: getDatabaseLocale(database) === 'zh-CN' ? '提交' : 'Commit',
       tone: 'success',
     },
     ...scene.inspector.versions.acceptanceTimeline,
   ]
   addDockEvent(
     scene,
-    'Accepted patch committed',
-    `${patchCandidate.label} was committed from patch preview into the scene workspace.`,
-    'Commit',
+    copy.dockTitle,
+    copy.dockDetail(patchCandidate.label),
+    getDatabaseLocale(database) === 'zh-CN' ? '提交' : 'Commit',
     'success',
   )
   syncAcceptedFacts(scene)
-  syncPatchCandidateCount(scene)
+  syncPatchCandidateCount(scene, getDatabaseLocale(database))
 }

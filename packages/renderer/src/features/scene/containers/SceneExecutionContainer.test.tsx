@@ -3,6 +3,8 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { I18nProvider } from '@/app/i18n'
+
 describe('SceneExecutionContainer', () => {
   beforeEach(async () => {
     vi.resetModules()
@@ -74,7 +76,9 @@ describe('SceneExecutionContainer', () => {
     expect(() =>
       render(
         <QueryClientProvider client={queryClient}>
-          <SceneExecutionContainer sceneId="scene-midnight-platform" />
+          <I18nProvider>
+            <SceneExecutionContainer sceneId="scene-midnight-platform" />
+          </I18nProvider>
         </QueryClientProvider>,
       ),
     ).not.toThrow()
@@ -191,7 +195,9 @@ describe('SceneExecutionContainer', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <SceneExecutionContainer sceneId="scene-midnight-platform" />
+        <I18nProvider>
+          <SceneExecutionContainer sceneId="scene-midnight-platform" />
+        </I18nProvider>
       </QueryClientProvider>,
     )
 

@@ -1,5 +1,13 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
 
+import {
+  getLocaleName,
+  getSceneLensLabel,
+  getSceneRunStatusLabel,
+  getSceneStatusLabel,
+  getSceneTabLabel,
+  useI18n,
+} from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { PaneHeader } from '@/components/ui/PaneHeader'
 import { sceneClient } from '@/features/scene/api/scene-client'
@@ -37,53 +45,27 @@ function statusTone(status: SceneWorkspaceViewModel['status']): SceneNavigatorCa
   return 'neutral'
 }
 
-function buildNavigatorCard(scene: SceneWorkspaceViewModel): SceneNavigatorCard {
-  return {
-    sceneId: scene.id,
-    title: scene.title,
-    chapterTitle: scene.chapterTitle,
-    statusLabel: scene.currentVersionLabel ?? scene.status,
-    statusTone: statusTone(scene.status),
-    detail: scene.objective,
-  }
-}
+function LanguageToggle() {
+  const { locale, setLocale, dictionary } = useI18n()
 
-const fallbackNavigatorItems: SceneNavigatorCard[] = [
-  {
-    sceneId: 'scene-midnight-platform',
-    title: 'Midnight Platform',
-    chapterTitle: 'Active chapter',
-    statusLabel: 'Loading',
-    statusTone: 'neutral',
-    detail: 'Loading scene workspace.',
-  },
-  {
-    sceneId: 'scene-warehouse-bridge',
-    title: 'Warehouse Bridge',
-    chapterTitle: 'Active chapter',
-    statusLabel: 'Loading',
-    statusTone: 'neutral',
-    detail: 'Loading scene workspace.',
-  },
-]
-
-const sceneLensItems: Array<{
-  lens: SceneLens
-  label: string
-  tab: SceneTab
-  detail: string
-}> = [
-  { lens: 'structure', label: 'Structure', tab: 'setup', detail: 'Objective, cast, and guardrails.' },
-  { lens: 'orchestrate', label: 'Orchestrate', tab: 'execution', detail: 'Beats, proposals, and accepted state.' },
-  { lens: 'draft', label: 'Draft', tab: 'prose', detail: 'Scene prose and revision passes.' },
-]
-
-function formatLensLabel(lens: SceneLens) {
-  return lens.charAt(0).toUpperCase() + lens.slice(1)
-}
-
-function formatTabLabel(tab: SceneTab) {
-  return tab.charAt(0).toUpperCase() + tab.slice(1)
+  return (
+    <div className="flex items-center gap-1 rounded-md border border-line-soft bg-surface-2 p-1">
+      <span className="px-2 text-[11px] uppercase tracking-[0.05em] text-text-soft">{dictionary.common.language}</span>
+      {(['en', 'zh-CN'] as const).map((value) => (
+        <button
+          key={value}
+          type="button"
+          aria-pressed={locale === value}
+          onClick={() => setLocale(value)}
+          className={`rounded-md px-2 py-1 text-xs font-medium ${
+            locale === value ? 'bg-surface-1 text-text-main shadow-ringwarm' : 'text-text-muted'
+          }`}
+        >
+          {getLocaleName(locale, value)}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 function TopCommandBar({
@@ -95,35 +77,40 @@ function TopCommandBar({
   lens: SceneLens
   tab: SceneTab
 }) {
+  const { locale, dictionary } = useI18n()
   const runtimeInfo = useQuery({
-    queryKey: sceneQueryKeys.runtimeInfo(),
+    queryKey: sceneQueryKeys.runtimeInfo(locale),
     queryFn: () => sceneClient.getRuntimeInfo(),
   })
   const runtimeBadge = runtimeInfo.data ?? {
     source: 'mock-fallback' as const,
-    label: 'Preview Data',
+    label: dictionary.common.previewData,
   }
 
   return (
     <div className="flex h-full flex-wrap items-center justify-between gap-3">
       <div className="min-w-0 space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">Narrative workbench</p>
+        <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.narrativeWorkbench}</p>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg leading-tight text-text-main">Scene cockpit</h1>
-          <Badge tone="neutral">Scene</Badge>
-          {activeScene ? <Badge tone={statusTone(activeScene.status)}>{activeScene.status}</Badge> : null}
+          <h1 className="text-lg leading-tight text-text-main">{dictionary.app.sceneCockpit}</h1>
+          <Badge tone="neutral">{dictionary.common.scene}</Badge>
+          {activeScene ? <Badge tone={statusTone(activeScene.status)}>{getSceneStatusLabel(locale, activeScene.status)}</Badge> : null}
           {activeScene ? (
-            <Badge tone={activeScene.runStatus === 'paused' ? 'warn' : 'neutral'}>{activeScene.runStatus}</Badge>
+            <Badge tone={activeScene.runStatus === 'paused' ? 'warn' : 'neutral'}>
+              {getSceneRunStatusLabel(locale, activeScene.runStatus)}
+            </Badge>
           ) : null}
           {activeScene?.currentVersionLabel ? <Badge tone="neutral">{activeScene.currentVersionLabel}</Badge> : null}
         </div>
         <p className="text-sm text-text-muted">
-          {activeScene?.chapterTitle ?? 'Chapter'} / {activeScene?.title ?? 'Active scene'} / {formatLensLabel(lens)} / {formatTabLabel(tab)}
+          {activeScene?.chapterTitle ?? dictionary.common.chapter} / {activeScene?.title ?? dictionary.common.activeScene} /{' '}
+          {getSceneLensLabel(locale, lens)} / {getSceneTabLabel(locale, tab)}
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="neutral">{formatLensLabel(lens)}</Badge>
-        <Badge tone="neutral">{formatTabLabel(tab)}</Badge>
+        <LanguageToggle />
+        <Badge tone="neutral">{getSceneLensLabel(locale, lens)}</Badge>
+        <Badge tone="neutral">{getSceneTabLabel(locale, tab)}</Badge>
         <Badge tone={runtimeBadge.source === 'preload-bridge' ? 'success' : 'accent'}>{runtimeBadge.label}</Badge>
       </div>
     </div>
@@ -137,11 +124,38 @@ function ModeRail({
   activeLens: SceneLens
   onSelectLens: (lens: SceneLens, tab: SceneTab) => void
 }) {
+  const { locale, dictionary } = useI18n()
+  const sceneLensItems: Array<{
+    lens: SceneLens
+    label: string
+    tab: SceneTab
+    detail: string
+  }> = [
+    {
+      lens: 'structure',
+      label: getSceneLensLabel(locale, 'structure'),
+      tab: 'setup',
+      detail: dictionary.app.modeRailDetails.structure,
+    },
+    {
+      lens: 'orchestrate',
+      label: getSceneLensLabel(locale, 'orchestrate'),
+      tab: 'execution',
+      detail: dictionary.app.modeRailDetails.orchestrate,
+    },
+    {
+      lens: 'draft',
+      label: getSceneLensLabel(locale, 'draft'),
+      tab: 'prose',
+      detail: dictionary.app.modeRailDetails.draft,
+    },
+  ]
+
   return (
     <div className="flex h-full flex-col gap-2 px-2 py-3">
       <div className="rounded-md border border-line-soft bg-surface-1 px-2 py-3 text-center">
-        <p className="text-[10px] uppercase tracking-[0.08em] text-text-soft">Scope</p>
-        <p className="mt-1 text-sm font-medium text-text-main">Scene</p>
+        <p className="text-[10px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.scope}</p>
+        <p className="mt-1 text-sm font-medium text-text-main">{dictionary.common.scene}</p>
       </div>
       {sceneLensItems.map((item) => (
         <button
@@ -171,9 +185,11 @@ function NavigatorPane({
   activeSceneId: string
   onSelectScene: (sceneId: string) => void
 }) {
+  const { dictionary } = useI18n()
+
   return (
     <>
-      <PaneHeader title="Scenes" description="Keep scene selection close and let the run stay central." />
+      <PaneHeader title={dictionary.app.scenes} description={dictionary.app.sceneNavigatorDescription} />
       <div className="grid gap-2 p-3">
         {items.map((item) => {
           const active = item.sceneId === activeSceneId
@@ -202,27 +218,55 @@ function NavigatorPane({
         })}
       </div>
       <div className="border-t border-line-soft px-4 py-3">
-        <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">Queue</p>
-        <p className="mt-2 text-sm leading-6 text-text-muted">Accepted state, versions, and dock telemetry stay live while the current scene keeps moving.</p>
+        <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.queue}</p>
+        <p className="mt-2 text-sm leading-6 text-text-muted">{dictionary.app.queueDescription}</p>
       </div>
     </>
   )
 }
 
 export default function App() {
+  const { locale, dictionary } = useI18n()
   const { route, setRoute } = useSceneRouteState()
   const sceneId = route.sceneId
   const activeSceneQuery = useSceneWorkspaceQuery(sceneId)
   const navigatorQueries = useQueries({
     queries: sceneNavigatorIds.map((navigatorSceneId) => ({
-      queryKey: sceneQueryKeys.workspace(navigatorSceneId),
+      queryKey: sceneQueryKeys.workspace(navigatorSceneId, locale),
       queryFn: () => sceneClient.getSceneWorkspace(navigatorSceneId),
     })),
   })
+  const fallbackNavigatorItems: SceneNavigatorCard[] = [
+    {
+      sceneId: 'scene-midnight-platform',
+      title: locale === 'zh-CN' ? '午夜站台' : 'Midnight Platform',
+      chapterTitle: dictionary.app.activeChapter,
+      statusLabel: dictionary.common.loading,
+      statusTone: 'neutral',
+      detail: dictionary.app.loadingSceneWorkspace,
+    },
+    {
+      sceneId: 'scene-warehouse-bridge',
+      title: locale === 'zh-CN' ? '仓桥交接' : 'Warehouse Bridge',
+      chapterTitle: dictionary.app.activeChapter,
+      statusLabel: dictionary.common.loading,
+      statusTone: 'neutral',
+      detail: dictionary.app.loadingSceneWorkspace,
+    },
+  ]
   const navigatorItems = navigatorQueries.map((query, index) => {
     const fallback = fallbackNavigatorItems[index]
 
-    return query.data ? buildNavigatorCard(query.data) : fallback
+    return query.data
+      ? {
+          sceneId: query.data.id,
+          title: query.data.title,
+          chapterTitle: query.data.chapterTitle,
+          statusLabel: query.data.currentVersionLabel ?? getSceneStatusLabel(locale, query.data.status),
+          statusTone: statusTone(query.data.status),
+          detail: query.data.objective,
+        }
+      : fallback
   })
   const activeScene =
     activeSceneQuery.scene ??

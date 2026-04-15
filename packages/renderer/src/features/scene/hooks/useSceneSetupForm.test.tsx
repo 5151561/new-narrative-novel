@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { type PropsWithChildren } from 'react'
 
+import { I18nProvider } from '@/app/i18n'
 import { createSceneClient } from '@/features/scene/api/scene-client'
 
 import { useSceneSetupForm } from './useSceneSetupForm'
@@ -14,11 +15,19 @@ function wrapperFactory() {
   })
 
   return function Wrapper({ children }: PropsWithChildren) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    return (
+      <QueryClientProvider client={queryClient}>
+        <I18nProvider>{children}</I18nProvider>
+      </QueryClientProvider>
+    )
   }
 }
 
 describe('useSceneSetupForm', () => {
+  afterEach(() => {
+    window.localStorage.clear()
+  })
+
   it('tracks local draft dirty state and persists save/saveAndRun through the mock client', async () => {
     const client = createSceneClient()
     const wrapper = wrapperFactory()

@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type PropsWithChildren } from 'react'
 
+import { I18nProvider } from '@/app/i18n'
 import { createSceneClient } from '@/features/scene/api/scene-client'
 
 import { SceneProseContainer } from './SceneProseContainer'
@@ -15,7 +16,11 @@ function wrapperFactory() {
   })
 
   return function Wrapper({ children }: PropsWithChildren) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    return (
+      <QueryClientProvider client={queryClient}>
+        <I18nProvider>{children}</I18nProvider>
+      </QueryClientProvider>
+    )
   }
 }
 

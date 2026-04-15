@@ -1,3 +1,4 @@
+import { useI18n } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { SectionCard } from '@/components/ui/SectionCard'
 import { StickyFooter } from '@/components/ui/StickyFooter'
@@ -84,11 +85,13 @@ export function SceneIdentitySection({
   draft,
   onUpdateDraft,
 }: Pick<SceneSetupTabProps, 'draft' | 'onUpdateDraft'>) {
+  const { locale } = useI18n()
+
   return (
-    <SectionCard eyebrow="Scene Setup" title="Identity">
+    <SectionCard eyebrow={locale === 'zh-CN' ? '场景设定' : 'Scene Setup'} title={locale === 'zh-CN' ? '身份' : 'Identity'}>
       <div className="grid gap-4 md:grid-cols-2">
         <TextField
-          label="Scene Title"
+          label={locale === 'zh-CN' ? '场景标题' : 'Scene Title'}
           value={draft.identity.title}
           onChange={(value) =>
             onUpdateDraft((current) => ({
@@ -98,7 +101,7 @@ export function SceneIdentitySection({
           }
         />
         <TextField
-          label="Chapter Label"
+          label={locale === 'zh-CN' ? '章节标签' : 'Chapter Label'}
           value={draft.identity.chapterLabel}
           onChange={(value) =>
             onUpdateDraft((current) => ({
@@ -108,7 +111,7 @@ export function SceneIdentitySection({
           }
         />
         <TextField
-          label="Location"
+          label={locale === 'zh-CN' ? '地点' : 'Location'}
           value={draft.identity.locationLabel}
           onChange={(value) =>
             onUpdateDraft((current) => ({
@@ -118,7 +121,7 @@ export function SceneIdentitySection({
           }
         />
         <TextField
-          label="Timebox"
+          label={locale === 'zh-CN' ? '时间窗' : 'Timebox'}
           value={draft.identity.timeboxLabel}
           onChange={(value) =>
             onUpdateDraft((current) => ({
@@ -128,7 +131,7 @@ export function SceneIdentitySection({
           }
         />
         <SelectField
-          label="POV"
+          label={locale === 'zh-CN' ? '视角角色' : 'POV'}
           value={draft.identity.povCharacterId}
           options={draft.cast.map((member) => ({ value: member.id, label: member.name }))}
           onChange={(value) =>
@@ -139,12 +142,16 @@ export function SceneIdentitySection({
           }
         />
         <div className="flex items-end gap-2">
-          <Badge tone="accent">{draft.cast.filter((member) => member.selected).length} active cast</Badge>
-          <Badge tone="neutral">{draft.constraints.length} guardrails</Badge>
+          <Badge tone="accent">
+            {locale === 'zh-CN'
+              ? `${draft.cast.filter((member) => member.selected).length} 个激活角色`
+              : `${draft.cast.filter((member) => member.selected).length} active cast`}
+          </Badge>
+          <Badge tone="neutral">{locale === 'zh-CN' ? `${draft.constraints.length} 条约束` : `${draft.constraints.length} guardrails`}</Badge>
         </div>
         <div className="md:col-span-2">
           <TextField
-            label="Scene Summary"
+            label={locale === 'zh-CN' ? '场景摘要' : 'Scene Summary'}
             value={draft.identity.summary}
             textarea
             onChange={(value) =>
@@ -164,11 +171,13 @@ export function SceneObjectiveSection({
   draft,
   onUpdateDraft,
 }: Pick<SceneSetupTabProps, 'draft' | 'onUpdateDraft'>) {
+  const { locale } = useI18n()
+
   return (
-    <SectionCard eyebrow="Intent" title="Objective">
+    <SectionCard eyebrow={locale === 'zh-CN' ? '意图' : 'Intent'} title={locale === 'zh-CN' ? '目标' : 'Objective'}>
       <div className="grid gap-4 md:grid-cols-2">
         <TextField
-          label="External Goal"
+          label={locale === 'zh-CN' ? '外部目标' : 'External Goal'}
           value={draft.objective.externalGoal}
           textarea
           onChange={(value) =>
@@ -179,7 +188,7 @@ export function SceneObjectiveSection({
           }
         />
         <TextField
-          label="Emotional Goal"
+          label={locale === 'zh-CN' ? '情感目标' : 'Emotional Goal'}
           value={draft.objective.emotionalGoal}
           textarea
           onChange={(value) =>
@@ -190,7 +199,7 @@ export function SceneObjectiveSection({
           }
         />
         <TextField
-          label="Success Signal"
+          label={locale === 'zh-CN' ? '成功信号' : 'Success Signal'}
           value={draft.objective.successSignal}
           textarea
           onChange={(value) =>
@@ -201,7 +210,7 @@ export function SceneObjectiveSection({
           }
         />
         <TextField
-          label="Failure Cost"
+          label={locale === 'zh-CN' ? '失败代价' : 'Failure Cost'}
           value={draft.objective.failureCost}
           textarea
           onChange={(value) =>
@@ -220,8 +229,10 @@ export function SceneCastSection({
   draft,
   onUpdateDraft,
 }: Pick<SceneSetupTabProps, 'draft' | 'onUpdateDraft'>) {
+  const { locale } = useI18n()
+
   return (
-    <SectionCard eyebrow="Participants" title="Cast">
+    <SectionCard eyebrow={locale === 'zh-CN' ? '参与者' : 'Participants'} title={locale === 'zh-CN' ? '角色' : 'Cast'}>
       <div className="grid gap-3">
         {draft.cast.map((member) => (
           <label
@@ -248,7 +259,7 @@ export function SceneCastSection({
               </span>
             </span>
             <TextField
-              label="Role"
+              label={locale === 'zh-CN' ? '角色定位' : 'Role'}
               value={member.role}
               onChange={(value) =>
                 onUpdateDraft((current) => ({
@@ -258,7 +269,7 @@ export function SceneCastSection({
               }
             />
             <TextField
-              label="Agenda"
+              label={locale === 'zh-CN' ? '动机' : 'Agenda'}
               value={member.agenda}
               textarea
               onChange={(value) =>
@@ -279,19 +290,21 @@ export function SceneConstraintSection({
   draft,
   onUpdateDraft,
 }: Pick<SceneSetupTabProps, 'draft' | 'onUpdateDraft'>) {
+  const { locale } = useI18n()
+
   return (
-    <SectionCard eyebrow="Guardrails" title="Constraints">
+    <SectionCard eyebrow={locale === 'zh-CN' ? '约束' : 'Guardrails'} title={locale === 'zh-CN' ? '限制条件' : 'Constraints'}>
       <div className="grid gap-3">
         {draft.constraints.map((constraint) => (
           <div key={constraint.id} className="grid gap-3 rounded-md border border-line-soft bg-surface-2 px-3 py-3 md:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)]">
             <SelectField
-              label="Constraint Type"
+              label={locale === 'zh-CN' ? '约束类型' : 'Constraint Type'}
               value={constraint.kind}
               options={[
-                { value: 'canon', label: 'Canon' },
-                { value: 'staging', label: 'Staging' },
-                { value: 'tone', label: 'Tone' },
-                { value: 'timing', label: 'Timing' },
+                { value: 'canon', label: locale === 'zh-CN' ? '设定' : 'Canon' },
+                { value: 'staging', label: locale === 'zh-CN' ? '调度' : 'Staging' },
+                { value: 'tone', label: locale === 'zh-CN' ? '语气' : 'Tone' },
+                { value: 'timing', label: locale === 'zh-CN' ? '时序' : 'Timing' },
               ]}
               onChange={(value) =>
                 onUpdateDraft((current) => ({
@@ -303,7 +316,7 @@ export function SceneConstraintSection({
               }
             />
             <TextField
-              label="Label"
+              label={locale === 'zh-CN' ? '标签' : 'Label'}
               value={constraint.label}
               onChange={(value) =>
                 onUpdateDraft((current) => ({
@@ -315,7 +328,7 @@ export function SceneConstraintSection({
               }
             />
             <TextField
-              label="Summary"
+              label={locale === 'zh-CN' ? '摘要' : 'Summary'}
               value={constraint.summary}
               textarea
               onChange={(value) =>
@@ -338,18 +351,20 @@ export function SceneKnowledgeBoundarySection({
   draft,
   onUpdateDraft,
 }: Pick<SceneSetupTabProps, 'draft' | 'onUpdateDraft'>) {
+  const { locale } = useI18n()
+
   return (
-    <SectionCard eyebrow="Reader Contract" title="Knowledge Boundaries">
+    <SectionCard eyebrow={locale === 'zh-CN' ? '读者契约' : 'Reader Contract'} title={locale === 'zh-CN' ? '认知边界' : 'Knowledge Boundaries'}>
       <div className="grid gap-3">
         {draft.knowledgeBoundaries.map((boundary) => (
           <div key={boundary.id} className="grid gap-3 rounded-md border border-line-soft bg-surface-2 px-3 py-3 md:grid-cols-[170px_minmax(0,1fr)_minmax(0,1fr)]">
             <SelectField
-              label="Boundary State"
+              label={locale === 'zh-CN' ? '边界状态' : 'Boundary State'}
               value={boundary.status}
               options={[
-                { value: 'known', label: 'Known' },
-                { value: 'guarded', label: 'Guarded' },
-                { value: 'open-question', label: 'Open Question' },
+                { value: 'known', label: locale === 'zh-CN' ? '已知' : 'Known' },
+                { value: 'guarded', label: locale === 'zh-CN' ? '受保护' : 'Guarded' },
+                { value: 'open-question', label: locale === 'zh-CN' ? '开放问题' : 'Open Question' },
               ]}
               onChange={(value) =>
                 onUpdateDraft((current) => ({
@@ -361,7 +376,7 @@ export function SceneKnowledgeBoundarySection({
               }
             />
             <TextField
-              label="Boundary"
+              label={locale === 'zh-CN' ? '边界' : 'Boundary'}
               value={boundary.label}
               onChange={(value) =>
                 onUpdateDraft((current) => ({
@@ -373,7 +388,7 @@ export function SceneKnowledgeBoundarySection({
               }
             />
             <TextField
-              label="Summary"
+              label={locale === 'zh-CN' ? '摘要' : 'Summary'}
               value={boundary.summary}
               textarea
               onChange={(value) =>
@@ -396,8 +411,10 @@ export function SceneRuntimePresetSection({
   draft,
   onUpdateDraft,
 }: Pick<SceneSetupTabProps, 'draft' | 'onUpdateDraft'>) {
+  const { locale } = useI18n()
+
   return (
-    <SectionCard eyebrow="Execution Bias" title="Runtime Preset">
+    <SectionCard eyebrow={locale === 'zh-CN' ? '执行偏置' : 'Execution Bias'} title={locale === 'zh-CN' ? '运行预设' : 'Runtime Preset'}>
       <div className="grid gap-3 lg:grid-cols-3">
         {draft.runtimePreset.presetOptions.map((preset) => {
           const isSelected = preset.id === draft.runtimePreset.selectedPresetId
@@ -447,11 +464,21 @@ export function SceneSetupActionBar({
   onSave,
   onSaveAndRun,
 }: Pick<SceneSetupTabProps, 'isDirty' | 'isSaving' | 'statusLabel' | 'onDiscardChanges' | 'onSave' | 'onSaveAndRun'>) {
+  const { locale } = useI18n()
+
   return (
     <StickyFooter>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Toolbar className="border-0 bg-transparent px-0 py-0 shadow-none">
-          <Badge tone={isDirty ? 'warn' : 'success'}>{isDirty ? 'Unsaved changes' : 'Draft synced'}</Badge>
+          <Badge tone={isDirty ? 'warn' : 'success'}>
+            {isDirty
+              ? locale === 'zh-CN'
+                ? '有未保存修改'
+                : 'Unsaved changes'
+              : locale === 'zh-CN'
+                ? '草稿已同步'
+                : 'Draft synced'}
+          </Badge>
           <span className="text-sm text-text-muted">{statusLabel}</span>
         </Toolbar>
         <div className="flex flex-wrap items-center gap-2">
@@ -461,7 +488,7 @@ export function SceneSetupActionBar({
             disabled={!isDirty || isSaving}
             className="rounded-md border border-line-soft bg-surface-2 px-3 py-2 text-sm disabled:opacity-60"
           >
-            Discard Changes
+            {locale === 'zh-CN' ? '丢弃修改' : 'Discard Changes'}
           </button>
           <button
             type="button"
@@ -469,7 +496,7 @@ export function SceneSetupActionBar({
             disabled={isSaving}
             className="rounded-md border border-line-soft bg-surface-2 px-3 py-2 text-sm disabled:opacity-60"
           >
-            Save Draft
+            {locale === 'zh-CN' ? '保存草稿' : 'Save Draft'}
           </button>
           <button
             type="button"
@@ -477,7 +504,7 @@ export function SceneSetupActionBar({
             disabled={isSaving}
             className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
           >
-            Save And Open Execution
+            {locale === 'zh-CN' ? '保存并打开执行视图' : 'Save And Open Execution'}
           </button>
         </div>
       </div>
@@ -495,6 +522,7 @@ export function SceneSetupTab({
   onSave,
   onSaveAndRun,
 }: SceneSetupTabProps) {
+  const { locale } = useI18n()
   const selectedCastCount = draft.cast.filter((member) => member.selected).length
 
   return (
@@ -502,13 +530,17 @@ export function SceneSetupTab({
       <div className="flex-1 overflow-y-auto px-5 py-5">
         <Toolbar className="mb-4 justify-between border border-line-soft bg-surface-1 px-4 py-3 shadow-ringwarm">
           <div className="space-y-1">
-            <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">Scene Setup Brief</p>
-            <p className="text-sm text-text-muted">Lock the objective, cast, constraints, and runtime posture before you re-enter execution review.</p>
+            <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">{locale === 'zh-CN' ? '场景设定简报' : 'Scene Setup Brief'}</p>
+            <p className="text-sm text-text-muted">
+              {locale === 'zh-CN'
+                ? '在重新进入执行评审之前，先把目标、角色、约束和运行姿态锁定。'
+                : 'Lock the objective, cast, constraints, and runtime posture before you re-enter execution review.'}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="accent">{selectedCastCount} active cast</Badge>
-            <Badge tone="neutral">{draft.constraints.length} constraints</Badge>
-            <Badge tone="neutral">{draft.knowledgeBoundaries.length} boundaries</Badge>
+            <Badge tone="accent">{locale === 'zh-CN' ? `${selectedCastCount} 个激活角色` : `${selectedCastCount} active cast`}</Badge>
+            <Badge tone="neutral">{locale === 'zh-CN' ? `${draft.constraints.length} 条约束` : `${draft.constraints.length} constraints`}</Badge>
+            <Badge tone="neutral">{locale === 'zh-CN' ? `${draft.knowledgeBoundaries.length} 条边界` : `${draft.knowledgeBoundaries.length} boundaries`}</Badge>
           </div>
         </Toolbar>
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">

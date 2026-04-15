@@ -16,7 +16,7 @@ const meta = {
     (Story: () => ReactElement) => (
       <AppProviders>
         <div className="min-h-screen bg-app p-6">
-          <div className="ring-panel flex min-h-[420px] overflow-hidden rounded-md bg-surface-1">
+          <div className="ring-panel flex min-h-[420px] flex-col overflow-hidden rounded-md bg-surface-1">
             <Story />
           </div>
         </div>

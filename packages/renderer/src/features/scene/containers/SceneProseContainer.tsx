@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { useI18n } from '@/app/i18n'
 import { EmptyState } from '@/components/ui/EmptyState'
 
 import { sceneClient, type SceneClient } from '@/features/scene/api/scene-client'
@@ -13,6 +14,7 @@ interface SceneProseContainerProps {
 }
 
 export function SceneProseContainer({ sceneId, client }: SceneProseContainerProps) {
+  const { locale } = useI18n()
   const resolvedClient = client ?? sceneClient
   const proseQuery = useSceneProseQuery(sceneId, resolvedClient)
   const [selectedMode, setSelectedMode] = useState<'rewrite' | 'compress' | 'expand' | 'tone_adjust' | 'continuity_fix'>(
@@ -33,7 +35,7 @@ export function SceneProseContainer({ sceneId, client }: SceneProseContainerProp
   if (proseQuery.error) {
     return (
       <div className="p-5">
-        <EmptyState title="Prose unavailable" message={proseQuery.error.message} />
+        <EmptyState title={locale === 'zh-CN' ? '正文不可用' : 'Prose unavailable'} message={proseQuery.error.message} />
       </div>
     )
   }
@@ -42,8 +44,12 @@ export function SceneProseContainer({ sceneId, client }: SceneProseContainerProp
     return (
       <div className="p-5">
         <EmptyState
-          title="Loading prose"
-          message="Preparing the current draft, revision modes, and prose status footer."
+          title={locale === 'zh-CN' ? '正在加载正文' : 'Loading prose'}
+          message={
+            locale === 'zh-CN'
+              ? '正在准备当前草稿、修订模式和正文状态栏。'
+              : 'Preparing the current draft, revision modes, and prose status footer.'
+          }
         />
       </div>
     )

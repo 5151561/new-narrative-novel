@@ -1,6 +1,10 @@
 import type { PropsWithChildren } from 'react'
+import { useEffect } from 'react'
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
+
+import { I18nProvider, useI18n } from './i18n'
+import { sceneQueryKeys } from '@/features/scene/hooks/scene-query-keys'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -12,6 +16,24 @@ const queryClient = new QueryClient({
   },
 })
 
+function LocaleQuerySync() {
+  const { locale } = useI18n()
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    void queryClient.invalidateQueries({ queryKey: sceneQueryKeys.all })
+  }, [locale, queryClient])
+
+  return null
+}
+
 export function AppProviders({ children }: PropsWithChildren) {
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  return (
+    <QueryClientProvider client={queryClient}>
+      <I18nProvider>
+        <LocaleQuerySync />
+        {children}
+      </I18nProvider>
+    </QueryClientProvider>
+  )
 }

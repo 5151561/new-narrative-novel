@@ -1,3 +1,4 @@
+import { useI18n } from '@/app/i18n'
 import { EmptyState } from '@/components/ui/EmptyState'
 
 import { type SceneClient } from '@/features/scene/api/scene-client'
@@ -12,6 +13,7 @@ interface SceneDockContainerProps {
 }
 
 export function SceneDockContainer({ sceneId, client }: SceneDockContainerProps) {
+  const { locale } = useI18n()
   const activeTab = useSceneUiStore((state) => state.dockTab)
   const setDockTab = useSceneUiStore((state) => state.setDockTab)
   const dock = useSceneDockData(sceneId, activeTab, client)
@@ -19,7 +21,7 @@ export function SceneDockContainer({ sceneId, client }: SceneDockContainerProps)
   if (dock.error) {
     return (
       <div className="p-4">
-        <EmptyState title="Bottom dock unavailable" message={dock.error.message} />
+        <EmptyState title={locale === 'zh-CN' ? '底部面板不可用' : 'Bottom dock unavailable'} message={dock.error.message} />
       </div>
     )
   }
@@ -27,7 +29,14 @@ export function SceneDockContainer({ sceneId, client }: SceneDockContainerProps)
   if (dock.isLoading) {
     return (
       <div className="p-4">
-        <EmptyState title="Loading bottom dock" message="Preparing structured scene events, trace, problems, and cost." />
+        <EmptyState
+          title={locale === 'zh-CN' ? '正在加载底部面板' : 'Loading bottom dock'}
+          message={
+            locale === 'zh-CN'
+              ? '正在准备结构化场景事件、追踪、问题与成本。'
+              : 'Preparing structured scene events, trace, problems, and cost.'
+          }
+        />
       </div>
     )
   }

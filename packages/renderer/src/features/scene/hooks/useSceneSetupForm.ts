@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
+import { useI18n } from '@/app/i18n'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { sceneClient, type SceneClient } from '@/features/scene/api/scene-client'
@@ -22,15 +23,19 @@ export function useSceneSetupForm({
   client = sceneClient,
   onSaveAndRun,
 }: UseSceneSetupFormOptions) {
+  const { locale } = useI18n()
   const queryClient = useQueryClient()
   const query = useQuery({
-    queryKey: sceneQueryKeys.setup(sceneId),
+    queryKey: sceneQueryKeys.setup(sceneId, locale),
     queryFn: () => client.getSceneSetup(sceneId),
   })
   const [draft, setDraft] = useState<SceneSetupViewModel | null>(null)
   const [savedSnapshot, setSavedSnapshot] = useState<SceneSetupViewModel | null>(null)
+  const [draftLocale, setDraftLocale] = useState(locale)
   const [isSaving, setIsSaving] = useState(false)
-  const [statusLabel, setStatusLabel] = useState('Draft is synced with fixtures.')
+  const [statusKey, setStatusKey] = useState<'synced' | 'unsaved' | 'discarded' | 'saved' | 'saved_and_opened'>(
+    'synced',
+  )
 
   const isDirty = useMemo(() => {
     if (!draft || !savedSnapshot) {
@@ -45,12 +50,20 @@ export function useSceneSetupForm({
       return
     }
 
-    if (!draft || draft.sceneId !== sceneId || !savedSnapshot || savedSnapshot.sceneId !== sceneId) {
+    if (
+      !draft ||
+      draft.sceneId !== sceneId ||
+      !savedSnapshot ||
+      savedSnapshot.sceneId !== sceneId ||
+      draftLocale !== locale
+    ) {
       const nextValue = clone(query.data)
       setDraft(nextValue)
       setSavedSnapshot(nextValue)
+      setDraftLocale(locale)
+      setStatusKey('synced')
     }
-  }, [draft, query.data, savedSnapshot, sceneId])
+  }, [draft, draftLocale, locale, query.data, savedSnapshot, sceneId])
 
   const updateDraft = (updater: (current: SceneSetupViewModel) => SceneSetupViewModel) => {
     setDraft((current) => {
@@ -60,7 +73,7 @@ export function useSceneSetupForm({
 
       return updater(current)
     })
-    setStatusLabel('Unsaved local changes')
+    setStatusKey('unsaved')
   }
 
   const discardChanges = () => {
@@ -70,11 +83,12 @@ export function useSceneSetupForm({
 
     const restoredSnapshot = clone(savedSnapshot)
     setDraft(restoredSnapshot)
-    setStatusLabel('Local changes discarded')
-    queryClient.setQueryData(sceneQueryKeys.setup(sceneId), restoredSnapshot)
+    setDraftLocale(locale)
+    setStatusKey('discarded')
+    queryClient.setQueryData(sceneQueryKeys.setup(sceneId, locale), restoredSnapshot)
   }
 
-  const persist = async (nextStatusLabel: string) => {
+  const persist = async (nextStatusKey: 'saved' | 'saved_and_opened') => {
     if (!draft) {
       return
     }
@@ -85,7 +99,8 @@ export function useSceneSetupForm({
       await client.saveSceneSetup(sceneId, nextSnapshot)
       setSavedSnapshot(nextSnapshot)
       setDraft(nextSnapshot)
-      setStatusLabel(nextStatusLabel)
+      setDraftLocale(locale)
+      setStatusKey(nextStatusKey)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: sceneQueryKeys.setup(sceneId) }),
         queryClient.invalidateQueries({ queryKey: sceneQueryKeys.workspace(sceneId) }),
@@ -103,14 +118,14 @@ export function useSceneSetupForm({
     error: query.error,
     isDirty,
     isSaving,
-    statusLabel,
+    statusKey,
     updateDraft,
     discardChanges,
     save: async () => {
-      await persist('Draft saved locally')
+      await persist('saved')
     },
     saveAndRun: async () => {
-      await persist('Draft saved locally and moved to execution')
+      await persist('saved_and_opened')
       onSaveAndRun?.()
     },
   }

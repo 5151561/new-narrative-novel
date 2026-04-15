@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import { type PropsWithChildren } from 'react'
 
+import { I18nProvider } from '@/app/i18n'
 import { createSceneClient } from '@/features/scene/api/scene-client'
 
 import { useSceneInspectorData } from './useSceneInspectorData'
@@ -14,7 +15,11 @@ function wrapperFactory() {
   })
 
   return function Wrapper({ children }: PropsWithChildren) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    return (
+      <QueryClientProvider client={queryClient}>
+        <I18nProvider>{children}</I18nProvider>
+      </QueryClientProvider>
+    )
   }
 }
 

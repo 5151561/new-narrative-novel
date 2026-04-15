@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { useI18n } from '@/app/i18n'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Pane } from '@/components/ui/Pane'
 import { PaneHeader } from '@/components/ui/PaneHeader'
@@ -21,6 +22,8 @@ export function WorkbenchShell({
   inspector,
   bottomDock,
 }: WorkbenchShellProps) {
+  const { dictionary } = useI18n()
+
   return (
     <div className="grid min-h-screen grid-rows-[72px_minmax(0,1fr)_196px] bg-app text-text-main">
       <header className="border-b border-line-soft bg-surface-1/90 px-5 py-3 backdrop-blur">
@@ -33,11 +36,11 @@ export function WorkbenchShell({
         <Pane muted className="min-h-0">
           {inspector ?? (
             <>
-              <PaneHeader title="Inspector" description="Context, versions, and runtime stay close without taking over the run." />
+              <PaneHeader title={dictionary.shell.inspectorTitle} description={dictionary.shell.inspectorDescription} />
               <div className="p-4">
                 <EmptyState
-                  title="Inspector ready"
-                  message="Accepted state, versions, and local overrides stay one step away from the stage."
+                  title={dictionary.shell.inspectorReadyTitle}
+                  message={dictionary.shell.inspectorReadyMessage}
                 />
               </div>
             </>
@@ -47,11 +50,11 @@ export function WorkbenchShell({
       <Pane muted className="mx-3 mb-3 min-h-0">
         {bottomDock ?? (
           <>
-            <PaneHeader title="Bottom Dock" description="Events, trace, consistency, problems, and cost stay docked below the run." />
+            <PaneHeader title={dictionary.shell.bottomDockTitle} description={dictionary.shell.bottomDockDescription} />
             <div className="p-4">
               <EmptyState
-                title="Dock ready"
-                message="Trace, warnings, and cost stay visible without pulling attention off the run."
+                title={dictionary.shell.dockReadyTitle}
+                message={dictionary.shell.dockReadyMessage}
               />
             </div>
           </>

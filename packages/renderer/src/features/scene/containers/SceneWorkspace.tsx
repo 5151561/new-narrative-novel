@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 
+import { useI18n } from '@/app/i18n'
 import { EmptyState } from '@/components/ui/EmptyState'
 
 import { SceneExportSheet } from '../components/SceneExportSheet'
@@ -22,6 +23,7 @@ interface SceneWorkspaceProps {
 }
 
 export function SceneWorkspace({ sceneId, defaultTab = 'execution' }: SceneWorkspaceProps) {
+  const { locale } = useI18n()
   const workspaceQuery = useSceneWorkspaceQuery(sceneId)
   const { route } = useSceneRouteState()
   const actions = useSceneWorkspaceActions({ sceneId })
@@ -44,7 +46,7 @@ export function SceneWorkspace({ sceneId, defaultTab = 'execution' }: SceneWorks
   if (workspaceQuery.error) {
     return (
       <div className="p-5">
-        <EmptyState title="Scene unavailable" message={workspaceQuery.error.message} />
+        <EmptyState title={locale === 'zh-CN' ? '场景不可用' : 'Scene unavailable'} message={workspaceQuery.error.message} />
       </div>
     )
   }
@@ -52,7 +54,14 @@ export function SceneWorkspace({ sceneId, defaultTab = 'execution' }: SceneWorks
   if (workspaceQuery.isLoading || !workspaceQuery.scene) {
     return (
       <div className="p-5">
-        <EmptyState title="Loading scene" message="Preparing scene workspace shell and execution summary." />
+        <EmptyState
+          title={locale === 'zh-CN' ? '正在加载场景' : 'Loading scene'}
+          message={
+            locale === 'zh-CN'
+              ? '正在准备场景工作区外壳和执行摘要。'
+              : 'Preparing scene workspace shell and execution summary.'
+          }
+        />
       </div>
     )
   }

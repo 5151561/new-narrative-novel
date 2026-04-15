@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from 'react'
 
+import { getProposalKindLabel, getProposalSeverityLabel, getProposalStatusLabel, useI18n } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { SectionCard } from '@/components/ui/SectionCard'
 import { cn } from '@/lib/cn'
@@ -32,6 +33,7 @@ export function ProposalCard({
   onRequestRewrite,
   onReject,
 }: ProposalCardProps) {
+  const { locale } = useI18n()
   const [isEditing, setIsEditing] = useState(false)
   const [draftSummary, setDraftSummary] = useState(proposal.summary)
 
@@ -49,9 +51,9 @@ export function ProposalCard({
   return (
     <SectionCard
       className={cn(selected && 'border-line-strong bg-surface-2')}
-      eyebrow={proposal.kind}
+      eyebrow={getProposalKindLabel(locale, proposal.kind)}
       title={proposal.title}
-      actions={<Badge tone={statusTone[proposal.status]}>{proposal.status}</Badge>}
+      actions={<Badge tone={statusTone[proposal.status]}>{getProposalStatusLabel(locale, proposal.status)}</Badge>}
     >
       <button type="button" className="w-full text-left" onClick={() => onSelect(proposal.id)}>
         <div className="flex flex-wrap items-center gap-2">
@@ -64,7 +66,7 @@ export function ProposalCard({
         {proposal.detail ? <p className="mt-2 text-sm leading-6 text-text-muted">{proposal.detail}</p> : null}
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
           <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.05em] text-text-soft">Affected state</p>
+            <p className="text-xs uppercase tracking-[0.05em] text-text-soft">{locale === 'zh-CN' ? '受影响状态' : 'Affected state'}</p>
             {proposal.affects.map((affected) => (
               <div key={affected.path} className="rounded-md border border-line-soft bg-surface-2 px-3 py-3">
                 <p className="text-sm font-medium text-text-main">{affected.label}</p>
@@ -73,11 +75,15 @@ export function ProposalCard({
             ))}
           </div>
           <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.05em] text-text-soft">Evidence & risks</p>
+            <p className="text-xs uppercase tracking-[0.05em] text-text-soft">{locale === 'zh-CN' ? '证据与风险' : 'Evidence & risks'}</p>
             <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-3">
               <ul className="space-y-2 text-sm leading-6 text-text-muted">
                 {proposal.evidencePeek?.map((line) => <li key={line}>{line}</li>)}
-                {proposal.risks?.map((risk) => <li key={risk.message}>{risk.severity}: {risk.message}</li>)}
+                {proposal.risks?.map((risk) => (
+                  <li key={risk.message}>
+                    {getProposalSeverityLabel(locale, risk.severity)}: {risk.message}
+                  </li>
+                ))}
               </ul>
             </div>
           </div>
@@ -90,35 +96,35 @@ export function ProposalCard({
           className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
           disabled={proposal.status === 'accepted'}
         >
-          Accept
+          {locale === 'zh-CN' ? '采纳' : 'Accept'}
         </button>
         <button
           type="button"
           onClick={handleToggleEdit}
           className="rounded-md border border-line-soft bg-surface-2 px-3 py-2 text-sm"
         >
-          Edit Then Accept
+          {locale === 'zh-CN' ? '编辑后采纳' : 'Edit Then Accept'}
         </button>
         <button
           type="button"
           onClick={() => onRequestRewrite(proposal.id)}
           className="rounded-md border border-line-soft bg-surface-2 px-3 py-2 text-sm"
         >
-          Request Rewrite
+          {locale === 'zh-CN' ? '请求重写' : 'Request Rewrite'}
         </button>
         <button
           type="button"
           onClick={() => onReject(proposal.id)}
           className="rounded-md border border-line-soft bg-surface-1 px-3 py-2 text-sm text-text-muted"
         >
-          Reject
+          {locale === 'zh-CN' ? '拒绝' : 'Reject'}
         </button>
       </div>
       {isEditing ? (
         <form onSubmit={handleSubmit} className="mt-4 space-y-3 rounded-md border border-line-soft bg-surface-2 px-3 py-3">
           <div className="space-y-2">
             <label htmlFor={`edited-summary-${proposal.id}`} className="text-xs uppercase tracking-[0.05em] text-text-soft">
-              Edited proposal summary
+              {locale === 'zh-CN' ? '编辑后的提案摘要' : 'Edited proposal summary'}
             </label>
             <textarea
               id={`edited-summary-${proposal.id}`}
@@ -133,7 +139,7 @@ export function ProposalCard({
               type="submit"
               className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white"
             >
-              Save Edited Acceptance
+              {locale === 'zh-CN' ? '保存编辑并采纳' : 'Save Edited Acceptance'}
             </button>
             <button
               type="button"
@@ -143,7 +149,7 @@ export function ProposalCard({
               }}
               className="rounded-md border border-line-soft bg-surface-1 px-3 py-2 text-sm text-text-muted"
             >
-              Cancel Edit
+              {locale === 'zh-CN' ? '取消编辑' : 'Cancel Edit'}
             </button>
           </div>
         </form>

@@ -1,0 +1,489 @@
+import { createContext, useContext, useMemo, useState, type PropsWithChildren } from 'react'
+
+import type {
+  ProposalKind,
+  ProposalSeverity,
+  ProposalStatus,
+  SceneRunStatus,
+  SceneStatus,
+  SceneDockTabId,
+  SceneTab,
+} from '@/features/scene/types/scene-view-models'
+import type { SceneLens } from '@/features/scene/hooks/useSceneRouteState'
+
+type InspectorTabId = 'context' | 'versions' | 'runtime'
+
+export type Locale = 'en' | 'zh-CN'
+
+export const APP_LOCALE_STORAGE_KEY = 'narrative-novel.locale'
+
+function normalizeLocale(value: string | null | undefined): Locale {
+  if (!value) {
+    return 'en'
+  }
+
+  return value.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'
+}
+
+export function readStoredLocale(): Locale | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const storedValue = window.localStorage.getItem(APP_LOCALE_STORAGE_KEY)
+  return storedValue ? normalizeLocale(storedValue) : null
+}
+
+export function writeStoredLocale(locale: Locale) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.setItem(APP_LOCALE_STORAGE_KEY, locale)
+}
+
+export function resolveAppLocale(): Locale {
+  const storedLocale = readStoredLocale()
+  if (storedLocale) {
+    return storedLocale
+  }
+
+  if (typeof navigator === 'undefined') {
+    return 'en'
+  }
+
+  return normalizeLocale(navigator.language)
+}
+
+const localeNames: Record<Locale, Record<Locale, string>> = {
+  en: {
+    en: 'EN',
+    'zh-CN': '中文',
+  },
+  'zh-CN': {
+    en: 'EN',
+    'zh-CN': '中文',
+  },
+}
+
+const sceneStatusLabels: Record<Locale, Record<SceneStatus, string>> = {
+  en: {
+    draft: 'draft',
+    running: 'running',
+    review: 'review',
+    ready: 'ready',
+    committed: 'committed',
+  },
+  'zh-CN': {
+    draft: '草稿',
+    running: '运行中',
+    review: '审阅中',
+    ready: '就绪',
+    committed: '已提交',
+  },
+}
+
+const runStatusLabels: Record<Locale, Record<SceneRunStatus, string>> = {
+  en: {
+    idle: 'idle',
+    running: 'running',
+    paused: 'paused',
+    failed: 'failed',
+    completed: 'completed',
+  },
+  'zh-CN': {
+    idle: '未开始',
+    running: '运行中',
+    paused: '已暂停',
+    failed: '失败',
+    completed: '已完成',
+  },
+}
+
+const proposalStatusLabels: Record<Locale, Record<ProposalStatus, string>> = {
+  en: {
+    pending: 'pending',
+    accepted: 'accepted',
+    rejected: 'rejected',
+    'rewrite-requested': 'rewrite-requested',
+  },
+  'zh-CN': {
+    pending: '待审',
+    accepted: '已采纳',
+    rejected: '已拒绝',
+    'rewrite-requested': '待重写',
+  },
+}
+
+const proposalStatusOptionLabels: Record<Locale, Record<ProposalStatus, string>> = {
+  en: {
+    pending: 'Pending',
+    accepted: 'Accepted',
+    rejected: 'Rejected',
+    'rewrite-requested': 'Rewrite Requested',
+  },
+  'zh-CN': {
+    pending: '待审',
+    accepted: '已采纳',
+    rejected: '已拒绝',
+    'rewrite-requested': '请求重写',
+  },
+}
+
+const proposalKindLabels: Record<Locale, Record<ProposalKind, string>> = {
+  en: {
+    action: 'Action',
+    intent: 'Intent',
+    conflict: 'Conflict',
+    'state-change': 'State Change',
+    dialogue: 'Dialogue',
+  },
+  'zh-CN': {
+    action: '动作',
+    intent: '意图',
+    conflict: '冲突',
+    'state-change': '状态变化',
+    dialogue: '对白',
+  },
+}
+
+const proposalSeverityLabels: Record<Locale, Record<ProposalSeverity, string>> = {
+  en: {
+    info: 'Info',
+    warn: 'Warn',
+    high: 'High',
+  },
+  'zh-CN': {
+    info: '提示',
+    warn: '警告',
+    high: '高风险',
+  },
+}
+
+const sceneLensLabels: Record<Locale, Record<SceneLens, string>> = {
+  en: {
+    structure: 'Structure',
+    orchestrate: 'Orchestrate',
+    draft: 'Draft',
+  },
+  'zh-CN': {
+    structure: '结构',
+    orchestrate: '编排',
+    draft: '成稿',
+  },
+}
+
+const sceneTabLabels: Record<Locale, Record<SceneTab, string>> = {
+  en: {
+    setup: 'Setup',
+    execution: 'Execution',
+    prose: 'Prose',
+  },
+  'zh-CN': {
+    setup: '设定',
+    execution: '执行',
+    prose: '正文',
+  },
+}
+
+const dockTabLabels: Record<Locale, Record<SceneDockTabId, string>> = {
+  en: {
+    events: 'Events',
+    trace: 'Trace',
+    consistency: 'Consistency',
+    problems: 'Problems',
+    cost: 'Cost',
+  },
+  'zh-CN': {
+    events: '事件',
+    trace: '追踪',
+    consistency: '一致性',
+    problems: '问题',
+    cost: '成本',
+  },
+}
+
+const inspectorTabLabels: Record<Locale, Record<InspectorTabId, string>> = {
+  en: {
+    context: 'Context',
+    versions: 'Versions',
+    runtime: 'Runtime',
+  },
+  'zh-CN': {
+    context: '上下文',
+    versions: '版本',
+    runtime: '运行态',
+  },
+}
+
+const readinessLabels: Record<Locale, Record<'not-ready' | 'draftable' | 'ready', string>> = {
+  en: {
+    'not-ready': 'not-ready',
+    draftable: 'draftable',
+    ready: 'ready',
+  },
+  'zh-CN': {
+    'not-ready': '未就绪',
+    draftable: '可起草',
+    ready: '已就绪',
+  },
+}
+
+const beatStatusLabels: Record<Locale, Record<'todo' | 'running' | 'review' | 'accepted' | 'blocked', string>> = {
+  en: {
+    todo: 'todo',
+    running: 'running',
+    review: 'review',
+    accepted: 'accepted',
+    blocked: 'blocked',
+  },
+  'zh-CN': {
+    todo: '待处理',
+    running: '进行中',
+    review: '审阅中',
+    accepted: '已采纳',
+    blocked: '已阻塞',
+  },
+}
+
+const genericStatusLabels: Record<Locale, Record<string, string>> = {
+  en: {
+    known: 'known',
+    guarded: 'guarded',
+    'open-question': 'open-question',
+    watching: 'watching',
+    clear: 'clear',
+    active: 'active',
+    cleared: 'cleared',
+    pass: 'pass',
+    blocked: 'blocked',
+    warn: 'warn',
+    accepted: 'accepted',
+    review: 'review',
+    watch: 'watch',
+    ready_for_commit: 'ready_for_commit',
+    needs_review: 'needs_review',
+    deferred: 'deferred',
+    stable: 'stable',
+    attention: 'attention',
+  },
+  'zh-CN': {
+    known: '已知',
+    guarded: '受保护',
+    'open-question': '开放问题',
+    watching: '观察中',
+    clear: '清晰',
+    active: '生效中',
+    cleared: '已清除',
+    pass: '通过',
+    blocked: '阻塞',
+    warn: '警告',
+    accepted: '已采纳',
+    review: '审阅中',
+    watch: '关注',
+    ready_for_commit: '可提交',
+    needs_review: '待复核',
+    deferred: '已延期',
+    stable: '稳定',
+    attention: '需关注',
+  },
+}
+
+const setupFormStatusLabels: Record<Locale, Record<'synced' | 'unsaved' | 'discarded' | 'saved' | 'saved_and_opened', string>> = {
+  en: {
+    synced: 'Draft is synced with fixtures.',
+    unsaved: 'Unsaved local changes',
+    discarded: 'Local changes discarded',
+    saved: 'Draft saved locally',
+    saved_and_opened: 'Draft saved locally and moved to execution',
+  },
+  'zh-CN': {
+    synced: '草稿已与演示数据同步。',
+    unsaved: '本地修改尚未保存',
+    discarded: '已丢弃本地修改',
+    saved: '草稿已保存到本地',
+    saved_and_opened: '草稿已保存，并已切换到执行视图',
+  },
+}
+
+const dictionaries = {
+  en: {
+    common: {
+      close: 'Close',
+      language: 'Language',
+      scene: 'Scene',
+      chapter: 'Chapter',
+      activeScene: 'Active scene',
+      loading: 'Loading',
+      previewData: 'Preview Data',
+      preloadBridge: 'Preload Bridge',
+    },
+    app: {
+      narrativeWorkbench: 'Narrative workbench',
+      sceneCockpit: 'Scene cockpit',
+      scope: 'Scope',
+      scenes: 'Scenes',
+      sceneNavigatorDescription: 'Keep scene selection close and let the run stay central.',
+      queue: 'Queue',
+      queueDescription:
+        'Accepted state, versions, and dock telemetry stay live while the current scene keeps moving.',
+      loadingSceneWorkspace: 'Loading scene workspace.',
+      activeChapter: 'Active chapter',
+      modeRailDetails: {
+        structure: 'Objective, cast, and guardrails.',
+        orchestrate: 'Beats, proposals, and accepted state.',
+        draft: 'Scene prose and revision passes.',
+      },
+    },
+    shell: {
+      inspectorTitle: 'Inspector',
+      inspectorDescription: 'Context, versions, and runtime stay close without taking over the run.',
+      inspectorReadyTitle: 'Inspector ready',
+      inspectorReadyMessage:
+        'Accepted state, versions, and local overrides stay one step away from the stage.',
+      bottomDockTitle: 'Bottom Dock',
+      bottomDockDescription:
+        'Events, trace, consistency, problems, and cost stay docked below the run.',
+      dockReadyTitle: 'Dock ready',
+      dockReadyMessage: 'Trace, warnings, and cost stay visible without pulling attention off the run.',
+    },
+  },
+  'zh-CN': {
+    common: {
+      close: '关闭',
+      language: '语言',
+      scene: '场景',
+      chapter: '章节',
+      activeScene: '当前场景',
+      loading: '加载中',
+      previewData: '预览数据',
+      preloadBridge: '预加载桥接',
+    },
+    app: {
+      narrativeWorkbench: '叙事工作台',
+      sceneCockpit: '场景驾驶舱',
+      scope: '范围',
+      scenes: '场景',
+      sceneNavigatorDescription: '把场景选择放在手边，让当前运行保持在中心位置。',
+      queue: '队列',
+      queueDescription: '当前场景继续推进时，已采纳状态、版本和底部面板遥测都会保持更新。',
+      loadingSceneWorkspace: '正在加载场景工作区。',
+      activeChapter: '当前章节',
+      modeRailDetails: {
+        structure: '目标、角色与约束。',
+        orchestrate: '节拍、提案与已采纳状态。',
+        draft: '场景正文与修订轮次。',
+      },
+    },
+    shell: {
+      inspectorTitle: '检查器',
+      inspectorDescription: '上下文、版本和运行态信息保持在手边，但不抢走主流程。',
+      inspectorReadyTitle: '检查器已就绪',
+      inspectorReadyMessage: '已采纳状态、版本和本地覆盖项都会停在舞台旁边一层。',
+      bottomDockTitle: '底部面板',
+      bottomDockDescription: '事件、追踪、一致性、问题与成本都停靠在主流程下方。',
+      dockReadyTitle: '底部面板已就绪',
+      dockReadyMessage: '追踪、警告和成本都会保持可见，但不会把注意力从主流程上拉走。',
+    },
+  },
+} as const
+
+type Dictionary = (typeof dictionaries)[Locale]
+
+interface I18nContextValue {
+  locale: Locale
+  setLocale: (locale: Locale) => void
+  dictionary: Dictionary
+}
+
+const defaultLocale = resolveAppLocale()
+
+const I18nContext = createContext<I18nContextValue>({
+  locale: defaultLocale,
+  setLocale: () => {},
+  dictionary: dictionaries[defaultLocale],
+})
+
+export function I18nProvider({ children }: PropsWithChildren) {
+  const [locale, setLocaleState] = useState<Locale>(() => resolveAppLocale())
+
+  const value = useMemo<I18nContextValue>(() => {
+    return {
+      locale,
+      setLocale: (nextLocale) => {
+        writeStoredLocale(nextLocale)
+        setLocaleState(nextLocale)
+      },
+      dictionary: dictionaries[locale],
+    }
+  }, [locale])
+
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
+}
+
+export function useI18n() {
+  return useContext(I18nContext)
+}
+
+export function getLocaleName(locale: Locale, value: Locale) {
+  return localeNames[locale][value]
+}
+
+export function getSceneStatusLabel(locale: Locale, status: SceneStatus) {
+  return sceneStatusLabels[locale][status]
+}
+
+export function getSceneRunStatusLabel(locale: Locale, status: SceneRunStatus) {
+  return runStatusLabels[locale][status]
+}
+
+export function getProposalStatusLabel(locale: Locale, status: ProposalStatus) {
+  return proposalStatusLabels[locale][status]
+}
+
+export function getProposalStatusOptionLabel(locale: Locale, status: ProposalStatus) {
+  return proposalStatusOptionLabels[locale][status]
+}
+
+export function getProposalKindLabel(locale: Locale, kind: ProposalKind) {
+  return proposalKindLabels[locale][kind]
+}
+
+export function getProposalSeverityLabel(locale: Locale, severity: ProposalSeverity) {
+  return proposalSeverityLabels[locale][severity]
+}
+
+export function getSceneLensLabel(locale: Locale, lens: SceneLens) {
+  return sceneLensLabels[locale][lens]
+}
+
+export function getSceneTabLabel(locale: Locale, tab: SceneTab) {
+  return sceneTabLabels[locale][tab]
+}
+
+export function getDockTabLabel(locale: Locale, tab: SceneDockTabId) {
+  return dockTabLabels[locale][tab]
+}
+
+export function getInspectorTabLabel(locale: Locale, tab: InspectorTabId) {
+  return inspectorTabLabels[locale][tab]
+}
+
+export function getReadinessLabel(locale: Locale, readiness: 'not-ready' | 'draftable' | 'ready') {
+  return readinessLabels[locale][readiness]
+}
+
+export function getBeatStatusLabel(locale: Locale, status: 'todo' | 'running' | 'review' | 'accepted' | 'blocked') {
+  return beatStatusLabels[locale][status]
+}
+
+export function getGenericStatusLabel(locale: Locale, status: string) {
+  return genericStatusLabels[locale][status] ?? status
+}
+
+export function getSetupFormStatusLabel(
+  locale: Locale,
+  statusKey: 'synced' | 'unsaved' | 'discarded' | 'saved' | 'saved_and_opened',
+) {
+  return setupFormStatusLabels[locale][statusKey]
+}

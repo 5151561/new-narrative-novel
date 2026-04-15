@@ -1,5 +1,6 @@
 import type { SceneTab } from '../types/scene-view-models'
 
+import { getSceneTabLabel, useI18n } from '@/app/i18n'
 import { cn } from '@/lib/cn'
 
 interface SceneTabBarProps {
@@ -14,10 +15,14 @@ const tabs: Array<{ id: SceneTab; label: string }> = [
 ]
 
 export function SceneTabBar({ activeTab, onChange }: SceneTabBarProps) {
+  const { locale } = useI18n()
+
   return (
     <div className="border-b border-line-soft px-5 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">Scene cockpit</p>
+        <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">
+          {locale === 'zh-CN' ? '场景驾驶舱' : 'Scene cockpit'}
+        </p>
         <div className="flex items-center gap-2">
           {tabs.map((tab) => (
             <button
@@ -31,7 +36,7 @@ export function SceneTabBar({ activeTab, onChange }: SceneTabBarProps) {
                   : 'text-text-muted hover:bg-surface-2 hover:text-text-main',
               )}
             >
-              {tab.label}
+              {getSceneTabLabel(locale, tab.id)}
             </button>
           ))}
         </div>

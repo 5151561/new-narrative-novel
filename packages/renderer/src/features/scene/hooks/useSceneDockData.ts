@@ -1,18 +1,20 @@
 import { useQuery } from '@tanstack/react-query'
 
+import { useI18n } from '@/app/i18n'
 import { sceneClient, type SceneClient } from '@/features/scene/api/scene-client'
 
 import type { SceneDockTabId } from '../types/scene-view-models'
 import { sceneQueryKeys } from './scene-query-keys'
 
 export function useSceneDockData(sceneId: string, activeTab: SceneDockTabId, client: SceneClient = sceneClient) {
+  const { locale } = useI18n()
   const summaryQuery = useQuery({
-    queryKey: sceneQueryKeys.dockSummary(sceneId),
+    queryKey: sceneQueryKeys.dockSummary(sceneId, locale),
     queryFn: () => client.getSceneDockSummary(sceneId),
   })
 
   const detailQuery = useQuery({
-    queryKey: sceneQueryKeys.dockTab(sceneId, activeTab),
+    queryKey: sceneQueryKeys.dockTab(sceneId, activeTab, locale),
     queryFn: () => client.getSceneDockTab(sceneId, activeTab),
     enabled: activeTab !== 'events',
   })

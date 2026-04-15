@@ -83,4 +83,24 @@ describe('sceneClient', () => {
     expect(afterDock.events[0]?.title).toMatch(/accepted proposal queued/i)
     expect(afterDock.events[0]?.title).not.toBe(beforeDock.events[0]?.title)
   })
+
+  it('uses locale-aware fallback labels and scene content when no preload bridge is available', async () => {
+    const client = createSceneClient({
+      localeResolver: () => 'zh-CN',
+    })
+
+    await expect(client.getRuntimeInfo()).resolves.toMatchObject({
+      source: 'mock-fallback',
+      label: '预览数据',
+    })
+    await expect(client.getSceneWorkspace(sceneId)).resolves.toMatchObject({
+      title: '午夜站台',
+      chapterTitle: '雨中信号',
+      currentVersionLabel: '运行 07',
+    })
+
+    const execution = await client.getSceneExecution(sceneId)
+    expect(execution.objective.goal).toBe('逼美伊表态：账本究竟是诱饵，还是她手里的筹码。')
+    expect(execution.beats[0]?.title).toBe('站灯下的抵达')
+  })
 })

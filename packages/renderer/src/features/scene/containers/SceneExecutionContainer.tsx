@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
 
+import { useI18n } from '@/app/i18n'
 import { EmptyState } from '@/components/ui/EmptyState'
 
 import { SceneExecutionTab } from '../components/SceneExecutionTab'
@@ -14,6 +15,7 @@ interface SceneExecutionContainerProps {
 }
 
 export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProps) {
+  const { locale } = useI18n()
   const execution = useSceneExecutionQuery(sceneId)
   const actions = useProposalActions(sceneId)
   const workspaceActions = useSceneWorkspaceActions({ sceneId })
@@ -90,7 +92,7 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
     return (
       <div className="p-5">
         <EmptyState
-          title="Execution data unavailable"
+          title={locale === 'zh-CN' ? '执行数据不可用' : 'Execution data unavailable'}
           message={execution.error.message}
         />
       </div>
@@ -100,7 +102,14 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
   if (execution.isLoading) {
     return (
       <div className="p-5">
-        <EmptyState title="Loading execution" message="Gathering the scene objective, beats, proposals, and accepted summary." />
+        <EmptyState
+          title={locale === 'zh-CN' ? '正在加载执行视图' : 'Loading execution'}
+          message={
+            locale === 'zh-CN'
+              ? '正在聚合场景目标、节拍、提案和已采纳摘要。'
+              : 'Gathering the scene objective, beats, proposals, and accepted summary.'
+          }
+        />
       </div>
     )
   }
@@ -129,8 +138,18 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
       }}
       onAccept={(proposalId) => void actions.accept({ proposalId })}
       onEditAccept={(proposalId, editedSummary) => void actions.editAccept({ proposalId, editedSummary })}
-      onRequestRewrite={(proposalId) => void actions.requestRewrite({ proposalId, note: 'Tighten continuity before resubmitting.' })}
-      onReject={(proposalId) => void actions.reject({ proposalId, note: 'Does not fit the current scene contract.' })}
+      onRequestRewrite={(proposalId) =>
+        void actions.requestRewrite({
+          proposalId,
+          note: locale === 'zh-CN' ? '请先收紧连续性，再重新提交。' : 'Tighten continuity before resubmitting.',
+        })
+      }
+      onReject={(proposalId) =>
+        void actions.reject({
+          proposalId,
+          note: locale === 'zh-CN' ? '不符合当前场景契约。' : 'Does not fit the current scene contract.',
+        })
+      }
       onChangeFilters={(next) => {
         setFilters({
           ...next,

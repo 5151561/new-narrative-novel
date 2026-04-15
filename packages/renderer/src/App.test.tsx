@@ -2,6 +2,8 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+const originalNavigatorLanguage = window.navigator.language
+
 function setSceneBridge(bridge: Record<string, unknown> | undefined) {
   if (bridge) {
     Reflect.set(window, 'narrativeRuntimeBridge', { scene: bridge })
@@ -51,10 +53,19 @@ async function renderFreshApp(search = '') {
   )
 }
 
+function setNavigatorLanguage(language: string) {
+  Object.defineProperty(window.navigator, 'language', {
+    configurable: true,
+    value: language,
+  })
+}
+
 describe('App scene workbench', () => {
   afterEach(() => {
     vi.clearAllMocks()
     setSceneBridge(undefined)
+    window.localStorage.clear()
+    setNavigatorLanguage(originalNavigatorLanguage)
   })
 
   it('restores scene execution route state from URL and keeps tab / beat / proposal in sync', async () => {
@@ -236,6 +247,64 @@ describe('App scene workbench', () => {
       expect(screen.getAllByText('committed').length).toBeGreaterThan(0)
       expect(screen.getByText(/Patch Preview: 1/i)).toBeInTheDocument()
       expect(screen.getAllByText('Committed / Let Mei name the cost in private terms').length).toBeGreaterThan(0)
+    })
+  })
+
+  it('defaults to the system locale on first launch for localized UI and mock data', async () => {
+    setNavigatorLanguage('zh-CN')
+
+    await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
+
+    expect(await screen.findByRole('heading', { name: '场景驾驶舱' })).toBeInTheDocument()
+    expect(screen.getByText('叙事工作台')).toBeInTheDocument()
+    expect(screen.getAllByText('午夜站台').length).toBeGreaterThan(0)
+    expect(screen.getByText('预览数据')).toBeInTheDocument()
+  })
+
+  it('switches between English and Chinese without disturbing scene route state and remembers the choice', async () => {
+    const user = userEvent.setup()
+
+    setNavigatorLanguage('en-US')
+    const firstRender = await renderFreshApp(
+      '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution&proposalId=proposal-2',
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Scene cockpit' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '中文' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: '场景驾驶舱' })).toBeInTheDocument()
+      expect(screen.getByText('叙事工作台')).toBeInTheDocument()
+      expect(screen.getAllByText('午夜站台').length).toBeGreaterThan(0)
+      expect(new URLSearchParams(window.location.search).get('id')).toBe('scene-midnight-platform')
+      expect(new URLSearchParams(window.location.search).get('lens')).toBe('orchestrate')
+      expect(new URLSearchParams(window.location.search).get('tab')).toBe('execution')
+      expect(new URLSearchParams(window.location.search).get('proposalId')).toBe('proposal-2')
+    })
+
+    firstRender.unmount()
+    setNavigatorLanguage('en-US')
+
+    await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
+
+    expect(await screen.findByRole('heading', { name: '场景驾驶舱' })).toBeInTheDocument()
+    expect(screen.getByText('叙事工作台')).toBeInTheDocument()
+  })
+
+  it('rebuilds setup form data in the active locale after switching languages', async () => {
+    const user = userEvent.setup()
+
+    setNavigatorLanguage('en-US')
+    await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=structure&tab=setup')
+
+    expect(await screen.findByDisplayValue('Midnight Platform')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '中文' }))
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('午夜站台')).toBeInTheDocument()
+      expect(screen.getByText('场景设定简报')).toBeInTheDocument()
     })
   })
 })

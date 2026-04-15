@@ -1,3 +1,4 @@
+import { getGenericStatusLabel, getInspectorTabLabel, useI18n } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { FactList } from '@/components/ui/FactList'
@@ -24,6 +25,8 @@ function InspectorTabs({
   activeTab: InspectorTabId
   onChange: (tab: InspectorTabId) => void
 }) {
+  const { locale } = useI18n()
+
   return (
     <div className="flex flex-wrap gap-2 border-b border-line-soft px-4 py-3">
       {inspectorTabs.map((tab) => (
@@ -36,7 +39,7 @@ function InspectorTabs({
             activeTab === tab.id ? 'bg-surface-2 text-text-main shadow-ringwarm' : 'text-text-muted hover:bg-surface-2',
           )}
         >
-          {tab.label}
+          {getInspectorTabLabel(locale, tab.id)}
         </button>
       ))}
     </div>
@@ -44,16 +47,25 @@ function InspectorTabs({
 }
 
 function ContextTab({ context }: { context: SceneInspectorViewModel['context'] }) {
+  const { locale } = useI18n()
+
   return (
     <div className="grid gap-4 p-4">
-      <SectionCard eyebrow="Accepted" title="Accepted Facts">
+      <SectionCard eyebrow={locale === 'zh-CN' ? '已采纳' : 'Accepted'} title={locale === 'zh-CN' ? '已采纳事实' : 'Accepted Facts'}>
         {context.acceptedFacts.length > 0 ? (
           <FactList items={context.acceptedFacts} />
         ) : (
-          <EmptyState title="No accepted facts" message="Accepted state will appear here once execution review clears a candidate." />
+          <EmptyState
+            title={locale === 'zh-CN' ? '还没有已采纳事实' : 'No accepted facts'}
+            message={
+              locale === 'zh-CN'
+                ? '一旦执行评审放行候选内容，已采纳状态就会出现在这里。'
+                : 'Accepted state will appear here once execution review clears a candidate.'
+            }
+          />
         )}
       </SectionCard>
-      <SectionCard eyebrow="Guard" title="Private Info Guard">
+      <SectionCard eyebrow={locale === 'zh-CN' ? '保护' : 'Guard'} title={locale === 'zh-CN' ? '私密信息保护' : 'Private Info Guard'}>
         <div className="space-y-3">
           <p className="text-sm leading-6 text-text-muted">{context.privateInfoGuard.summary}</p>
           {context.privateInfoGuard.items.length > 0 ? (
@@ -63,7 +75,7 @@ function ContextTab({ context }: { context: SceneInspectorViewModel['context'] }
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-medium text-text-main">{item.label}</p>
                     <Badge tone={item.status === 'guarded' ? 'warn' : item.status === 'watching' ? 'accent' : 'success'}>
-                      {item.status}
+                      {getGenericStatusLabel(locale, item.status)}
                     </Badge>
                   </div>
                   <p className="mt-1 text-sm leading-6 text-text-muted">{item.summary}</p>
@@ -71,11 +83,18 @@ function ContextTab({ context }: { context: SceneInspectorViewModel['context'] }
               ))}
             </div>
           ) : (
-            <EmptyState title="No guarded reveals" message="Private-info guardrails will appear here when the scene needs reveal protection." />
+            <EmptyState
+              title={locale === 'zh-CN' ? '没有受保护揭示点' : 'No guarded reveals'}
+              message={
+                locale === 'zh-CN'
+                  ? '当场景需要保护揭示内容时，对应的私密信息约束会出现在这里。'
+                  : 'Private-info guardrails will appear here when the scene needs reveal protection.'
+              }
+            />
           )}
         </div>
       </SectionCard>
-      <SectionCard eyebrow="Boundaries" title="Actor Knowledge Boundaries">
+      <SectionCard eyebrow={locale === 'zh-CN' ? '边界' : 'Boundaries'} title={locale === 'zh-CN' ? '角色认知边界' : 'Actor Knowledge Boundaries'}>
         {context.actorKnowledgeBoundaries.length > 0 ? (
           <div className="grid gap-3">
             {context.actorKnowledgeBoundaries.map((entry) => (
@@ -90,7 +109,7 @@ function ContextTab({ context }: { context: SceneInspectorViewModel['context'] }
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-sm font-medium text-text-main">{boundary.label}</p>
                         <Badge tone={boundary.status === 'guarded' ? 'warn' : boundary.status === 'known' ? 'success' : 'accent'}>
-                          {boundary.status}
+                          {getGenericStatusLabel(locale, boundary.status)}
                         </Badge>
                       </div>
                       <p className="mt-1 text-sm leading-6 text-text-muted">{boundary.summary}</p>
@@ -101,10 +120,17 @@ function ContextTab({ context }: { context: SceneInspectorViewModel['context'] }
             ))}
           </div>
         ) : (
-          <EmptyState title="No actor boundaries yet" message="Actor-specific knowledge boundaries will appear here once setup defines them." />
+          <EmptyState
+            title={locale === 'zh-CN' ? '还没有角色边界' : 'No actor boundaries yet'}
+            message={
+              locale === 'zh-CN'
+                ? '一旦设定阶段定义了角色专属的认知边界，这里就会出现对应内容。'
+                : 'Actor-specific knowledge boundaries will appear here once setup defines them.'
+            }
+          />
         )}
       </SectionCard>
-      <SectionCard eyebrow="Local" title="State And Overrides">
+      <SectionCard eyebrow={locale === 'zh-CN' ? '本地' : 'Local'} title={locale === 'zh-CN' ? '状态与覆盖项' : 'State And Overrides'}>
         <div className="space-y-3">
           <FactList items={context.localState} />
           {context.overrides.length > 0 ? (
@@ -114,7 +140,7 @@ function ContextTab({ context }: { context: SceneInspectorViewModel['context'] }
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-medium text-text-main">{override.label}</p>
                     <Badge tone={override.status === 'active' ? 'accent' : override.status === 'watching' ? 'warn' : 'neutral'}>
-                      {override.status}
+                      {getGenericStatusLabel(locale, override.status)}
                     </Badge>
                   </div>
                   <p className="mt-1 text-sm leading-6 text-text-muted">{override.summary}</p>
@@ -129,9 +155,11 @@ function ContextTab({ context }: { context: SceneInspectorViewModel['context'] }
 }
 
 function VersionsTab({ versions }: { versions: SceneInspectorViewModel['versions'] }) {
+  const { locale } = useI18n()
+
   return (
     <div className="grid gap-4 p-4">
-      <SectionCard eyebrow="Checkpoints" title="Version Checkpoints">
+      <SectionCard eyebrow={locale === 'zh-CN' ? '检查点' : 'Checkpoints'} title={locale === 'zh-CN' ? '版本检查点' : 'Version Checkpoints'}>
         {versions.checkpoints.length > 0 ? (
           <div className="grid gap-2">
             {versions.checkpoints.map((checkpoint) => (
@@ -139,7 +167,7 @@ function VersionsTab({ versions }: { versions: SceneInspectorViewModel['versions
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-medium text-text-main">{checkpoint.label}</p>
                   <Badge tone={checkpoint.status === 'accepted' ? 'success' : checkpoint.status === 'review' ? 'accent' : 'warn'}>
-                    {checkpoint.status}
+                    {getGenericStatusLabel(locale, checkpoint.status)}
                   </Badge>
                 </div>
                 <p className="mt-1 text-sm leading-6 text-text-muted">{checkpoint.summary}</p>
@@ -147,17 +175,27 @@ function VersionsTab({ versions }: { versions: SceneInspectorViewModel['versions
             ))}
           </div>
         ) : (
-          <EmptyState title="No checkpoints yet" message="Version checkpoints will appear once execution produces accepted state." />
+          <EmptyState
+            title={locale === 'zh-CN' ? '还没有检查点' : 'No checkpoints yet'}
+            message={
+              locale === 'zh-CN'
+                ? '当执行流程产出已采纳状态后，版本检查点就会出现在这里。'
+                : 'Version checkpoints will appear once execution produces accepted state.'
+            }
+          />
         )}
       </SectionCard>
-      <SectionCard eyebrow="Timeline" title="Acceptance Timeline">
+      <SectionCard eyebrow={locale === 'zh-CN' ? '时间线' : 'Timeline'} title={locale === 'zh-CN' ? '采纳时间线' : 'Acceptance Timeline'}>
         {versions.acceptanceTimeline.length > 0 ? (
           <TimelineList items={versions.acceptanceTimeline} />
         ) : (
-          <EmptyState title="No timeline events" message="Acceptance history is still empty for this scene." />
+          <EmptyState
+            title={locale === 'zh-CN' ? '还没有时间线事件' : 'No timeline events'}
+            message={locale === 'zh-CN' ? '这个场景的采纳历史目前还是空的。' : 'Acceptance history is still empty for this scene.'}
+          />
         )}
       </SectionCard>
-      <SectionCard eyebrow="Patch Candidates" title="Commit Summary">
+      <SectionCard eyebrow={locale === 'zh-CN' ? '补丁候选' : 'Patch Candidates'} title={locale === 'zh-CN' ? '提交摘要' : 'Commit Summary'}>
         {versions.patchCandidates.length > 0 ? (
           <div className="grid gap-2">
             {versions.patchCandidates.map((candidate) => (
@@ -165,7 +203,7 @@ function VersionsTab({ versions }: { versions: SceneInspectorViewModel['versions
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-medium text-text-main">{candidate.label}</p>
                   <Badge tone={candidate.status === 'ready_for_commit' ? 'success' : candidate.status === 'needs_review' ? 'warn' : 'neutral'}>
-                    {candidate.status}
+                    {getGenericStatusLabel(locale, candidate.status)}
                   </Badge>
                 </div>
                 <p className="mt-1 text-sm leading-6 text-text-muted">{candidate.summary}</p>
@@ -173,7 +211,14 @@ function VersionsTab({ versions }: { versions: SceneInspectorViewModel['versions
             ))}
           </div>
         ) : (
-          <EmptyState title="No patch candidates" message="Accept and Commit remain separated, so commit-ready summaries only appear here." />
+          <EmptyState
+            title={locale === 'zh-CN' ? '还没有补丁候选' : 'No patch candidates'}
+            message={
+              locale === 'zh-CN'
+                ? '采纳与提交仍然分离，所以只有可提交的摘要才会出现在这里。'
+                : 'Accept and Commit remain separated, so commit-ready summaries only appear here.'
+            }
+          />
         )}
       </SectionCard>
     </div>
@@ -181,31 +226,33 @@ function VersionsTab({ versions }: { versions: SceneInspectorViewModel['versions
 }
 
 function RuntimeTab({ runtime }: { runtime: SceneInspectorViewModel['runtime'] }) {
+  const { locale } = useI18n()
+
   return (
     <div className="grid gap-4 p-4">
-      <SectionCard eyebrow="Profile" title="Runtime Profile">
+      <SectionCard eyebrow={locale === 'zh-CN' ? '画像' : 'Profile'} title={locale === 'zh-CN' ? '运行态画像' : 'Runtime Profile'}>
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Badge tone={runtime.runHealth === 'stable' ? 'success' : runtime.runHealth === 'attention' ? 'warn' : 'danger'}>
-              {runtime.runHealth}
+              {getGenericStatusLabel(locale, runtime.runHealth)}
             </Badge>
             <p className="text-sm font-medium text-text-main">{runtime.profile.label}</p>
           </div>
           <p className="text-sm leading-6 text-text-muted">{runtime.profile.summary}</p>
         </div>
       </SectionCard>
-      <SectionCard eyebrow="Metrics" title="Latency / Tokens / Cost">
+      <SectionCard eyebrow={locale === 'zh-CN' ? '指标' : 'Metrics'} title={locale === 'zh-CN' ? '延迟 / 令牌 / 成本' : 'Latency / Tokens / Cost'}>
         <FactList
           items={[
-            { id: 'metric-latency', label: 'Latency', value: runtime.metrics.latencyLabel },
-            { id: 'metric-tokens', label: 'Tokens', value: runtime.metrics.tokenLabel },
-            { id: 'metric-cost', label: 'Cost', value: runtime.metrics.costLabel },
+            { id: 'metric-latency', label: locale === 'zh-CN' ? '延迟' : 'Latency', value: runtime.metrics.latencyLabel },
+            { id: 'metric-tokens', label: locale === 'zh-CN' ? '令牌' : 'Tokens', value: runtime.metrics.tokenLabel },
+            { id: 'metric-cost', label: locale === 'zh-CN' ? '成本' : 'Cost', value: runtime.metrics.costLabel },
           ]}
         />
       </SectionCard>
-      <SectionCard eyebrow="Failure" title="Latest Failure">
+      <SectionCard eyebrow={locale === 'zh-CN' ? '失败' : 'Failure'} title={locale === 'zh-CN' ? '最近失败' : 'Latest Failure'}>
         <p className="text-sm leading-6 text-text-muted">
-          {runtime.latestFailure ?? 'No runtime failures recorded for this scene.'}
+          {runtime.latestFailure ?? (locale === 'zh-CN' ? '这个场景还没有记录到运行失败。' : 'No runtime failures recorded for this scene.')}
         </p>
       </SectionCard>
     </div>
@@ -219,11 +266,17 @@ interface SceneInspectorPanelProps {
 }
 
 export function SceneInspectorPanel({ data, activeTab, onTabChange }: SceneInspectorPanelProps) {
+  const { locale } = useI18n()
+
   return (
     <>
       <PaneHeader
-        title="Context / Versions / Runtime"
-        description="Inspect context, version checkpoints, and runtime summaries here. Raw trace stays docked below the main stage."
+        title={locale === 'zh-CN' ? '上下文 / 版本 / 运行态' : 'Context / Versions / Runtime'}
+        description={
+          locale === 'zh-CN'
+            ? '在这里检查上下文、版本检查点和运行态摘要。原始追踪会继续停留在主舞台下方。'
+            : 'Inspect context, version checkpoints, and runtime summaries here. Raw trace stays docked below the main stage.'
+        }
       />
       <InspectorTabs activeTab={activeTab} onChange={onTabChange} />
       <div className="min-h-0 overflow-y-auto">
