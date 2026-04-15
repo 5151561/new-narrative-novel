@@ -51,14 +51,17 @@ export function readSceneRouteState(search = typeof window === 'undefined' ? '' 
   }
 
   const params = new URLSearchParams(search)
+  const lensParam = params.get('lens')
+  const tabParam = params.get('tab')
+  const modalParam = params.get('modal')
   const snapshot: SceneRouteState = {
     scope: 'scene',
     sceneId: readTextParam(params, 'id') ?? DEFAULT_SCENE_ID,
-    lens: isSceneLens(params.get('lens')) ? params.get('lens') : 'orchestrate',
-    tab: isSceneTab(params.get('tab')) ? params.get('tab') : 'execution',
+    lens: isSceneLens(lensParam) ? lensParam : 'orchestrate',
+    tab: isSceneTab(tabParam) ? tabParam : 'execution',
     beatId: readTextParam(params, 'beatId'),
     proposalId: readTextParam(params, 'proposalId'),
-    modal: isSceneModal(params.get('modal')) ? params.get('modal') : undefined,
+    modal: isSceneModal(modalParam) ? modalParam : undefined,
   }
 
   lastRouteSearch = search

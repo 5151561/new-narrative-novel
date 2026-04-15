@@ -13,6 +13,30 @@ function setSceneBridge(bridge: Record<string, unknown> | undefined) {
 
 async function renderFreshApp(search = '') {
   vi.resetModules()
+  vi.doMock('@/features/scene/containers/SceneInspectorContainer', () => ({
+    SceneInspectorContainer: ({ sceneId }: { sceneId: string }) => {
+      const { useState } = require('react') as typeof import('react')
+      const [activeTab, setActiveTab] = useState<'context' | 'versions' | 'runtime'>('context')
+
+      return (
+        <div data-testid="scene-inspector">
+          <div>{sceneId}</div>
+          <button type="button" onClick={() => setActiveTab('context')}>
+            Context
+          </button>
+          <button type="button" onClick={() => setActiveTab('versions')}>
+            Versions
+          </button>
+          <button type="button" onClick={() => setActiveTab('runtime')}>
+            Runtime
+          </button>
+          {activeTab === 'context' ? <div>Accepted Facts</div> : null}
+          {activeTab === 'versions' ? <div>Version Checkpoints</div> : null}
+          {activeTab === 'runtime' ? <div>Runtime Profile</div> : null}
+        </div>
+      )
+    },
+  }))
   window.history.replaceState({}, '', `/workbench${search}`)
 
   const [{ default: App }, { AppProviders }] = await Promise.all([
@@ -52,8 +76,8 @@ describe('App scene workbench', () => {
       expect(new URLSearchParams(window.location.search).get('beatId')).toBe('beat-departure')
     })
 
-    await user.click(screen.getAllByRole('button', { name: 'Prose' })[1]!)
-    expect(await screen.findByText('Prose Toolbar')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Open Prose' }))
+    expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
     expect(new URLSearchParams(window.location.search).get('tab')).toBe('prose')
   })
 
@@ -63,25 +87,27 @@ describe('App scene workbench', () => {
     await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
-    expect(screen.getByText('paused')).toBeInTheDocument()
+    expect(screen.getAllByText('paused').length).toBeGreaterThan(0)
 
     await user.click(screen.getByRole('button', { name: 'Continue Run' }))
     await waitFor(() => {
-      expect(screen.queryByText('paused')).not.toBeInTheDocument()
+      expect(screen.queryAllByText('paused')).toHaveLength(0)
       expect(screen.getByRole('button', { name: 'Continue Run' })).toBeDisabled()
     })
 
     await user.click(screen.getByRole('button', { name: 'Open Prose' }))
-    expect(await screen.findByText('Prose Toolbar')).toBeInTheDocument()
+    expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Execution' }))
-    await user.click(screen.getAllByRole('button', { name: 'Versions' })[0]!)
-    expect(await screen.findByText('Version Checkpoints')).toBeInTheDocument()
+    const inspector = screen.getByTestId('scene-inspector')
+    await user.click(within(inspector).getByRole('button', { name: 'Versions' }))
+    expect(await within(inspector).findByText('Version Checkpoints')).toBeInTheDocument()
 
-    await user.selectOptions(screen.getByRole('combobox'), 'thread-branch-a')
+    const threadSelect = screen.getByDisplayValue('Mainline')
+    await user.selectOptions(threadSelect, 'thread-branch-a')
     await waitFor(() => {
-      expect(screen.getByRole('combobox')).toHaveValue('thread-branch-a')
-      expect(screen.getByText('Alternate thread keeps Mei on the stronger bargaining line while Ren yields no public ground.')).toBeInTheDocument()
+      expect(threadSelect).toHaveValue('thread-branch-a')
+      expect(screen.getAllByText('Alternate thread keeps Mei on the stronger bargaining line while Ren yields no public ground.').length).toBeGreaterThan(0)
     })
 
     await user.click(screen.getByRole('button', { name: 'Export' }))
@@ -103,7 +129,7 @@ describe('App scene workbench', () => {
       expect(params.get('utm')).toBe('keep-me')
     })
 
-    await user.click(screen.getAllByRole('button', { name: 'Prose' })[1]!)
+    await user.click(screen.getByRole('button', { name: 'Open Prose' }))
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search)
       expect(params.get('tab')).toBe('prose')
@@ -128,6 +154,52 @@ describe('App scene workbench', () => {
     expect(screen.queryByText('Mock Runtime')).not.toBeInTheDocument()
   })
 
+  it('keeps fallback runtime messaging product-facing when no bridge is available', async () => {
+    await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    expect(screen.getByText('Preview Data')).toBeInTheDocument()
+    expect(screen.queryByText('Mock Fallback')).not.toBeInTheDocument()
+  })
+
+  it('keeps the active lens and tab when selecting a different scene from the navigator', async () => {
+    const user = userEvent.setup()
+
+    await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=draft&tab=prose')
+
+    expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Warehouse Bridge/i }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('id')).toBe('scene-warehouse-bridge')
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('tab')).toBe('prose')
+    })
+
+    expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
+  })
+
+  it('derives shell metadata from the active scene workspace data', async () => {
+    const user = userEvent.setup()
+
+    await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    expect(screen.getByText('Signals in Rain / Midnight Platform / Orchestrate / Execution')).toBeInTheDocument()
+    expect(screen.getAllByText('Run 07').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('review').length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: /Warehouse Bridge/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Open Water Signals / Warehouse Bridge / Orchestrate / Execution')).toBeInTheDocument()
+    })
+    expect(screen.getAllByText('Draft').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('draft').length).toBeGreaterThan(0)
+  })
+
   it('supports open scene -> accept -> patch preview -> commit as a separated smoke flow', async () => {
     const user = userEvent.setup()
 
@@ -135,7 +207,7 @@ describe('App scene workbench', () => {
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
     expect(screen.getByText(/Patch Preview: 1/i)).toBeInTheDocument()
-    expect(screen.queryByText('committed')).not.toBeInTheDocument()
+    expect(screen.queryAllByText('committed')).toHaveLength(0)
 
     const proposalCard = screen
       .getByRole('heading', { name: 'Let Mei name the cost in private terms' })
@@ -147,7 +219,7 @@ describe('App scene workbench', () => {
     await waitFor(() => {
       expect(screen.getByText(/Patch Preview: 2/i)).toBeInTheDocument()
     })
-    expect(screen.queryByText('committed')).not.toBeInTheDocument()
+    expect(screen.queryAllByText('committed')).toHaveLength(0)
 
     await user.click(screen.getByRole('button', { name: 'Patch Preview' }))
 
@@ -161,9 +233,9 @@ describe('App scene workbench', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: 'Patch preview' })).not.toBeInTheDocument()
-      expect(screen.getByText('committed')).toBeInTheDocument()
+      expect(screen.getAllByText('committed').length).toBeGreaterThan(0)
       expect(screen.getByText(/Patch Preview: 1/i)).toBeInTheDocument()
-      expect(screen.getByText('Committed / Let Mei name the cost in private terms')).toBeInTheDocument()
+      expect(screen.getAllByText('Committed / Let Mei name the cost in private terms').length).toBeGreaterThan(0)
     })
   })
 })

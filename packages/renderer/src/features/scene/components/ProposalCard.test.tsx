@@ -54,4 +54,19 @@ describe('ProposalCard', () => {
       'Ren rewrites the bargain so the ledger stays shut and the leverage lands cleanly.',
     )
   })
+
+  it('keeps raw trace identifiers out of the proposal review card', () => {
+    render(
+      <ProposalCard
+        proposal={proposal}
+        onSelect={vi.fn()}
+        onAccept={vi.fn()}
+        onEditAccept={vi.fn()}
+        onRequestRewrite={vi.fn()}
+        onReject={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByText(proposal.sourceTraceId!)).not.toBeInTheDocument()
+  })
 })

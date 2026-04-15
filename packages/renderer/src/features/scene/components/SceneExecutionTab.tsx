@@ -15,12 +15,14 @@ interface SceneExecutionTabProps {
   objective: SceneObjectiveModel
   beats: BeatRailItemModel[]
   proposals: ProposalCardModel[]
+  actorOptions: Array<{ id: string; label: string }>
   selectedBeatId?: string
   selectedProposalId?: string
   filters: ProposalFilters
   acceptedSummary: SceneAcceptedSummaryModel
   canContinueRun: boolean
   canOpenProse: boolean
+  onOpenSetup?: () => void
   onContinueRun: () => void
   onOpenPatchPreview: () => void
   onOpenProse: () => void
@@ -30,6 +32,7 @@ interface SceneExecutionTabProps {
   onEditAccept: (proposalId: string, editedSummary: string) => void
   onRequestRewrite: (proposalId: string) => void
   onReject: (proposalId: string) => void
+  onChangeFilters: (next: ProposalFilters) => void
   onClearFilters: () => void
 }
 
@@ -37,12 +40,14 @@ export function SceneExecutionTab({
   objective,
   beats,
   proposals,
+  actorOptions,
   selectedBeatId,
   selectedProposalId,
   filters,
   acceptedSummary,
   canContinueRun,
   canOpenProse,
+  onOpenSetup,
   onContinueRun,
   onOpenPatchPreview,
   onOpenProse,
@@ -52,15 +57,17 @@ export function SceneExecutionTab({
   onEditAccept,
   onRequestRewrite,
   onReject,
+  onChangeFilters,
   onClearFilters,
 }: SceneExecutionTabProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <SceneObjectiveStrip objective={objective} />
+      <SceneObjectiveStrip objective={objective} onOpenSetup={onOpenSetup} />
       <div className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)] overflow-hidden">
         <BeatRail beats={beats} selectedBeatId={selectedBeatId} onSelectBeat={onSelectBeat} />
         <ProposalReviewStack
           proposals={proposals}
+          actorOptions={actorOptions}
           selectedProposalId={selectedProposalId}
           filters={filters}
           onSelectProposal={onSelectProposal}
@@ -68,6 +75,7 @@ export function SceneExecutionTab({
           onEditAccept={onEditAccept}
           onRequestRewrite={onRequestRewrite}
           onReject={onReject}
+          onChangeFilters={onChangeFilters}
           onClearFilters={onClearFilters}
         />
       </div>

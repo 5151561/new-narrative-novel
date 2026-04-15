@@ -13,7 +13,11 @@ export function useSceneInspectorData(sceneId: string, client: SceneClient = sce
   return {
     context: query.data?.context ?? {
       acceptedFacts: [],
-      knowledgeBoundaries: [],
+      privateInfoGuard: {
+        summary: '',
+        items: [],
+      },
+      actorKnowledgeBoundaries: [],
       localState: [],
       overrides: [],
     },

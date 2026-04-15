@@ -22,34 +22,36 @@ export function WorkbenchShell({
   bottomDock,
 }: WorkbenchShellProps) {
   return (
-    <div className="grid min-h-screen grid-rows-[auto_minmax(0,1fr)_220px] bg-app p-4 text-text-main">
-      <Pane className="mb-4 overflow-visible">{topBar}</Pane>
-      <div className="grid min-h-0 grid-cols-[72px_280px_minmax(0,1fr)_320px] gap-4">
-        <Pane className="min-h-0">{modeRail}</Pane>
-        <Pane className="min-h-0">{navigator}</Pane>
+    <div className="grid min-h-screen grid-rows-[72px_minmax(0,1fr)_196px] bg-app text-text-main">
+      <header className="border-b border-line-soft bg-surface-1/90 px-5 py-3 backdrop-blur">
+        {topBar}
+      </header>
+      <div className="grid min-h-0 grid-cols-[68px_240px_minmax(0,1fr)_280px] gap-3 px-3 py-3">
+        <Pane muted className="min-h-0">{modeRail}</Pane>
+        <Pane muted className="min-h-0">{navigator}</Pane>
         <Pane className="min-h-0">{mainStage}</Pane>
-        <Pane className="min-h-0">
+        <Pane muted className="min-h-0">
           {inspector ?? (
             <>
-              <PaneHeader title="Inspector" description="Batch 2 will hydrate Context, Versions, and Runtime." />
+              <PaneHeader title="Inspector" description="Context, versions, and runtime stay close without taking over the run." />
               <div className="p-4">
                 <EmptyState
-                  title="Inspector holds its place"
-                  message="This column is present now so Scene execution lands inside the final workbench layout instead of a standalone page."
+                  title="Inspector ready"
+                  message="Accepted state, versions, and local overrides stay one step away from the stage."
                 />
               </div>
             </>
           )}
         </Pane>
       </div>
-      <Pane className="mt-4 min-h-0">
+      <Pane muted className="mx-3 mb-3 min-h-0">
         {bottomDock ?? (
           <>
-            <PaneHeader title="Bottom Dock" description="Events, trace, consistency, problems, and cost move here in batch 2." />
+            <PaneHeader title="Bottom Dock" description="Events, trace, consistency, problems, and cost stay docked below the run." />
             <div className="p-4">
               <EmptyState
-                title="Diagnostic dock reserved"
-                message="Execution stays focused on goals, beats, proposals, and accepted state. Runtime noise lands here later."
+                title="Dock ready"
+                message="Trace, warnings, and cost stay visible without pulling attention off the run."
               />
             </div>
           </>

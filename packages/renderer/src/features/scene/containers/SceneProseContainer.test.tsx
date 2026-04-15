@@ -32,12 +32,14 @@ describe('SceneProseContainer', () => {
     await waitFor(() => {
       expect(screen.getByText('Current Draft')).toBeInTheDocument()
     })
+    expect(screen.queryByText('Local Mock')).not.toBeInTheDocument()
+    expect(screen.queryByText(/local mock state/i)).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Compress' }))
     await user.click(screen.getByRole('button', { name: 'Revise Draft' }))
 
-    expect(await screen.findAllByText('Latest revise: compress pass applied locally.')).toHaveLength(2)
-    expect(screen.getByText('1 mock revision queued')).toBeInTheDocument()
+    expect(await screen.findAllByText('Latest revision: compress pass prepared for review.')).toHaveLength(2)
+    expect(screen.getByText('1 revision queued')).toBeInTheDocument()
   })
 
   it('shows a prose toolbar and exposes focus mode only when prose focus is available', async () => {
@@ -49,7 +51,7 @@ describe('SceneProseContainer', () => {
       wrapper: Wrapper,
     })
 
-    expect(await screen.findByText('Prose Toolbar')).toBeInTheDocument()
+    expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Focus Mode' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Focus Mode' }))

@@ -268,7 +268,7 @@ const midnightPlatform: SceneRecord = {
     focusModeAvailable: true,
     revisionQueueCount: 0,
     draftWordCount: 35,
-    statusLabel: 'Ready for local revise pass',
+    statusLabel: 'Ready for revision pass',
   },
   inspector: {
     context: {
@@ -276,10 +276,93 @@ const midnightPlatform: SceneRecord = {
         { id: 'fact-1', label: 'Courier signal spotted', value: 'Ren catches the station-lamp pattern.' },
         { id: 'fact-2', label: 'Ledger remains shut', value: 'No character opens or reads the ledger.' },
       ],
-      knowledgeBoundaries: [
-        'Ledger contents remain guarded from reader and cast.',
-        'Harbor fire culprit stays unresolved.',
-        'The conductor never decodes the courier signal.',
+      privateInfoGuard: {
+        summary: 'Keep the ledger contents, Ren’s alias, and the harbor-fire culprit guarded while review decides what becomes public.',
+        items: [
+          {
+            id: 'guard-ledger',
+            label: 'Ledger contents',
+            summary: 'Readers and cast know the ledger matters, but no one sees what is written inside.',
+            status: 'guarded',
+          },
+          {
+            id: 'guard-harbor-fire',
+            label: 'Harbor fire culprit',
+            summary: 'The scene can pressure that history without resolving who caused the fire.',
+            status: 'watching',
+          },
+        ],
+      },
+      actorKnowledgeBoundaries: [
+        {
+          actor: { id: 'ren', name: 'Ren Voss', role: 'POV' },
+          boundaries: [
+            {
+              id: 'boundary-1',
+              label: 'Ledger contents',
+              summary: 'Ren knows the ledger is leverage, not what Mei has changed inside it.',
+              status: 'guarded',
+            },
+            {
+              id: 'boundary-2',
+              label: 'Harbor fire culprit',
+              summary: 'Ren can carry guilt around the fire without confirming who caused it.',
+              status: 'open-question',
+            },
+            {
+              id: 'boundary-3',
+              label: 'Courier signal meaning',
+              summary: 'Ren can interpret the station-lamp signal without explaining it aloud.',
+              status: 'known',
+            },
+          ],
+        },
+        {
+          actor: { id: 'mei', name: 'Mei Arden', role: 'Counterforce' },
+          boundaries: [
+            {
+              id: 'boundary-1-mei',
+              label: 'Ledger contents',
+              summary: 'Mei can imply what the ledger costs without exposing the text inside it.',
+              status: 'guarded',
+            },
+            {
+              id: 'boundary-2-mei',
+              label: 'Harbor fire culprit',
+              summary: 'Mei can weaponize the history while the culprit remains unresolved.',
+              status: 'open-question',
+            },
+            {
+              id: 'boundary-3-mei',
+              label: 'Courier signal meaning',
+              summary: 'Mei sees Ren react to the signal, but does not decode the pattern onstage.',
+              status: 'guarded',
+            },
+          ],
+        },
+        {
+          actor: { id: 'conductor', name: 'Station Conductor', role: 'Witness' },
+          boundaries: [
+            {
+              id: 'boundary-1-conductor',
+              label: 'Ledger contents',
+              summary: 'The conductor clocks the ledger’s importance without ever learning its contents.',
+              status: 'guarded',
+            },
+            {
+              id: 'boundary-2-conductor',
+              label: 'Harbor fire culprit',
+              summary: 'The conductor notices tension around the fire but never hears a culprit named.',
+              status: 'open-question',
+            },
+            {
+              id: 'boundary-3-conductor',
+              label: 'Courier signal meaning',
+              summary: 'The conductor sees the lamp pattern but never decodes what it means.',
+              status: 'guarded',
+            },
+          ],
+        },
       ],
       localState: [
         { id: 'state-1', label: 'Active beat', value: 'Bargain over the ledger' },
@@ -564,7 +647,41 @@ const warehouseBridge: SceneRecord = {
   inspector: {
     context: {
       acceptedFacts: [],
-      knowledgeBoundaries: ['Package contents remain guarded.'],
+      privateInfoGuard: {
+        summary: 'Keep the package contents guarded until execution establishes what the bridge handoff makes public.',
+        items: [
+          {
+            id: 'guard-package',
+            label: 'Package contents',
+            summary: 'Setup can establish importance without opening or explaining the package.',
+            status: 'guarded',
+          },
+        ],
+      },
+      actorKnowledgeBoundaries: [
+        {
+          actor: { id: 'tala', name: 'Tala Soren', role: 'POV' },
+          boundaries: [
+            {
+              id: 'boundary-draft-1-tala',
+              label: 'Package contents',
+              summary: 'Tala knows the package matters but the scene should not reveal what it contains.',
+              status: 'guarded',
+            },
+          ],
+        },
+        {
+          actor: { id: 'oren', name: 'Oren Vale', role: 'Counterforce' },
+          boundaries: [
+            {
+              id: 'boundary-draft-1-oren',
+              label: 'Package contents',
+              summary: 'Oren can test Tala’s resolve without proving what is inside the package.',
+              status: 'guarded',
+            },
+          ],
+        },
+      ],
       localState: [{ id: 'draft-state-1', label: 'Execution status', value: 'Not started' }],
       overrides: [],
     },
@@ -672,6 +789,51 @@ function syncAcceptedFacts(scene: SceneRecord) {
   scene.inspector.context.acceptedFacts = clone(scene.execution.acceptedSummary.acceptedFacts)
 }
 
+function buildPrivateInfoGuard(
+  knowledgeBoundaries: SceneSetupViewModel['knowledgeBoundaries'],
+): SceneInspectorViewModel['context']['privateInfoGuard'] {
+  const guardedItems = knowledgeBoundaries.filter((boundary) => boundary.status !== 'known')
+
+  if (guardedItems.length === 0) {
+    return {
+      summary: 'No private-info guardrails are active for this scene.',
+      items: [] as SceneInspectorViewModel['context']['privateInfoGuard']['items'],
+    }
+  }
+
+  return {
+    summary: `Protect ${guardedItems.length} guarded reveal${guardedItems.length === 1 ? '' : 's'} while this scene stays in review.`,
+    items: guardedItems.map((boundary) => {
+      const status: SceneInspectorViewModel['context']['privateInfoGuard']['items'][number]['status'] =
+        boundary.status === 'guarded' ? 'guarded' : 'watching'
+
+      return {
+        id: `guard-${boundary.id}`,
+        label: boundary.label,
+        summary: boundary.summary,
+        status,
+      }
+    }),
+  }
+}
+
+function buildActorKnowledgeBoundaries(setup: SceneSetupViewModel) {
+  return setup.cast
+    .filter((member) => member.selected)
+    .map((member) => ({
+      actor: { id: member.id, name: member.name, role: member.role },
+      boundaries: setup.knowledgeBoundaries.map((boundary) => ({
+        ...boundary,
+        summary:
+          member.id === setup.identity.povCharacterId
+            ? boundary.summary
+            : boundary.status === 'known'
+              ? `${member.name} can work from observable scene knowledge: ${boundary.summary}`
+              : `${member.name} must respect this boundary: ${boundary.summary}`,
+      })),
+    }))
+}
+
 function buildAcceptedPatchCandidate(proposal: ProposalCardModel) {
   return {
     id: `patch-${proposal.id}`,
@@ -755,9 +917,8 @@ export function saveSceneSetup(database: SceneMockDatabase, sceneId: string, set
     .filter((member) => member.selected)
     .map((member) => ({ id: member.id, name: member.name, role: member.role }))
   scene.execution.objective.constraintSummary = setup.constraints.map((constraint) => constraint.summary)
-  scene.inspector.context.knowledgeBoundaries = setup.knowledgeBoundaries.map(
-    (boundary) => `${boundary.label}: ${boundary.summary}`,
-  )
+  scene.inspector.context.privateInfoGuard = buildPrivateInfoGuard(setup.knowledgeBoundaries)
+  scene.inspector.context.actorKnowledgeBoundaries = buildActorKnowledgeBoundaries(setup)
   scene.inspector.context.localState = [
     { id: 'state-1', label: 'Active beat', value: scene.inspector.context.localState[0]?.value ?? 'Bargain over the ledger' },
     {
@@ -796,9 +957,9 @@ export function applyProseRevision(
     continuity_fix: 'continuity fix',
   }
 
-  scene.prose.latestDiffSummary = `Latest revise: ${modeLabels[revisionMode]} pass applied locally.`
+  scene.prose.latestDiffSummary = `Latest revision: ${modeLabels[revisionMode]} pass prepared for review.`
   scene.prose.revisionQueueCount = 1
-  scene.prose.statusLabel = '1 mock revision queued'
+  scene.prose.statusLabel = '1 revision queued'
   scene.prose.warningsCount = revisionMode === 'continuity_fix' ? 0 : 1
 }
 
@@ -845,7 +1006,7 @@ export function switchSceneThread(database: SceneMockDatabase, sceneId: string, 
     scene.workspace.objective =
       'Alternate thread keeps Mei on the stronger bargaining line while Ren yields no public ground.'
     scene.execution.objective.goal = 'Test the alternate bargain thread where Mei controls the opening leverage.'
-    scene.prose.statusLabel = 'Alt Beat thread ready for local revise pass'
+    scene.prose.statusLabel = 'Alt Beat thread ready for revision pass'
     scene.inspector.context.localState = scene.inspector.context.localState.map((item) =>
       item.id === 'state-1' ? { ...item, value: 'Alt Beat branch active' } : item,
     )
@@ -861,7 +1022,7 @@ export function switchSceneThread(database: SceneMockDatabase, sceneId: string, 
 
   scene.workspace.objective = 'Force Ren to bargain for the ledger before the train departs.'
   scene.execution.objective.goal = 'Corner Mei into revealing whether the ledger is bait or leverage.'
-  scene.prose.statusLabel = 'Ready for local revise pass'
+  scene.prose.statusLabel = 'Ready for revision pass'
   scene.inspector.context.localState = scene.inspector.context.localState.map((item) =>
     item.id === 'state-1' ? { ...item, value: 'Bargain over the ledger' } : item,
   )

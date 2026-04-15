@@ -31,12 +31,19 @@ export function SceneHeader({ scene, onOpenExport, onSwitchThread, onOpenVersion
           {scene.chapterTitle} / Scene / Orchestrate
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-[32px] leading-[1.15]">{scene.title}</h1>
+          <h1 className="text-[30px] leading-[1.15]">{scene.title}</h1>
           <Badge tone={statusTone(scene.status)}>{scene.status}</Badge>
           <Badge tone={scene.runStatus === 'paused' ? 'warn' : 'neutral'}>
             <StatusDot tone={scene.runStatus === 'paused' ? 'warn' : 'neutral'} className="mr-1" />
             {scene.runStatus}
           </Badge>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone={scene.pendingProposalCount > 0 ? 'warn' : 'neutral'}>
+            Pending proposals: {scene.pendingProposalCount}
+          </Badge>
+          <Badge tone={scene.warningCount > 0 ? 'warn' : 'neutral'}>Warnings: {scene.warningCount}</Badge>
+          {scene.currentVersionLabel ? <Badge>{scene.currentVersionLabel}</Badge> : null}
         </div>
         <p className="max-w-3xl text-sm leading-6 text-text-muted">{scene.objective}</p>
       </div>

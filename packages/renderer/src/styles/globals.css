@@ -40,18 +40,18 @@
 
 @layer components {
   .ring-panel {
-    box-shadow: 0 0 0 1px var(--line-soft), 0 8px 24px var(--shadow-warm);
+    box-shadow: 0 0 0 1px var(--line-soft), 0 18px 40px var(--shadow-strong);
   }
 
   .muted-ring-panel {
-    box-shadow: 0 0 0 1px var(--line-soft);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 0 0 1px var(--line-soft);
   }
 
   .panel-surface {
-    @apply rounded-md bg-surface-1;
+    background-color: var(--surface-1);
   }
 
   .panel-surface-muted {
-    @apply rounded-md bg-surface-2;
+    background-color: var(--surface-2);
   }
 }

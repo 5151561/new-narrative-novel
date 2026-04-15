@@ -23,11 +23,15 @@ function toneForBeat(status: BeatRailItemModel['status']): 'neutral' | 'accent' 
 }
 
 export function BeatRail({ beats, selectedBeatId, onSelectBeat }: BeatRailProps) {
+  const activeCount = beats.filter((beat) => beat.status === 'running' || beat.status === 'review').length
+
   return (
     <aside className="flex min-h-0 flex-col border-r border-line-soft">
       <div className="border-b border-line-soft px-4 py-3">
-        <h3 className="text-lg">Beat Rail</h3>
-        <p className="mt-1 text-sm text-text-muted">Track scene progression without collapsing into runtime logs.</p>
+        <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">Beat Rail</p>
+        <h3 className="mt-1 text-lg">Beat Filters</h3>
+        <p className="mt-1 text-sm text-text-muted">Switch the proposal stack by beat and keep review pressure structural.</p>
+        <p className="mt-2 text-xs uppercase tracking-[0.05em] text-text-soft">{activeCount} active beats in play</p>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         <div className="space-y-3">

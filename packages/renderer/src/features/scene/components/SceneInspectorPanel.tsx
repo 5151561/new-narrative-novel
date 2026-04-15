@@ -53,14 +53,56 @@ function ContextTab({ context }: { context: SceneInspectorViewModel['context'] }
           <EmptyState title="No accepted facts" message="Accepted state will appear here once execution review clears a candidate." />
         )}
       </SectionCard>
-      <SectionCard eyebrow="Boundaries" title="Knowledge Boundaries">
-        <ul className="grid gap-2 text-sm leading-6 text-text-muted">
-          {context.knowledgeBoundaries.map((boundary) => (
-            <li key={boundary} className="rounded-md border border-line-soft bg-surface-2 px-3 py-3">
-              {boundary}
-            </li>
-          ))}
-        </ul>
+      <SectionCard eyebrow="Guard" title="Private Info Guard">
+        <div className="space-y-3">
+          <p className="text-sm leading-6 text-text-muted">{context.privateInfoGuard.summary}</p>
+          {context.privateInfoGuard.items.length > 0 ? (
+            <div className="grid gap-2">
+              {context.privateInfoGuard.items.map((item) => (
+                <div key={item.id} className="rounded-md border border-line-soft bg-surface-2 px-3 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-text-main">{item.label}</p>
+                    <Badge tone={item.status === 'guarded' ? 'warn' : item.status === 'watching' ? 'accent' : 'success'}>
+                      {item.status}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-text-muted">{item.summary}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState title="No guarded reveals" message="Private-info guardrails will appear here when the scene needs reveal protection." />
+          )}
+        </div>
+      </SectionCard>
+      <SectionCard eyebrow="Boundaries" title="Actor Knowledge Boundaries">
+        {context.actorKnowledgeBoundaries.length > 0 ? (
+          <div className="grid gap-3">
+            {context.actorKnowledgeBoundaries.map((entry) => (
+              <div key={entry.actor.id} className="rounded-md border border-line-soft bg-surface-2 px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-text-main">{entry.actor.name}</p>
+                  {entry.actor.role ? <Badge>{entry.actor.role}</Badge> : null}
+                </div>
+                <ul className="mt-3 space-y-2">
+                  {entry.boundaries.map((boundary) => (
+                    <li key={boundary.id} className="rounded-md border border-line-soft bg-surface-1 px-3 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium text-text-main">{boundary.label}</p>
+                        <Badge tone={boundary.status === 'guarded' ? 'warn' : boundary.status === 'known' ? 'success' : 'accent'}>
+                          {boundary.status}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-sm leading-6 text-text-muted">{boundary.summary}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="No actor boundaries yet" message="Actor-specific knowledge boundaries will appear here once setup defines them." />
+        )}
       </SectionCard>
       <SectionCard eyebrow="Local" title="State And Overrides">
         <div className="space-y-3">
@@ -180,8 +222,8 @@ export function SceneInspectorPanel({ data, activeTab, onTabChange }: SceneInspe
   return (
     <>
       <PaneHeader
-        title="Inspector"
-        description="Scene-aware inspect and override summaries stay here instead of leaking into the main stage."
+        title="Context / Versions / Runtime"
+        description="Inspect context, version checkpoints, and runtime summaries here. Raw trace stays docked below the main stage."
       />
       <InspectorTabs activeTab={activeTab} onChange={onTabChange} />
       <div className="min-h-0 overflow-y-auto">
