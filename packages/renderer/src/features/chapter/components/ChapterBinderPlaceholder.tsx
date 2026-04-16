@@ -39,7 +39,7 @@ export function ChapterBinderPlaceholder({ title, description, model, onSelectSc
           </div>
         </section>
         <div className="space-y-2">
-          {model.scenes.map((scene, index) => {
+          {model.scenes.map((scene) => {
             const active = scene.id === model.currentSceneId
 
             return (
@@ -55,7 +55,7 @@ export function ChapterBinderPlaceholder({ title, description, model, onSelectSc
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
-                      {getChapterSceneOrdinalLabel(locale, index + 1)}
+                      {getChapterSceneOrdinalLabel(locale, scene.order)}
                     </p>
                     <p className="text-sm font-medium text-text-main">{scene.title}</p>
                   </div>

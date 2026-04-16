@@ -32,7 +32,7 @@ const midnightPlatform: SceneRecord = {
   workspace: {
     id: 'scene-midnight-platform',
     title: 'Midnight Platform',
-    chapterId: 'chapter-4',
+    chapterId: 'chapter-signals-in-rain',
     chapterTitle: 'Signals in Rain',
     status: 'review',
     runStatus: 'paused',
@@ -536,7 +536,7 @@ const warehouseBridge: SceneRecord = {
   workspace: {
     id: 'scene-warehouse-bridge',
     title: 'Warehouse Bridge',
-    chapterId: 'chapter-5',
+    chapterId: 'chapter-open-water-signals',
     chapterTitle: 'Open Water Signals',
     status: 'draft',
     runStatus: 'idle',

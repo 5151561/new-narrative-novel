@@ -348,10 +348,15 @@ describe('App scene workbench', () => {
       '?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=sequence&sceneId=scene-ticket-window',
     )
 
-    expect(await screen.findByRole('heading', { name: 'Chapter workbench' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Ticket Window/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Chapter workbench' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Chapters' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Sequence' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('heading', { name: 'Ticket Window', level: 3 })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Ticket Window/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getAllByRole('heading', { name: 'Ticket Window' }).length).toBeGreaterThanOrEqual(2)
+    expect(
+      screen.getAllByText(/The alias stays offstage while Mei tests whether Ren will trade certainty for speed\./i).length,
+    ).toBeGreaterThanOrEqual(2)
 
     await user.click(screen.getByRole('button', { name: 'Assembly' }))
 
@@ -369,8 +374,10 @@ describe('App scene workbench', () => {
 
     await renderFreshApp(refreshSearch)
 
-    expect(await screen.findByRole('heading', { name: 'Chapter workbench' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Ticket Window/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Chapter workbench' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Assembly' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('heading', { name: 'Ticket Window', level: 3 })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Ticket Window/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getAllByRole('heading', { name: 'Ticket Window' }).length).toBeGreaterThanOrEqual(1)
   })
 })

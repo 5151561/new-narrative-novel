@@ -54,10 +54,15 @@ export function ChapterStructureStagePlaceholder({
       <div className="min-h-0 flex-1 overflow-auto p-4">
         {activeView === 'sequence' ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {model.scenes.map((scene, index) => (
-              <section key={scene.id} className="rounded-md border border-line-soft bg-surface-2 p-3">
+            {model.scenes.map((scene) => (
+              <section
+                key={scene.id}
+                className={`rounded-md border p-3 ${
+                  scene.id === model.currentSceneId ? 'border-line-strong bg-surface-1' : 'border-line-soft bg-surface-2'
+                }`}
+              >
                 <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
-                  {getChapterSequenceOrdinalLabel(locale, index + 1)}
+                  {getChapterSequenceOrdinalLabel(locale, scene.order)}
                 </p>
                 <h4 className="mt-1 text-base text-text-main">{scene.title}</h4>
                 <p className="mt-2 text-sm leading-6 text-text-muted">{scene.summary}</p>
@@ -73,18 +78,51 @@ export function ChapterStructureStagePlaceholder({
         ) : null}
         {activeView === 'outliner' ? (
           <div className="space-y-3">
-            {model.scenes.map((scene, index) => (
-              <section key={scene.id} className="rounded-md border border-line-soft bg-surface-2 p-3">
+            {model.scenes.map((scene) => (
+              <section
+                key={scene.id}
+                className={`rounded-md border p-3 ${
+                  scene.id === model.currentSceneId ? 'border-line-strong bg-surface-1' : 'border-line-soft bg-surface-2'
+                }`}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
-                      {getChapterBeatLineLabel(locale, index + 1)}
+                      {getChapterBeatLineLabel(locale, scene.order)}
                     </p>
                     <h4 className="mt-1 text-base text-text-main">{scene.title}</h4>
                   </div>
                   <Badge tone="neutral">{scene.statusLabel}</Badge>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-text-muted">{scene.summary}</p>
+                <dl className="mt-2 grid gap-2 text-sm leading-6 text-text-muted md:grid-cols-2">
+                  <div>
+                    <dt className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.chapterScaffold.purpose}</dt>
+                    <dd>{scene.purpose}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.chapterScaffold.pov}</dt>
+                    <dd>{scene.pov}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.chapterScaffold.location}</dt>
+                    <dd>{scene.location}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.chapterScaffold.reveal}</dt>
+                    <dd>{scene.reveal}</dd>
+                  </div>
+                  <div className="md:col-span-2">
+                    <dt className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.chapterScaffold.conflict}</dt>
+                    <dd>{scene.conflict}</dd>
+                  </div>
+                </dl>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Badge tone="neutral">{scene.proseStatusLabel}</Badge>
+                  <Badge tone="neutral">{scene.runStatusLabel}</Badge>
+                  <Badge tone={scene.unresolvedCount > 0 ? 'warn' : 'success'}>
+                    {getChapterUnresolvedCountLabel(locale, scene.unresolvedCount)}
+                  </Badge>
+                </div>
               </section>
             ))}
           </div>
@@ -99,7 +137,7 @@ export function ChapterStructureStagePlaceholder({
               <section className="rounded-md border border-line-soft bg-surface-2 p-3">
                 <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.chapterScaffold.incoming}</p>
                 <ul className="mt-3 space-y-2 text-sm text-text-muted">
-                  {model.scenes.slice(0, 2).map((scene) => (
+                  {model.scenes.slice(0, Math.max(model.scenes.findIndex((scene) => scene.id === model.currentSceneId), 1)).map((scene) => (
                     <li key={scene.id} className="rounded-md border border-line-soft bg-surface-1 px-3 py-2">
                       {scene.title}
                     </li>
@@ -109,11 +147,13 @@ export function ChapterStructureStagePlaceholder({
               <section className="rounded-md border border-line-soft bg-surface-2 p-3">
                 <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.chapterScaffold.currentAssembly}</p>
                 <ul className="mt-3 space-y-2 text-sm text-text-muted">
-                  {model.scenes.slice(2).map((scene) => (
+                  {model.scenes
+                    .slice(Math.max(model.scenes.findIndex((scene) => scene.id === model.currentSceneId), 0))
+                    .map((scene) => (
                     <li key={scene.id} className="rounded-md border border-line-soft bg-surface-1 px-3 py-2">
                       {scene.title}
                     </li>
-                  ))}
+                    ))}
                 </ul>
               </section>
             </div>

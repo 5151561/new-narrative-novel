@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 
 import { I18nProvider, useI18n } from './i18n'
+import { chapterQueryKeys } from '@/features/chapter/hooks/chapter-query-keys'
 import { sceneQueryKeys } from '@/features/scene/hooks/scene-query-keys'
 
 const queryClient = new QueryClient({
@@ -22,6 +23,7 @@ function LocaleQuerySync() {
 
   useEffect(() => {
     void queryClient.invalidateQueries({ queryKey: sceneQueryKeys.all })
+    void queryClient.invalidateQueries({ queryKey: chapterQueryKeys.all })
   }, [locale, queryClient])
 
   return null

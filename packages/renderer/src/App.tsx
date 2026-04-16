@@ -15,8 +15,9 @@ import { ChapterBinderPlaceholder } from '@/features/chapter/components/ChapterB
 import {
   ChapterStructureInspectorPlaceholder,
   ChapterStructureWorkspace,
-  useChapterStructureWorkspaceModel,
 } from '@/features/chapter/containers/ChapterStructureWorkspace'
+import { useChapterStructureWorkspaceQuery } from '@/features/chapter/hooks/useChapterStructureWorkspaceQuery'
+import type { ChapterStructureWorkspaceViewModel } from '@/features/chapter/types/chapter-view-models'
 import { sceneClient } from '@/features/scene/api/scene-client'
 import { SceneDockContainer } from '@/features/scene/containers/SceneDockContainer'
 import { SceneInspectorContainer } from '@/features/scene/containers/SceneInspectorContainer'
@@ -129,9 +130,8 @@ function SceneTopCommandBar({
   )
 }
 
-function ChapterTopCommandBar({ route }: { route: ChapterRouteState }) {
+function ChapterTopCommandBar({ route, model }: { route: ChapterRouteState; model: ChapterStructureWorkspaceViewModel }) {
   const { locale, dictionary } = useI18n()
-  const model = useChapterStructureWorkspaceModel(route)
 
   return (
     <div className="flex h-full flex-wrap items-center justify-between gap-3">
@@ -403,11 +403,67 @@ function ChapterWorkbench({
   patchChapterRoute: ReturnType<typeof useWorkbenchRouteState>['patchChapterRoute']
 }) {
   const { dictionary } = useI18n()
-  const model = useChapterStructureWorkspaceModel(route)
+  const { model, isLoading, error } = useChapterStructureWorkspaceQuery(route)
+
+  if (error) {
+    return (
+      <WorkbenchShell
+        topBar={
+          <div className="flex h-full items-center justify-between gap-3">
+            <h1 className="text-lg leading-tight text-text-main">{dictionary.app.chapterWorkbench}</h1>
+          </div>
+        }
+        modeRail={
+          <ModeRail
+            activeScope="chapter"
+            activeLens="structure"
+            onSelectScope={(scope) => {
+              if (scope === 'chapter') {
+                return
+              }
+              replaceRoute({ scope: 'scene' })
+            }}
+            onSelectLens={() => {}}
+          />
+        }
+        navigator={<div className="p-4 text-sm text-text-muted">Chapter unavailable.</div>}
+        mainStage={<div className="p-4 text-sm text-text-muted">Chapter unavailable.</div>}
+        inspector={<div className="p-4 text-sm text-text-muted">Chapter unavailable.</div>}
+      />
+    )
+  }
+
+  if (isLoading || !model) {
+    return (
+      <WorkbenchShell
+        topBar={
+          <div className="flex h-full items-center justify-between gap-3">
+            <h1 className="text-lg leading-tight text-text-main">{dictionary.app.chapterWorkbench}</h1>
+          </div>
+        }
+        modeRail={
+          <ModeRail
+            activeScope="chapter"
+            activeLens="structure"
+            onSelectScope={(scope) => {
+              if (scope === 'chapter') {
+                return
+              }
+              replaceRoute({ scope: 'scene' })
+            }}
+            onSelectLens={() => {}}
+          />
+        }
+        navigator={<div className="p-4 text-sm text-text-muted">{dictionary.common.loading}</div>}
+        mainStage={<div className="p-4 text-sm text-text-muted">{dictionary.common.loading}</div>}
+        inspector={<div className="p-4 text-sm text-text-muted">{dictionary.common.loading}</div>}
+      />
+    )
+  }
 
   return (
     <WorkbenchShell
-      topBar={<ChapterTopCommandBar route={route} />}
+      topBar={<ChapterTopCommandBar route={route} model={model} />}
       modeRail={
         <ModeRail
           activeScope="chapter"
@@ -429,8 +485,8 @@ function ChapterWorkbench({
           onSelectScene={(sceneId) => patchChapterRoute({ sceneId })}
         />
       }
-      mainStage={<ChapterStructureWorkspace route={route} onViewChange={(view) => patchChapterRoute({ view })} />}
-      inspector={<ChapterStructureInspectorPlaceholder route={route} />}
+      mainStage={<ChapterStructureWorkspace model={model} onViewChange={(view) => patchChapterRoute({ view })} />}
+      inspector={<ChapterStructureInspectorPlaceholder model={model} />}
     />
   )
 }

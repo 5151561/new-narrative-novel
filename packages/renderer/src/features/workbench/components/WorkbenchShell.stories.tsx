@@ -4,7 +4,8 @@ import { useI18n } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
 import { Badge } from '@/components/ui/Badge'
 import { ChapterBinderPlaceholder } from '@/features/chapter/components/ChapterBinderPlaceholder'
-import { ChapterStructureWorkspace } from '@/features/chapter/containers/ChapterStructureWorkspace'
+import { ChapterStructureInspectorPlaceholder, ChapterStructureWorkspace } from '@/features/chapter/containers/ChapterStructureWorkspace'
+import type { ChapterStructureWorkspaceViewModel } from '@/features/chapter/types/chapter-view-models'
 import { TimelineList } from '@/components/ui/TimelineList'
 
 import { WorkbenchShell } from './WorkbenchShell'
@@ -106,6 +107,73 @@ export const Default: Story = {}
 
 function ChapterWorkbenchShellStoryPreview() {
   const { locale, dictionary } = useI18n()
+  const model: ChapterStructureWorkspaceViewModel = {
+    chapterId: 'chapter-signals-in-rain',
+    title: locale === 'zh-CN' ? '雨中信号' : 'Signals in Rain',
+    summary: locale === 'zh-CN' ? '把章节结构、密度和拼接压力放在同一个工作面里。' : 'Keep structure, density, and assembly pressure in the same chapter workbench.',
+    sceneCount: 4,
+    unresolvedCount: 8,
+    activeView: 'sequence',
+    currentSceneId: 'scene-midnight-platform',
+    scenes: [
+      {
+        id: 'scene-midnight-platform',
+        order: 1,
+        title: locale === 'zh-CN' ? '午夜站台' : 'Midnight Platform',
+        summary: locale === 'zh-CN' ? '让公开场景压缩每一次让步空间。' : 'Keep the bargain public and constrained.',
+        purpose: locale === 'zh-CN' ? '把交易推进到公开的僵局。' : 'Push the bargain into a public stalemate.',
+        pov: locale === 'zh-CN' ? '任·沃斯' : 'Ren Voss',
+        location: locale === 'zh-CN' ? '东行月台' : 'Eastbound platform',
+        conflict: locale === 'zh-CN' ? '任需要筹码，美伊需要更高代价。' : 'Ren needs leverage, Mei needs a higher price.',
+        reveal: locale === 'zh-CN' ? '信使暗号仍只对任可读。' : 'The courier signal stays readable only to Ren.',
+        statusLabel: locale === 'zh-CN' ? '当前' : 'Current',
+        proseStatusLabel: locale === 'zh-CN' ? '待起草' : 'Needs draft',
+        runStatusLabel: locale === 'zh-CN' ? '已暂停' : 'Paused',
+        unresolvedCount: 3,
+        lastRunLabel: locale === 'zh-CN' ? '运行 07' : 'Run 07',
+      },
+      {
+        id: 'scene-concourse-delay',
+        order: 2,
+        title: locale === 'zh-CN' ? '候车厅延误' : 'Concourse Delay',
+        summary: locale === 'zh-CN' ? '继续拖住离场节奏。' : 'Hold the exit timing back a little longer.',
+        purpose: locale === 'zh-CN' ? '把压力留到下一场。' : 'Hold pressure for the next scene.',
+        pov: locale === 'zh-CN' ? '美伊·阿登' : 'Mei Arden',
+        location: locale === 'zh-CN' ? '候车大厅' : 'Concourse hall',
+        conflict: locale === 'zh-CN' ? '人潮拖慢所有人。' : 'The crowd slows everyone down.',
+        reveal: locale === 'zh-CN' ? '目击压力延续到室内。' : 'Witness pressure carries inward.',
+        statusLabel: locale === 'zh-CN' ? '排队中' : 'Queued',
+        proseStatusLabel: locale === 'zh-CN' ? '待起草' : 'Queued for draft',
+        runStatusLabel: locale === 'zh-CN' ? '未开始' : 'Idle',
+        unresolvedCount: 2,
+        lastRunLabel: locale === 'zh-CN' ? '未运行' : 'Not run',
+      },
+      {
+        id: 'scene-ticket-window',
+        order: 3,
+        title: locale === 'zh-CN' ? '售票窗' : 'Ticket Window',
+        summary: locale === 'zh-CN' ? '别名继续留在台外。' : 'Keep the alias offstage.',
+        purpose: locale === 'zh-CN' ? '把速度和确定性放进同一节拍。' : 'Bring speed and certainty into one beat.',
+        pov: locale === 'zh-CN' ? '任·沃斯' : 'Ren Voss',
+        location: locale === 'zh-CN' ? '售票窗' : 'Ticket window',
+        conflict: locale === 'zh-CN' ? '任想加速，美伊要先要承诺。' : 'Ren wants speed, Mei wants commitment first.',
+        reveal: locale === 'zh-CN' ? '化名仍未进入公开层。' : 'The alias still has not entered public knowledge.',
+        statusLabel: locale === 'zh-CN' ? '受控' : 'Guarded',
+        proseStatusLabel: locale === 'zh-CN' ? '待起草' : 'Needs draft',
+        runStatusLabel: locale === 'zh-CN' ? '已守护' : 'Guarded',
+        unresolvedCount: 1,
+        lastRunLabel: locale === 'zh-CN' ? '运行 03' : 'Run 03',
+      },
+    ],
+    inspector: {
+      selectedSceneTitle: locale === 'zh-CN' ? '午夜站台' : 'Midnight Platform',
+      selectedSceneBrief: locale === 'zh-CN' ? '让公共见证继续存在于场景边缘。' : 'Keep public witness pressure alive at the edge of the scene.',
+      unresolvedSummary: locale === 'zh-CN' ? '午夜站台仍有 3 个未决结构信号。' : 'Midnight Platform still carries 3 unresolved structure signals.',
+      chapterNotes: locale === 'zh-CN' ? ['排序属于结构层。'] : ['Ordering remains structural.'],
+      problemsSummary: locale === 'zh-CN' ? '主要风险在铃声时点和别名曝光。' : 'Main risks cluster around bell timing and alias exposure.',
+      assemblyHints: locale === 'zh-CN' ? ['把站台压力延续到候车厅。'] : ['Carry platform pressure into the concourse.'],
+    },
+  }
 
   return (
     <WorkbenchShell
@@ -145,61 +213,13 @@ function ChapterWorkbenchShellStoryPreview() {
         <ChapterBinderPlaceholder
           title={dictionary.app.chapters}
           description={dictionary.app.chapterNavigatorDescription}
-          model={{
-            chapterId: 'chapter-signals-in-rain',
-            title: locale === 'zh-CN' ? '雨中信号' : 'Signals in Rain',
-            sceneCount: 4,
-            unresolvedCount: 8,
-            activeView: 'sequence',
-            currentSceneId: 'scene-midnight-platform',
-            scenes: [
-              {
-                id: 'scene-midnight-platform',
-                title: locale === 'zh-CN' ? '午夜站台' : 'Midnight Platform',
-                statusLabel: locale === 'zh-CN' ? '当前' : 'Current',
-                summary: locale === 'zh-CN' ? '让公开场景压缩每一次让步空间。' : 'Keep the bargain public and constrained.',
-                unresolvedCount: 3,
-              },
-              {
-                id: 'scene-concourse-delay',
-                title: locale === 'zh-CN' ? '候车厅延误' : 'Concourse Delay',
-                statusLabel: locale === 'zh-CN' ? '排队中' : 'Queued',
-                summary: locale === 'zh-CN' ? '继续拖住离场节奏。' : 'Hold the exit timing back a little longer.',
-                unresolvedCount: 2,
-              },
-              {
-                id: 'scene-ticket-window',
-                title: locale === 'zh-CN' ? '售票窗' : 'Ticket Window',
-                statusLabel: locale === 'zh-CN' ? '受控' : 'Guarded',
-                summary: locale === 'zh-CN' ? '别名继续留在台外。' : 'Keep the alias offstage.',
-                unresolvedCount: 1,
-              },
-            ],
-            inspector: {
-              selectedSceneTitle: locale === 'zh-CN' ? '午夜站台' : 'Midnight Platform',
-              selectedSceneBrief: '',
-              unresolvedSummary: '',
-              chapterNotes: [],
-            },
-          }}
+          model={model}
         />
       }
       mainStage={
-        <ChapterStructureWorkspace
-          route={{
-            scope: 'chapter',
-            chapterId: 'chapter-signals-in-rain',
-            lens: 'structure',
-            view: 'sequence',
-          }}
-          onViewChange={() => {}}
-        />
+        <ChapterStructureWorkspace model={model} onViewChange={() => {}} />
       }
-      inspector={
-        <div className="p-4 text-sm text-text-muted">
-          {locale === 'zh-CN' ? '章节检查器占位。' : 'Chapter inspector placeholder.'}
-        </div>
-      }
+      inspector={<ChapterStructureInspectorPlaceholder model={model} />}
     />
   )
 }
