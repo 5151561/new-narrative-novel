@@ -15,6 +15,7 @@ import { ChapterStructureInspectorPane } from '../components/ChapterStructureIns
 import { ChapterStructureStagePlaceholder } from '../components/ChapterStructureStagePlaceholder'
 import { useChapterStructureWorkspaceQuery } from '../hooks/useChapterStructureWorkspaceQuery'
 import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
+import { ChapterDockContainer } from './ChapterDockContainer'
 
 const defaultChapterViews: ChapterStructureView[] = ['sequence', 'outliner', 'assembly']
 
@@ -164,6 +165,7 @@ export function ChapterStructureWorkspace() {
         navigator={<ChapterPaneState title={locale === 'zh-CN' ? '章节不可用' : 'Chapter unavailable'} message={message} />}
         mainStage={<ChapterPaneState title={locale === 'zh-CN' ? '章节不可用' : 'Chapter unavailable'} message={message} />}
         inspector={<ChapterPaneState title={locale === 'zh-CN' ? '检查器不可用' : 'Inspector unavailable'} message={message} />}
+        bottomDock={<ChapterPaneState title={locale === 'zh-CN' ? '底部面板不可用' : 'Bottom dock unavailable'} message={message} />}
       />
     )
   }
@@ -181,6 +183,7 @@ export function ChapterStructureWorkspace() {
         navigator={<ChapterPaneState title={dictionary.common.loading} message={message} />}
         mainStage={<ChapterPaneState title={dictionary.common.loading} message={message} />}
         inspector={<ChapterPaneState title={dictionary.common.loading} message={message} />}
+        bottomDock={<ChapterPaneState title={locale === 'zh-CN' ? '正在加载底部面板' : 'Loading bottom dock'} message={message} />}
       />
     )
   }
@@ -198,6 +201,7 @@ export function ChapterStructureWorkspace() {
         navigator={<ChapterPaneState title={locale === 'zh-CN' ? '章节不存在' : 'Chapter not found'} message={message} />}
         mainStage={<ChapterPaneState title={locale === 'zh-CN' ? '章节不存在' : 'Chapter not found'} message={message} />}
         inspector={<ChapterPaneState title={locale === 'zh-CN' ? '章节不存在' : 'Chapter not found'} message={message} />}
+        bottomDock={<ChapterPaneState title={locale === 'zh-CN' ? '底部面板不可用' : 'Bottom dock unavailable'} message={message} />}
       />
     )
   }
@@ -237,6 +241,7 @@ export function ChapterStructureWorkspace() {
           inspector={workspace.inspector}
         />
       }
+      bottomDock={<ChapterDockContainer activeView={effectiveView} workspace={workspace} />}
     />
   )
 }
