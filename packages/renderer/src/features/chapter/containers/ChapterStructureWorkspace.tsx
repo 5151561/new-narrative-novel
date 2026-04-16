@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+
 import {
   getChapterStructureViewLabel,
   getLocaleName,
@@ -9,12 +11,23 @@ import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 
 import { ChapterBinderPane } from '../components/ChapterBinderPane'
-import { ChapterStructureInspectorPlaceholder } from '../components/ChapterStructureInspectorPlaceholder'
+import { ChapterStructureInspectorPane } from '../components/ChapterStructureInspectorPane'
 import { ChapterStructureStagePlaceholder } from '../components/ChapterStructureStagePlaceholder'
 import { useChapterStructureWorkspaceQuery } from '../hooks/useChapterStructureWorkspaceQuery'
 import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
 
 const defaultChapterViews: ChapterStructureView[] = ['sequence', 'outliner', 'assembly']
+
+function getEffectiveChapterView(
+  activeView: ChapterStructureView,
+  availableViews: ChapterStructureView[],
+): ChapterStructureView {
+  if (availableViews.includes(activeView)) {
+    return activeView
+  }
+
+  return availableViews[0] ?? defaultChapterViews[0]
+}
 
 function LanguageToggle() {
   const { locale, setLocale, dictionary } = useI18n()
@@ -128,6 +141,18 @@ export function ChapterStructureWorkspace() {
   })
 
   const shellModeRail = <ChapterModeRail onSwitchScope={() => replaceRoute({ scope: 'scene' })} />
+  const availableViews = workspace?.viewsMeta?.availableViews ?? defaultChapterViews
+  const effectiveView = getEffectiveChapterView(route.view, availableViews)
+
+  useEffect(() => {
+    if (error || isLoading || workspace === undefined || workspace === null) {
+      return
+    }
+
+    if (route.view !== effectiveView) {
+      patchChapterRoute({ view: effectiveView }, { replace: true })
+    }
+  }, [effectiveView, error, isLoading, patchChapterRoute, route.view, workspace])
 
   if (error) {
     const message = error.message
@@ -177,24 +202,22 @@ export function ChapterStructureWorkspace() {
     )
   }
 
-  const availableViews = workspace.viewsMeta?.availableViews ?? defaultChapterViews
-
   return (
     <WorkbenchShell
-      topBar={<ChapterTopCommandBar activeView={route.view} workspace={workspace} />}
+      topBar={<ChapterTopCommandBar activeView={effectiveView} workspace={workspace} />}
       modeRail={shellModeRail}
       navigator={
         <ChapterBinderPane
           title={dictionary.app.chapters}
           description={dictionary.app.chapterNavigatorDescription}
           workspace={workspace}
-          activeView={route.view}
+          activeView={effectiveView}
           onSelectScene={(sceneId) => patchChapterRoute({ sceneId })}
         />
       }
       mainStage={
         <ChapterStructureStagePlaceholder
-          activeView={route.view}
+          activeView={effectiveView}
           labels={{
             sequence: dictionary.app.sequence,
             outliner: dictionary.app.outliner,
@@ -208,7 +231,7 @@ export function ChapterStructureWorkspace() {
         />
       }
       inspector={
-        <ChapterStructureInspectorPlaceholder
+        <ChapterStructureInspectorPane
           chapterId={workspace.chapterId}
           unresolvedCount={workspace.unresolvedCount}
           inspector={workspace.inspector}

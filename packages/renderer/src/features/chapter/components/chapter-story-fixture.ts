@@ -111,3 +111,42 @@ export function buildChapterStoryWorkspace(selectedSceneId: string): ChapterStru
     },
   }
 }
+
+export function buildChapterProblemsHeavyStoryWorkspace(selectedSceneId: string): ChapterStructureWorkspaceViewModel {
+  const workspace = buildChapterStoryWorkspace(selectedSceneId)
+
+  return {
+    ...workspace,
+    unresolvedCount: 9,
+    inspector: {
+      ...workspace.inspector,
+      chapterNotes: ['Ordering remains structural.', 'Carry the witness pressure until the exit is truly blocked.'],
+      problemsSummary: [
+        ...workspace.inspector.problemsSummary,
+        {
+          id: 'alias-exposure',
+          label: 'Alias exposure',
+          detail: 'The alias brushes too close to public knowledge in the ticket window handoff.',
+        },
+        {
+          id: 'timing-drift',
+          label: 'Timing drift',
+          detail: 'The bell beat and crowd delay still do not share the same structural clock.',
+        },
+      ],
+      assemblyHints: [
+        ...workspace.inspector.assemblyHints,
+        {
+          id: 'tighten-handoff',
+          label: 'Tighten the handoff',
+          detail: 'Let the concourse exit decision arrive one beat earlier before the ticket window locks it.',
+        },
+        {
+          id: 'hold-witness-line',
+          label: 'Hold the witness line',
+          detail: 'Keep witness pressure visible so the next seam does not feel privately reset.',
+        },
+      ],
+    },
+  }
+}

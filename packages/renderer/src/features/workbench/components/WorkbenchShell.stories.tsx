@@ -4,7 +4,7 @@ import { useI18n } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
 import { Badge } from '@/components/ui/Badge'
 import { ChapterBinderPane } from '@/features/chapter/components/ChapterBinderPane'
-import { ChapterStructureInspectorPlaceholder } from '@/features/chapter/components/ChapterStructureInspectorPlaceholder'
+import { ChapterStructureInspectorPane } from '@/features/chapter/components/ChapterStructureInspectorPane'
 import { ChapterStructureStagePlaceholder } from '@/features/chapter/components/ChapterStructureStagePlaceholder'
 import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '@/features/chapter/types/chapter-view-models'
 import { TimelineList } from '@/components/ui/TimelineList'
@@ -253,7 +253,7 @@ function ChapterWorkbenchShellStoryPreview() {
         />
       }
       inspector={
-        <ChapterStructureInspectorPlaceholder
+        <ChapterStructureInspectorPane
           chapterId={model.chapterId}
           unresolvedCount={model.unresolvedCount}
           inspector={model.inspector}

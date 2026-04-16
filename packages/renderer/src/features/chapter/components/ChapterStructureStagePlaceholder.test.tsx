@@ -110,13 +110,13 @@ describe('ChapterStructureStagePlaceholder', () => {
       </I18nProvider>,
     )
 
-    const incomingSection = screen.getByText('Incoming').closest('section')
-    const currentAssemblySection = screen.getByText('Current assembly').closest('section')
+    const incomingSection = screen.getByRole('heading', { name: 'Incoming' }).closest('section')
+    const currentAssemblySection = screen.getByRole('heading', { name: 'Current seam' }).closest('section')
 
     expect(incomingSection).not.toBeNull()
     expect(currentAssemblySection).not.toBeNull()
-    expect(within(incomingSection!).queryByText('Midnight Platform')).not.toBeInTheDocument()
-    expect(within(currentAssemblySection!).getByText('Midnight Platform')).toBeInTheDocument()
+    expect(within(incomingSection!).queryByRole('button', { name: /Midnight Platform/i })).not.toBeInTheDocument()
+    expect(within(currentAssemblySection!).getByRole('button', { name: /Midnight Platform/i })).toBeInTheDocument()
   })
 
   it('renders only the available chapter views when metadata narrows the switcher', () => {
@@ -140,5 +140,28 @@ describe('ChapterStructureStagePlaceholder', () => {
     expect(screen.getByRole('button', { name: 'Sequence' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Assembly' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Outliner' })).not.toBeInTheDocument()
+  })
+
+  it('falls back to the first available chapter view when the active view is disallowed', () => {
+    render(
+      <I18nProvider>
+        <ChapterStructureStagePlaceholder
+          activeView="outliner"
+          labels={{
+            sequence: 'Sequence',
+            outliner: 'Outliner',
+            assembly: 'Assembly',
+          }}
+          availableViews={['sequence', 'assembly']}
+          workspace={workspace}
+          title="Chapter structure"
+          onViewChange={() => {}}
+        />
+      </I18nProvider>,
+    )
+
+    expect(screen.getByRole('button', { name: 'Sequence' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: /Beat line 1 Midnight Platform/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Sequence 1 Midnight Platform/i })).toBeInTheDocument()
   })
 })
