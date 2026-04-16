@@ -1,0 +1,155 @@
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it } from 'vitest'
+
+import {
+  type ChapterRouteState,
+  type SceneRouteState,
+  type WorkbenchRouteState,
+} from '../types/workbench-route'
+import { useWorkbenchRouteState } from './useWorkbenchRouteState'
+
+function RouteHarness() {
+  const { route, replaceRoute, patchChapterRoute, patchSceneRoute } = useWorkbenchRouteState()
+
+  return (
+    <div>
+      <pre data-testid="route">{JSON.stringify(route)}</pre>
+      <button
+        type="button"
+        onClick={() =>
+          patchSceneRoute({
+            sceneId: 'scene-warehouse-bridge',
+            lens: 'draft',
+            tab: 'prose',
+            proposalId: 'proposal-2',
+          } satisfies Partial<SceneRouteState>)
+        }
+      >
+        Scene Draft
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchChapterRoute({
+            chapterId: 'chapter-open-water-signals',
+            view: 'assembly',
+            sceneId: 'scene-dawn-slip',
+          } satisfies Partial<ChapterRouteState>)
+        }
+      >
+        Chapter Assembly
+      </button>
+      <button
+        type="button"
+        onClick={() => replaceRoute({ scope: 'chapter' })}
+      >
+        Open Chapter
+      </button>
+      <button
+        type="button"
+        onClick={() => replaceRoute({ scope: 'scene' })}
+      >
+        Open Scene
+      </button>
+    </div>
+  )
+}
+
+function readRoute() {
+  return JSON.parse(screen.getByTestId('route').textContent ?? 'null') as WorkbenchRouteState
+}
+
+describe('useWorkbenchRouteState', () => {
+  it('normalizes chapter deep links and ignores scene-only params while forcing the structure lens', () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=draft&view=invalid&sceneId=scene-ticket-window&tab=prose&beatId=beat-bargain&proposalId=proposal-2&modal=export',
+    )
+
+    render(<RouteHarness />)
+
+    expect(readRoute()).toEqual({
+      scope: 'chapter',
+      chapterId: 'chapter-signals-in-rain',
+      lens: 'structure',
+      view: 'sequence',
+      sceneId: 'scene-ticket-window',
+    })
+  })
+
+  it('keeps scene and chapter params isolated while preserving both scope states across switches', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=scene&id=scene-midnight-platform&lens=draft&tab=prose&proposalId=proposal-2&chapterId=chapter-open-water-signals&chapterView=assembly',
+    )
+
+    render(<RouteHarness />)
+
+    expect(readRoute()).toEqual({
+      scope: 'scene',
+      sceneId: 'scene-midnight-platform',
+      lens: 'draft',
+      tab: 'prose',
+      proposalId: 'proposal-2',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Chapter Assembly' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'scene',
+      sceneId: 'scene-midnight-platform',
+      lens: 'draft',
+      tab: 'prose',
+      proposalId: 'proposal-2',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Open Chapter' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'chapter',
+      chapterId: 'chapter-open-water-signals',
+      lens: 'structure',
+      view: 'assembly',
+      sceneId: 'scene-dawn-slip',
+    })
+
+    let params = new URLSearchParams(window.location.search)
+    expect(params.get('scope')).toBe('chapter')
+    expect(params.get('id')).toBe('chapter-open-water-signals')
+    expect(params.get('lens')).toBe('structure')
+    expect(params.get('view')).toBe('assembly')
+    expect(params.get('sceneId')).toBe('scene-dawn-slip')
+    expect(params.get('tab')).toBeNull()
+    expect(params.get('proposalId')).toBeNull()
+    expect(params.get('sceneLens')).toBeNull()
+    expect(params.get('sceneTab')).toBeNull()
+    expect(params.get('sceneProposalId')).toBeNull()
+    expect(params.get('chapterId')).toBeNull()
+    expect(params.get('chapterView')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Open Scene' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'scene',
+      sceneId: 'scene-midnight-platform',
+      lens: 'draft',
+      tab: 'prose',
+      proposalId: 'proposal-2',
+    })
+
+    params = new URLSearchParams(window.location.search)
+    expect(params.get('scope')).toBe('scene')
+    expect(params.get('id')).toBe('scene-midnight-platform')
+    expect(params.get('lens')).toBe('draft')
+    expect(params.get('tab')).toBe('prose')
+    expect(params.get('proposalId')).toBe('proposal-2')
+    expect(params.get('view')).toBeNull()
+    expect(params.get('chapterId')).toBeNull()
+    expect(params.get('chapterView')).toBeNull()
+  })
+})

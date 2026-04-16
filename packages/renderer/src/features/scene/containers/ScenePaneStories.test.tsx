@@ -6,8 +6,12 @@ import { SceneDockContainer } from './SceneDockContainer'
 import inspectorMeta, { Default as InspectorDefault } from './SceneInspectorContainer.stories'
 import { SceneInspectorContainer } from './SceneInspectorContainer'
 
-function renderDecoratedStory(ui: () => ReactElement, decorator: unknown) {
-  return render((decorator as (Story: () => ReactElement) => ReactElement)(ui))
+function renderDecoratedStory(
+  ui: () => ReactElement,
+  decorator: unknown,
+  parameters: Record<string, unknown> | undefined,
+) {
+  return render((decorator as (Story: () => ReactElement, context: { parameters?: Record<string, unknown> }) => ReactElement)(ui, { parameters }))
 }
 
 describe('scene pane stories', () => {
@@ -15,6 +19,7 @@ describe('scene pane stories', () => {
     renderDecoratedStory(
       () => <SceneDockContainer sceneId={DockDefault.args!.sceneId} />,
       dockMeta.decorators?.[0],
+      DockDefault.parameters,
     )
 
     expect(document.querySelector('.ring-panel')).toHaveClass('flex-col')
@@ -24,6 +29,7 @@ describe('scene pane stories', () => {
     renderDecoratedStory(
       () => <SceneInspectorContainer sceneId={InspectorDefault.args!.sceneId} />,
       inspectorMeta.decorators?.[0],
+      InspectorDefault.parameters,
     )
 
     expect(document.querySelector('.ring-panel')).toHaveClass('flex-col')

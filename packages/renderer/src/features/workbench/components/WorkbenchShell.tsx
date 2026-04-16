@@ -8,7 +8,7 @@ import { PaneHeader } from '@/components/ui/PaneHeader'
 interface WorkbenchShellProps {
   topBar: ReactNode
   modeRail: ReactNode
-  navigator: ReactNode
+  navigator?: ReactNode
   mainStage: ReactNode
   inspector?: ReactNode
   bottomDock?: ReactNode
@@ -31,13 +31,26 @@ export function WorkbenchShell({
       </header>
       <div className="grid min-h-0 grid-cols-[68px_240px_minmax(0,1fr)_280px] gap-3 px-3 py-3">
         <Pane muted className="min-h-0">{modeRail}</Pane>
-        <Pane muted className="min-h-0">{navigator}</Pane>
-        <Pane className="min-h-0">{mainStage}</Pane>
+        <Pane muted className="min-h-0">
+          {navigator ? (
+            <div className="min-h-0 flex-1 overflow-hidden">{navigator}</div>
+          ) : (
+            <>
+              <PaneHeader title={dictionary.app.scenes} description={dictionary.shell.inspectorDescription} />
+              <div className="p-4">
+                <EmptyState title={dictionary.shell.inspectorReadyTitle} message={dictionary.shell.inspectorReadyMessage} />
+              </div>
+            </>
+          )}
+        </Pane>
+        <Pane className="min-h-0">
+          <div className="min-h-0 flex-1 overflow-hidden">{mainStage}</div>
+        </Pane>
         <Pane muted className="min-h-0">
           {inspector ?? (
             <>
               <PaneHeader title={dictionary.shell.inspectorTitle} description={dictionary.shell.inspectorDescription} />
-              <div className="p-4">
+              <div className="min-h-0 flex-1 overflow-auto p-4">
                 <EmptyState
                   title={dictionary.shell.inspectorReadyTitle}
                   message={dictionary.shell.inspectorReadyMessage}
@@ -51,7 +64,7 @@ export function WorkbenchShell({
         {bottomDock ?? (
           <>
             <PaneHeader title={dictionary.shell.bottomDockTitle} description={dictionary.shell.bottomDockDescription} />
-            <div className="p-4">
+            <div className="min-h-0 flex-1 overflow-auto p-4">
               <EmptyState
                 title={dictionary.shell.dockReadyTitle}
                 message={dictionary.shell.dockReadyMessage}

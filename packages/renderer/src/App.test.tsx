@@ -340,4 +340,37 @@ describe('App scene workbench', () => {
       expect(screen.getByText('场景设定简报')).toBeInTheDocument()
     })
   })
+
+  it('enters the chapter structure scaffold from a direct deep link and restores the selected scene with the view after refresh', async () => {
+    const user = userEvent.setup()
+
+    const firstRender = await renderFreshApp(
+      '?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=sequence&sceneId=scene-ticket-window',
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Chapter workbench' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Chapters' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sequence' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('heading', { name: 'Ticket Window', level: 3 })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Assembly' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('chapter')
+      expect(params.get('id')).toBe('chapter-signals-in-rain')
+      expect(params.get('lens')).toBe('structure')
+      expect(params.get('view')).toBe('assembly')
+      expect(params.get('sceneId')).toBe('scene-ticket-window')
+    })
+
+    const refreshSearch = window.location.search
+    firstRender.unmount()
+
+    await renderFreshApp(refreshSearch)
+
+    expect(await screen.findByRole('heading', { name: 'Chapter workbench' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Assembly' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('heading', { name: 'Ticket Window', level: 3 })).toBeInTheDocument()
+  })
 })

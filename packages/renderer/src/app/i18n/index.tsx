@@ -9,7 +9,7 @@ import type {
   SceneDockTabId,
   SceneTab,
 } from '@/features/scene/types/scene-view-models'
-import type { SceneLens } from '@/features/scene/hooks/useSceneRouteState'
+import type { ChapterStructureView, WorkbenchLens } from '@/features/workbench/types/workbench-route'
 
 type InspectorTabId = 'context' | 'versions' | 'runtime'
 
@@ -160,7 +160,7 @@ const proposalSeverityLabels: Record<Locale, Record<ProposalSeverity, string>> =
   },
 }
 
-const sceneLensLabels: Record<Locale, Record<SceneLens, string>> = {
+const workbenchLensLabels: Record<Locale, Record<WorkbenchLens, string>> = {
   en: {
     structure: 'Structure',
     orchestrate: 'Orchestrate',
@@ -170,6 +170,19 @@ const sceneLensLabels: Record<Locale, Record<SceneLens, string>> = {
     structure: '结构',
     orchestrate: '编排',
     draft: '成稿',
+  },
+}
+
+const chapterStructureViewLabels: Record<Locale, Record<ChapterStructureView, string>> = {
+  en: {
+    sequence: 'Sequence',
+    outliner: 'Outliner',
+    assembly: 'Assembly',
+  },
+  'zh-CN': {
+    sequence: '顺序',
+    outliner: '大纲',
+    assembly: '装配',
   },
 }
 
@@ -321,6 +334,13 @@ const dictionaries = {
     app: {
       narrativeWorkbench: 'Narrative workbench',
       sceneCockpit: 'Scene cockpit',
+      chapterWorkbench: 'Chapter workbench',
+      chapterStructure: 'Chapter structure',
+      sequence: 'Sequence',
+      outliner: 'Outliner',
+      assembly: 'Assembly',
+      chapters: 'Chapters',
+      chapterNavigatorDescription: 'Keep chapter structure, placeholder scenes, and unresolved signals aligned.',
       scope: 'Scope',
       scenes: 'Scenes',
       sceneNavigatorDescription: 'Keep scene selection close and let the run stay central.',
@@ -333,6 +353,22 @@ const dictionaries = {
         structure: 'Objective, cast, and guardrails.',
         orchestrate: 'Beats, proposals, and accepted state.',
         draft: 'Scene prose and revision passes.',
+      },
+      chapterScaffold: {
+        currentChapter: 'Current chapter',
+        scenePrefix: 'Scene',
+        sceneCount: 'scenes',
+        unresolved: 'Unresolved',
+        sequencePrefix: 'Sequence',
+        beatLinePrefix: 'Beat line',
+        assemblyLanes: 'Assembly lanes',
+        assemblyDescription:
+          'Reorder handles and structural writes stay out of scope here. This placeholder only keeps the assembly surface visible and route-backed.',
+        incoming: 'Incoming',
+        currentAssembly: 'Current assembly',
+        selectedSceneBrief: 'Selected scene brief',
+        unresolvedSummary: 'Unresolved summary',
+        chapterNotes: 'Chapter notes',
       },
     },
     shell: {
@@ -362,6 +398,13 @@ const dictionaries = {
     app: {
       narrativeWorkbench: '叙事工作台',
       sceneCockpit: '场景驾驶舱',
+      chapterWorkbench: '章节工作台',
+      chapterStructure: '章节结构',
+      sequence: '顺序',
+      outliner: '大纲',
+      assembly: '装配',
+      chapters: '章节',
+      chapterNavigatorDescription: '让章节结构、占位场景和未决信号保持对齐。',
       scope: '范围',
       scenes: '场景',
       sceneNavigatorDescription: '把场景选择放在手边，让当前运行保持在中心位置。',
@@ -373,6 +416,21 @@ const dictionaries = {
         structure: '目标、角色与约束。',
         orchestrate: '节拍、提案与已采纳状态。',
         draft: '场景正文与修订轮次。',
+      },
+      chapterScaffold: {
+        currentChapter: '当前章节',
+        scenePrefix: '场景',
+        sceneCount: '个场景',
+        unresolved: '未决',
+        sequencePrefix: '顺序',
+        beatLinePrefix: '节拍线',
+        assemblyLanes: '装配分栏',
+        assemblyDescription: '拖拽排序和结构写入不在本次范围内。这个占位只保留装配视图和路由联动。',
+        incoming: '待装配',
+        currentAssembly: '当前装配',
+        selectedSceneBrief: '选中场景简述',
+        unresolvedSummary: '未决摘要',
+        chapterNotes: '章节备注',
       },
     },
     shell: {
@@ -453,12 +511,44 @@ export function getProposalSeverityLabel(locale: Locale, severity: ProposalSever
   return proposalSeverityLabels[locale][severity]
 }
 
-export function getSceneLensLabel(locale: Locale, lens: SceneLens) {
-  return sceneLensLabels[locale][lens]
+export function getWorkbenchLensLabel(locale: Locale, lens: WorkbenchLens) {
+  return workbenchLensLabels[locale][lens]
+}
+
+export function getSceneLensLabel(locale: Locale, lens: WorkbenchLens) {
+  return getWorkbenchLensLabel(locale, lens)
 }
 
 export function getSceneTabLabel(locale: Locale, tab: SceneTab) {
   return sceneTabLabels[locale][tab]
+}
+
+export function getChapterStructureViewLabel(locale: Locale, view: ChapterStructureView) {
+  return chapterStructureViewLabels[locale][view]
+}
+
+export function getChapterSceneOrdinalLabel(locale: Locale, index: number) {
+  return `${dictionaries[locale].app.chapterScaffold.scenePrefix} ${index}`
+}
+
+export function getChapterSceneCountLabel(locale: Locale, count: number) {
+  return locale === 'zh-CN'
+    ? `${count}${dictionaries[locale].app.chapterScaffold.sceneCount}`
+    : `${count} ${dictionaries[locale].app.chapterScaffold.sceneCount}`
+}
+
+export function getChapterUnresolvedCountLabel(locale: Locale, count: number) {
+  return locale === 'zh-CN'
+    ? `${dictionaries[locale].app.chapterScaffold.unresolved} ${count}`
+    : `${dictionaries[locale].app.chapterScaffold.unresolved} ${count}`
+}
+
+export function getChapterSequenceOrdinalLabel(locale: Locale, index: number) {
+  return `${dictionaries[locale].app.chapterScaffold.sequencePrefix} ${index}`
+}
+
+export function getChapterBeatLineLabel(locale: Locale, index: number) {
+  return `${dictionaries[locale].app.chapterScaffold.beatLinePrefix} ${index}`
 }
 
 export function getDockTabLabel(locale: Locale, tab: SceneDockTabId) {
