@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/Badge'
 import { PaneHeader } from '@/components/ui/PaneHeader'
 import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
 
-interface ChapterBinderPlaceholderProps {
+interface ChapterBinderPaneProps {
   title: string
   description: string
   workspace: ChapterStructureWorkspaceViewModel
@@ -17,13 +17,13 @@ interface ChapterBinderPlaceholderProps {
   onSelectScene?: (sceneId: string) => void
 }
 
-export function ChapterBinderPlaceholder({
+export function ChapterBinderPane({
   title,
   description,
   workspace,
   activeView,
   onSelectScene,
-}: ChapterBinderPlaceholderProps) {
+}: ChapterBinderPaneProps) {
   const { locale, dictionary } = useI18n()
 
   return (
@@ -45,34 +45,40 @@ export function ChapterBinderPlaceholder({
             </Badge>
           </div>
         </section>
-        <div className="space-y-2">
+        <ul className="space-y-2">
           {workspace.scenes.map((scene) => {
             const active = scene.id === workspace.selectedSceneId
 
             return (
-              <button
-                key={scene.id}
-                type="button"
-                aria-pressed={active}
-                onClick={() => onSelectScene?.(scene.id)}
-                className={`w-full rounded-md border px-3 py-3 text-left ${
-                  active ? 'border-line-strong bg-surface-1 shadow-sm' : 'border-line-soft bg-surface-2/80'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
-                      {getChapterSceneOrdinalLabel(locale, scene.order)}
-                    </p>
-                    <p className="text-sm font-medium text-text-main">{scene.title}</p>
-                  </div>
-                  <Badge tone={active ? 'accent' : 'neutral'}>{scene.statusLabel}</Badge>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-text-muted">{scene.summary}</p>
-              </button>
+              <li key={scene.id}>
+                <button
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => onSelectScene?.(scene.id)}
+                  className={`w-full rounded-md border px-3 py-3 text-left transition-colors ${
+                    active ? 'border-line-strong bg-surface-1 shadow-sm' : 'border-line-soft bg-surface-2/80'
+                  }`}
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="min-w-0">
+                      <span className="block text-[11px] uppercase tracking-[0.08em] text-text-soft">
+                        {getChapterSceneOrdinalLabel(locale, scene.order)}
+                      </span>
+                      <span className="block text-sm font-medium text-text-main">{scene.title}</span>
+                    </span>
+                    <span className="flex shrink-0 flex-wrap justify-end gap-2">
+                      <Badge tone={active ? 'accent' : 'neutral'}>{scene.statusLabel}</Badge>
+                      <Badge tone={scene.unresolvedCount > 0 ? 'warn' : 'success'}>
+                        {getChapterUnresolvedCountLabel(locale, scene.unresolvedCount)}
+                      </Badge>
+                    </span>
+                  </span>
+                  <span className="mt-2 block text-sm leading-6 text-text-muted">{scene.summary}</span>
+                </button>
+              </li>
             )
           })}
-        </div>
+        </ul>
       </div>
     </div>
   )

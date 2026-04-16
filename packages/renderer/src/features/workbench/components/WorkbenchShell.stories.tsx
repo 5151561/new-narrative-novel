@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { useI18n } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
 import { Badge } from '@/components/ui/Badge'
-import { ChapterBinderPlaceholder } from '@/features/chapter/components/ChapterBinderPlaceholder'
+import { ChapterBinderPane } from '@/features/chapter/components/ChapterBinderPane'
 import { ChapterStructureInspectorPlaceholder } from '@/features/chapter/components/ChapterStructureInspectorPlaceholder'
 import { ChapterStructureStagePlaceholder } from '@/features/chapter/components/ChapterStructureStagePlaceholder'
 import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '@/features/chapter/types/chapter-view-models'
@@ -230,7 +230,7 @@ function ChapterWorkbenchShellStoryPreview() {
         </div>
       }
       navigator={
-        <ChapterBinderPlaceholder
+        <ChapterBinderPane
           title={dictionary.app.chapters}
           description={dictionary.app.chapterNavigatorDescription}
           workspace={model}
@@ -249,6 +249,7 @@ function ChapterWorkbenchShellStoryPreview() {
           workspace={model}
           title={dictionary.app.chapterStructure}
           onViewChange={() => {}}
+          onSelectScene={() => {}}
         />
       }
       inspector={

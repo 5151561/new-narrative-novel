@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 
-import { ChapterBinderPlaceholder } from '../components/ChapterBinderPlaceholder'
+import { ChapterBinderPane } from '../components/ChapterBinderPane'
 import { ChapterStructureInspectorPlaceholder } from '../components/ChapterStructureInspectorPlaceholder'
 import { ChapterStructureStagePlaceholder } from '../components/ChapterStructureStagePlaceholder'
 import { useChapterStructureWorkspaceQuery } from '../hooks/useChapterStructureWorkspaceQuery'
@@ -184,7 +184,7 @@ export function ChapterStructureWorkspace() {
       topBar={<ChapterTopCommandBar activeView={route.view} workspace={workspace} />}
       modeRail={shellModeRail}
       navigator={
-        <ChapterBinderPlaceholder
+        <ChapterBinderPane
           title={dictionary.app.chapters}
           description={dictionary.app.chapterNavigatorDescription}
           workspace={workspace}
@@ -204,6 +204,7 @@ export function ChapterStructureWorkspace() {
           workspace={workspace}
           title={dictionary.app.chapterStructure}
           onViewChange={(view) => patchChapterRoute({ view })}
+          onSelectScene={(sceneId) => patchChapterRoute({ sceneId })}
         />
       }
       inspector={

@@ -1,12 +1,12 @@
 import {
   getChapterBeatLineLabel,
-  getChapterSequenceOrdinalLabel,
   getChapterUnresolvedCountLabel,
   useI18n,
 } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { PaneHeader } from '@/components/ui/PaneHeader'
 import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
+import { ChapterSequenceView } from './ChapterSequenceView'
 
 const defaultAvailableViews: ChapterStructureView[] = ['sequence', 'outliner', 'assembly']
 
@@ -16,6 +16,7 @@ interface ChapterStructureStagePlaceholderProps {
   workspace: ChapterStructureWorkspaceViewModel
   title: string
   onViewChange: (view: ChapterStructureView) => void
+  onSelectScene?: (sceneId: string) => void
   availableViews?: ChapterStructureView[]
 }
 
@@ -25,6 +26,7 @@ export function ChapterStructureStagePlaceholder({
   workspace,
   title,
   onViewChange,
+  onSelectScene,
   availableViews = defaultAvailableViews,
 }: ChapterStructureStagePlaceholderProps) {
   const { locale, dictionary } = useI18n()
@@ -61,28 +63,7 @@ export function ChapterStructureStagePlaceholder({
       />
       <div className="min-h-0 flex-1 overflow-auto p-4">
         {activeView === 'sequence' ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {workspace.scenes.map((scene) => (
-              <section
-                key={scene.id}
-                className={`rounded-md border p-3 ${
-                  scene.id === selectedSceneId ? 'border-line-strong bg-surface-1' : 'border-line-soft bg-surface-2'
-                }`}
-              >
-                <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
-                  {getChapterSequenceOrdinalLabel(locale, scene.order)}
-                </p>
-                <h4 className="mt-1 text-base text-text-main">{scene.title}</h4>
-                <p className="mt-2 text-sm leading-6 text-text-muted">{scene.summary}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Badge tone="neutral">{scene.statusLabel}</Badge>
-                  <Badge tone={scene.unresolvedCount > 0 ? 'warn' : 'success'}>
-                    {getChapterUnresolvedCountLabel(locale, scene.unresolvedCount)}
-                  </Badge>
-                </div>
-              </section>
-            ))}
-          </div>
+          <ChapterSequenceView workspace={workspace} onSelectScene={onSelectScene} />
         ) : null}
         {activeView === 'outliner' ? (
           <div className="space-y-3">
