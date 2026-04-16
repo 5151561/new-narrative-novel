@@ -5,6 +5,7 @@ import { type PropsWithChildren } from 'react'
 
 import { I18nProvider } from '@/app/i18n'
 import { createSceneClient } from '@/features/scene/api/scene-client'
+import { applyProseRevision, createSceneMockDatabase } from '@/mock/scene-fixtures'
 
 import { SceneProseContainer } from './SceneProseContainer'
 
@@ -69,5 +70,43 @@ describe('SceneProseContainer', () => {
     })
 
     expect(screen.queryByRole('button', { name: 'Focus Mode' })).not.toBeInTheDocument()
+  })
+
+  it('refetches bridge-backed prose after revise without mutating fallback fixtures', async () => {
+    const user = userEvent.setup()
+    const localDatabase = createSceneMockDatabase()
+    const bridgeDatabase = createSceneMockDatabase()
+    const client = createSceneClient({
+      database: localDatabase,
+      bridgeResolver: () => ({
+        getSceneProse: async () => structuredClone(bridgeDatabase.scenes['scene-midnight-platform']!.prose),
+        reviseSceneProse: async (_sceneId, revisionMode) => {
+          applyProseRevision(bridgeDatabase, 'scene-midnight-platform', revisionMode)
+        },
+      }),
+    })
+    const fallbackClient = createSceneClient({
+      database: localDatabase,
+      bridgeResolver: () => undefined,
+    })
+    const Wrapper = wrapperFactory()
+
+    render(<SceneProseContainer sceneId="scene-midnight-platform" client={client} />, {
+      wrapper: Wrapper,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Current Draft')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Compress' }))
+    await user.click(screen.getByRole('button', { name: 'Revise Draft' }))
+
+    expect(await screen.findAllByText('Latest revision: compress pass prepared for review.')).toHaveLength(2)
+    expect(screen.getByText('1 revision queued')).toBeInTheDocument()
+
+    const fallbackProse = await fallbackClient.getSceneProse('scene-midnight-platform')
+    expect(fallbackProse.latestDiffSummary).not.toBe('Latest revision: compress pass prepared for review.')
+    expect(fallbackProse.revisionQueueCount ?? 0).toBe(0)
   })
 })

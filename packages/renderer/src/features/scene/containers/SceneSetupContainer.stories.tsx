@@ -1,10 +1,7 @@
-import type { ReactElement } from 'react'
-
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { AppProviders } from '@/app/providers'
-
 import { SceneSetupContainer } from './SceneSetupContainer'
+import { withSceneStoryShell } from './scene-storybook'
 
 const meta = {
   title: 'Mockups/Scene/Setup',
@@ -12,17 +9,7 @@ const meta = {
   parameters: {
     layout: 'fullscreen',
   },
-  decorators: [
-    (Story: () => ReactElement) => (
-      <AppProviders>
-        <div className="min-h-screen bg-app p-6">
-          <div className="ring-panel flex min-h-[840px] overflow-hidden rounded-md bg-surface-1">
-            <Story />
-          </div>
-        </div>
-      </AppProviders>
-    ),
-  ],
+  decorators: [withSceneStoryShell('ring-panel flex min-h-[840px] overflow-hidden rounded-md bg-surface-1')],
 } satisfies Meta<typeof SceneSetupContainer>
 
 export default meta
@@ -33,10 +20,20 @@ export const Default: Story = {
   args: {
     sceneId: 'scene-midnight-platform',
   },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-midnight-platform&lens=structure&tab=setup',
+    },
+  },
 }
 
 export const DraftSetup: Story = {
   args: {
     sceneId: 'scene-warehouse-bridge',
+  },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-warehouse-bridge&lens=structure&tab=setup',
+    },
   },
 }

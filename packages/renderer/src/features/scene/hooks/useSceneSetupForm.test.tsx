@@ -4,6 +4,7 @@ import { type PropsWithChildren } from 'react'
 
 import { I18nProvider } from '@/app/i18n'
 import { createSceneClient } from '@/features/scene/api/scene-client'
+import { createSceneMockDatabase, saveSceneSetup } from '@/mock/scene-fixtures'
 
 import { useSceneSetupForm } from './useSceneSetupForm'
 
@@ -129,5 +130,56 @@ describe('useSceneSetupForm', () => {
 
     expect(hook.result.current.isDirty).toBe(false)
     expect(hook.result.current.draft?.identity.title).toBe('Midnight Platform')
+  })
+
+  it('reloads the saved setup from the bridge after save instead of keeping the submitted draft snapshot', async () => {
+    const localDatabase = createSceneMockDatabase()
+    const bridgeDatabase = createSceneMockDatabase()
+    const bridgeClient = createSceneClient({
+      database: localDatabase,
+      bridgeResolver: () => ({
+        getSceneSetup: async () => structuredClone(bridgeDatabase.scenes['scene-midnight-platform']!.setup),
+        saveSceneSetup: async (_sceneId, setup) => {
+          saveSceneSetup(bridgeDatabase, 'scene-midnight-platform', {
+            ...setup,
+            identity: {
+              ...setup.identity,
+              title: 'Bridge Canonical Title',
+            },
+          })
+        },
+      }),
+    })
+    const wrapper = wrapperFactory()
+
+    const hook = renderHook(
+      () =>
+        useSceneSetupForm({
+          sceneId: 'scene-midnight-platform',
+          client: bridgeClient,
+        }),
+      { wrapper },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    act(() => {
+      hook.result.current.updateDraft((current) => ({
+        ...current,
+        identity: {
+          ...current.identity,
+          title: 'Submitted Draft Title',
+        },
+      }))
+    })
+
+    await act(async () => {
+      await hook.result.current.save()
+    })
+
+    expect(hook.result.current.isDirty).toBe(false)
+    expect(hook.result.current.draft?.identity.title).toBe('Bridge Canonical Title')
   })
 })

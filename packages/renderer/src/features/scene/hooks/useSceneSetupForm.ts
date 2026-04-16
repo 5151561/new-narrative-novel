@@ -95,18 +95,22 @@ export function useSceneSetupForm({
 
     setIsSaving(true)
     try {
-      const nextSnapshot = clone(draft)
-      await client.saveSceneSetup(sceneId, nextSnapshot)
-      setSavedSnapshot(nextSnapshot)
-      setDraft(nextSnapshot)
-      setDraftLocale(locale)
-      setStatusKey(nextStatusKey)
+      await client.saveSceneSetup(sceneId, clone(draft))
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: sceneQueryKeys.setup(sceneId) }),
         queryClient.invalidateQueries({ queryKey: sceneQueryKeys.workspace(sceneId) }),
         queryClient.invalidateQueries({ queryKey: sceneQueryKeys.execution(sceneId) }),
         queryClient.invalidateQueries({ queryKey: sceneQueryKeys.inspector(sceneId) }),
       ])
+      const refreshedSetup = await queryClient.fetchQuery({
+        queryKey: sceneQueryKeys.setup(sceneId, locale),
+        queryFn: () => client.getSceneSetup(sceneId),
+      })
+      const nextSnapshot = clone(refreshedSetup)
+      setSavedSnapshot(nextSnapshot)
+      setDraft(nextSnapshot)
+      setDraftLocale(locale)
+      setStatusKey(nextStatusKey)
     } finally {
       setIsSaving(false)
     }

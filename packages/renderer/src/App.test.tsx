@@ -71,7 +71,9 @@ describe('App scene workbench', () => {
   it('restores scene execution route state from URL and keeps tab / beat / proposal in sync', async () => {
     const user = userEvent.setup()
 
-    await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution&beatId=beat-bargain&proposalId=proposal-2')
+    const firstRender = await renderFreshApp(
+      '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution&beatId=beat-bargain&proposalId=proposal-2',
+    )
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
     expect(screen.getByText('Filtered to beat-bargain')).toBeInTheDocument()
@@ -81,6 +83,18 @@ describe('App scene workbench', () => {
       .getByRole('heading', { name: 'Let Mei name the cost in private terms' })
       .closest('section')
     expect(selectedProposalCard).toHaveClass('border-line-strong')
+
+    const refreshSearch = window.location.search
+    firstRender.unmount()
+
+    await renderFreshApp(refreshSearch)
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    expect(screen.getByText('Filtered to beat-bargain')).toBeInTheDocument()
+    expect(new URLSearchParams(window.location.search).get('proposalId')).toBe('proposal-2')
+    expect(
+      screen.getByRole('heading', { name: 'Let Mei name the cost in private terms' }).closest('section'),
+    ).toHaveClass('border-line-strong')
 
     await user.click(screen.getAllByRole('button', { name: /Departure bell/i })[0]!)
     await waitFor(() => {
@@ -155,14 +169,15 @@ describe('App scene workbench', () => {
     })
   })
 
-  it('derives runtime source from the scene client instead of hard-coding a mock badge', async () => {
+  it('shows an explicit capability failure when a preload bridge is present but scene reads are unavailable', async () => {
     setSceneBridge({})
 
     await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
 
-    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    expect(await screen.findByText('Scene unavailable')).toBeInTheDocument()
     expect(screen.getByText('Preload Bridge')).toBeInTheDocument()
-    expect(screen.queryByText('Mock Runtime')).not.toBeInTheDocument()
+    expect(screen.getByText('Scene runtime capability "getSceneWorkspace" is unavailable for preload-bridge.')).toBeInTheDocument()
+    expect(screen.queryByText('Proposal Review')).not.toBeInTheDocument()
   })
 
   it('keeps fallback runtime messaging product-facing when no bridge is available', async () => {
@@ -211,7 +226,7 @@ describe('App scene workbench', () => {
     expect(screen.getAllByText('draft').length).toBeGreaterThan(0)
   })
 
-  it('supports open scene -> accept -> patch preview -> commit as a separated smoke flow', async () => {
+  it('supports open scene -> execution -> accept / rewrite / reject -> patch preview -> commit -> prose', async () => {
     const user = userEvent.setup()
 
     await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
@@ -225,11 +240,25 @@ describe('App scene workbench', () => {
       .closest('section')
     expect(proposalCard).not.toBeNull()
 
+    const rewriteCard = screen
+      .getByRole('heading', { name: 'Force the bargain into a visible stalemate' })
+      .closest('section')
+    expect(rewriteCard).not.toBeNull()
+
+    const rejectCard = screen
+      .getByRole('heading', { name: 'Hold the train bell until Ren commits to a choice' })
+      .closest('section')
+    expect(rejectCard).not.toBeNull()
+
     await user.click(within(proposalCard!).getByRole('button', { name: 'Accept' }))
+    await user.click(within(rewriteCard!).getByRole('button', { name: 'Request Rewrite' }))
+    await user.click(within(rejectCard!).getByRole('button', { name: 'Reject' }))
 
     await waitFor(() => {
       expect(screen.getByText(/Patch Preview: 2/i)).toBeInTheDocument()
     })
+    expect(within(rewriteCard!).getByText(/rewrite-requested/i)).toBeInTheDocument()
+    expect(within(rejectCard!).getByText(/rejected/i)).toBeInTheDocument()
     expect(screen.queryAllByText('committed')).toHaveLength(0)
 
     await user.click(screen.getByRole('button', { name: 'Patch Preview' }))
@@ -248,6 +277,10 @@ describe('App scene workbench', () => {
       expect(screen.getByText(/Patch Preview: 1/i)).toBeInTheDocument()
       expect(screen.getAllByText('Committed / Let Mei name the cost in private terms').length).toBeGreaterThan(0)
     })
+
+    await user.click(screen.getByRole('button', { name: 'Open Prose' }))
+    expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
+    expect(new URLSearchParams(window.location.search).get('tab')).toBe('prose')
   })
 
   it('defaults to the system locale on first launch for localized UI and mock data', async () => {

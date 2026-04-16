@@ -1,10 +1,7 @@
-import type { ReactElement } from 'react'
-
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { AppProviders } from '@/app/providers'
-
 import { SceneWorkspace } from './SceneWorkspace'
+import { withSceneStoryShell } from './scene-storybook'
 
 const meta = {
   title: 'Mockups/Scene/Workspace',
@@ -12,17 +9,7 @@ const meta = {
   parameters: {
     layout: 'fullscreen',
   },
-  decorators: [
-    (Story: () => ReactElement) => (
-      <AppProviders>
-        <div className="min-h-screen bg-app p-6">
-          <div className="ring-panel overflow-hidden rounded-md bg-surface-1">
-            <Story />
-          </div>
-        </div>
-      </AppProviders>
-    ),
-  ],
+  decorators: [withSceneStoryShell('ring-panel overflow-hidden rounded-md bg-surface-1')],
 } satisfies Meta<typeof SceneWorkspace>
 
 export default meta
@@ -34,11 +21,63 @@ export const Final: Story = {
     sceneId: 'scene-midnight-platform',
     defaultTab: 'execution',
   },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution',
+    },
+  },
 }
 
 export const Draft: Story = {
   args: {
     sceneId: 'scene-warehouse-bridge',
     defaultTab: 'setup',
+  },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-warehouse-bridge&lens=structure&tab=setup',
+    },
+  },
+}
+
+export const ExecutionSelection: Story = {
+  args: {
+    sceneId: 'scene-midnight-platform',
+    defaultTab: 'execution',
+  },
+  parameters: {
+    sceneStory: {
+      search:
+        '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution&beatId=beat-bargain&proposalId=proposal-2',
+    },
+  },
+}
+
+export const PatchPreviewOpen: Story = {
+  args: {
+    sceneId: 'scene-midnight-platform',
+    defaultTab: 'execution',
+  },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution',
+      uiState: {
+        inspectorTab: 'versions',
+        patchPreviewOpen: true,
+      },
+    },
+  },
+}
+
+export const CapabilityUnavailable: Story = {
+  args: {
+    sceneId: 'scene-midnight-platform',
+    defaultTab: 'execution',
+  },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution',
+      bridge: {},
+    },
   },
 }

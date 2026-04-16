@@ -10,8 +10,6 @@ describe('SceneExecutionContainer', () => {
     vi.resetModules()
     const { useSceneUiStore } = await import('../store/scene-ui-store')
     useSceneUiStore.setState({
-      selectedProposalId: undefined,
-      selectedBeatId: undefined,
       filters: {},
     })
   })

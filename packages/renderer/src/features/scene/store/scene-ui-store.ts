@@ -4,19 +4,34 @@ import type { ProposalFilters, SceneDockTabId } from '../types/scene-view-models
 import type { InspectorTabId } from '../components/SceneInspectorPanel'
 
 export interface SceneUiState {
-  selectedProposalId?: string
-  selectedBeatId?: string
   filters: ProposalFilters
   inspectorTab: InspectorTabId
   dockTab: SceneDockTabId
   patchPreviewOpen: boolean
-  setSelectedProposalId: (id?: string) => void
-  setSelectedBeatId: (id?: string) => void
   setFilters: (next: ProposalFilters) => void
   resetFilters: () => void
   setInspectorTab: (tab: InspectorTabId) => void
   setDockTab: (tab: SceneDockTabId) => void
   setPatchPreviewOpen: (open: boolean) => void
+}
+
+function normalizeFilters(filters: ProposalFilters): ProposalFilters {
+  const normalized: ProposalFilters = {}
+
+  if (filters.status !== undefined) {
+    normalized.status = filters.status
+  }
+  if (filters.kind !== undefined) {
+    normalized.kind = filters.kind
+  }
+  if (filters.actorId !== undefined) {
+    normalized.actorId = filters.actorId
+  }
+  if (filters.severity !== undefined) {
+    normalized.severity = filters.severity
+  }
+
+  return normalized
 }
 
 function sameFilters(left: ProposalFilters, right: ProposalFilters) {
@@ -31,45 +46,27 @@ function sameFilters(left: ProposalFilters, right: ProposalFilters) {
 }
 
 export const useSceneUiStore = create<SceneUiState>((set) => ({
-  selectedProposalId: undefined,
-  selectedBeatId: undefined,
   filters: {},
   inspectorTab: 'context',
   dockTab: 'events',
   patchPreviewOpen: false,
-  setSelectedProposalId: (id) =>
-    set((state) => (state.selectedProposalId === id ? state : { ...state, selectedProposalId: id })),
-  setSelectedBeatId: (id) =>
-    set((state) => {
-      const nextFilters = id ? { ...state.filters, beatId: id } : { ...state.filters, beatId: undefined }
-      if (state.selectedBeatId === id && sameFilters(state.filters, nextFilters)) {
-        return state
-      }
-
-      return {
-        ...state,
-        selectedBeatId: id,
-        filters: nextFilters,
-      }
-    }),
   setFilters: (next) =>
-    set((state) =>
-      sameFilters(state.filters, next) && state.selectedBeatId === next.beatId
+    set((state) => {
+      const normalized = normalizeFilters(next)
+
+      return sameFilters(state.filters, normalized)
         ? state
         : {
             ...state,
-            filters: next,
-            selectedBeatId: next.beatId,
-          },
-    ),
+            filters: normalized,
+          }
+    }),
   resetFilters: () =>
     set((state) =>
-      state.selectedProposalId === undefined && state.selectedBeatId === undefined && sameFilters(state.filters, {})
+      sameFilters(state.filters, {})
         ? state
         : {
             ...state,
-            selectedProposalId: undefined,
-            selectedBeatId: undefined,
             filters: {},
           },
     ),

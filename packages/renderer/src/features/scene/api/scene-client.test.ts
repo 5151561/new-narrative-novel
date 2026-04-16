@@ -1,87 +1,223 @@
+import {
+  applyProposalAction,
+  applyProseRevision,
+  commitAcceptedPatch,
+  continueSceneRun,
+  createSceneMockDatabase,
+  getSceneDockSummary,
+  getSceneDockTab,
+  previewAcceptedPatch,
+  saveSceneSetup,
+  switchSceneThread,
+} from '@/mock/scene-fixtures'
+
 import { createSceneClient } from './scene-client'
 
 describe('sceneClient', () => {
   const sceneId = 'scene-midnight-platform'
 
-  it('prefers preload bridge methods when present and falls back to mock handlers for missing capabilities', async () => {
-    const bridgeWorkspace = {
-      id: sceneId,
-      title: 'Bridge Workspace',
-      chapterId: 'chapter-bridge',
-      chapterTitle: 'Bridge Chapter',
-      status: 'running' as const,
-      runStatus: 'running' as const,
-      objective: 'Bridge objective',
-      castIds: ['ren'],
-      pendingProposalCount: 0,
-      warningCount: 0,
-      currentVersionLabel: 'Bridge Run',
-      activeThreadId: 'thread-main',
-      availableThreads: [{ id: 'thread-main', label: 'Mainline' }],
-    }
-    const previewBridge = {
-      patchId: 'bridge-patch',
-      label: 'Bridge Patch',
-      summary: 'Bridge preview data',
-      status: 'ready_for_commit' as const,
-      sceneSummary: 'Bridge preview summary',
-      acceptedFacts: [{ id: 'bridge-fact', label: 'Bridge fact', value: 'Bridge value' }],
-      changes: [{ id: 'bridge-change', label: 'Bridge change', detail: 'Bridge delta' }],
-    }
-    const commitAcceptedPatch = vi.fn(async () => {})
+  function createBridgeBackedClient() {
+    const localDatabase = createSceneMockDatabase()
+    const bridgeDatabase = createSceneMockDatabase()
 
+    const bridge = {
+      getSceneWorkspace: vi.fn(async () => structuredClone(bridgeDatabase.scenes[sceneId]!.workspace)),
+      getSceneSetup: vi.fn(async () => structuredClone(bridgeDatabase.scenes[sceneId]!.setup)),
+      getSceneExecution: vi.fn(async () => structuredClone(bridgeDatabase.scenes[sceneId]!.execution)),
+      getSceneProse: vi.fn(async () => structuredClone(bridgeDatabase.scenes[sceneId]!.prose)),
+      getSceneInspector: vi.fn(async () => structuredClone(bridgeDatabase.scenes[sceneId]!.inspector)),
+      getSceneDockSummary: vi.fn(async () => getSceneDockSummary(bridgeDatabase, sceneId)),
+      getSceneDockTab: vi.fn(async (_sceneId: string, tab: Parameters<typeof getSceneDockTab>[2]) =>
+        getSceneDockTab(bridgeDatabase, sceneId, tab),
+      ),
+      previewAcceptedPatch: vi.fn(async () => previewAcceptedPatch(bridgeDatabase, sceneId)),
+      commitAcceptedPatch: vi.fn(async (_sceneId: string, patchId: string) => {
+        commitAcceptedPatch(bridgeDatabase, sceneId, patchId)
+      }),
+      saveSceneSetup: vi.fn(async (_sceneId: string, setup: Awaited<ReturnType<ReturnType<typeof createSceneClient>['getSceneSetup']>>) => {
+        saveSceneSetup(bridgeDatabase, sceneId, setup)
+      }),
+      reviseSceneProse: vi.fn(async (_sceneId: string, revisionMode: Awaited<ReturnType<ReturnType<typeof createSceneClient>['getSceneProse']>>['revisionModes'][number]) => {
+        applyProseRevision(bridgeDatabase, sceneId, revisionMode)
+      }),
+      continueSceneRun: vi.fn(async () => {
+        continueSceneRun(bridgeDatabase, sceneId)
+      }),
+      switchSceneThread: vi.fn(async (_sceneId: string, threadId: string) => {
+        switchSceneThread(bridgeDatabase, sceneId, threadId)
+      }),
+      acceptProposal: vi.fn(async (_sceneId: string, input: { proposalId: string; editedSummary?: string }) => {
+        applyProposalAction(bridgeDatabase, sceneId, 'accept', input)
+      }),
+      editAcceptProposal: vi.fn(async (_sceneId: string, input: { proposalId: string; editedSummary?: string }) => {
+        applyProposalAction(bridgeDatabase, sceneId, 'editAccept', input)
+      }),
+      requestRewrite: vi.fn(async (_sceneId: string, input: { proposalId: string }) => {
+        applyProposalAction(bridgeDatabase, sceneId, 'requestRewrite', input)
+      }),
+      rejectProposal: vi.fn(async (_sceneId: string, input: { proposalId: string }) => {
+        applyProposalAction(bridgeDatabase, sceneId, 'reject', input)
+      }),
+    }
+
+    return {
+      localDatabase,
+      bridgeDatabase,
+      bridge,
+      bridgeClient: createSceneClient({
+        database: localDatabase,
+        bridgeResolver: () => bridge,
+      }),
+      mockClient: createSceneClient({
+        database: localDatabase,
+        bridgeResolver: () => undefined,
+      }),
+    }
+  }
+
+  it('throws an explicit capability error instead of falling back to mock fixtures when a bridge capability is missing', async () => {
+    const localDatabase = createSceneMockDatabase()
     const client = createSceneClient({
+      database: localDatabase,
       bridgeResolver: () => ({
-        getSceneWorkspace: async () => bridgeWorkspace,
-        previewAcceptedPatch: async () => previewBridge,
-        commitAcceptedPatch,
+        getSceneWorkspace: async () => structuredClone(localDatabase.scenes[sceneId]!.workspace),
       }),
     })
 
     await expect(client.getRuntimeInfo()).resolves.toMatchObject({
       source: 'preload-bridge',
-      label: 'Preload Bridge',
-    })
-    await expect(client.getSceneWorkspace(sceneId)).resolves.toEqual(bridgeWorkspace)
-    await expect(client.getSceneExecution(sceneId)).resolves.toMatchObject({
-      objective: expect.objectContaining({
-        goal: expect.any(String),
+      capabilities: expect.objectContaining({
+        getSceneWorkspace: true,
+        getSceneExecution: false,
       }),
     })
-    await expect(client.previewAcceptedPatch(sceneId)).resolves.toEqual(previewBridge)
 
-    await client.commitAcceptedPatch(sceneId, 'bridge-patch')
-
-    expect(commitAcceptedPatch).toHaveBeenCalledWith(sceneId, 'bridge-patch')
+    await expect(client.getSceneExecution(sceneId)).rejects.toMatchObject({
+      name: 'SceneRuntimeCapabilityError',
+      capability: 'getSceneExecution',
+      source: 'preload-bridge',
+    })
   })
 
-  it('keeps fallback reads in sync after bridge-only proposal writes', async () => {
-    const acceptProposal = vi.fn(async () => {})
-    const client = createSceneClient({
-      bridgeResolver: () => ({
-        acceptProposal,
-      }),
+  it('reads setup, execution, prose, inspector, and dock data from the bridge without touching fallback fixtures', async () => {
+    const { bridge, bridgeClient, bridgeDatabase, mockClient } = createBridgeBackedClient()
+
+    bridgeDatabase.scenes[sceneId]!.workspace.title = 'Bridge Workspace'
+    bridgeDatabase.scenes[sceneId]!.setup.identity.title = 'Bridge Setup'
+    bridgeDatabase.scenes[sceneId]!.execution.objective.goal = 'Bridge goal'
+    bridgeDatabase.scenes[sceneId]!.prose.statusLabel = 'Bridge prose'
+    bridgeDatabase.scenes[sceneId]!.inspector.runtime.profile.label = 'Bridge runtime profile'
+    bridgeDatabase.scenes[sceneId]!.dock.events[0]!.title = 'Bridge dock event'
+
+    await expect(bridgeClient.getSceneWorkspace(sceneId)).resolves.toMatchObject({ title: 'Bridge Workspace' })
+    await expect(bridgeClient.getSceneSetup(sceneId)).resolves.toMatchObject({ identity: { title: 'Bridge Setup' } })
+    await expect(bridgeClient.getSceneExecution(sceneId)).resolves.toMatchObject({ objective: { goal: 'Bridge goal' } })
+    await expect(bridgeClient.getSceneProse(sceneId)).resolves.toMatchObject({ statusLabel: 'Bridge prose' })
+    await expect(bridgeClient.getSceneInspector(sceneId)).resolves.toMatchObject({
+      runtime: { profile: { label: 'Bridge runtime profile' } },
+    })
+    await expect(bridgeClient.getSceneDockSummary(sceneId)).resolves.toSatisfy((summary) =>
+      summary.events.some((event) => event.title === 'Bridge dock event'),
+    )
+    await expect(bridgeClient.getSceneDockTab(sceneId, 'trace')).resolves.toMatchObject({
+      trace: expect.any(Array),
     })
 
-    const beforeExecution = await client.getSceneExecution(sceneId)
-    const beforeInspector = await client.getSceneInspector(sceneId)
-    const beforeDock = await client.getSceneDockSummary(sceneId)
+    expect(bridge.getSceneWorkspace).toHaveBeenCalledTimes(1)
+    expect((await mockClient.getSceneWorkspace(sceneId)).title).not.toBe('Bridge Workspace')
+  })
 
-    await client.acceptProposal(sceneId, { proposalId: 'proposal-2' })
+  it('keeps the local mock database untouched when bridge-backed setup, prose, and workspace writes succeed', async () => {
+    const { bridgeClient, mockClient } = createBridgeBackedClient()
+    const originalSetup = await mockClient.getSceneSetup(sceneId)
+    const originalWorkspace = await mockClient.getSceneWorkspace(sceneId)
+    const originalProse = await mockClient.getSceneProse(sceneId)
 
-    const afterExecution = await client.getSceneExecution(sceneId)
-    const afterInspector = await client.getSceneInspector(sceneId)
-    const afterDock = await client.getSceneDockSummary(sceneId)
+    await bridgeClient.saveSceneSetup(sceneId, {
+      ...originalSetup,
+      identity: {
+        ...originalSetup.identity,
+        title: 'Bridge Saved Title',
+      },
+    })
+    await bridgeClient.reviseSceneProse(sceneId, 'compress')
+    await bridgeClient.continueSceneRun(sceneId)
+    await bridgeClient.switchSceneThread(sceneId, 'thread-branch-a')
 
-    expect(acceptProposal).toHaveBeenCalledWith(sceneId, { proposalId: 'proposal-2' })
-    expect(afterExecution.acceptedSummary.patchCandidateCount).toBe(
-      (beforeExecution.acceptedSummary.patchCandidateCount ?? 0) + 1,
-    )
-    expect(afterExecution.acceptedSummary.acceptedFacts[0]?.label).toBe('Let Mei name the cost in private terms')
-    expect(afterInspector.context.acceptedFacts[0]?.label).toBe('Let Mei name the cost in private terms')
-    expect(afterInspector.context.acceptedFacts.length).toBeGreaterThan(beforeInspector.context.acceptedFacts.length)
-    expect(afterDock.events[0]?.title).toMatch(/accepted proposal queued/i)
-    expect(afterDock.events[0]?.title).not.toBe(beforeDock.events[0]?.title)
+    await expect(bridgeClient.getSceneSetup(sceneId)).resolves.toMatchObject({
+      identity: { title: 'Bridge Saved Title' },
+    })
+    await expect(bridgeClient.getSceneProse(sceneId)).resolves.toMatchObject({
+      statusLabel: expect.not.stringMatching(new RegExp(`^${originalProse.statusLabel}$`)),
+    })
+    await expect(bridgeClient.getSceneWorkspace(sceneId)).resolves.toMatchObject({
+      activeThreadId: 'thread-branch-a',
+      runStatus: 'running',
+    })
+
+    await expect(mockClient.getSceneSetup(sceneId)).resolves.toEqual(originalSetup)
+    await expect(mockClient.getSceneWorkspace(sceneId)).resolves.toEqual(originalWorkspace)
+    await expect(mockClient.getSceneProse(sceneId)).resolves.toEqual(originalProse)
+  })
+
+  it('preserves accept-versus-commit semantics for bridge-backed proposal mutations', async () => {
+    const { bridgeClient, mockClient } = createBridgeBackedClient()
+    const initialExecution = await bridgeClient.getSceneExecution(sceneId)
+    const [firstPending, secondPending] = initialExecution.proposals.filter((proposal) => proposal.status === 'pending')
+
+    expect(firstPending).toBeDefined()
+    expect(secondPending).toBeDefined()
+
+    await bridgeClient.acceptProposal(sceneId, { proposalId: firstPending!.id })
+    await bridgeClient.editAcceptProposal(sceneId, {
+      proposalId: secondPending!.id,
+      editedSummary: 'Bridge edited acceptance',
+    })
+
+    const acceptedExecution = await bridgeClient.getSceneExecution(sceneId)
+    const preview = await bridgeClient.previewAcceptedPatch(sceneId)
+    const proseBeforeCommit = await bridgeClient.getSceneProse(sceneId)
+
+    expect(acceptedExecution.proposals.find((proposal) => proposal.id === firstPending!.id)?.status).toBe('accepted')
+    expect(acceptedExecution.proposals.find((proposal) => proposal.id === secondPending!.id)?.summary).toBe('Bridge edited acceptance')
+    expect(acceptedExecution.acceptedSummary.patchCandidateCount).toBeGreaterThan(0)
+    expect(preview).not.toBeNull()
+    expect(proseBeforeCommit.statusLabel).not.toMatch(/committed/i)
+
+    await bridgeClient.commitAcceptedPatch(sceneId, preview!.patchId)
+
+    await expect(bridgeClient.previewAcceptedPatch(sceneId)).resolves.toSatisfy((nextPreview) => {
+      return nextPreview !== null && nextPreview.patchId !== preview!.patchId
+    })
+    await expect(bridgeClient.getSceneWorkspace(sceneId)).resolves.toMatchObject({ status: 'committed' })
+    await expect(bridgeClient.getSceneProse(sceneId)).resolves.toMatchObject({
+      statusLabel: expect.any(String),
+      latestDiffSummary: expect.any(String),
+    })
+
+    const fallbackExecution = await mockClient.getSceneExecution(sceneId)
+    expect(fallbackExecution.acceptedSummary.patchCandidateCount).toBe(initialExecution.acceptedSummary.patchCandidateCount)
+  })
+
+  it('routes rewrite and reject proposal actions through the bridge without mutating fallback fixtures', async () => {
+    const { bridgeClient, mockClient } = createBridgeBackedClient()
+    const pendingProposal = (await bridgeClient.getSceneExecution(sceneId)).proposals.find((proposal) => proposal.status === 'pending')
+
+    expect(pendingProposal).toBeDefined()
+
+    await bridgeClient.requestRewrite(sceneId, { proposalId: pendingProposal!.id })
+    await expect(bridgeClient.getSceneExecution(sceneId)).resolves.toSatisfy((execution) => {
+      return execution.proposals.find((proposal) => proposal.id === pendingProposal!.id)?.status === 'rewrite-requested'
+    })
+
+    await bridgeClient.rejectProposal(sceneId, { proposalId: pendingProposal!.id })
+    await expect(bridgeClient.getSceneExecution(sceneId)).resolves.toSatisfy((execution) => {
+      return execution.proposals.find((proposal) => proposal.id === pendingProposal!.id)?.status === 'rejected'
+    })
+
+    await expect(mockClient.getSceneExecution(sceneId)).resolves.toSatisfy((execution) => {
+      return execution.proposals.find((proposal) => proposal.id === pendingProposal!.id)?.status === 'pending'
+    })
   })
 
   it('uses locale-aware fallback labels and scene content when no preload bridge is available', async () => {

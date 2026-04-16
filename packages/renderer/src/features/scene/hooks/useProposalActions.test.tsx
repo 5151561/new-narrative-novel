@@ -4,6 +4,7 @@ import { type PropsWithChildren } from 'react'
 
 import { I18nProvider } from '@/app/i18n'
 import { createSceneClient } from '@/features/scene/api/scene-client'
+import { applyProposalAction, createSceneMockDatabase, getSceneDockSummary } from '@/mock/scene-fixtures'
 import { useSceneDockData } from './useSceneDockData'
 import { useSceneExecutionQuery } from './useSceneExecutionQuery'
 import { useSceneInspectorData } from './useSceneInspectorData'
@@ -120,5 +121,53 @@ describe('useProposalActions', () => {
 
     expect(inspectorHook.result.current.context.acceptedFacts[0]?.label).toBe(pending!.title)
     expect(dockHook.result.current.events[0]?.title).toMatch(/accepted/i)
+  })
+
+  it('refetches bridge-backed execution, inspector, and dock data after acceptance without mutating fallback fixtures', async () => {
+    const localDatabase = createSceneMockDatabase()
+    const bridgeDatabase = createSceneMockDatabase()
+    const client = createSceneClient({
+      database: localDatabase,
+      bridgeResolver: () => ({
+        getSceneExecution: async () => structuredClone(bridgeDatabase.scenes[sceneId]!.execution),
+        getSceneInspector: async () => structuredClone(bridgeDatabase.scenes[sceneId]!.inspector),
+        getSceneDockSummary: async () => getSceneDockSummary(bridgeDatabase, sceneId),
+        acceptProposal: async (_sceneId, input) => {
+          applyProposalAction(bridgeDatabase, sceneId, 'accept', input)
+        },
+      }),
+    })
+    const wrapper = createWrapper().wrapper
+    const executionHook = renderHook(() => useSceneExecutionQuery(sceneId, client), { wrapper })
+    const inspectorHook = renderHook(() => useSceneInspectorData(sceneId, client), { wrapper })
+    const dockHook = renderHook(() => useSceneDockData(sceneId, 'events', client), { wrapper })
+
+    await waitFor(() => {
+      expect(executionHook.result.current.isLoading).toBe(false)
+      expect(inspectorHook.result.current.isLoading).toBe(false)
+      expect(dockHook.result.current.isLoading).toBe(false)
+    })
+
+    const pending = executionHook.result.current.proposals.find((proposal) => proposal.status === 'pending')
+    expect(pending).toBeDefined()
+
+    const actionHook = renderHook(() => useProposalActions(sceneId, client), { wrapper })
+
+    await act(async () => {
+      await actionHook.result.current.accept({ proposalId: pending!.id })
+    })
+
+    await waitFor(() => {
+      expect(executionHook.result.current.proposals.find((proposal) => proposal.id === pending!.id)?.status).toBe('accepted')
+      expect(inspectorHook.result.current.context.acceptedFacts[0]?.label).toBe(pending!.title)
+      expect(dockHook.result.current.events[0]?.title).toMatch(/accepted/i)
+    })
+
+    const fallbackClient = createSceneClient({
+      database: localDatabase,
+      bridgeResolver: () => undefined,
+    })
+    const fallbackExecution = await fallbackClient.getSceneExecution(sceneId)
+    expect(fallbackExecution.proposals.find((proposal) => proposal.id === pending!.id)?.status).toBe('pending')
   })
 })

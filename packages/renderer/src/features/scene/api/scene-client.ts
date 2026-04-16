@@ -24,34 +24,23 @@ import type {
   SceneSetupViewModel,
   SceneWorkspaceViewModel,
 } from '../types/scene-view-models'
+import {
+  SceneRuntimeCapabilityError,
+  type SceneClient,
+  type SceneRuntimeBridge,
+  type SceneRuntimeCapability,
+  type SceneRuntimeInfo,
+  sceneRuntimeCapabilities,
+} from './scene-runtime'
 
-export type SceneRuntimeSource = 'preload-bridge' | 'mock-fallback'
-
-export interface SceneRuntimeInfo {
-  source: SceneRuntimeSource
-  label: string
-  capabilities: Record<string, boolean>
-}
-
-export interface SceneRuntimeBridge {
-  getSceneWorkspace?: (sceneId: string, locale?: Locale) => Promise<SceneWorkspaceViewModel>
-  getSceneSetup?: (sceneId: string, locale?: Locale) => Promise<SceneSetupViewModel>
-  getSceneExecution?: (sceneId: string, locale?: Locale) => Promise<SceneExecutionViewModel>
-  getSceneProse?: (sceneId: string, locale?: Locale) => Promise<SceneProseViewModel>
-  getSceneInspector?: (sceneId: string, locale?: Locale) => Promise<SceneInspectorViewModel>
-  getSceneDockSummary?: (sceneId: string, locale?: Locale) => Promise<SceneDockViewModel>
-  getSceneDockTab?: (sceneId: string, tab: SceneDockTabId, locale?: Locale) => Promise<Partial<SceneDockViewModel>>
-  previewAcceptedPatch?: (sceneId: string, locale?: Locale) => Promise<ScenePatchPreviewViewModel | null>
-  commitAcceptedPatch?: (sceneId: string, patchId: string) => Promise<void>
-  saveSceneSetup?: (sceneId: string, setup: SceneSetupViewModel) => Promise<void>
-  reviseSceneProse?: (sceneId: string, revisionMode: SceneProseViewModel['revisionModes'][number]) => Promise<void>
-  continueSceneRun?: (sceneId: string) => Promise<void>
-  switchSceneThread?: (sceneId: string, threadId: string) => Promise<void>
-  acceptProposal?: (sceneId: string, input: ProposalActionInput) => Promise<void>
-  editAcceptProposal?: (sceneId: string, input: ProposalActionInput) => Promise<void>
-  requestRewrite?: (sceneId: string, input: ProposalActionInput) => Promise<void>
-  rejectProposal?: (sceneId: string, input: ProposalActionInput) => Promise<void>
-}
+export type {
+  SceneClient,
+  SceneRuntimeBridge,
+  SceneRuntimeCapability,
+  SceneRuntimeInfo,
+  SceneRuntimeSource,
+} from './scene-runtime'
+export { SceneRuntimeCapabilityError } from './scene-runtime'
 
 declare global {
   interface Window {
@@ -61,27 +50,6 @@ declare global {
   }
 }
 
-export interface SceneClient {
-  getRuntimeInfo(): Promise<SceneRuntimeInfo>
-  getSceneWorkspace(sceneId: string): Promise<SceneWorkspaceViewModel>
-  getSceneSetup(sceneId: string): Promise<SceneSetupViewModel>
-  getSceneExecution(sceneId: string): Promise<SceneExecutionViewModel>
-  getSceneProse(sceneId: string): Promise<SceneProseViewModel>
-  getSceneInspector(sceneId: string): Promise<SceneInspectorViewModel>
-  getSceneDockSummary(sceneId: string): Promise<SceneDockViewModel>
-  getSceneDockTab(sceneId: string, tab: SceneDockTabId): Promise<Partial<SceneDockViewModel>>
-  previewAcceptedPatch(sceneId: string): Promise<ScenePatchPreviewViewModel | null>
-  commitAcceptedPatch(sceneId: string, patchId: string): Promise<void>
-  saveSceneSetup(sceneId: string, setup: SceneSetupViewModel): Promise<void>
-  reviseSceneProse(sceneId: string, revisionMode: SceneProseViewModel['revisionModes'][number]): Promise<void>
-  continueSceneRun(sceneId: string): Promise<void>
-  switchSceneThread(sceneId: string, threadId: string): Promise<void>
-  acceptProposal(sceneId: string, input: ProposalActionInput): Promise<void>
-  editAcceptProposal(sceneId: string, input: ProposalActionInput): Promise<void>
-  requestRewrite(sceneId: string, input: ProposalActionInput): Promise<void>
-  rejectProposal(sceneId: string, input: ProposalActionInput): Promise<void>
-}
-
 interface CreateSceneClientOptions {
   database?: SceneMockDatabase
   databaseFactory?: (locale: Locale) => SceneMockDatabase
@@ -89,25 +57,9 @@ interface CreateSceneClientOptions {
   localeResolver?: () => Locale
 }
 
-const runtimeCapabilityList = [
-  'getSceneWorkspace',
-  'getSceneSetup',
-  'getSceneExecution',
-  'getSceneProse',
-  'getSceneInspector',
-  'getSceneDockSummary',
-  'getSceneDockTab',
-  'previewAcceptedPatch',
-  'commitAcceptedPatch',
-  'saveSceneSetup',
-  'reviseSceneProse',
-  'continueSceneRun',
-  'switchSceneThread',
-  'acceptProposal',
-  'editAcceptProposal',
-  'requestRewrite',
-  'rejectProposal',
-] as const
+interface SceneRuntimeAdapter extends Omit<SceneClient, 'getRuntimeInfo'> {
+  info: SceneRuntimeInfo
+}
 
 function clone<T>(value: T): T {
   return structuredClone(value)
@@ -126,9 +78,31 @@ function buildRuntimeInfo(bridge: SceneRuntimeBridge | undefined, locale: Locale
     source: bridge ? 'preload-bridge' : 'mock-fallback',
     label: bridge ? (locale === 'zh-CN' ? '预加载桥接' : 'Preload Bridge') : locale === 'zh-CN' ? '预览数据' : 'Preview Data',
     capabilities: Object.fromEntries(
-      runtimeCapabilityList.map((capability) => [capability, Boolean(bridge?.[capability])]),
-    ),
+      sceneRuntimeCapabilities.map((capability) => [capability, Boolean(bridge?.[capability])]),
+    ) as SceneRuntimeInfo['capabilities'],
   }
+}
+
+function getScene(database: SceneMockDatabase, sceneId: string) {
+  const scene = database.scenes[sceneId]
+  if (!scene) {
+    throw new Error(`Unknown scene "${sceneId}"`)
+  }
+
+  return scene
+}
+
+function requireBridgeCapability<K extends SceneRuntimeCapability>(
+  bridge: SceneRuntimeBridge,
+  capability: K,
+  runtimeInfo: SceneRuntimeInfo,
+): NonNullable<SceneRuntimeBridge[K]> {
+  const method = bridge[capability]
+  if (!method) {
+    throw new SceneRuntimeCapabilityError(capability, runtimeInfo)
+  }
+
+  return method as NonNullable<SceneRuntimeBridge[K]>
 }
 
 export function createSceneClient({
@@ -139,12 +113,11 @@ export function createSceneClient({
 }: CreateSceneClientOptions = {}): SceneClient {
   const localeDatabases = new Map<Locale, SceneMockDatabase>()
 
-  function getDatabase() {
+  function getDatabase(locale: Locale) {
     if (database) {
       return database
     }
 
-    const locale = localeResolver()
     const existingDatabase = localeDatabases.get(locale)
     if (existingDatabase) {
       return existingDatabase
@@ -155,187 +128,185 @@ export function createSceneClient({
     return nextDatabase
   }
 
-  async function getScene(sceneId: string) {
-    const activeDatabase = getDatabase()
-    const scene = activeDatabase.scenes[sceneId]
-    if (!scene) {
-      throw new Error(`Unknown scene "${sceneId}"`)
-    }
+  function createMockRuntime(locale: Locale): SceneRuntimeAdapter {
+    const activeDatabase = getDatabase(locale)
+    const runtimeInfo = buildRuntimeInfo(undefined, locale)
 
-    return scene
+    return {
+      info: runtimeInfo,
+      async getSceneWorkspace(sceneId) {
+        return clone(getScene(activeDatabase, sceneId).workspace)
+      },
+      async getSceneSetup(sceneId) {
+        return clone(getScene(activeDatabase, sceneId).setup)
+      },
+      async getSceneExecution(sceneId) {
+        return clone(getScene(activeDatabase, sceneId).execution)
+      },
+      async getSceneProse(sceneId) {
+        return clone(getScene(activeDatabase, sceneId).prose)
+      },
+      async getSceneInspector(sceneId) {
+        return clone(getScene(activeDatabase, sceneId).inspector)
+      },
+      async getSceneDockSummary(sceneId) {
+        return getSceneDockSummary(activeDatabase, sceneId)
+      },
+      async getSceneDockTab(sceneId, tab) {
+        return getSceneDockTab(activeDatabase, sceneId, tab)
+      },
+      async previewAcceptedPatch(sceneId) {
+        return previewAcceptedPatch(activeDatabase, sceneId)
+      },
+      async commitAcceptedPatch(sceneId, patchId) {
+        commitAcceptedPatch(activeDatabase, sceneId, patchId)
+      },
+      async saveSceneSetup(sceneId, setup) {
+        saveSceneSetup(activeDatabase, sceneId, setup)
+      },
+      async reviseSceneProse(sceneId, revisionMode) {
+        applyProseRevision(activeDatabase, sceneId, revisionMode)
+      },
+      async continueSceneRun(sceneId) {
+        continueSceneRun(activeDatabase, sceneId)
+      },
+      async switchSceneThread(sceneId, threadId) {
+        switchSceneThread(activeDatabase, sceneId, threadId)
+      },
+      async acceptProposal(sceneId, input) {
+        applyProposalAction(activeDatabase, sceneId, 'accept', input)
+      },
+      async editAcceptProposal(sceneId, input) {
+        applyProposalAction(activeDatabase, sceneId, 'editAccept', input)
+      },
+      async requestRewrite(sceneId, input) {
+        applyProposalAction(activeDatabase, sceneId, 'requestRewrite', input)
+      },
+      async rejectProposal(sceneId, input) {
+        applyProposalAction(activeDatabase, sceneId, 'reject', input)
+      },
+    }
   }
 
-  async function runWriteThrough(
-    bridgeWrite: (() => Promise<void>) | undefined,
-    fallbackWrite: () => void,
-  ) {
-    if (bridgeWrite) {
-      await bridgeWrite()
-      fallbackWrite()
-      return
-    }
+  function createBridgeRuntime(bridge: SceneRuntimeBridge, locale: Locale): SceneRuntimeAdapter {
+    const runtimeInfo = buildRuntimeInfo(bridge, locale)
 
-    fallbackWrite()
+    return {
+      info: runtimeInfo,
+      async getSceneWorkspace(sceneId) {
+        return clone(await requireBridgeCapability(bridge, 'getSceneWorkspace', runtimeInfo)(sceneId, locale))
+      },
+      async getSceneSetup(sceneId) {
+        return clone(await requireBridgeCapability(bridge, 'getSceneSetup', runtimeInfo)(sceneId, locale))
+      },
+      async getSceneExecution(sceneId) {
+        return clone(await requireBridgeCapability(bridge, 'getSceneExecution', runtimeInfo)(sceneId, locale))
+      },
+      async getSceneProse(sceneId) {
+        return clone(await requireBridgeCapability(bridge, 'getSceneProse', runtimeInfo)(sceneId, locale))
+      },
+      async getSceneInspector(sceneId) {
+        return clone(await requireBridgeCapability(bridge, 'getSceneInspector', runtimeInfo)(sceneId, locale))
+      },
+      async getSceneDockSummary(sceneId) {
+        return clone(await requireBridgeCapability(bridge, 'getSceneDockSummary', runtimeInfo)(sceneId, locale))
+      },
+      async getSceneDockTab(sceneId, tab) {
+        return clone(await requireBridgeCapability(bridge, 'getSceneDockTab', runtimeInfo)(sceneId, tab, locale))
+      },
+      async previewAcceptedPatch(sceneId) {
+        return clone(await requireBridgeCapability(bridge, 'previewAcceptedPatch', runtimeInfo)(sceneId, locale))
+      },
+      async commitAcceptedPatch(sceneId, patchId) {
+        await requireBridgeCapability(bridge, 'commitAcceptedPatch', runtimeInfo)(sceneId, patchId)
+      },
+      async saveSceneSetup(sceneId, setup) {
+        await requireBridgeCapability(bridge, 'saveSceneSetup', runtimeInfo)(sceneId, setup)
+      },
+      async reviseSceneProse(sceneId, revisionMode) {
+        await requireBridgeCapability(bridge, 'reviseSceneProse', runtimeInfo)(sceneId, revisionMode)
+      },
+      async continueSceneRun(sceneId) {
+        await requireBridgeCapability(bridge, 'continueSceneRun', runtimeInfo)(sceneId)
+      },
+      async switchSceneThread(sceneId, threadId) {
+        await requireBridgeCapability(bridge, 'switchSceneThread', runtimeInfo)(sceneId, threadId)
+      },
+      async acceptProposal(sceneId, input) {
+        await requireBridgeCapability(bridge, 'acceptProposal', runtimeInfo)(sceneId, input)
+      },
+      async editAcceptProposal(sceneId, input) {
+        await requireBridgeCapability(bridge, 'editAcceptProposal', runtimeInfo)(sceneId, input)
+      },
+      async requestRewrite(sceneId, input) {
+        await requireBridgeCapability(bridge, 'requestRewrite', runtimeInfo)(sceneId, input)
+      },
+      async rejectProposal(sceneId, input) {
+        await requireBridgeCapability(bridge, 'rejectProposal', runtimeInfo)(sceneId, input)
+      },
+    }
+  }
+
+  function resolveRuntime(): SceneRuntimeAdapter {
+    const locale = localeResolver()
+    const bridge = bridgeResolver()
+    return bridge ? createBridgeRuntime(bridge, locale) : createMockRuntime(locale)
   }
 
   return {
     async getRuntimeInfo() {
-      return buildRuntimeInfo(bridgeResolver(), localeResolver())
+      return resolveRuntime().info
     },
     async getSceneWorkspace(sceneId) {
-      const locale = localeResolver()
-      const bridge = bridgeResolver()
-      if (bridge?.getSceneWorkspace) {
-        return bridge.getSceneWorkspace(sceneId, locale)
-      }
-
-      const scene = await getScene(sceneId)
-      return clone(scene.workspace)
+      return resolveRuntime().getSceneWorkspace(sceneId)
     },
     async getSceneSetup(sceneId) {
-      const locale = localeResolver()
-      const bridge = bridgeResolver()
-      if (bridge?.getSceneSetup) {
-        return bridge.getSceneSetup(sceneId, locale)
-      }
-
-      const scene = await getScene(sceneId)
-      return clone(scene.setup)
+      return resolveRuntime().getSceneSetup(sceneId)
     },
     async getSceneExecution(sceneId) {
-      const locale = localeResolver()
-      const bridge = bridgeResolver()
-      if (bridge?.getSceneExecution) {
-        return bridge.getSceneExecution(sceneId, locale)
-      }
-
-      const scene = await getScene(sceneId)
-      return clone(scene.execution)
+      return resolveRuntime().getSceneExecution(sceneId)
     },
     async getSceneProse(sceneId) {
-      const locale = localeResolver()
-      const bridge = bridgeResolver()
-      if (bridge?.getSceneProse) {
-        return bridge.getSceneProse(sceneId, locale)
-      }
-
-      const scene = await getScene(sceneId)
-      return clone(scene.prose)
+      return resolveRuntime().getSceneProse(sceneId)
     },
     async getSceneInspector(sceneId) {
-      const locale = localeResolver()
-      const bridge = bridgeResolver()
-      if (bridge?.getSceneInspector) {
-        return bridge.getSceneInspector(sceneId, locale)
-      }
-
-      const scene = await getScene(sceneId)
-      return clone(scene.inspector)
+      return resolveRuntime().getSceneInspector(sceneId)
     },
     async getSceneDockSummary(sceneId) {
-      const locale = localeResolver()
-      const bridge = bridgeResolver()
-      if (bridge?.getSceneDockSummary) {
-        return bridge.getSceneDockSummary(sceneId, locale)
-      }
-
-      return getSceneDockSummary(getDatabase(), sceneId)
+      return resolveRuntime().getSceneDockSummary(sceneId)
     },
     async getSceneDockTab(sceneId, tab) {
-      const locale = localeResolver()
-      const bridge = bridgeResolver()
-      if (bridge?.getSceneDockTab) {
-        return bridge.getSceneDockTab(sceneId, tab, locale)
-      }
-
-      return getSceneDockTab(getDatabase(), sceneId, tab)
+      return resolveRuntime().getSceneDockTab(sceneId, tab)
     },
     async previewAcceptedPatch(sceneId) {
-      const locale = localeResolver()
-      const bridge = bridgeResolver()
-      if (bridge?.previewAcceptedPatch) {
-        return bridge.previewAcceptedPatch(sceneId, locale)
-      }
-
-      return previewAcceptedPatch(getDatabase(), sceneId)
+      return resolveRuntime().previewAcceptedPatch(sceneId)
     },
     async commitAcceptedPatch(sceneId, patchId) {
-      const activeDatabase = getDatabase()
-      const bridge = bridgeResolver()
-      if (bridge?.commitAcceptedPatch) {
-        await bridge.commitAcceptedPatch(sceneId, patchId)
-        const localPreview = previewAcceptedPatch(activeDatabase, sceneId)
-        if (localPreview?.patchId === patchId) {
-          commitAcceptedPatch(activeDatabase, sceneId, patchId)
-        }
-        return
-      }
-
-      commitAcceptedPatch(activeDatabase, sceneId, patchId)
+      await resolveRuntime().commitAcceptedPatch(sceneId, patchId)
     },
     async saveSceneSetup(sceneId, setup) {
-      const activeDatabase = getDatabase()
-      const bridge = bridgeResolver()
-      await runWriteThrough(
-        bridge?.saveSceneSetup ? () => bridge.saveSceneSetup!(sceneId, setup) : undefined,
-        () => saveSceneSetup(activeDatabase, sceneId, setup),
-      )
+      await resolveRuntime().saveSceneSetup(sceneId, setup)
     },
     async reviseSceneProse(sceneId, revisionMode) {
-      const activeDatabase = getDatabase()
-      const bridge = bridgeResolver()
-      await runWriteThrough(
-        bridge?.reviseSceneProse ? () => bridge.reviseSceneProse!(sceneId, revisionMode) : undefined,
-        () => applyProseRevision(activeDatabase, sceneId, revisionMode),
-      )
+      await resolveRuntime().reviseSceneProse(sceneId, revisionMode)
     },
     async continueSceneRun(sceneId) {
-      const activeDatabase = getDatabase()
-      const bridge = bridgeResolver()
-      await runWriteThrough(
-        bridge?.continueSceneRun ? () => bridge.continueSceneRun!(sceneId) : undefined,
-        () => continueSceneRun(activeDatabase, sceneId),
-      )
+      await resolveRuntime().continueSceneRun(sceneId)
     },
     async switchSceneThread(sceneId, threadId) {
-      const activeDatabase = getDatabase()
-      const bridge = bridgeResolver()
-      await runWriteThrough(
-        bridge?.switchSceneThread ? () => bridge.switchSceneThread!(sceneId, threadId) : undefined,
-        () => switchSceneThread(activeDatabase, sceneId, threadId),
-      )
+      await resolveRuntime().switchSceneThread(sceneId, threadId)
     },
-    async acceptProposal(sceneId, input) {
-      const activeDatabase = getDatabase()
-      const bridge = bridgeResolver()
-      await runWriteThrough(
-        bridge?.acceptProposal ? () => bridge.acceptProposal!(sceneId, input) : undefined,
-        () => applyProposalAction(activeDatabase, sceneId, 'accept', input),
-      )
+    async acceptProposal(sceneId, input: ProposalActionInput) {
+      await resolveRuntime().acceptProposal(sceneId, input)
     },
-    async editAcceptProposal(sceneId, input) {
-      const activeDatabase = getDatabase()
-      const bridge = bridgeResolver()
-      await runWriteThrough(
-        bridge?.editAcceptProposal ? () => bridge.editAcceptProposal!(sceneId, input) : undefined,
-        () => applyProposalAction(activeDatabase, sceneId, 'editAccept', input),
-      )
+    async editAcceptProposal(sceneId, input: ProposalActionInput) {
+      await resolveRuntime().editAcceptProposal(sceneId, input)
     },
-    async requestRewrite(sceneId, input) {
-      const activeDatabase = getDatabase()
-      const bridge = bridgeResolver()
-      await runWriteThrough(
-        bridge?.requestRewrite ? () => bridge.requestRewrite!(sceneId, input) : undefined,
-        () => applyProposalAction(activeDatabase, sceneId, 'requestRewrite', input),
-      )
+    async requestRewrite(sceneId, input: ProposalActionInput) {
+      await resolveRuntime().requestRewrite(sceneId, input)
     },
-    async rejectProposal(sceneId, input) {
-      const activeDatabase = getDatabase()
-      const bridge = bridgeResolver()
-      await runWriteThrough(
-        bridge?.rejectProposal ? () => bridge.rejectProposal!(sceneId, input) : undefined,
-        () => applyProposalAction(activeDatabase, sceneId, 'reject', input),
-      )
+    async rejectProposal(sceneId, input: ProposalActionInput) {
+      await resolveRuntime().rejectProposal(sceneId, input)
     },
   }
 }

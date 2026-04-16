@@ -5,7 +5,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 
 import { SceneExecutionTab } from '../components/SceneExecutionTab'
 import { useProposalActions } from '../hooks/useProposalActions'
-import { useProposalSelection } from '../hooks/useProposalSelection'
+import { useProposalFilters } from '../hooks/useProposalFilters'
 import { useSceneRouteState } from '../hooks/useSceneRouteState'
 import { useSceneExecutionQuery } from '../hooks/useSceneExecutionQuery'
 import { useSceneWorkspaceActions } from '../hooks/useSceneWorkspaceActions'
@@ -20,9 +20,7 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
   const actions = useProposalActions(sceneId)
   const workspaceActions = useSceneWorkspaceActions({ sceneId })
   const { route, setRoute } = useSceneRouteState()
-  const filters = useProposalSelection((state) => state.filters)
-  const setFilters = useProposalSelection((state) => state.setFilters)
-  const resetFilters = useProposalSelection((state) => state.resetFilters)
+  const { filters, setFilters, resetFilters } = useProposalFilters()
 
   const selectedBeatId = route.sceneId === sceneId ? route.beatId : undefined
   const selectedProposalId = route.sceneId === sceneId ? route.proposalId : undefined
@@ -151,10 +149,7 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
         })
       }
       onChangeFilters={(next) => {
-        setFilters({
-          ...next,
-          beatId: selectedBeatId,
-        })
+        setFilters(next)
       }}
       onClearFilters={() => {
         resetFilters()
