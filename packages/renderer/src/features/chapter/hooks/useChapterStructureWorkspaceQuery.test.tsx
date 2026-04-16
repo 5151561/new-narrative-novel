@@ -1,12 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { renderHook, waitFor } from '@testing-library/react'
-import { type PropsWithChildren } from 'react'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { useEffect, type PropsWithChildren } from 'react'
+import { describe, expect, it, vi } from 'vitest'
 
-import { I18nProvider } from '@/app/i18n'
-import type { ChapterRouteState } from '@/features/workbench/types/workbench-route'
+import { APP_LOCALE_STORAGE_KEY, I18nProvider, type Locale, useI18n } from '@/app/i18n'
 
 import { createChapterClient } from '../api/chapter-client'
 import { useChapterStructureWorkspaceQuery } from './useChapterStructureWorkspaceQuery'
+import { chapterQueryKeys } from './chapter-query-keys'
 
 describe('chapter query hooks', () => {
   function wrapperFactory() {
@@ -15,27 +16,49 @@ describe('chapter query hooks', () => {
         queries: { retry: false },
       },
     })
+    let setLocaleRef: ((locale: Locale) => void) | undefined
 
-    return function Wrapper({ children }: PropsWithChildren) {
-      return (
-        <QueryClientProvider client={queryClient}>
-          <I18nProvider>{children}</I18nProvider>
-        </QueryClientProvider>
-      )
+    function LocaleControl() {
+      const { setLocale } = useI18n()
+
+      useEffect(() => {
+        setLocaleRef = setLocale
+      }, [setLocale])
+
+      return null
+    }
+
+    return {
+      wrapper: function Wrapper({ children }: PropsWithChildren) {
+        return (
+          <QueryClientProvider client={queryClient}>
+            <I18nProvider>
+              <LocaleControl />
+              {children}
+            </I18nProvider>
+          </QueryClientProvider>
+        )
+      },
+      setLocale(nextLocale: Locale) {
+        act(() => {
+          setLocaleRef?.(nextLocale)
+        })
+      },
     }
   }
 
-  const baseRoute: ChapterRouteState = {
-    scope: 'chapter',
+  const baseInput = {
     chapterId: 'chapter-signals-in-rain',
-    lens: 'structure',
-    view: 'sequence',
   }
 
-  it('hydrates the chapter workspace model and falls back to the first scene when route.sceneId is missing', async () => {
-    const wrapper = wrapperFactory()
+  it('uses chapter id only for the workspace query key', () => {
+    expect(chapterQueryKeys.workspace('chapter-signals-in-rain')).toEqual(['chapter', 'workspace', 'chapter-signals-in-rain'])
+  })
 
-    const hook = renderHook(() => useChapterStructureWorkspaceQuery(baseRoute), {
+  it('hydrates the stable chapter workspace model and falls back to the first scene when selectedSceneId is missing', async () => {
+    const { wrapper } = wrapperFactory()
+
+    const hook = renderHook(() => useChapterStructureWorkspaceQuery(baseInput), {
       wrapper,
     })
 
@@ -43,12 +66,21 @@ describe('chapter query hooks', () => {
       expect(hook.result.current.isLoading).toBe(false)
     })
 
-    expect(hook.result.current.model).toMatchObject({
+    expect(hook.result.current.workspace).toMatchObject({
       chapterId: 'chapter-signals-in-rain',
-      currentSceneId: 'scene-midnight-platform',
+      selectedSceneId: 'scene-midnight-platform',
       scenes: expect.arrayContaining([expect.objectContaining({ id: 'scene-midnight-platform', order: 1 })]),
       inspector: expect.objectContaining({
-        selectedSceneTitle: 'Midnight Platform',
+        selectedSceneBrief: expect.objectContaining({
+          sceneId: 'scene-midnight-platform',
+          title: 'Midnight Platform',
+          unresolvedCount: 3,
+        }),
+        problemsSummary: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'departure-bell-timing',
+          }),
+        ]),
       }),
     })
   })
@@ -58,19 +90,13 @@ describe('chapter query hooks', () => {
     const client = {
       getChapterStructureWorkspace,
     }
-    const wrapper = wrapperFactory()
+    const { wrapper } = wrapperFactory()
 
-    const firstRoute: ChapterRouteState = {
-      ...baseRoute,
-      sceneId: 'scene-midnight-platform',
-    }
-    const secondRoute: ChapterRouteState = {
-      ...baseRoute,
-      sceneId: 'scene-ticket-window',
-    }
+    const firstInput = { ...baseInput, selectedSceneId: 'scene-midnight-platform' }
+    const secondInput = { ...baseInput, selectedSceneId: 'scene-ticket-window' }
 
-    const hook = renderHook(({ route }) => useChapterStructureWorkspaceQuery(route, client), {
-      initialProps: { route: firstRoute },
+    const hook = renderHook(({ input }) => useChapterStructureWorkspaceQuery(input, client), {
+      initialProps: { input: firstInput },
       wrapper,
     })
 
@@ -78,33 +104,34 @@ describe('chapter query hooks', () => {
       expect(hook.result.current.isLoading).toBe(false)
     })
 
-    expect(hook.result.current.model.currentSceneId).toBe('scene-midnight-platform')
-    expect(hook.result.current.model.inspector.selectedSceneTitle).toBe('Midnight Platform')
+    expect(hook.result.current.workspace?.selectedSceneId).toBe('scene-midnight-platform')
+    expect(hook.result.current.workspace?.inspector.selectedSceneBrief?.title).toBe('Midnight Platform')
     expect(getChapterStructureWorkspace).toHaveBeenCalledTimes(1)
+    expect(getChapterStructureWorkspace).toHaveBeenCalledWith({ chapterId: 'chapter-signals-in-rain' })
 
-    hook.rerender({ route: secondRoute })
+    hook.rerender({ input: secondInput })
 
     await waitFor(() => {
-      expect(hook.result.current.model.currentSceneId).toBe('scene-ticket-window')
+      expect(hook.result.current.workspace?.selectedSceneId).toBe('scene-ticket-window')
     })
 
-    expect(hook.result.current.model.inspector.selectedSceneTitle).toBe('Ticket Window')
+    expect(hook.result.current.workspace?.inspector.selectedSceneBrief?.title).toBe('Ticket Window')
     expect(getChapterStructureWorkspace).toHaveBeenCalledTimes(1)
   })
 
-  it('falls back invalid route.sceneId values to the first scene without changing the query key', async () => {
+  it('falls back invalid selectedSceneId values to the first scene without changing the query key', async () => {
     const getChapterStructureWorkspace = vi.fn(createChapterClient().getChapterStructureWorkspace)
     const client = {
       getChapterStructureWorkspace,
     }
-    const wrapper = wrapperFactory()
+    const { wrapper } = wrapperFactory()
 
     const hook = renderHook(
       () =>
         useChapterStructureWorkspaceQuery(
           {
-            ...baseRoute,
-            sceneId: 'scene-does-not-exist',
+            ...baseInput,
+            selectedSceneId: 'scene-does-not-exist',
           },
           client,
         ),
@@ -117,8 +144,54 @@ describe('chapter query hooks', () => {
       expect(hook.result.current.isLoading).toBe(false)
     })
 
-    expect(hook.result.current.model.currentSceneId).toBe('scene-midnight-platform')
-    expect(hook.result.current.model.inspector.selectedSceneTitle).toBe('Midnight Platform')
+    expect(hook.result.current.workspace?.selectedSceneId).toBe('scene-midnight-platform')
+    expect(hook.result.current.workspace?.inspector.selectedSceneBrief?.title).toBe('Midnight Platform')
+    expect(getChapterStructureWorkspace).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces missing chapters as an empty workspace result without throwing', async () => {
+    const { wrapper } = wrapperFactory()
+
+    const hook = renderHook(() => useChapterStructureWorkspaceQuery({ chapterId: 'unknown-chapter' }), {
+      wrapper,
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(hook.result.current.workspace).toBeNull()
+    expect(hook.result.current.error).toBeNull()
+  })
+
+  it('re-localizes the same cached raw record on locale change without refetching the chapter query', async () => {
+    window.localStorage.setItem(APP_LOCALE_STORAGE_KEY, 'en')
+
+    const getChapterStructureWorkspace = vi.fn(createChapterClient().getChapterStructureWorkspace)
+    const client = {
+      getChapterStructureWorkspace,
+    }
+    const { wrapper, setLocale } = wrapperFactory()
+
+    const hook = renderHook(() => useChapterStructureWorkspaceQuery(baseInput, client), {
+      wrapper,
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.workspace?.title).toBe('Signals in Rain')
+    })
+
+    expect(hook.result.current.workspace?.inspector.selectedSceneBrief?.title).toBe('Midnight Platform')
+    expect(getChapterStructureWorkspace).toHaveBeenCalledTimes(1)
+
+    setLocale('zh-CN')
+
+    await waitFor(() => {
+      expect(hook.result.current.workspace?.title).toBe('雨中信号')
+    })
+
+    expect(hook.result.current.workspace?.inspector.selectedSceneBrief?.title).toBe('午夜站台')
+    expect(hook.result.current.workspace?.scenes[0]?.title).toBe('午夜站台')
     expect(getChapterStructureWorkspace).toHaveBeenCalledTimes(1)
   })
 })

@@ -4,8 +4,9 @@ import { useI18n } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
 import { Badge } from '@/components/ui/Badge'
 import { ChapterBinderPlaceholder } from '@/features/chapter/components/ChapterBinderPlaceholder'
-import { ChapterStructureInspectorPlaceholder, ChapterStructureWorkspace } from '@/features/chapter/containers/ChapterStructureWorkspace'
-import type { ChapterStructureWorkspaceViewModel } from '@/features/chapter/types/chapter-view-models'
+import { ChapterStructureInspectorPlaceholder } from '@/features/chapter/components/ChapterStructureInspectorPlaceholder'
+import { ChapterStructureStagePlaceholder } from '@/features/chapter/components/ChapterStructureStagePlaceholder'
+import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '@/features/chapter/types/chapter-view-models'
 import { TimelineList } from '@/components/ui/TimelineList'
 
 import { WorkbenchShell } from './WorkbenchShell'
@@ -107,14 +108,14 @@ export const Default: Story = {}
 
 function ChapterWorkbenchShellStoryPreview() {
   const { locale, dictionary } = useI18n()
+  const activeView: ChapterStructureView = 'sequence'
   const model: ChapterStructureWorkspaceViewModel = {
     chapterId: 'chapter-signals-in-rain',
     title: locale === 'zh-CN' ? '雨中信号' : 'Signals in Rain',
     summary: locale === 'zh-CN' ? '把章节结构、密度和拼接压力放在同一个工作面里。' : 'Keep structure, density, and assembly pressure in the same chapter workbench.',
     sceneCount: 4,
     unresolvedCount: 8,
-    activeView: 'sequence',
-    currentSceneId: 'scene-midnight-platform',
+    selectedSceneId: 'scene-midnight-platform',
     scenes: [
       {
         id: 'scene-midnight-platform',
@@ -166,12 +167,31 @@ function ChapterWorkbenchShellStoryPreview() {
       },
     ],
     inspector: {
-      selectedSceneTitle: locale === 'zh-CN' ? '午夜站台' : 'Midnight Platform',
-      selectedSceneBrief: locale === 'zh-CN' ? '让公共见证继续存在于场景边缘。' : 'Keep public witness pressure alive at the edge of the scene.',
-      unresolvedSummary: locale === 'zh-CN' ? '午夜站台仍有 3 个未决结构信号。' : 'Midnight Platform still carries 3 unresolved structure signals.',
+      selectedSceneBrief: {
+        sceneId: 'scene-midnight-platform',
+        title: locale === 'zh-CN' ? '午夜站台' : 'Midnight Platform',
+        summary: locale === 'zh-CN' ? '让公共见证继续存在于场景边缘。' : 'Keep public witness pressure alive at the edge of the scene.',
+        unresolvedCount: 3,
+        unresolvedLabel: locale === 'zh-CN' ? '未决 3' : 'Unresolved 3',
+      },
       chapterNotes: locale === 'zh-CN' ? ['排序属于结构层。'] : ['Ordering remains structural.'],
-      problemsSummary: locale === 'zh-CN' ? '主要风险在铃声时点和别名曝光。' : 'Main risks cluster around bell timing and alias exposure.',
-      assemblyHints: locale === 'zh-CN' ? ['把站台压力延续到候车厅。'] : ['Carry platform pressure into the concourse.'],
+      problemsSummary: [
+        {
+          id: 'bell-timing',
+          label: locale === 'zh-CN' ? '铃声时点' : 'Bell timing',
+          detail: locale === 'zh-CN' ? '主要风险在铃声时点和别名曝光。' : 'Main risks cluster around bell timing and alias exposure.',
+        },
+      ],
+      assemblyHints: [
+        {
+          id: 'carry-pressure',
+          label: locale === 'zh-CN' ? '延续站台压力' : 'Carry platform pressure',
+          detail: locale === 'zh-CN' ? '把站台压力延续到候车厅。' : 'Carry platform pressure into the concourse.',
+        },
+      ],
+    },
+    viewsMeta: {
+      availableViews: ['sequence', 'outliner', 'assembly'],
     },
   }
 
@@ -213,13 +233,31 @@ function ChapterWorkbenchShellStoryPreview() {
         <ChapterBinderPlaceholder
           title={dictionary.app.chapters}
           description={dictionary.app.chapterNavigatorDescription}
-          model={model}
+          workspace={model}
+          activeView={activeView}
         />
       }
       mainStage={
-        <ChapterStructureWorkspace model={model} onViewChange={() => {}} />
+        <ChapterStructureStagePlaceholder
+          activeView={activeView}
+          labels={{
+            sequence: dictionary.app.sequence,
+            outliner: dictionary.app.outliner,
+            assembly: dictionary.app.assembly,
+          }}
+          availableViews={model.viewsMeta?.availableViews}
+          workspace={model}
+          title={dictionary.app.chapterStructure}
+          onViewChange={() => {}}
+        />
       }
-      inspector={<ChapterStructureInspectorPlaceholder model={model} />}
+      inspector={
+        <ChapterStructureInspectorPlaceholder
+          chapterId={model.chapterId}
+          unresolvedCount={model.unresolvedCount}
+          inspector={model.inspector}
+        />
+      }
     />
   )
 }

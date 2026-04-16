@@ -1,7 +1,6 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
 
 import {
-  getChapterStructureViewLabel,
   getLocaleName,
   getSceneRunStatusLabel,
   getSceneStatusLabel,
@@ -11,13 +10,7 @@ import {
 } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { PaneHeader } from '@/components/ui/PaneHeader'
-import { ChapterBinderPlaceholder } from '@/features/chapter/components/ChapterBinderPlaceholder'
-import {
-  ChapterStructureInspectorPlaceholder,
-  ChapterStructureWorkspace,
-} from '@/features/chapter/containers/ChapterStructureWorkspace'
-import { useChapterStructureWorkspaceQuery } from '@/features/chapter/hooks/useChapterStructureWorkspaceQuery'
-import type { ChapterStructureWorkspaceViewModel } from '@/features/chapter/types/chapter-view-models'
+import { ChapterStructureWorkspace } from '@/features/chapter/containers/ChapterStructureWorkspace'
 import { sceneClient } from '@/features/scene/api/scene-client'
 import { SceneDockContainer } from '@/features/scene/containers/SceneDockContainer'
 import { SceneInspectorContainer } from '@/features/scene/containers/SceneInspectorContainer'
@@ -28,7 +21,6 @@ import type { SceneTab, SceneWorkspaceViewModel } from '@/features/scene/types/s
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import type {
-  ChapterRouteState,
   SceneRouteState,
   WorkbenchLens,
   WorkbenchScope,
@@ -125,31 +117,6 @@ function SceneTopCommandBar({
         <Badge tone="neutral">{getWorkbenchLensLabel(locale, lens)}</Badge>
         <Badge tone="neutral">{getSceneTabLabel(locale, tab)}</Badge>
         <Badge tone={runtimeBadge.source === 'preload-bridge' ? 'success' : 'accent'}>{runtimeBadge.label}</Badge>
-      </div>
-    </div>
-  )
-}
-
-function ChapterTopCommandBar({ route, model }: { route: ChapterRouteState; model: ChapterStructureWorkspaceViewModel }) {
-  const { locale, dictionary } = useI18n()
-
-  return (
-    <div className="flex h-full flex-wrap items-center justify-between gap-3">
-      <div className="min-w-0 space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.narrativeWorkbench}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg leading-tight text-text-main">{dictionary.app.chapterWorkbench}</h1>
-          <Badge tone="neutral">{dictionary.common.chapter}</Badge>
-          <Badge tone="accent">{getChapterStructureViewLabel(locale, route.view)}</Badge>
-        </div>
-        <p className="text-sm text-text-muted">
-          {model.title} / {dictionary.app.chapterStructure} / {getChapterStructureViewLabel(locale, route.view)}
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <LanguageToggle />
-        <Badge tone="neutral">{dictionary.app.chapterStructure}</Badge>
-        <Badge tone="neutral">{getChapterStructureViewLabel(locale, route.view)}</Badge>
       </div>
     </div>
   )
@@ -393,110 +360,12 @@ function SceneWorkbench({
   )
 }
 
-function ChapterWorkbench({
-  route,
-  replaceRoute,
-  patchChapterRoute,
-}: {
-  route: ChapterRouteState
-  replaceRoute: ReturnType<typeof useWorkbenchRouteState>['replaceRoute']
-  patchChapterRoute: ReturnType<typeof useWorkbenchRouteState>['patchChapterRoute']
-}) {
-  const { dictionary } = useI18n()
-  const { model, isLoading, error } = useChapterStructureWorkspaceQuery(route)
-
-  if (error) {
-    return (
-      <WorkbenchShell
-        topBar={
-          <div className="flex h-full items-center justify-between gap-3">
-            <h1 className="text-lg leading-tight text-text-main">{dictionary.app.chapterWorkbench}</h1>
-          </div>
-        }
-        modeRail={
-          <ModeRail
-            activeScope="chapter"
-            activeLens="structure"
-            onSelectScope={(scope) => {
-              if (scope === 'chapter') {
-                return
-              }
-              replaceRoute({ scope: 'scene' })
-            }}
-            onSelectLens={() => {}}
-          />
-        }
-        navigator={<div className="p-4 text-sm text-text-muted">Chapter unavailable.</div>}
-        mainStage={<div className="p-4 text-sm text-text-muted">Chapter unavailable.</div>}
-        inspector={<div className="p-4 text-sm text-text-muted">Chapter unavailable.</div>}
-      />
-    )
-  }
-
-  if (isLoading || !model) {
-    return (
-      <WorkbenchShell
-        topBar={
-          <div className="flex h-full items-center justify-between gap-3">
-            <h1 className="text-lg leading-tight text-text-main">{dictionary.app.chapterWorkbench}</h1>
-          </div>
-        }
-        modeRail={
-          <ModeRail
-            activeScope="chapter"
-            activeLens="structure"
-            onSelectScope={(scope) => {
-              if (scope === 'chapter') {
-                return
-              }
-              replaceRoute({ scope: 'scene' })
-            }}
-            onSelectLens={() => {}}
-          />
-        }
-        navigator={<div className="p-4 text-sm text-text-muted">{dictionary.common.loading}</div>}
-        mainStage={<div className="p-4 text-sm text-text-muted">{dictionary.common.loading}</div>}
-        inspector={<div className="p-4 text-sm text-text-muted">{dictionary.common.loading}</div>}
-      />
-    )
-  }
-
-  return (
-    <WorkbenchShell
-      topBar={<ChapterTopCommandBar route={route} model={model} />}
-      modeRail={
-        <ModeRail
-          activeScope="chapter"
-          activeLens="structure"
-          onSelectScope={(scope) => {
-            if (scope === 'chapter') {
-              return
-            }
-            replaceRoute({ scope: 'scene' })
-          }}
-          onSelectLens={() => {}}
-        />
-      }
-      navigator={
-        <ChapterBinderPlaceholder
-          title={dictionary.app.chapters}
-          description={dictionary.app.chapterNavigatorDescription}
-          model={model}
-          onSelectScene={(sceneId) => patchChapterRoute({ sceneId })}
-        />
-      }
-      mainStage={<ChapterStructureWorkspace model={model} onViewChange={(view) => patchChapterRoute({ view })} />}
-      inspector={<ChapterStructureInspectorPlaceholder model={model} />}
-    />
-  )
-}
-
 export default function App() {
-  const { route, replaceRoute, patchSceneRoute, patchChapterRoute } = useWorkbenchRouteState()
+  const { route, replaceRoute, patchSceneRoute } = useWorkbenchRouteState()
 
   return route.scope === 'scene' ? (
     <SceneWorkbench route={route} replaceRoute={replaceRoute} patchSceneRoute={patchSceneRoute} />
   ) : (
-    <ChapterWorkbench route={route} replaceRoute={replaceRoute} patchChapterRoute={patchChapterRoute} />
+    <ChapterStructureWorkspace />
   )
 }

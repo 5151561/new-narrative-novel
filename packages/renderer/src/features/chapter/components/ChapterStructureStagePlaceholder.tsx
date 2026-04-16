@@ -6,34 +6,42 @@ import {
 } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { PaneHeader } from '@/components/ui/PaneHeader'
-import type { ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
-import type { ChapterStructureView } from '@/features/workbench/types/workbench-route'
+import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
+
+const defaultAvailableViews: ChapterStructureView[] = ['sequence', 'outliner', 'assembly']
 
 interface ChapterStructureStagePlaceholderProps {
   activeView: ChapterStructureView
   labels: Record<ChapterStructureView, string>
-  model: ChapterStructureWorkspaceViewModel
+  workspace: ChapterStructureWorkspaceViewModel
   title: string
   onViewChange: (view: ChapterStructureView) => void
+  availableViews?: ChapterStructureView[]
 }
 
 export function ChapterStructureStagePlaceholder({
   activeView,
   labels,
-  model,
+  workspace,
   title,
   onViewChange,
+  availableViews = defaultAvailableViews,
 }: ChapterStructureStagePlaceholderProps) {
   const { locale, dictionary } = useI18n()
+  const selectedSceneId = workspace.selectedSceneId
+  const selectedSceneIndex = Math.max(
+    workspace.scenes.findIndex((scene) => scene.id === selectedSceneId),
+    0,
+  )
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PaneHeader
         title={title}
-        description={model.title}
+        description={workspace.title}
         actions={
           <div className="flex flex-wrap gap-2">
-            {(Object.keys(labels) as ChapterStructureView[]).map((view) => (
+            {availableViews.map((view) => (
               <button
                 key={view}
                 type="button"
@@ -54,11 +62,11 @@ export function ChapterStructureStagePlaceholder({
       <div className="min-h-0 flex-1 overflow-auto p-4">
         {activeView === 'sequence' ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {model.scenes.map((scene) => (
+            {workspace.scenes.map((scene) => (
               <section
                 key={scene.id}
                 className={`rounded-md border p-3 ${
-                  scene.id === model.currentSceneId ? 'border-line-strong bg-surface-1' : 'border-line-soft bg-surface-2'
+                  scene.id === selectedSceneId ? 'border-line-strong bg-surface-1' : 'border-line-soft bg-surface-2'
                 }`}
               >
                 <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
@@ -78,11 +86,11 @@ export function ChapterStructureStagePlaceholder({
         ) : null}
         {activeView === 'outliner' ? (
           <div className="space-y-3">
-            {model.scenes.map((scene) => (
+            {workspace.scenes.map((scene) => (
               <section
                 key={scene.id}
                 className={`rounded-md border p-3 ${
-                  scene.id === model.currentSceneId ? 'border-line-strong bg-surface-1' : 'border-line-soft bg-surface-2'
+                  scene.id === selectedSceneId ? 'border-line-strong bg-surface-1' : 'border-line-soft bg-surface-2'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -137,7 +145,7 @@ export function ChapterStructureStagePlaceholder({
               <section className="rounded-md border border-line-soft bg-surface-2 p-3">
                 <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.chapterScaffold.incoming}</p>
                 <ul className="mt-3 space-y-2 text-sm text-text-muted">
-                  {model.scenes.slice(0, Math.max(model.scenes.findIndex((scene) => scene.id === model.currentSceneId), 1)).map((scene) => (
+                  {workspace.scenes.slice(0, selectedSceneIndex).map((scene) => (
                     <li key={scene.id} className="rounded-md border border-line-soft bg-surface-1 px-3 py-2">
                       {scene.title}
                     </li>
@@ -147,8 +155,8 @@ export function ChapterStructureStagePlaceholder({
               <section className="rounded-md border border-line-soft bg-surface-2 p-3">
                 <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.chapterScaffold.currentAssembly}</p>
                 <ul className="mt-3 space-y-2 text-sm text-text-muted">
-                  {model.scenes
-                    .slice(Math.max(model.scenes.findIndex((scene) => scene.id === model.currentSceneId), 0))
+                  {workspace.scenes
+                    .slice(selectedSceneIndex)
                     .map((scene) => (
                     <li key={scene.id} className="rounded-md border border-line-soft bg-surface-1 px-3 py-2">
                       {scene.title}

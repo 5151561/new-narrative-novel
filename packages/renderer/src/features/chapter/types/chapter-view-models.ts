@@ -1,3 +1,5 @@
+export type { ChapterStructureView } from '@/features/workbench/types/workbench-route'
+
 import type { ChapterStructureView } from '@/features/workbench/types/workbench-route'
 
 export interface ChapterStructureSceneViewModel {
@@ -17,30 +19,45 @@ export interface ChapterStructureSceneViewModel {
   lastRunLabel: string
 }
 
-export interface ChapterStructureInspectorData {
-  chapterNotes: string[]
-  problemsSummary: string
-  assemblyHints: string[]
+export interface ChapterStructureSelectedSceneBrief {
+  sceneId: string
+  title: string
+  summary: string
+  unresolvedCount: number
+  unresolvedLabel: string
 }
 
-export interface ChapterStructureWorkspaceData {
+export interface ChapterStructureProblemSummaryItem {
+  id: string
+  label: string
+  detail: string
+}
+
+export interface ChapterStructureAssemblyHintItem {
+  id: string
+  label: string
+  detail: string
+}
+
+export interface ChapterStructureInspectorViewModel {
+  selectedSceneBrief: ChapterStructureSelectedSceneBrief | null
+  chapterNotes: string[]
+  problemsSummary: ChapterStructureProblemSummaryItem[]
+  assemblyHints: ChapterStructureAssemblyHintItem[]
+}
+
+export interface ChapterStructureViewsMeta {
+  availableViews: ChapterStructureView[]
+}
+
+export interface ChapterStructureWorkspaceViewModel {
   chapterId: string
   title: string
   summary: string
   sceneCount: number
   unresolvedCount: number
+  selectedSceneId: string | null
   scenes: ChapterStructureSceneViewModel[]
-  inspector: ChapterStructureInspectorData
-}
-
-export interface ChapterStructureInspectorViewModel extends ChapterStructureInspectorData {
-  selectedSceneTitle: string
-  selectedSceneBrief: string
-  unresolvedSummary: string
-}
-
-export interface ChapterStructureWorkspaceViewModel extends ChapterStructureWorkspaceData {
-  activeView: ChapterStructureView
-  currentSceneId: string
   inspector: ChapterStructureInspectorViewModel
+  viewsMeta?: ChapterStructureViewsMeta
 }

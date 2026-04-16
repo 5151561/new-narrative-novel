@@ -7,16 +7,23 @@ import {
 } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { PaneHeader } from '@/components/ui/PaneHeader'
-import type { ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
+import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
 
 interface ChapterBinderPlaceholderProps {
   title: string
   description: string
-  model: ChapterStructureWorkspaceViewModel
+  workspace: ChapterStructureWorkspaceViewModel
+  activeView: ChapterStructureView
   onSelectScene?: (sceneId: string) => void
 }
 
-export function ChapterBinderPlaceholder({ title, description, model, onSelectScene }: ChapterBinderPlaceholderProps) {
+export function ChapterBinderPlaceholder({
+  title,
+  description,
+  workspace,
+  activeView,
+  onSelectScene,
+}: ChapterBinderPlaceholderProps) {
   const { locale, dictionary } = useI18n()
 
   return (
@@ -27,20 +34,20 @@ export function ChapterBinderPlaceholder({ title, description, model, onSelectSc
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.chapterScaffold.currentChapter}</p>
-              <h4 className="mt-1 text-base text-text-main">{model.title}</h4>
+              <h4 className="mt-1 text-base text-text-main">{workspace.title}</h4>
             </div>
-            <Badge tone="accent">{getChapterStructureViewLabel(locale, model.activeView)}</Badge>
+            <Badge tone="accent">{getChapterStructureViewLabel(locale, activeView)}</Badge>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Badge tone="neutral">{getChapterSceneCountLabel(locale, model.sceneCount)}</Badge>
-            <Badge tone={model.unresolvedCount > 0 ? 'warn' : 'success'}>
-              {getChapterUnresolvedCountLabel(locale, model.unresolvedCount)}
+            <Badge tone="neutral">{getChapterSceneCountLabel(locale, workspace.sceneCount)}</Badge>
+            <Badge tone={workspace.unresolvedCount > 0 ? 'warn' : 'success'}>
+              {getChapterUnresolvedCountLabel(locale, workspace.unresolvedCount)}
             </Badge>
           </div>
         </section>
         <div className="space-y-2">
-          {model.scenes.map((scene) => {
-            const active = scene.id === model.currentSceneId
+          {workspace.scenes.map((scene) => {
+            const active = scene.id === workspace.selectedSceneId
 
             return (
               <button
