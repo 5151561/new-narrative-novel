@@ -12,7 +12,43 @@ import { ChapterDraftInspectorPane } from '../components/ChapterDraftInspectorPa
 import { ChapterDraftReader } from '../components/ChapterDraftReader'
 import { ChapterModeRail } from '../components/ChapterModeRail'
 import { useChapterDraftWorkspaceQuery } from '../hooks/useChapterDraftWorkspaceQuery'
+import { useChapterDraftTraceabilityQuery } from '@/features/traceability/hooks/useChapterDraftTraceabilityQuery'
 import { ChapterDraftDockContainer } from './ChapterDraftDockContainer'
+import type { ChapterDraftWorkspaceViewModel } from '../types/chapter-draft-view-models'
+
+function mergeTraceabilityIntoWorkspace(
+  workspace: ChapterDraftWorkspaceViewModel,
+  traceability: ReturnType<typeof useChapterDraftTraceabilityQuery>,
+) {
+  const scenes = workspace.scenes.map((scene) => {
+    const traceSummary = traceability.traceability?.sceneSummariesBySceneId[scene.sceneId] ?? {
+      sceneId: scene.sceneId,
+      sourceFactCount: 0,
+      relatedAssetCount: 0,
+      status: 'missing' as const,
+    }
+
+    return {
+      ...scene,
+      traceSummary: {
+        sourceFactCount: traceSummary.sourceFactCount,
+        relatedAssetCount: traceSummary.relatedAssetCount,
+        status: traceSummary.status,
+      },
+    }
+  })
+
+  return {
+    ...workspace,
+    scenes,
+    selectedScene: scenes.find((scene) => scene.sceneId === workspace.selectedSceneId) ?? workspace.selectedScene,
+    inspector: {
+      ...workspace.inspector,
+      selectedSceneTraceability: traceability.traceability?.selectedSceneTrace ?? null,
+      chapterTraceCoverage: traceability.traceability?.chapterCoverage ?? null,
+    },
+  }
+}
 
 function LanguageToggle() {
   const { locale, setLocale, dictionary } = useI18n()
@@ -101,6 +137,10 @@ export function ChapterDraftWorkspace() {
   }
 
   const { workspace, isLoading, error } = useChapterDraftWorkspaceQuery({
+    chapterId: route.chapterId,
+    selectedSceneId: route.sceneId ?? null,
+  })
+  const traceability = useChapterDraftTraceabilityQuery({
     chapterId: route.chapterId,
     selectedSceneId: route.sceneId ?? null,
   })
@@ -207,40 +247,54 @@ export function ChapterDraftWorkspace() {
     )
   }
 
+  const tracedWorkspace = mergeTraceabilityIntoWorkspace(workspace, traceability)
+  const openAssetProfile = (assetId: string) => {
+    replaceRoute({
+      scope: 'asset',
+      assetId,
+      lens: 'knowledge',
+      view: 'profile',
+    })
+  }
+
   return (
     <WorkbenchShell
       topBar={
         <ChapterDraftTopBar
-          chapterTitle={workspace.title}
-          selectedSceneTitle={workspace.selectedScene?.title}
-          draftedSceneCount={workspace.draftedSceneCount}
-          missingDraftCount={workspace.missingDraftCount}
-          assembledWordCount={workspace.assembledWordCount}
+          chapterTitle={tracedWorkspace.title}
+          selectedSceneTitle={tracedWorkspace.selectedScene?.title}
+          draftedSceneCount={tracedWorkspace.draftedSceneCount}
+          missingDraftCount={tracedWorkspace.missingDraftCount}
+          assembledWordCount={tracedWorkspace.assembledWordCount}
         />
       }
       modeRail={shellModeRail}
       navigator={
         <ChapterDraftBinderPane
-          workspace={workspace}
+          workspace={tracedWorkspace}
           onSelectScene={(sceneId) => patchChapterRoute({ sceneId })}
           onOpenScene={openSceneFromChapter}
         />
       }
       mainStage={
         <ChapterDraftReader
-          workspace={workspace}
+          workspace={tracedWorkspace}
           onSelectScene={(sceneId) => patchChapterRoute({ sceneId })}
           onOpenScene={openSceneFromChapter}
         />
       }
       inspector={
         <ChapterDraftInspectorPane
-          chapterTitle={workspace.title}
-          chapterSummary={workspace.summary}
-          inspector={workspace.inspector}
+          chapterTitle={tracedWorkspace.title}
+          chapterSummary={tracedWorkspace.summary}
+          inspector={tracedWorkspace.inspector}
+          selectedSceneTraceabilityLoading={traceability.selectedSceneTraceLoading}
+          chapterCoverageLoading={traceability.chapterCoverageLoading}
+          traceabilityError={traceability.error}
+          onOpenAsset={openAssetProfile}
         />
       }
-      bottomDock={<ChapterDraftDockContainer workspace={workspace} />}
+      bottomDock={<ChapterDraftDockContainer workspace={tracedWorkspace} />}
     />
   )
 }

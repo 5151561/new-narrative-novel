@@ -68,6 +68,13 @@ export interface ChapterDraftSelectedSceneTraceabilityViewModel {
   missingLinks: string[]
 }
 
+export interface ChapterDraftSceneTraceSummaryViewModel {
+  sceneId: string
+  sourceFactCount: number
+  relatedAssetCount: number
+  status: 'ready' | 'missing'
+}
+
 export interface ChapterDraftTraceCoverageViewModel {
   tracedSceneCount: number
   missingTraceSceneCount: number
@@ -78,8 +85,9 @@ export interface ChapterDraftTraceCoverageViewModel {
 export interface ChapterDraftTraceabilityViewModel {
   chapterId: string
   selectedSceneId: string | null
+  sceneSummariesBySceneId: Record<string, ChapterDraftSceneTraceSummaryViewModel>
   selectedSceneTrace: ChapterDraftSelectedSceneTraceabilityViewModel | null
-  chapterCoverage: ChapterDraftTraceCoverageViewModel
+  chapterCoverage: ChapterDraftTraceCoverageViewModel | null
 }
 
 export interface AssetTraceabilityMentionSummaryViewModel {

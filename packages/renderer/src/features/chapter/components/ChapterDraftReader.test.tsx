@@ -29,6 +29,11 @@ const workspace: ChapterDraftWorkspaceViewModel = {
       revisionQueueCount: 0,
       warningsCount: 0,
       isMissingDraft: false,
+      traceSummary: {
+        sourceFactCount: 2,
+        relatedAssetCount: 2,
+        status: 'ready',
+      },
     },
     {
       sceneId: 'scene-concourse-delay',
@@ -41,6 +46,11 @@ const workspace: ChapterDraftWorkspaceViewModel = {
       revisionQueueCount: 1,
       warningsCount: 2,
       isMissingDraft: true,
+      traceSummary: {
+        sourceFactCount: 0,
+        relatedAssetCount: 0,
+        status: 'missing',
+      },
     },
     {
       sceneId: 'scene-ticket-window',
@@ -55,6 +65,11 @@ const workspace: ChapterDraftWorkspaceViewModel = {
       revisionQueueCount: 2,
       warningsCount: 1,
       isMissingDraft: false,
+      traceSummary: {
+        sourceFactCount: 1,
+        relatedAssetCount: 1,
+        status: 'ready',
+      },
     },
   ],
   selectedScene: {
@@ -146,6 +161,12 @@ describe('ChapterDraftReader', () => {
     expect(secondSection.compareDocumentPosition(thirdSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(secondSection).toHaveAttribute('aria-current', 'true')
     expect(screen.getByText('Draft not started yet.')).toBeInTheDocument()
+    expect(screen.getByText('2 facts')).toBeInTheDocument()
+    expect(screen.getByText('2 assets')).toBeInTheDocument()
+    expect(screen.getAllByText('Trace ready').length).toBeGreaterThan(0)
+    expect(screen.getByText('Trace missing')).toBeInTheDocument()
+    expect(screen.getByText('0 facts')).toBeInTheDocument()
+    expect(screen.getByText('0 assets')).toBeInTheDocument()
 
     await user.click(thirdSection)
     expect(onSelectScene).toHaveBeenCalledWith('scene-ticket-window')

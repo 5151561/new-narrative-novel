@@ -43,3 +43,17 @@ export const Versions: Story = {
     },
   },
 }
+
+export const Traceability: Story = {
+  args: {
+    sceneId: 'scene-midnight-platform',
+  },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution',
+      uiState: {
+        inspectorTab: 'traceability',
+      },
+    },
+  },
+}

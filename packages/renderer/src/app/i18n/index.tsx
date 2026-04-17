@@ -16,7 +16,7 @@ import type {
   WorkbenchLens,
 } from '@/features/workbench/types/workbench-route'
 
-type InspectorTabId = 'context' | 'versions' | 'runtime'
+type InspectorTabId = 'context' | 'versions' | 'traceability' | 'runtime'
 
 export type Locale = 'en' | 'zh-CN'
 
@@ -240,11 +240,13 @@ const inspectorTabLabels: Record<Locale, Record<InspectorTabId, string>> = {
   en: {
     context: 'Context',
     versions: 'Versions',
+    traceability: 'Traceability',
     runtime: 'Runtime',
   },
   'zh-CN': {
     context: '上下文',
     versions: '版本',
+    traceability: '来源链',
     runtime: '运行态',
   },
 }

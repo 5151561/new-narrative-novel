@@ -27,7 +27,7 @@ function createWrapper() {
 }
 
 describe('useChapterDraftTraceabilityQuery', () => {
-  it('falls back selectedSceneId to the first chapter section and reports chapter trace coverage', async () => {
+  it('falls back selectedSceneId to the first chapter section and returns chapter-draft-facing summaries plus trace coverage', async () => {
     const hook = renderHook(
       () =>
         useChapterDraftTraceabilityQuery({
@@ -44,6 +44,12 @@ describe('useChapterDraftTraceabilityQuery', () => {
     })
 
     expect(hook.result.current.traceability?.selectedSceneId).toBe('scene-midnight-platform')
+    expect(hook.result.current.traceability?.sceneSummariesBySceneId['scene-midnight-platform']).toMatchObject({
+      sceneId: 'scene-midnight-platform',
+      status: 'ready',
+      sourceFactCount: 2,
+      relatedAssetCount: 4,
+    })
     expect(hook.result.current.traceability?.selectedSceneTrace).toMatchObject({
       sceneId: 'scene-midnight-platform',
       sourceProposalCount: 2,
@@ -55,9 +61,11 @@ describe('useChapterDraftTraceabilityQuery', () => {
       sceneIdsMissingTrace: ['scene-departure-bell'],
       sceneIdsMissingAssets: [],
     })
+    expect(hook.result.current).not.toHaveProperty('sceneTraceBySceneId')
+    expect(hook.result.current).not.toHaveProperty('sceneStateBySceneId')
   })
 
-  it('does not publish missing coverage while scene trace sources are still incomplete', async () => {
+  it('keeps selected scene summaries and selected scene details available even when chapter coverage is still incomplete', async () => {
     let resolveProse: ((value: Awaited<ReturnType<SceneClient['getSceneProse']>>) => void) | undefined
     const prosePromise = new Promise<Awaited<ReturnType<SceneClient['getSceneProse']>>>((resolve) => {
       resolveProse = resolve
@@ -121,7 +129,7 @@ describe('useChapterDraftTraceabilityQuery', () => {
         useChapterDraftTraceabilityQuery(
           {
             chapterId: 'chapter-signals-in-rain',
-            selectedSceneId: null,
+            selectedSceneId: 'scene-concourse-delay',
           },
           {
             chapterClient,
@@ -132,10 +140,21 @@ describe('useChapterDraftTraceabilityQuery', () => {
     )
 
     await waitFor(() => {
-      expect(hook.result.current.isLoading).toBe(true)
+      expect(hook.result.current.traceability?.sceneSummariesBySceneId['scene-concourse-delay']).toMatchObject({
+        sceneId: 'scene-concourse-delay',
+        status: 'ready',
+        sourceFactCount: 1,
+        relatedAssetCount: 1,
+      })
     })
-
-    expect(hook.result.current.traceability).toBeNull()
+    expect(hook.result.current.traceability?.selectedSceneTrace).toMatchObject({
+      sceneId: 'scene-concourse-delay',
+      sourceProposalCount: 1,
+      latestDiffSummary: 'scene-concourse-delay diff',
+    })
+    expect(hook.result.current.traceability?.chapterCoverage).toBeNull()
+    expect(hook.result.current.selectedSceneTraceLoading).toBe(false)
+    expect(hook.result.current.chapterCoverageLoading).toBe(true)
 
     await act(async () => {
       resolveProse?.({

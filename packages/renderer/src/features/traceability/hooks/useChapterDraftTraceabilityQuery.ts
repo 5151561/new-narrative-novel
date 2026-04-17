@@ -41,11 +41,7 @@ export function useChapterDraftTraceabilityQuery(
       return null
     }
 
-    if (!sceneSources.isComplete) {
-      return null
-    }
-
-    return buildChapterDraftTraceabilityViewModel({
+    const baseModel = buildChapterDraftTraceabilityViewModel({
       chapterId,
       selectedSceneId: chapterWorkspaceQuery.workspace.selectedSceneId,
       scenes: chapterWorkspaceQuery.workspace.scenes.map((scene) => ({
@@ -54,10 +50,37 @@ export function useChapterDraftTraceabilityQuery(
       })),
       sceneTraceBySceneId: sceneSources.traceBySceneId,
     })
-  }, [chapterId, chapterWorkspaceQuery.workspace, sceneSources.isComplete, sceneSources.traceBySceneId])
+    const resolvedSelectedSceneId = baseModel.selectedSceneId
+    const selectedSceneState = resolvedSelectedSceneId ? sceneSources.sceneStateBySceneId[resolvedSelectedSceneId] : null
+
+    return {
+      ...baseModel,
+      selectedSceneTrace: selectedSceneState?.isComplete ? baseModel.selectedSceneTrace : null,
+      chapterCoverage: sceneSources.isComplete ? baseModel.chapterCoverage : null,
+    }
+  }, [chapterId, chapterWorkspaceQuery.workspace, sceneSources.isComplete, sceneSources.sceneStateBySceneId, sceneSources.traceBySceneId])
+
+  const selectedSceneTraceLoading = useMemo(() => {
+    if (!traceability?.selectedSceneId) {
+      return false
+    }
+
+    const selectedSceneState = sceneSources.sceneStateBySceneId[traceability.selectedSceneId]
+    return !selectedSceneState?.isComplete && selectedSceneState?.error === null
+  }, [sceneSources.sceneStateBySceneId, traceability?.selectedSceneId])
+
+  const chapterCoverageLoading = useMemo(() => {
+    if (!chapterWorkspaceQuery.workspace) {
+      return false
+    }
+
+    return !sceneSources.isComplete && sceneSources.error === null
+  }, [chapterWorkspaceQuery.workspace, sceneSources.error, sceneSources.isComplete])
 
   return {
     traceability,
+    selectedSceneTraceLoading,
+    chapterCoverageLoading,
     isLoading: chapterWorkspaceQuery.isLoading || sceneSources.isLoading,
     error: chapterWorkspaceQuery.error ?? sceneSources.error,
     refetch: async () => {

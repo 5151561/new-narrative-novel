@@ -20,6 +20,16 @@ describe('useSceneUiStore', () => {
     expect(state.patchPreviewOpen).toBe(false)
   })
 
+  it('accepts the traceability inspector tab without introducing route-owned selection into the store', () => {
+    act(() => {
+      useSceneUiStore.getState().setInspectorTab('traceability')
+    })
+
+    const state = useSceneUiStore.getState()
+    expect(state.inspectorTab).toBe('traceability')
+    expect(state).not.toHaveProperty('selectedAssetId')
+  })
+
   it('does not persist beat selection in filter state', () => {
     act(() => {
       useSceneUiStore.getState().setFilters({

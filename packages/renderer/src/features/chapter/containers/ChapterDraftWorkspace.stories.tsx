@@ -90,6 +90,13 @@ type Story = StoryObj<typeof meta>
 
 export const Default: Story = {}
 
+export const TraceReady: Story = {
+  args: {
+    selectedSceneId: 'scene-concourse-delay',
+    variant: 'default',
+  },
+}
+
 export const MissingDrafts: Story = {
   args: {
     selectedSceneId: 'scene-concourse-delay',

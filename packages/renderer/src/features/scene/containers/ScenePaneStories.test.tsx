@@ -3,7 +3,7 @@ import { render } from '@testing-library/react'
 
 import dockMeta, { Default as DockDefault } from './SceneDockContainer.stories'
 import { SceneDockContainer } from './SceneDockContainer'
-import inspectorMeta, { Default as InspectorDefault } from './SceneInspectorContainer.stories'
+import inspectorMeta, { Traceability as InspectorTraceability } from './SceneInspectorContainer.stories'
 import { SceneInspectorContainer } from './SceneInspectorContainer'
 
 function renderDecoratedStory(
@@ -27,9 +27,9 @@ describe('scene pane stories', () => {
 
   it('renders the inspector story inside a vertical pane shell', async () => {
     renderDecoratedStory(
-      () => <SceneInspectorContainer sceneId={InspectorDefault.args!.sceneId} />,
+      () => <SceneInspectorContainer sceneId={InspectorTraceability.args!.sceneId} />,
       inspectorMeta.decorators?.[0],
-      InspectorDefault.parameters,
+      InspectorTraceability.parameters,
     )
 
     expect(document.querySelector('.ring-panel')).toHaveClass('flex-col')

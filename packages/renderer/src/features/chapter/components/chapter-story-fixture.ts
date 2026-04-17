@@ -1,5 +1,10 @@
 import { getChapterUnresolvedCountLabel, type Locale } from '@/app/i18n'
 
+import type {
+  ChapterDraftSelectedSceneTraceabilityViewModel,
+  ChapterDraftTraceCoverageViewModel,
+} from '@/features/traceability/types/traceability-view-models'
+
 import type { ChapterDraftWorkspaceViewModel } from '../types/chapter-draft-view-models'
 import type { ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
 
@@ -323,13 +328,165 @@ function buildDraftWorkspace(
   const assembledWordCount = scenes.reduce((total, scene) => total + (scene.draftWordCount ?? 0), 0)
   const warningsCount = scenes.reduce((total, scene) => total + scene.warningsCount, 0)
   const queuedRevisionCount = scenes.reduce((total, scene) => total + (scene.revisionQueueCount ?? 0), 0)
+  const traceSummaryBySceneId: Record<
+    string,
+    NonNullable<ChapterDraftWorkspaceViewModel['scenes'][number]['traceSummary']>
+  > = {
+    'scene-midnight-platform': {
+      sourceFactCount: 2,
+      relatedAssetCount: 2,
+      status: 'ready',
+    },
+    'scene-concourse-delay': {
+      sourceFactCount: 1,
+      relatedAssetCount: 1,
+      status: 'ready',
+    },
+    'scene-ticket-window': {
+      sourceFactCount: 1,
+      relatedAssetCount: 2,
+      status: 'ready',
+    },
+    'scene-warehouse-bridge': {
+      sourceFactCount: 0,
+      relatedAssetCount: 0,
+      status: 'missing',
+    },
+  }
+  const selectedSceneTraceabilityBySceneId: Record<string, ChapterDraftSelectedSceneTraceabilityViewModel> = {
+    'scene-midnight-platform': {
+      sceneId: 'scene-midnight-platform',
+      acceptedFacts: [
+        {
+          id: 'fact-ledger',
+          label: pick(locale, text('Ledger leverage', '账本筹码')),
+          value: pick(
+            locale,
+            text(
+              'Ren keeps the ledger shut until Mei names the public cost.',
+              '任会一直把账本扣住，直到梅愿意说出公开代价。',
+            ),
+          ),
+          sourceProposals: [{ proposalId: 'proposal-1', title: pick(locale, text('Hold the ledger shut', '继续扣住账本')) }],
+          relatedAssets: [
+            { assetId: 'asset-ren-voss', title: pick(locale, text('Ren Voss', '任·沃斯')), kind: 'character' },
+            { assetId: 'asset-ledger-stays-shut', title: pick(locale, text('Ledger stays shut', '账本保持关闭')), kind: 'rule' },
+          ],
+        },
+      ],
+      relatedAssets: [
+        { assetId: 'asset-ren-voss', title: pick(locale, text('Ren Voss', '任·沃斯')), kind: 'character' },
+        { assetId: 'asset-ledger-stays-shut', title: pick(locale, text('Ledger stays shut', '账本保持关闭')), kind: 'rule' },
+      ],
+      latestPatchSummary: pick(
+        locale,
+        text(
+          'Semantic patch ready if the public stalemate is accepted into canon.',
+          '如果公开僵局进入 canon，就可以提交对应语义补丁。',
+        ),
+      ),
+      latestDiffSummary: pick(locale, text('No prose revision requested yet.', '还没有新的正文修订请求。')),
+      sourceProposalCount: 2,
+      missingLinks: [],
+    },
+    'scene-concourse-delay': {
+      sceneId: 'scene-concourse-delay',
+      acceptedFacts: [
+        {
+          id: 'fact-crowd-pressure',
+          label: pick(locale, text('Crowd pressure stays visible', '人群压力保持可见')),
+          value: pick(
+            locale,
+            text(
+              'Keep the bottleneck public so the platform pressure does not dissolve.',
+              '让瓶颈保持公开可见，别让站台上的压力提前散掉。',
+            ),
+          ),
+          sourceProposals: [{ proposalId: 'proposal-2', title: pick(locale, text('Carry witness pressure', '继续传递见证压力')) }],
+          relatedAssets: [{ assetId: 'asset-ren-voss', title: pick(locale, text('Ren Voss', '任·沃斯')), kind: 'character' }],
+        },
+      ],
+      relatedAssets: [{ assetId: 'asset-ren-voss', title: pick(locale, text('Ren Voss', '任·沃斯')), kind: 'character' }],
+      latestPatchSummary: pick(
+        locale,
+        text(
+          'Patch the public bottleneck through the ticket-window handoff.',
+          '把公开瓶颈一路带到售票窗交接处，再统一收束。',
+        ),
+      ),
+      latestDiffSummary: pick(
+        locale,
+        text(
+          'Carry the witness pressure forward without resolving courier ownership.',
+          '继续把见证压力往后带，不要提前解释信使归属。',
+        ),
+      ),
+      sourceProposalCount: 1,
+      missingLinks: [],
+    },
+    'scene-ticket-window': {
+      sceneId: 'scene-ticket-window',
+      acceptedFacts: [
+        {
+          id: 'fact-alias-guard',
+          label: pick(locale, text('Alias stays offstage', '化名继续留在场外')),
+          value: pick(
+            locale,
+            text(
+              'The alias stays offstage while the ticket decision becomes visible.',
+              '票务决断已经公开，但化名依然留在场外。',
+            ),
+          ),
+          sourceProposals: [{ proposalId: 'proposal-3', title: pick(locale, text('Keep the alias offstage', '继续让化名留在场外')) }],
+          relatedAssets: [
+            { assetId: 'asset-ren-voss', title: pick(locale, text('Ren Voss', '任·沃斯')), kind: 'character' },
+            { assetId: 'asset-departure-bell-timing', title: pick(locale, text('Departure bell timing', '发车铃时机')), kind: 'rule' },
+          ],
+        },
+      ],
+      relatedAssets: [
+        { assetId: 'asset-ren-voss', title: pick(locale, text('Ren Voss', '任·沃斯')), kind: 'character' },
+        { assetId: 'asset-departure-bell-timing', title: pick(locale, text('Departure bell timing', '发车铃时机')), kind: 'rule' },
+      ],
+      latestPatchSummary: pick(
+        locale,
+        text(
+          'The ticket handoff patch is ready once the visible cost tightens.',
+          '只要可见代价再压紧一点，就可以提交售票窗交接补丁。',
+        ),
+      ),
+      latestDiffSummary: pick(
+        locale,
+        text(
+          'Tighten the visible cost before the clerk notices too much.',
+          '在售票员察觉太多之前，再把可见代价压紧一点。',
+        ),
+      ),
+      sourceProposalCount: 1,
+      missingLinks: [],
+    },
+  }
+  const chapterTraceCoverage: ChapterDraftTraceCoverageViewModel = {
+    tracedSceneCount: scenes.filter((scene) => traceSummaryBySceneId[scene.sceneId]?.status === 'ready').length,
+    missingTraceSceneCount: scenes.filter((scene) => traceSummaryBySceneId[scene.sceneId]?.status !== 'ready').length,
+    sceneIdsMissingTrace: scenes
+      .filter((scene) => traceSummaryBySceneId[scene.sceneId]?.status !== 'ready')
+      .map((scene) => scene.sceneId),
+    sceneIdsMissingAssets: scenes
+      .filter((scene) => traceSummaryBySceneId[scene.sceneId]?.status === 'ready' && (traceSummaryBySceneId[scene.sceneId]?.relatedAssetCount ?? 0) === 0)
+      .map((scene) => scene.sceneId),
+  }
+  const selectedSceneTraceability = selectedSceneTraceabilityBySceneId[selectedScene.sceneId] ?? null
 
   return {
     chapterId: 'chapter-signals-in-rain',
     title: pick(locale, chapterTitle),
     summary: pick(locale, chapterDraftSummary),
     selectedSceneId: selectedScene.sceneId,
-    scenes,
+    scenes: scenes.map((scene) => ({
+      ...scene,
+      traceSummary: traceSummaryBySceneId[scene.sceneId],
+    })),
     assembledWordCount,
     draftedSceneCount,
     missingDraftCount,
@@ -352,6 +509,8 @@ function buildDraftWorkspace(
         warningsCount,
         queuedRevisionCount,
       },
+      selectedSceneTraceability,
+      chapterTraceCoverage,
     },
     dockSummary: {
       missingDraftCount,
@@ -448,6 +607,11 @@ export function buildQuietChapterDraftStoryWorkspace(
       revisionQueueCount: 0,
       warningsCount: 0,
       isMissingDraft: false,
+      traceSummary: {
+        sourceFactCount: 0,
+        relatedAssetCount: 0,
+        status: 'missing',
+      },
     },
   ]
 

@@ -8,13 +8,17 @@ import { TimelineList } from '@/components/ui/TimelineList'
 
 import { cn } from '@/lib/cn'
 
-import type { SceneInspectorViewModel } from '../types/scene-view-models'
+import type { SceneTraceabilityViewModel } from '@/features/traceability/types/traceability-view-models'
 
-export type InspectorTabId = 'context' | 'versions' | 'runtime'
+import type { SceneInspectorViewModel } from '../types/scene-view-models'
+import { SceneTraceabilityPanel } from './SceneTraceabilityPanel'
+
+export type InspectorTabId = 'context' | 'versions' | 'traceability' | 'runtime'
 
 const inspectorTabs: Array<{ id: InspectorTabId; label: string }> = [
   { id: 'context', label: 'Context' },
   { id: 'versions', label: 'Versions' },
+  { id: 'traceability', label: 'Traceability' },
   { id: 'runtime', label: 'Runtime' },
 ]
 
@@ -261,27 +265,47 @@ function RuntimeTab({ runtime }: { runtime: SceneInspectorViewModel['runtime'] }
 
 interface SceneInspectorPanelProps {
   data: SceneInspectorViewModel
+  traceability: SceneTraceabilityViewModel | null
+  traceabilityLoading: boolean
+  traceabilityError?: Error | null
   activeTab: InspectorTabId
   onTabChange: (tab: InspectorTabId) => void
+  onOpenAsset: (assetId: string) => void
 }
 
-export function SceneInspectorPanel({ data, activeTab, onTabChange }: SceneInspectorPanelProps) {
+export function SceneInspectorPanel({
+  data,
+  traceability,
+  traceabilityLoading,
+  traceabilityError,
+  activeTab,
+  onTabChange,
+  onOpenAsset,
+}: SceneInspectorPanelProps) {
   const { locale } = useI18n()
 
   return (
     <>
       <PaneHeader
-        title={locale === 'zh-CN' ? '上下文 / 版本 / 运行态' : 'Context / Versions / Runtime'}
+        title={locale === 'zh-CN' ? '上下文 / 版本 / 来源链 / 运行态' : 'Context / Versions / Traceability / Runtime'}
         description={
           locale === 'zh-CN'
-            ? '在这里检查上下文、版本检查点和运行态摘要。原始追踪会继续停留在主舞台下方。'
-            : 'Inspect context, version checkpoints, and runtime summaries here. Raw trace stays docked below the main stage.'
+            ? '在这里检查上下文、版本检查点、traceability 来源链和运行态摘要。'
+            : 'Inspect context, version checkpoints, traceability, and runtime summaries here.'
         }
       />
       <InspectorTabs activeTab={activeTab} onChange={onTabChange} />
       <div className="min-h-0 overflow-y-auto">
         {activeTab === 'context' ? <ContextTab context={data.context} /> : null}
         {activeTab === 'versions' ? <VersionsTab versions={data.versions} /> : null}
+        {activeTab === 'traceability' ? (
+          <SceneTraceabilityPanel
+            traceability={traceability}
+            isLoading={traceabilityLoading}
+            error={traceabilityError}
+            onOpenAsset={onOpenAsset}
+          />
+        ) : null}
         {activeTab === 'runtime' ? <RuntimeTab runtime={data.runtime} /> : null}
       </div>
     </>

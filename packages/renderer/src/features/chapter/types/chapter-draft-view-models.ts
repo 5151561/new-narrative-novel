@@ -1,3 +1,8 @@
+import type {
+  ChapterDraftSelectedSceneTraceabilityViewModel,
+  ChapterDraftTraceCoverageViewModel,
+} from '@/features/traceability/types/traceability-view-models'
+
 export interface ChapterDraftSceneViewModel {
   sceneId: string
   order: number
@@ -11,6 +16,11 @@ export interface ChapterDraftSceneViewModel {
   revisionQueueCount?: number
   warningsCount: number
   isMissingDraft: boolean
+  traceSummary?: {
+    sourceFactCount: number
+    relatedAssetCount: number
+    status: 'ready' | 'missing'
+  }
 }
 
 export interface ChapterDraftInspectorSelectedSceneViewModel {
@@ -35,6 +45,8 @@ export interface ChapterDraftReadinessViewModel {
 export interface ChapterDraftInspectorViewModel {
   selectedScene: ChapterDraftInspectorSelectedSceneViewModel | null
   chapterReadiness: ChapterDraftReadinessViewModel
+  selectedSceneTraceability?: ChapterDraftSelectedSceneTraceabilityViewModel | null
+  chapterTraceCoverage?: ChapterDraftTraceCoverageViewModel | null
 }
 
 export interface ChapterDraftDockSummaryItem {

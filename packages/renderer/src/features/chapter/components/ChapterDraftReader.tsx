@@ -30,6 +30,22 @@ function getWordCountLabel(locale: 'en' | 'zh-CN', count?: number) {
   return locale === 'zh-CN' ? `${count} 词` : `${count} words`
 }
 
+function getTraceStatusLabel(locale: 'en' | 'zh-CN', status: 'ready' | 'missing') {
+  if (status === 'ready') {
+    return locale === 'zh-CN' ? '来源链已就绪' : 'Trace ready'
+  }
+
+  return locale === 'zh-CN' ? '来源链缺失' : 'Trace missing'
+}
+
+function getTraceFactCountLabel(locale: 'en' | 'zh-CN', count: number) {
+  return locale === 'zh-CN' ? `${count} 条事实` : `${count} facts`
+}
+
+function getTraceAssetCountLabel(locale: 'en' | 'zh-CN', count: number) {
+  return locale === 'zh-CN' ? `${count} 个资产` : `${count} assets`
+}
+
 export function ChapterDraftReader({ workspace, onSelectScene, onOpenScene }: ChapterDraftReaderProps) {
   const { locale, dictionary } = useI18n()
   const missingDraftCopy = getMissingDraftCopy(locale)
@@ -70,6 +86,15 @@ export function ChapterDraftReader({ workspace, onSelectScene, onOpenScene }: Ch
                       <Badge tone="neutral">{getWordCountLabel(locale, scene.draftWordCount)}</Badge>
                     </div>
                   </div>
+                  {scene.traceSummary ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge tone={scene.traceSummary.status === 'ready' ? 'accent' : 'warn'}>
+                        {getTraceStatusLabel(locale, scene.traceSummary.status)}
+                      </Badge>
+                      <Badge tone="neutral">{getTraceFactCountLabel(locale, scene.traceSummary.sourceFactCount)}</Badge>
+                      <Badge tone="neutral">{getTraceAssetCountLabel(locale, scene.traceSummary.relatedAssetCount)}</Badge>
+                    </div>
+                  ) : null}
                   <p className="mt-3 text-sm leading-6 text-text-muted">{scene.summary}</p>
                   {scene.isMissingDraft ? (
                     <div className="mt-4 rounded-md border border-dashed border-line-strong bg-surface-2 px-4 py-4">

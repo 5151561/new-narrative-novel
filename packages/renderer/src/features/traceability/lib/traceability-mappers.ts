@@ -11,6 +11,7 @@ import type {
 
 import type {
   AssetTraceabilitySummaryViewModel,
+  ChapterDraftSceneTraceSummaryViewModel,
   ChapterDraftTraceabilityViewModel,
   SceneProseOriginViewModel,
   SceneTraceabilityLatestPatchViewModel,
@@ -295,6 +296,66 @@ function isSceneTraced(scene: SceneTraceabilityViewModel | undefined) {
   return !scene.missingLinks.includes('trace')
 }
 
+export function buildChapterDraftSceneTraceSummaryViewModel(
+  sceneId: string,
+  sceneTrace: SceneTraceabilityViewModel | null | undefined,
+): ChapterDraftSceneTraceSummaryViewModel {
+  if (!sceneTrace || sceneTrace.missingLinks.includes('trace')) {
+    return {
+      sceneId,
+      sourceFactCount: 0,
+      relatedAssetCount: 0,
+      status: 'missing',
+    }
+  }
+
+  return {
+    sceneId,
+    sourceFactCount: sceneTrace.acceptedFacts.length,
+    relatedAssetCount: sceneTrace.relatedAssets.length,
+    status: 'ready',
+  }
+}
+
+export function buildChapterDraftSelectedSceneTraceabilityViewModel(
+  sceneTrace: SceneTraceabilityViewModel | null | undefined,
+) {
+  if (!sceneTrace) {
+    return null
+  }
+
+  return {
+    sceneId: sceneTrace.sceneId,
+    acceptedFacts: sceneTrace.acceptedFacts,
+    relatedAssets: sceneTrace.relatedAssets,
+    latestPatchSummary: sceneTrace.latestPatch?.summary,
+    latestDiffSummary: sceneTrace.proseOrigin?.latestDiffSummary,
+    sourceProposalCount: sceneTrace.sourceProposals.length,
+    missingLinks: sceneTrace.missingLinks,
+  }
+}
+
+export function buildChapterDraftTraceCoverageViewModel({
+  scenes,
+  sceneTraceBySceneId,
+}: Omit<BuildChapterDraftTraceabilityViewModelInput, 'chapterId' | 'selectedSceneId'>) {
+  const tracedSceneIds = scenes.filter((scene) => isSceneTraced(sceneTraceBySceneId[scene.sceneId])).map((scene) => scene.sceneId)
+  const sceneIdsMissingTrace = scenes.filter((scene) => !isSceneTraced(sceneTraceBySceneId[scene.sceneId])).map((scene) => scene.sceneId)
+  const sceneIdsMissingAssets = scenes
+    .filter((scene) => {
+      const trace = sceneTraceBySceneId[scene.sceneId]
+      return trace && isSceneTraced(trace) && trace.relatedAssets.length === 0
+    })
+    .map((scene) => scene.sceneId)
+
+  return {
+    tracedSceneCount: tracedSceneIds.length,
+    missingTraceSceneCount: sceneIdsMissingTrace.length,
+    sceneIdsMissingTrace,
+    sceneIdsMissingAssets,
+  }
+}
+
 function collectAcceptedFactProposalIds(
   acceptedFactIds: string[] | undefined,
   sceneTrace: SceneTraceabilityViewModel | undefined,
@@ -376,35 +437,18 @@ export function buildChapterDraftTraceabilityViewModel({
 }: BuildChapterDraftTraceabilityViewModelInput): ChapterDraftTraceabilityViewModel {
   const resolvedSelectedSceneId = scenes.find((scene) => scene.sceneId === selectedSceneId)?.sceneId ?? scenes[0]?.sceneId ?? null
   const selectedSceneTrace = resolvedSelectedSceneId ? sceneTraceBySceneId[resolvedSelectedSceneId] : undefined
-  const tracedSceneIds = scenes.filter((scene) => isSceneTraced(sceneTraceBySceneId[scene.sceneId])).map((scene) => scene.sceneId)
-  const sceneIdsMissingTrace = scenes.filter((scene) => !isSceneTraced(sceneTraceBySceneId[scene.sceneId])).map((scene) => scene.sceneId)
-  const sceneIdsMissingAssets = scenes
-    .filter((scene) => {
-      const trace = sceneTraceBySceneId[scene.sceneId]
-      return trace && isSceneTraced(trace) && trace.relatedAssets.length === 0
-    })
-    .map((scene) => scene.sceneId)
 
   return {
     chapterId,
     selectedSceneId: resolvedSelectedSceneId,
-    selectedSceneTrace: selectedSceneTrace
-      ? {
-          sceneId: selectedSceneTrace.sceneId,
-          acceptedFacts: selectedSceneTrace.acceptedFacts,
-          relatedAssets: selectedSceneTrace.relatedAssets,
-          latestPatchSummary: selectedSceneTrace.latestPatch?.summary,
-          latestDiffSummary: selectedSceneTrace.proseOrigin?.latestDiffSummary,
-          sourceProposalCount: selectedSceneTrace.sourceProposals.length,
-          missingLinks: selectedSceneTrace.missingLinks,
-        }
-      : null,
-    chapterCoverage: {
-      tracedSceneCount: tracedSceneIds.length,
-      missingTraceSceneCount: sceneIdsMissingTrace.length,
-      sceneIdsMissingTrace,
-      sceneIdsMissingAssets,
-    },
+    sceneSummariesBySceneId: Object.fromEntries(
+      scenes.map((scene) => [scene.sceneId, buildChapterDraftSceneTraceSummaryViewModel(scene.sceneId, sceneTraceBySceneId[scene.sceneId])]),
+    ),
+    selectedSceneTrace: buildChapterDraftSelectedSceneTraceabilityViewModel(selectedSceneTrace),
+    chapterCoverage: buildChapterDraftTraceCoverageViewModel({
+      scenes,
+      sceneTraceBySceneId,
+    }),
   }
 }
 
