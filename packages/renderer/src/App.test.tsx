@@ -538,4 +538,61 @@ describe('App scene workbench', () => {
     expect(ticketButton.compareDocumentPosition(concourseButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(concourseButton.compareDocumentPosition(departureButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
+
+  it('enters the asset workbench from a direct deep link and restores the asset mention view after a scene handoff', async () => {
+    const user = userEvent.setup()
+
+    await renderFreshApp('?scope=asset&id=asset-ren-voss&lens=knowledge&view=mentions')
+
+    expect(await screen.findByRole('heading', { name: 'Asset knowledge' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Profile' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mentions' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Relations' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Open in Draft: Midnight Platform' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('scene')
+      expect(params.get('id')).toBe('scene-midnight-platform')
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('tab')).toBe('prose')
+    })
+
+    expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
+
+    window.history.back()
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('asset')
+      expect(params.get('id')).toBe('asset-ren-voss')
+      expect(params.get('lens')).toBe('knowledge')
+      expect(params.get('view')).toBe('mentions')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Asset knowledge' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mentions' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('navigates asset relations without leaving the asset scope', async () => {
+    const user = userEvent.setup()
+
+    await renderFreshApp('?scope=asset&id=asset-ren-voss&lens=knowledge&view=relations')
+
+    expect(await screen.findByRole('heading', { name: 'Asset knowledge' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Relations' })).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(screen.getByRole('button', { name: 'Relates to: Mei Arden' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('asset')
+      expect(params.get('id')).toBe('asset-mei-arden')
+      expect(params.get('lens')).toBe('knowledge')
+      expect(params.get('view')).toBe('relations')
+    })
+
+    expect(await screen.findAllByText('Mei Arden')).not.toHaveLength(0)
+  })
 })

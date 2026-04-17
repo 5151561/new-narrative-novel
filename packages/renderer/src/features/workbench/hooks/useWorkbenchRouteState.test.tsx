@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import {
+  type AssetRouteState,
   type ChapterRouteState,
   type SceneRouteState,
   type WorkbenchRouteState,
@@ -75,6 +76,29 @@ function RouteHarness() {
         onClick={() => replaceRoute({ scope: 'scene' })}
       >
         Open Scene
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          replaceRoute({
+            scope: 'asset',
+            assetId: 'asset-ren-voss',
+            lens: 'knowledge',
+            view: 'relations',
+          } satisfies { scope: 'asset' } & Partial<Omit<AssetRouteState, 'scope'>>)
+        }
+      >
+        Asset Relations
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          replaceRoute({
+            scope: 'asset',
+          } satisfies { scope: 'asset' } & Partial<Omit<AssetRouteState, 'scope'>>)
+        }
+      >
+        Open Asset
       </button>
     </div>
   )
@@ -219,5 +243,88 @@ describe('useWorkbenchRouteState', () => {
     expect(params.get('lens')).toBe('structure')
     expect(params.get('view')).toBe('assembly')
     expect(params.get('sceneId')).toBe('scene-dawn-slip')
+  })
+
+  it('normalizes asset deep links and defaults invalid asset params to the knowledge profile view', () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=asset&id=asset-ren-voss&lens=invalid&view=mentions&tab=prose&proposalId=proposal-2',
+    )
+
+    render(<RouteHarness />)
+
+    expect(readRoute()).toEqual({
+      scope: 'asset',
+      assetId: 'asset-ren-voss',
+      lens: 'knowledge',
+      view: 'mentions',
+    })
+  })
+
+  it('preserves the dormant asset snapshot when switching away and back through other scopes', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=scene&id=scene-midnight-platform&lens=draft&tab=prose&proposalId=proposal-2',
+    )
+
+    render(<RouteHarness />)
+
+    await user.click(screen.getByRole('button', { name: 'Chapter Assembly' }))
+
+    await user.click(screen.getByRole('button', { name: 'Asset Relations' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'asset',
+      assetId: 'asset-ren-voss',
+      lens: 'knowledge',
+      view: 'relations',
+    })
+
+    let params = new URLSearchParams(window.location.search)
+    expect(params.get('scope')).toBe('asset')
+    expect(params.get('id')).toBe('asset-ren-voss')
+    expect(params.get('lens')).toBe('knowledge')
+    expect(params.get('view')).toBe('relations')
+    expect(params.get('tab')).toBeNull()
+    expect(params.get('proposalId')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Open Chapter' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'chapter',
+      chapterId: 'chapter-open-water-signals',
+      lens: 'structure',
+      view: 'assembly',
+      sceneId: 'scene-dawn-slip',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Open Asset' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'asset',
+      assetId: 'asset-ren-voss',
+      lens: 'knowledge',
+      view: 'relations',
+    })
+
+    params = new URLSearchParams(window.location.search)
+    expect(params.get('scope')).toBe('asset')
+    expect(params.get('id')).toBe('asset-ren-voss')
+    expect(params.get('lens')).toBe('knowledge')
+    expect(params.get('view')).toBe('relations')
+
+    await user.click(screen.getByRole('button', { name: 'Open Scene' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'scene',
+      sceneId: 'scene-midnight-platform',
+      lens: 'draft',
+      tab: 'prose',
+      proposalId: 'proposal-2',
+    })
   })
 })

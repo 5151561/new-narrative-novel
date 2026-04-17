@@ -3,12 +3,11 @@ import {
   useWorkbenchRouteState,
 } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import type {
+  SceneLens,
   SceneRouteModal,
   SceneRouteState,
-  WorkbenchLens,
 } from '@/features/workbench/types/workbench-route'
 
-export type SceneLens = WorkbenchLens
 export type { SceneRouteModal, SceneRouteState }
 
 export function readSceneRouteState(search = typeof window === 'undefined' ? '' : window.location.search): SceneRouteState {

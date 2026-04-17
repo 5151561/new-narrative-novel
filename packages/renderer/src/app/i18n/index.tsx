@@ -9,7 +9,12 @@ import type {
   SceneDockTabId,
   SceneTab,
 } from '@/features/scene/types/scene-view-models'
-import type { ChapterStructureView, WorkbenchLens } from '@/features/workbench/types/workbench-route'
+import type {
+  AssetKnowledgeView,
+  AssetLens,
+  ChapterStructureView,
+  WorkbenchLens,
+} from '@/features/workbench/types/workbench-route'
 
 type InspectorTabId = 'context' | 'versions' | 'runtime'
 
@@ -165,11 +170,26 @@ const workbenchLensLabels: Record<Locale, Record<WorkbenchLens, string>> = {
     structure: 'Structure',
     orchestrate: 'Orchestrate',
     draft: 'Draft',
+    knowledge: 'Knowledge',
   },
   'zh-CN': {
     structure: '结构',
     orchestrate: '编排',
     draft: '成稿',
+    knowledge: '知识',
+  },
+}
+
+const assetKnowledgeViewLabels: Record<Locale, Record<AssetKnowledgeView, string>> = {
+  en: {
+    profile: 'Profile',
+    mentions: 'Mentions',
+    relations: 'Relations',
+  },
+  'zh-CN': {
+    profile: '资料',
+    mentions: '提及',
+    relations: '关系',
   },
 }
 
@@ -326,6 +346,7 @@ const dictionaries = {
       language: 'Language',
       scene: 'Scene',
       chapter: 'Chapter',
+      asset: 'Asset',
       activeScene: 'Active scene',
       loading: 'Loading',
       previewData: 'Preview Data',
@@ -337,13 +358,17 @@ const dictionaries = {
       chapterWorkbench: 'Chapter workbench',
       chapterStructure: 'Chapter structure',
       chapterDraft: 'Chapter draft',
+      assetKnowledge: 'Asset knowledge',
       sequence: 'Sequence',
       outliner: 'Outliner',
       assembly: 'Assembly',
       chapters: 'Chapters',
+      assets: 'Assets',
       chapterNavigatorDescription: 'Keep chapter structure, placeholder scenes, and unresolved signals aligned.',
       chapterDraftNavigatorDescription: 'Browse the assembled reading order while route.sceneId keeps the focus stable.',
       chapterDraftReaderDescription: 'Read the chapter in order while keeping scene focus route-owned.',
+      assetNavigatorDescription: 'Keep typed asset identity, mentions, and relations close without leaving the workbench.',
+      assetNavigatorEmpty: 'Assets will appear here once the workspace seed is available.',
       selectedScene: 'Selected Scene',
       chapterReadiness: 'Chapter Readiness',
       scope: 'Scope',
@@ -358,7 +383,18 @@ const dictionaries = {
         structure: 'Objective, cast, and guardrails.',
         orchestrate: 'Beats, proposals, and accepted state.',
         draft: 'Scene prose and revision passes.',
+        knowledge: 'Read the typed profile, mentions, and relations.',
       },
+      assetGroups: {
+        characters: 'Characters',
+        locations: 'Locations',
+        rules: 'Rules',
+      },
+      assetProfileEyebrow: 'Typed profile',
+      assetMentions: 'Mentions',
+      assetMentionsEmpty: 'This asset does not have any cross-scope mentions yet.',
+      assetRelations: 'Relations',
+      assetRelationsEmpty: 'This asset does not have any linked asset relations yet.',
       chapterScaffold: {
         currentChapter: 'Current chapter',
         scenePrefix: 'Scene',
@@ -418,6 +454,7 @@ const dictionaries = {
       language: '语言',
       scene: '场景',
       chapter: '章节',
+      asset: '资产',
       activeScene: '当前场景',
       loading: '加载中',
       previewData: '预览数据',
@@ -429,13 +466,17 @@ const dictionaries = {
       chapterWorkbench: '章节工作台',
       chapterStructure: '章节结构',
       chapterDraft: '章节草稿',
+      assetKnowledge: '资产知识',
       sequence: '顺序',
       outliner: '大纲',
       assembly: '装配',
       chapters: '章节',
+      assets: '资产',
       chapterNavigatorDescription: '让章节结构、占位场景和未决信号保持对齐。',
       chapterDraftNavigatorDescription: '按章节顺序浏览阅读稿，并让 route.sceneId 继续保持唯一焦点真源。',
       chapterDraftReaderDescription: '按章节顺序连续阅读，并让当前 scene 焦点仍由路由拥有。',
+      assetNavigatorDescription: '把类型化的资产身份、mentions 和 relations 收在手边，不离开 workbench。',
+      assetNavigatorEmpty: '当工作区种子就绪后，资产会出现在这里。',
       selectedScene: '选中场景',
       chapterReadiness: '章节准备度',
       scope: '范围',
@@ -449,7 +490,18 @@ const dictionaries = {
         structure: '目标、角色与约束。',
         orchestrate: '节拍、提案与已采纳状态。',
         draft: '场景正文与修订轮次。',
+        knowledge: '阅读类型化资料、mentions 和 relations。',
       },
+      assetGroups: {
+        characters: '角色',
+        locations: '地点',
+        rules: '规则',
+      },
+      assetProfileEyebrow: '类型化资料',
+      assetMentions: '提及',
+      assetMentionsEmpty: '这个资产暂时还没有跨 scope 的 mention。',
+      assetRelations: '关系',
+      assetRelationsEmpty: '这个资产暂时还没有其他资产关系。',
       chapterScaffold: {
         currentChapter: '当前章节',
         scenePrefix: '场景',
@@ -571,8 +623,28 @@ export function getWorkbenchLensLabel(locale: Locale, lens: WorkbenchLens) {
   return workbenchLensLabels[locale][lens]
 }
 
+export function getAssetLensLabel(locale: Locale, lens: AssetLens) {
+  return getWorkbenchLensLabel(locale, lens)
+}
+
 export function getSceneLensLabel(locale: Locale, lens: WorkbenchLens) {
   return getWorkbenchLensLabel(locale, lens)
+}
+
+export function getAssetKnowledgeViewLabel(locale: Locale, view: AssetKnowledgeView) {
+  return assetKnowledgeViewLabels[locale][view]
+}
+
+export function getAssetKindLabel(locale: Locale, kind: 'character' | 'location' | 'rule') {
+  if (kind === 'character') {
+    return locale === 'zh-CN' ? '角色' : 'Character'
+  }
+
+  if (kind === 'location') {
+    return locale === 'zh-CN' ? '地点' : 'Location'
+  }
+
+  return locale === 'zh-CN' ? '规则' : 'Rule'
 }
 
 export function getSceneTabLabel(locale: Locale, tab: SceneTab) {

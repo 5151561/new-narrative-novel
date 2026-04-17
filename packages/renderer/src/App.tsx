@@ -10,6 +10,7 @@ import {
 } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { PaneHeader } from '@/components/ui/PaneHeader'
+import { AssetWorkbench } from '@/features/asset/containers/AssetWorkbench'
 import { getMockChapterRecordById } from '@/features/chapter/api/mock-chapter-db'
 import { readLocalizedChapterText } from '@/features/chapter/api/chapter-records'
 import { ChapterWorkbench } from '@/features/chapter/containers/ChapterWorkbench'
@@ -24,7 +25,7 @@ import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import type {
   SceneRouteState,
-  WorkbenchLens,
+  SceneLens,
   WorkbenchScope,
 } from '@/features/workbench/types/workbench-route'
 import { getSceneFixtureChapterId } from '@/mock/scene-fixtures'
@@ -80,7 +81,7 @@ function SceneTopCommandBar({
   tab,
 }: {
   activeScene?: SceneWorkspaceViewModel
-  lens: WorkbenchLens
+  lens: SceneLens
   tab: SceneTab
 }) {
   const { locale, dictionary } = useI18n()
@@ -130,13 +131,13 @@ function ModeRail({
   onSelectLens,
 }: {
   activeScope: WorkbenchScope
-  activeLens: WorkbenchLens
+  activeLens: SceneLens
   onSelectScope: (scope: WorkbenchScope) => void
-  onSelectLens: (lens: WorkbenchLens, tab: SceneTab) => void
+  onSelectLens: (lens: SceneLens, tab: SceneTab) => void
 }) {
   const { locale, dictionary } = useI18n()
   const sceneLensItems: Array<{
-    lens: WorkbenchLens
+    lens: SceneLens
     label: string
     tab: SceneTab
     detail?: string
@@ -178,6 +179,7 @@ function ModeRail({
           {([
             { scope: 'scene' as const, label: dictionary.common.scene },
             { scope: 'chapter' as const, label: dictionary.common.chapter },
+            { scope: 'asset' as const, label: dictionary.common.asset },
           ]).map((item) => (
             <button
               key={item.scope}
@@ -321,7 +323,7 @@ function SceneWorkbench({
             if (scope === 'scene') {
               return
             }
-            replaceRoute({ scope: 'chapter' })
+            replaceRoute({ scope })
           }}
           onSelectLens={(lens, tab) => {
             patchSceneRoute({
@@ -358,9 +360,13 @@ function SceneWorkbench({
 export default function App() {
   const { route, replaceRoute, patchSceneRoute } = useWorkbenchRouteState()
 
-  return route.scope === 'scene' ? (
-    <SceneWorkbench route={route} replaceRoute={replaceRoute} patchSceneRoute={patchSceneRoute} />
-  ) : (
-    <ChapterWorkbench />
-  )
+  if (route.scope === 'scene') {
+    return <SceneWorkbench route={route} replaceRoute={replaceRoute} patchSceneRoute={patchSceneRoute} />
+  }
+
+  if (route.scope === 'asset') {
+    return <AssetWorkbench />
+  }
+
+  return <ChapterWorkbench />
 }

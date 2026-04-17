@@ -1,15 +1,18 @@
 import type { SceneTab } from '@/features/scene/types/scene-view-models'
 
-export type WorkbenchScope = 'scene' | 'chapter'
-export type WorkbenchLens = 'structure' | 'orchestrate' | 'draft'
+export type SceneLens = 'structure' | 'orchestrate' | 'draft'
+export type ChapterLens = 'structure' | 'draft'
+export type AssetLens = 'knowledge'
+export type WorkbenchLens = SceneLens | ChapterLens | AssetLens
+export type WorkbenchScope = 'scene' | 'chapter' | 'asset'
 export type SceneRouteModal = 'export'
 export type ChapterStructureView = 'sequence' | 'outliner' | 'assembly'
-export type ChapterLens = 'structure' | 'draft'
+export type AssetKnowledgeView = 'profile' | 'mentions' | 'relations'
 
 export interface SceneRouteState {
   scope: 'scene'
   sceneId: string
-  lens: WorkbenchLens
+  lens: SceneLens
   tab: SceneTab
   beatId?: string
   proposalId?: string
@@ -24,4 +27,11 @@ export interface ChapterRouteState {
   sceneId?: string
 }
 
-export type WorkbenchRouteState = SceneRouteState | ChapterRouteState
+export interface AssetRouteState {
+  scope: 'asset'
+  assetId: string
+  lens: AssetLens
+  view: AssetKnowledgeView
+}
+
+export type WorkbenchRouteState = SceneRouteState | ChapterRouteState | AssetRouteState

@@ -1,14 +1,14 @@
 import { getWorkbenchLensLabel, useI18n } from '@/app/i18n'
 
-import type { ChapterLens } from '@/features/workbench/types/workbench-route'
+import type { ChapterLens, WorkbenchScope } from '@/features/workbench/types/workbench-route'
 
 interface ChapterModeRailProps {
   activeLens: ChapterLens
-  onSwitchScope: () => void
+  onSelectScope: (scope: WorkbenchScope) => void
   onSelectLens: (lens: ChapterLens) => void
 }
 
-export function ChapterModeRail({ activeLens, onSwitchScope, onSelectLens }: ChapterModeRailProps) {
+export function ChapterModeRail({ activeLens, onSelectScope, onSelectLens }: ChapterModeRailProps) {
   const { locale, dictionary } = useI18n()
 
   return (
@@ -19,7 +19,7 @@ export function ChapterModeRail({ activeLens, onSwitchScope, onSelectLens }: Cha
           <button
             type="button"
             aria-pressed="false"
-            onClick={onSwitchScope}
+            onClick={() => onSelectScope('scene')}
             className="rounded-md border border-transparent px-2 py-2 text-sm text-text-muted hover:border-line-soft hover:bg-surface-2"
           >
             {dictionary.common.scene}
@@ -30,6 +30,14 @@ export function ChapterModeRail({ activeLens, onSwitchScope, onSelectLens }: Cha
             className="rounded-md border border-line-strong bg-surface-1 px-2 py-2 text-sm text-text-main"
           >
             {dictionary.common.chapter}
+          </button>
+          <button
+            type="button"
+            aria-pressed="false"
+            onClick={() => onSelectScope('asset')}
+            className="rounded-md border border-transparent px-2 py-2 text-sm text-text-muted hover:border-line-soft hover:bg-surface-2"
+          >
+            {dictionary.common.asset}
           </button>
         </div>
       </div>

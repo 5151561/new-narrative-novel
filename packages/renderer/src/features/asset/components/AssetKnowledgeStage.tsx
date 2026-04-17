@@ -1,0 +1,82 @@
+import { getAssetKnowledgeViewLabel, useI18n } from '@/app/i18n'
+import type {
+  AssetKnowledgeView,
+  ChapterLens,
+  SceneLens,
+} from '@/features/workbench/types/workbench-route'
+
+import type {
+  AssetMentionViewModel,
+  AssetProfileViewModel,
+  AssetRelationViewModel,
+} from '../types/asset-view-models'
+import { AssetMentionsView } from './AssetMentionsView'
+import { AssetProfileView } from './AssetProfileView'
+import { AssetRelationsView } from './AssetRelationsView'
+
+interface AssetKnowledgeStageProps {
+  assetTitle: string
+  assetSummary: string
+  activeView: AssetKnowledgeView
+  availableViews: AssetKnowledgeView[]
+  profile: AssetProfileViewModel
+  mentions: AssetMentionViewModel[]
+  relations: AssetRelationViewModel[]
+  onViewChange: (view: AssetKnowledgeView) => void
+  onOpenScene: (sceneId: string, lens: Extract<SceneLens, 'draft' | 'orchestrate'>) => void
+  onOpenChapter: (chapterId: string, lens: Extract<ChapterLens, 'structure' | 'draft'>) => void
+  onSelectAsset: (assetId: string) => void
+}
+
+export function AssetKnowledgeStage({
+  assetTitle,
+  assetSummary,
+  activeView,
+  availableViews,
+  profile,
+  mentions,
+  relations,
+  onViewChange,
+  onOpenScene,
+  onOpenChapter,
+  onSelectAsset,
+}: AssetKnowledgeStageProps) {
+  const { locale } = useI18n()
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="border-b border-line-soft px-4 py-4">
+        <div className="space-y-1">
+          <h2 className="text-xl leading-tight text-text-main">{assetTitle}</h2>
+          <p className="text-sm leading-6 text-text-muted">{assetSummary}</p>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {availableViews.map((view) => (
+            <button
+              key={view}
+              type="button"
+              aria-pressed={activeView === view}
+              onClick={() => onViewChange(view)}
+              className={`rounded-md border px-3 py-2 text-sm ${
+                activeView === view
+                  ? 'border-line-strong bg-surface-1 text-text-main'
+                  : 'border-line-soft text-text-muted hover:bg-surface-2'
+              }`}
+            >
+              {getAssetKnowledgeViewLabel(locale, view)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto">
+        {activeView === 'profile' ? <AssetProfileView profile={profile} /> : null}
+        {activeView === 'mentions' ? (
+          <AssetMentionsView mentions={mentions} onOpenScene={onOpenScene} onOpenChapter={onOpenChapter} />
+        ) : null}
+        {activeView === 'relations' ? (
+          <AssetRelationsView relations={relations} onSelectAsset={onSelectAsset} />
+        ) : null}
+      </div>
+    </div>
+  )
+}

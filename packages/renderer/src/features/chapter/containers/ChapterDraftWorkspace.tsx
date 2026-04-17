@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
-import type { WorkbenchLens } from '@/features/workbench/types/workbench-route'
+import type { SceneLens } from '@/features/workbench/types/workbench-route'
 
 import { ChapterDraftBinderPane } from '../components/ChapterDraftBinderPane'
 import { ChapterDraftInspectorPane } from '../components/ChapterDraftInspectorPane'
@@ -106,7 +106,7 @@ export function ChapterDraftWorkspace() {
   })
 
   const openSceneFromChapter = useCallback(
-    (sceneId: string | undefined, lens: WorkbenchLens) => {
+    (sceneId: string | undefined, lens: Extract<SceneLens, 'orchestrate' | 'draft'>) => {
       if (!sceneId) {
         return
       }
@@ -141,7 +141,16 @@ export function ChapterDraftWorkspace() {
   const shellModeRail = (
     <ChapterModeRail
       activeLens="draft"
-      onSwitchScope={() => openSceneFromChapter(route.sceneId ?? workspace?.selectedSceneId ?? workspace?.scenes[0]?.sceneId, 'draft')}
+      onSelectScope={(scope) => {
+        if (scope === 'chapter') {
+          return
+        }
+        if (scope === 'asset') {
+          replaceRoute({ scope: 'asset' })
+          return
+        }
+        openSceneFromChapter(route.sceneId ?? workspace?.selectedSceneId ?? workspace?.scenes[0]?.sceneId, 'draft')
+      }}
       onSelectLens={(lens) => {
         if (lens !== route.lens) {
           patchChapterRoute({ lens })

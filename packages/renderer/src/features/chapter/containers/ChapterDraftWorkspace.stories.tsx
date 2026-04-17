@@ -45,7 +45,7 @@ function WorkspacePreview({ workspace }: { workspace: ChapterDraftWorkspaceViewM
           </div>
         </div>
       }
-      modeRail={<ChapterModeRail activeLens="draft" onSwitchScope={() => undefined} onSelectLens={() => undefined} />}
+      modeRail={<ChapterModeRail activeLens="draft" onSelectScope={() => undefined} onSelectLens={() => undefined} />}
       navigator={<ChapterDraftBinderPane workspace={workspace} onSelectScene={() => undefined} onOpenScene={() => undefined} />}
       mainStage={<ChapterDraftReader workspace={workspace} onSelectScene={() => undefined} onOpenScene={() => undefined} />}
       inspector={<ChapterDraftInspectorPane chapterTitle={workspace.title} chapterSummary={workspace.summary} inspector={workspace.inspector} />}
