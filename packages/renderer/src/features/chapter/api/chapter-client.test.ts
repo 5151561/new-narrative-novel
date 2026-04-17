@@ -1,6 +1,11 @@
 import { createChapterClient } from './chapter-client'
+import { resetMockChapterDb } from './mock-chapter-db'
 
 describe('chapterClient', () => {
+  beforeEach(() => {
+    resetMockChapterDb()
+  })
+
   it('returns raw chapter records through the feature-local chapter boundary', async () => {
     const client = createChapterClient()
 
@@ -64,5 +69,78 @@ describe('chapterClient', () => {
     const client = createChapterClient()
 
     await expect(client.getChapterStructureWorkspace({ chapterId: 'unknown-chapter' })).resolves.toBeNull()
+  })
+
+  it('reorders chapter scenes through the writable chapter boundary', async () => {
+    const client = createChapterClient()
+
+    await expect(
+      client.reorderChapterScene({
+        chapterId: 'chapter-signals-in-rain',
+        sceneId: 'scene-ticket-window',
+        targetIndex: 0,
+      }),
+    ).resolves.toMatchObject({
+      scenes: [
+        expect.objectContaining({ id: 'scene-ticket-window', order: 1 }),
+        expect.objectContaining({ id: 'scene-midnight-platform', order: 2 }),
+        expect.objectContaining({ id: 'scene-concourse-delay', order: 3 }),
+        expect.objectContaining({ id: 'scene-departure-bell', order: 4 }),
+      ],
+    })
+  })
+
+  it('updates only the active locale for scene structure patches through the writable chapter boundary', async () => {
+    const client = createChapterClient()
+
+    await expect(
+      client.updateChapterSceneStructure({
+        chapterId: 'chapter-signals-in-rain',
+        sceneId: 'scene-midnight-platform',
+        locale: 'zh-CN',
+        patch: {
+          summary: '新的章节摘要',
+          purpose: '新的章节目的',
+        },
+      }),
+    ).resolves.toMatchObject({
+      scenes: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'scene-midnight-platform',
+          summary: {
+            en: 'Ren has to lock the bargain before the platform witness turns the ledger into public leverage.',
+            'zh-CN': '新的章节摘要',
+          },
+          purpose: {
+            en: 'Push the ledger bargain into a public stalemate without opening the ledger.',
+            'zh-CN': '新的章节目的',
+          },
+        }),
+      ]),
+    })
+  })
+
+  it('treats missing-scene writes as no-ops through the writable chapter boundary', async () => {
+    const client = createChapterClient()
+    const beforeWrite = await client.getChapterStructureWorkspace({ chapterId: 'chapter-signals-in-rain' })
+
+    await expect(
+      client.reorderChapterScene({
+        chapterId: 'chapter-signals-in-rain',
+        sceneId: 'scene-missing',
+        targetIndex: 0,
+      }),
+    ).resolves.toEqual(beforeWrite)
+
+    await expect(
+      client.updateChapterSceneStructure({
+        chapterId: 'chapter-signals-in-rain',
+        sceneId: 'scene-missing',
+        locale: 'en',
+        patch: {
+          summary: 'Should not apply',
+        },
+      }),
+    ).resolves.toEqual(beforeWrite)
   })
 })

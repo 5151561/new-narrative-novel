@@ -1,4 +1,5 @@
 import type { ChapterLocalizedText, ChapterStructureWorkspaceRecord } from './chapter-records'
+import { patchChapterRecordScene, type ChapterSceneStructurePatch, reorderChapterRecordScenes } from './chapter-record-mutations'
 
 function text(en: string, zhCN: string): ChapterLocalizedText {
   return {
@@ -7,7 +8,7 @@ function text(en: string, zhCN: string): ChapterLocalizedText {
   }
 }
 
-export const mockChapterRecords: Record<string, ChapterStructureWorkspaceRecord> = {
+export const mockChapterRecordSeeds: Record<string, ChapterStructureWorkspaceRecord> = {
   'chapter-signals-in-rain': {
     chapterId: 'chapter-signals-in-rain',
     title: text('Signals in Rain', '雨中信号'),
@@ -287,6 +288,63 @@ export const mockChapterRecords: Record<string, ChapterStructureWorkspaceRecord>
   },
 }
 
+export const mockChapterRecords = mockChapterRecordSeeds
+
+function clone<T>(value: T): T {
+  return structuredClone(value)
+}
+
+let mutableMockChapterRecords: Record<string, ChapterStructureWorkspaceRecord> = clone(mockChapterRecordSeeds)
+
+export function resetMockChapterDb() {
+  mutableMockChapterRecords = clone(mockChapterRecordSeeds)
+}
+
 export function getMockChapterRecordById(chapterId: string): ChapterStructureWorkspaceRecord | null {
-  return mockChapterRecords[chapterId] ?? null
+  const record = mutableMockChapterRecords[chapterId]
+  return record ? clone(record) : null
+}
+
+interface ReorderMockChapterSceneInput {
+  chapterId: string
+  sceneId: string
+  targetIndex: number
+}
+
+export function reorderMockChapterScene({
+  chapterId,
+  sceneId,
+  targetIndex,
+}: ReorderMockChapterSceneInput): ChapterStructureWorkspaceRecord | null {
+  const record = mutableMockChapterRecords[chapterId]
+  if (!record) {
+    return null
+  }
+
+  const nextRecord = reorderChapterRecordScenes(record, sceneId, targetIndex)
+  mutableMockChapterRecords[chapterId] = nextRecord
+  return clone(nextRecord)
+}
+
+interface UpdateMockChapterSceneStructureInput {
+  chapterId: string
+  sceneId: string
+  locale: 'en' | 'zh-CN'
+  patch: ChapterSceneStructurePatch
+}
+
+export function updateMockChapterSceneStructure({
+  chapterId,
+  sceneId,
+  locale,
+  patch,
+}: UpdateMockChapterSceneStructureInput): ChapterStructureWorkspaceRecord | null {
+  const record = mutableMockChapterRecords[chapterId]
+  if (!record) {
+    return null
+  }
+
+  const nextRecord = patchChapterRecordScene(record, sceneId, patch, locale)
+  mutableMockChapterRecords[chapterId] = nextRecord
+  return clone(nextRecord)
 }
