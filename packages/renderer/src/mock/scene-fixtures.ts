@@ -4,12 +4,15 @@ import type {
   ProposalActionInput,
   ProposalCardModel,
   ProposalStatus,
+  SceneAcceptedFactModel,
   SceneDockTabId,
   SceneDockViewModel,
   SceneExecutionViewModel,
   SceneInspectorViewModel,
   ScenePatchPreviewViewModel,
   SceneProseViewModel,
+  SceneTraceAssetRefModel,
+  SceneTraceProposalRefModel,
   SceneSetupViewModel,
   SceneWorkspaceViewModel,
 } from '@/features/scene/types/scene-view-models'
@@ -60,8 +63,13 @@ interface LightweightSceneSeed {
   proposalSummary: string
   acceptedFactLabel: string
   acceptedFactValue: string
+  acceptedFactTrace?: {
+    sourceProposals?: SceneTraceProposalRefModel[]
+    relatedAssets?: SceneTraceAssetRefModel[]
+  }
   proseDraft: string
   proseStatusLabel: string
+  proseTraceSummary?: SceneProseViewModel['traceSummary']
   dockEventTitle: string
   dockEventDetail: string
   problemTitle: string
@@ -282,8 +290,26 @@ const midnightPlatform: SceneRecord = {
       sceneSummary:
         'Accepted beats establish the rain-heavy platform, Ren’s leverage, and a pending bargain that still needs one canon-ready turn.',
       acceptedFacts: [
-        { id: 'fact-1', label: 'Courier signal spotted', value: 'Ren catches the station-lamp pattern.' },
-        { id: 'fact-2', label: 'Ledger remains shut', value: 'No character opens or reads the ledger.' },
+        {
+          id: 'fact-1',
+          label: 'Courier signal spotted',
+          value: 'Ren catches the station-lamp pattern.',
+          sourceProposals: [{ proposalId: 'proposal-1', sourceTraceId: 'trace-41' }],
+          relatedAssets: [
+            { assetId: 'asset-ren-voss', title: 'Ren Voss', kind: 'character' },
+            { assetId: 'asset-midnight-platform', title: 'Midnight Platform', kind: 'location' },
+          ],
+        },
+        {
+          id: 'fact-2',
+          label: 'Ledger remains shut',
+          value: 'No character opens or reads the ledger.',
+          sourceProposals: [{ proposalId: 'proposal-2', sourceTraceId: 'trace-42' }],
+          relatedAssets: [
+            { assetId: 'asset-ledger-stays-shut', title: 'Ledger stays shut', kind: 'rule' },
+            { assetId: 'asset-mei-arden', title: 'Mei Arden', kind: 'character' },
+          ],
+        },
       ],
       readiness: 'draftable',
       pendingProposalCount: 3,
@@ -315,6 +341,16 @@ const midnightPlatform: SceneRecord = {
     revisionQueueCount: 0,
     draftWordCount: 35,
     statusLabel: 'Ready for revision pass',
+    traceSummary: {
+      sourcePatchId: 'patch-1',
+      acceptedFactIds: ['fact-1', 'fact-2'],
+      sourceProposals: [{ proposalId: 'proposal-1' }, { proposalId: 'proposal-2' }],
+      relatedAssets: [
+        { assetId: 'asset-ren-voss', title: 'Ren Voss', kind: 'character' },
+        { assetId: 'asset-ledger-stays-shut', title: 'Ledger stays shut', kind: 'rule' },
+      ],
+      missingLinks: [],
+    },
   },
   inspector: {
     context: {
@@ -771,7 +807,15 @@ const warehouseBridge: SceneRecord = {
 
 function createLightweightSceneRecord(seed: LightweightSceneSeed): SceneRecord {
   const selectedCast = seed.cast.filter((member) => member.selected)
-  const acceptedFacts = [{ id: `fact-${seed.sceneId}`, label: seed.acceptedFactLabel, value: seed.acceptedFactValue }]
+  const acceptedFacts: SceneAcceptedFactModel[] = [
+    {
+      id: `fact-${seed.sceneId}`,
+      label: seed.acceptedFactLabel,
+      value: seed.acceptedFactValue,
+      sourceProposals: seed.acceptedFactTrace?.sourceProposals,
+      relatedAssets: seed.acceptedFactTrace?.relatedAssets,
+    },
+  ]
   const guardedBoundaries = seed.knowledgeBoundaries.filter((boundary) => boundary.status !== 'known')
 
   return {
@@ -893,6 +937,7 @@ function createLightweightSceneRecord(seed: LightweightSceneSeed): SceneRecord {
       revisionQueueCount: 0,
       draftWordCount: seed.proseDraft.trim().split(/\s+/).length,
       statusLabel: seed.proseStatusLabel,
+      traceSummary: seed.proseTraceSummary,
     },
     inspector: {
       context: {
@@ -1049,8 +1094,23 @@ const concourseDelay = createLightweightSceneRecord({
   proposalSummary: 'Let the bottleneck slow everyone down while the witness pressure carries inward from the platform.',
   acceptedFactLabel: 'Crowd delay established',
   acceptedFactValue: 'The concourse bottleneck slows motion without resolving courier ownership.',
+  acceptedFactTrace: {
+    sourceProposals: [{ proposalId: 'proposal-concourse-delay', sourceTraceId: 'trace-scene-concourse-delay' }],
+    relatedAssets: [
+      { assetId: 'asset-mei-arden', title: 'Mei Arden', kind: 'character' },
+      { assetId: 'asset-midnight-platform', title: 'Midnight Platform', kind: 'location' },
+    ],
+  },
   proseDraft: 'The concourse tightened by inches instead of steps, forcing every glance to travel through strangers before it reached the gate.',
   proseStatusLabel: 'Draft handoff ready',
+  proseTraceSummary: {
+    acceptedFactIds: ['fact-scene-concourse-delay'],
+    sourceProposals: [{ proposalId: 'proposal-concourse-delay' }],
+    relatedAssets: [
+      { assetId: 'asset-mei-arden', title: 'Mei Arden', kind: 'character' },
+      { assetId: 'asset-midnight-platform', title: 'Midnight Platform', kind: 'location' },
+    ],
+  },
   dockEventTitle: 'Concourse delay preserved',
   dockEventDetail: 'The scene scaffold keeps crowd pressure active without settling the courier line.',
   problemTitle: 'Crowd pressure still needs a clean exit path',
@@ -1093,8 +1153,23 @@ const ticketWindow = createLightweightSceneRecord({
   proposalSummary: 'Let the clerk witness urgency without learning the alias that gives the urgency its edge.',
   acceptedFactLabel: 'Alias still offstage',
   acceptedFactValue: 'The ticket-window exchange keeps the alias outside public knowledge.',
+  acceptedFactTrace: {
+    sourceProposals: [{ proposalId: 'proposal-ticket-window', sourceTraceId: 'trace-scene-ticket-window' }],
+    relatedAssets: [
+      { assetId: 'asset-ren-voss', title: 'Ren Voss', kind: 'character' },
+      { assetId: 'asset-ticket-window', title: 'Ticket Window', kind: 'location' },
+    ],
+  },
   proseDraft: 'The clerk slid the ticket halfway out, and even that small motion felt like a question Mei wanted answered before Ren could touch it.',
   proseStatusLabel: 'Ready for prose pass',
+  proseTraceSummary: {
+    acceptedFactIds: ['fact-scene-ticket-window'],
+    sourceProposals: [{ proposalId: 'proposal-ticket-window' }],
+    relatedAssets: [
+      { assetId: 'asset-ren-voss', title: 'Ren Voss', kind: 'character' },
+      { assetId: 'asset-ticket-window', title: 'Ticket Window', kind: 'location' },
+    ],
+  },
   dockEventTitle: 'Ticket-window trade-off held',
   dockEventDetail: 'The scene remains usable in scene scope without exposing the alias.',
   problemTitle: 'Alias pressure needs tighter public cover',
@@ -1726,6 +1801,8 @@ export function previewAcceptedPatch(database: SceneMockDatabase, sceneId: strin
       id: `change-${fact.id}`,
       label: fact.label,
       detail: fact.value,
+      sourceProposals: clone(fact.sourceProposals ?? []),
+      relatedAssets: clone(fact.relatedAssets ?? []),
     })),
   }
 }

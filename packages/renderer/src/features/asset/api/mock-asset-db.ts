@@ -72,6 +72,13 @@ const assetSeeds: AssetRecord[] = [
           'Ren 在月台上顶住局面，拒绝把账本变成公开道具。',
         ),
         recommendedLens: 'draft',
+        backing: {
+          kind: 'canon',
+          sceneId: 'scene-midnight-platform',
+          acceptedFactIds: ['fact-1'],
+          proposalIds: ['proposal-1'],
+          patchId: 'patch-1',
+        },
       }),
       sceneMention({
         id: 'mention-ren-ticket-window',
@@ -86,6 +93,11 @@ const assetSeeds: AssetRecord[] = [
           'Ren 想加速离场，而 Mei 一直把“先表态”压回台面。',
         ),
         recommendedLens: 'orchestrate',
+        backing: {
+          kind: 'draft_context',
+          sceneId: 'scene-ticket-window',
+          proposalIds: ['proposal-ticket-window'],
+        },
       }),
       chapterMention({
         id: 'mention-ren-signals-in-rain',
@@ -99,6 +111,9 @@ const assetSeeds: AssetRecord[] = [
           '这一章里每一次筹码交换都绕不开 Ren。',
         ),
         recommendedLens: 'structure',
+        backing: {
+          kind: 'unlinked',
+        },
       }),
     ],
     relations: [

@@ -32,6 +32,8 @@ interface ChapterDraftSceneProseState {
   error: Error | null
 }
 
+export type { ChapterDraftSceneProseState }
+
 function deriveWordCount(proseDraft?: string, draftWordCount?: number) {
   if (draftWordCount !== undefined) {
     return draftWordCount
@@ -213,6 +215,7 @@ export function useChapterDraftWorkspaceQuery(
 
   return {
     workspace,
+    sceneProseStateBySceneId: proseStateBySceneId,
     isLoading: chapterWorkspaceQuery.isLoading,
     error: chapterWorkspaceQuery.error,
     refetch: async () => {

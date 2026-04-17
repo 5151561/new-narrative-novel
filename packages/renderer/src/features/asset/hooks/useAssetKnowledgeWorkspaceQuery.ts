@@ -133,6 +133,7 @@ function mapMention(record: AssetRecord, locale: 'en' | 'zh-CN'): AssetMentionVi
       title,
       relationLabel: localizeText(mention.relationLabel, locale),
       excerpt: localizeText(mention.excerpt, locale),
+      backing: mention.backing,
     }
 
     if (mention.targetScope === 'scene') {

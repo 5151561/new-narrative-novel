@@ -2,7 +2,7 @@ import type { ChapterLens, SceneLens } from '@/features/workbench/types/workbenc
 import type { AssetKnowledgeView } from '@/features/workbench/types/workbench-route'
 
 export type { AssetKind } from '@/features/asset/api/asset-records'
-import type { AssetKind } from '@/features/asset/api/asset-records'
+import type { AssetKind, AssetMentionBackingRecord } from '@/features/asset/api/asset-records'
 
 export interface AssetNavigatorItemViewModel {
   id: string
@@ -38,6 +38,7 @@ interface AssetMentionViewModelBase {
   title: string
   relationLabel: string
   excerpt: string
+  backing?: AssetMentionBackingRecord
 }
 
 export interface AssetSceneMentionViewModel extends AssetMentionViewModelBase {

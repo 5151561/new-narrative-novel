@@ -28,6 +28,16 @@ export interface AssetProfileRecord {
   sections: AssetProfileSectionRecord[]
 }
 
+export type AssetMentionBackingKind = 'canon' | 'draft_context' | 'unlinked'
+
+export interface AssetMentionBackingRecord {
+  kind: AssetMentionBackingKind
+  sceneId?: string
+  acceptedFactIds?: string[]
+  proposalIds?: string[]
+  patchId?: string
+}
+
 interface AssetMentionRecordBase {
   id: string
   targetScope: 'scene' | 'chapter'
@@ -35,6 +45,7 @@ interface AssetMentionRecordBase {
   targetLabel: AssetLocalizedText
   relationLabel: AssetLocalizedText
   excerpt: AssetLocalizedText
+  backing?: AssetMentionBackingRecord
 }
 
 export interface AssetSceneMentionRecord extends AssetMentionRecordBase {

@@ -80,9 +80,29 @@ export interface ProposalCardModel {
   sourceTraceId?: string
 }
 
+export interface SceneTraceProposalRefModel {
+  proposalId: string
+  title?: string
+  sourceTraceId?: string
+}
+
+export interface SceneTraceAssetRefModel {
+  assetId: string
+  title: string
+  kind?: 'character' | 'location' | 'rule'
+}
+
+export interface SceneAcceptedFactModel {
+  id: string
+  label: string
+  value: string
+  sourceProposals?: SceneTraceProposalRefModel[]
+  relatedAssets?: SceneTraceAssetRefModel[]
+}
+
 export interface SceneAcceptedSummaryModel {
   sceneSummary: string
-  acceptedFacts: Array<{ id: string; label: string; value: string }>
+  acceptedFacts: SceneAcceptedFactModel[]
   readiness: 'not-ready' | 'draftable' | 'ready'
   pendingProposalCount: number
   warningCount: number
@@ -124,6 +144,13 @@ export interface SceneProseViewModel {
   revisionQueueCount?: number
   draftWordCount?: number
   statusLabel?: string
+  traceSummary?: {
+    sourcePatchId?: string
+    sourceProposals?: SceneTraceProposalRefModel[]
+    acceptedFactIds?: string[]
+    relatedAssets?: SceneTraceAssetRefModel[]
+    missingLinks?: string[]
+  }
 }
 
 export interface ProposalActionInput {
@@ -195,7 +222,7 @@ export interface SceneSetupViewModel {
 }
 
 export interface SceneInspectorContextModel {
-  acceptedFacts: Array<{ id: string; label: string; value: string }>
+  acceptedFacts: SceneAcceptedFactModel[]
   privateInfoGuard: {
     summary: string
     items: Array<{
@@ -312,10 +339,12 @@ export interface ScenePatchPreviewViewModel {
   summary: string
   status: 'ready_for_commit' | 'needs_review' | 'deferred'
   sceneSummary: string
-  acceptedFacts: Array<{ id: string; label: string; value: string }>
+  acceptedFacts: SceneAcceptedFactModel[]
   changes: Array<{
     id: string
     label: string
     detail: string
+    sourceProposals?: SceneTraceProposalRefModel[]
+    relatedAssets?: SceneTraceAssetRefModel[]
   }>
 }
