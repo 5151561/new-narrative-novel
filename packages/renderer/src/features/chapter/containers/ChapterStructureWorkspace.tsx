@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 
 import {
   getChapterStructureViewLabel,
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
+import type { WorkbenchLens } from '@/features/workbench/types/workbench-route'
 
 import { ChapterBinderPane } from '../components/ChapterBinderPane'
 import { ChapterStructureInspectorPane } from '../components/ChapterStructureInspectorPane'
@@ -141,7 +142,34 @@ export function ChapterStructureWorkspace() {
     selectedSceneId: route.sceneId ?? null,
   })
 
-  const shellModeRail = <ChapterModeRail onSwitchScope={() => replaceRoute({ scope: 'scene' })} />
+  const openSceneFromChapter = useCallback(
+    (sceneId: string | undefined, lens: WorkbenchLens) => {
+      if (!sceneId) {
+        return
+      }
+
+      if (route.scope === 'chapter' && route.sceneId !== sceneId) {
+        patchChapterRoute({ sceneId }, { replace: true })
+      }
+
+      replaceRoute({
+        scope: 'scene',
+        sceneId,
+        lens,
+        tab: lens === 'draft' ? 'prose' : 'execution',
+        beatId: undefined,
+        proposalId: undefined,
+        modal: undefined,
+      })
+    },
+    [patchChapterRoute, replaceRoute, route],
+  )
+
+  const shellModeRail = (
+    <ChapterModeRail
+      onSwitchScope={() => openSceneFromChapter(route.sceneId ?? workspace?.scenes[0]?.id, 'orchestrate')}
+    />
+  )
   const availableViews = workspace?.viewsMeta?.availableViews ?? defaultChapterViews
   const effectiveView = getEffectiveChapterView(route.view, availableViews)
 

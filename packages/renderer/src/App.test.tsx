@@ -63,6 +63,7 @@ function setNavigatorLanguage(language: string) {
 describe('App scene workbench', () => {
   afterEach(() => {
     vi.clearAllMocks()
+    vi.unmock('@tanstack/react-query')
     setSceneBridge(undefined)
     window.localStorage.clear()
     setNavigatorLanguage(originalNavigatorLanguage)
@@ -96,7 +97,11 @@ describe('App scene workbench', () => {
       screen.getByRole('heading', { name: 'Let Mei name the cost in private terms' }).closest('section'),
     ).toHaveClass('border-line-strong')
 
-    await user.click(screen.getAllByRole('button', { name: /Departure bell/i })[0]!)
+    await user.click(
+      within(screen.getByRole('heading', { name: 'Beat Filters' }).closest('aside')!).getByRole('button', {
+        name: /Departure bell/i,
+      }),
+    )
     await waitFor(() => {
       expect(new URLSearchParams(window.location.search).get('beatId')).toBe('beat-departure')
     })
@@ -147,7 +152,11 @@ describe('App scene workbench', () => {
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
     expect(new URLSearchParams(window.location.search).get('utm')).toBe('keep-me')
 
-    await user.click(screen.getAllByRole('button', { name: /Departure bell/i })[0]!)
+    await user.click(
+      within(screen.getByRole('heading', { name: 'Beat Filters' }).closest('aside')!).getByRole('button', {
+        name: /Departure bell/i,
+      }),
+    )
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search)
       expect(params.get('beatId')).toBe('beat-departure')
@@ -195,16 +204,49 @@ describe('App scene workbench', () => {
 
     expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /Warehouse Bridge/i }))
+    await user.click(screen.getByRole('button', { name: /Ticket Window/i }))
 
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search)
-      expect(params.get('id')).toBe('scene-warehouse-bridge')
+      expect(params.get('id')).toBe('scene-ticket-window')
       expect(params.get('lens')).toBe('draft')
       expect(params.get('tab')).toBe('prose')
     })
 
     expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
+  })
+
+  it('derives scene navigator items from the active scene chapter', async () => {
+    await renderFreshApp('?scope=scene&id=scene-concourse-delay&lens=orchestrate&tab=execution')
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    expect(screen.getByText('Signals in Rain / Concourse Delay / Orchestrate / Execution')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Midnight Platform/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Concourse Delay/i })).toHaveClass('border-line-strong')
+    expect(screen.getByRole('button', { name: /Ticket Window/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Departure Bell/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Warehouse Bridge/i })).not.toBeInTheDocument()
+  })
+
+  it('keeps chapter-derived navigator placeholders while scene cards are still loading', async () => {
+    vi.doMock('@tanstack/react-query', async () => {
+      const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query')
+
+      return {
+        ...actual,
+        useQueries: () => [{ data: undefined }, { data: undefined }, { data: undefined }, { data: undefined }],
+      }
+    })
+
+    await renderFreshApp('?scope=scene&id=scene-concourse-delay&lens=orchestrate&tab=execution')
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Midnight Platform/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Concourse Delay/i })).toHaveClass('border-line-strong')
+    expect(screen.getByRole('button', { name: /Ticket Window/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Departure Bell/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Warehouse Bridge/i })).not.toBeInTheDocument()
+    expect(screen.getByText('A crowd bottleneck should slow the exit without resolving who controls the courier line.')).toBeInTheDocument()
   })
 
   it('derives shell metadata from the active scene workspace data', async () => {
@@ -217,13 +259,13 @@ describe('App scene workbench', () => {
     expect(screen.getAllByText('Run 07').length).toBeGreaterThan(0)
     expect(screen.getAllByText('review').length).toBeGreaterThan(0)
 
-    await user.click(screen.getByRole('button', { name: /Warehouse Bridge/i }))
+    await user.click(screen.getByRole('button', { name: /Ticket Window/i }))
 
     await waitFor(() => {
-      expect(screen.getByText('Open Water Signals / Warehouse Bridge / Orchestrate / Execution')).toBeInTheDocument()
+      expect(screen.getByText('Signals in Rain / Ticket Window / Orchestrate / Execution')).toBeInTheDocument()
     })
-    expect(screen.getAllByText('Draft').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('draft').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Run 03').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('review').length).toBeGreaterThan(0)
   })
 
   it('supports open scene -> execution -> accept / rewrite / reject -> patch preview -> commit -> prose', async () => {
@@ -290,7 +332,9 @@ describe('App scene workbench', () => {
 
     expect(await screen.findByRole('heading', { name: '场景驾驶舱' })).toBeInTheDocument()
     expect(screen.getByText('叙事工作台')).toBeInTheDocument()
-    expect(screen.getAllByText('午夜站台').length).toBeGreaterThan(0)
+    await waitFor(() => {
+      expect(screen.getAllByText('午夜站台').length).toBeGreaterThan(0)
+    })
     expect(screen.getByText('预览数据')).toBeInTheDocument()
   })
 
@@ -315,6 +359,7 @@ describe('App scene workbench', () => {
       expect(new URLSearchParams(window.location.search).get('tab')).toBe('execution')
       expect(new URLSearchParams(window.location.search).get('proposalId')).toBe('proposal-2')
     })
+    expect(screen.getAllByText('午夜站台').length).toBeGreaterThan(0)
 
     firstRender.unmount()
     setNavigatorLanguage('en-US')

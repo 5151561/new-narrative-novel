@@ -10,6 +10,8 @@ import {
 } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { PaneHeader } from '@/components/ui/PaneHeader'
+import { getMockChapterRecordById } from '@/features/chapter/api/mock-chapter-db'
+import { readLocalizedChapterText } from '@/features/chapter/api/chapter-records'
 import { ChapterStructureWorkspace } from '@/features/chapter/containers/ChapterStructureWorkspace'
 import { sceneClient } from '@/features/scene/api/scene-client'
 import { SceneDockContainer } from '@/features/scene/containers/SceneDockContainer'
@@ -25,8 +27,7 @@ import type {
   WorkbenchLens,
   WorkbenchScope,
 } from '@/features/workbench/types/workbench-route'
-
-const sceneNavigatorIds = ['scene-midnight-platform', 'scene-warehouse-bridge'] as const
+import { getSceneFixtureChapterId } from '@/mock/scene-fixtures'
 
 interface SceneNavigatorCard {
   sceneId: string
@@ -275,30 +276,24 @@ function SceneWorkbench({
   const { locale, dictionary } = useI18n()
   const sceneId = route.sceneId
   const activeSceneQuery = useSceneWorkspaceQuery(sceneId)
+  const navigatorChapterId = activeSceneQuery.scene?.chapterId ?? getSceneFixtureChapterId(sceneId)
+  const navigatorChapterRecord = navigatorChapterId ? getMockChapterRecordById(navigatorChapterId) : null
+  const navigatorSceneIds = navigatorChapterRecord?.scenes.map((scene) => scene.id) ?? []
   const navigatorQueries = useQueries({
-    queries: sceneNavigatorIds.map((navigatorSceneId) => ({
+    queries: navigatorSceneIds.map((navigatorSceneId) => ({
       queryKey: sceneQueryKeys.workspace(navigatorSceneId, locale),
       queryFn: () => sceneClient.getSceneWorkspace(navigatorSceneId),
     })),
   })
-  const fallbackNavigatorItems: SceneNavigatorCard[] = [
-    {
-      sceneId: 'scene-midnight-platform',
-      title: locale === 'zh-CN' ? '午夜站台' : 'Midnight Platform',
-      chapterTitle: dictionary.app.activeChapter,
+  const fallbackNavigatorItems: SceneNavigatorCard[] =
+    navigatorChapterRecord?.scenes.map((scene) => ({
+      sceneId: scene.id,
+      title: readLocalizedChapterText(scene.title, locale),
+      chapterTitle: readLocalizedChapterText(navigatorChapterRecord.title, locale),
       statusLabel: dictionary.common.loading,
       statusTone: 'neutral',
-      detail: dictionary.app.loadingSceneWorkspace,
-    },
-    {
-      sceneId: 'scene-warehouse-bridge',
-      title: locale === 'zh-CN' ? '仓桥交接' : 'Warehouse Bridge',
-      chapterTitle: dictionary.app.activeChapter,
-      statusLabel: dictionary.common.loading,
-      statusTone: 'neutral',
-      detail: dictionary.app.loadingSceneWorkspace,
-    },
-  ]
+      detail: readLocalizedChapterText(scene.summary, locale),
+    })) ?? []
   const navigatorItems = navigatorQueries.map((query, index) => {
     const fallback = fallbackNavigatorItems[index]
 
@@ -312,7 +307,7 @@ function SceneWorkbench({
           detail: query.data.objective,
         }
       : fallback
-  })
+  }).filter((item): item is SceneNavigatorCard => item !== undefined)
   const activeScene = activeSceneQuery.scene ?? navigatorQueries.find((query) => query.data?.id === sceneId)?.data
 
   return (

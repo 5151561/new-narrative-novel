@@ -28,6 +28,49 @@ export interface SceneMockDatabase {
   scenes: Record<string, SceneRecord>
 }
 
+interface LightweightSceneSeed {
+  sceneId: string
+  title: string
+  chapterId: string
+  chapterTitle: string
+  status: SceneWorkspaceViewModel['status']
+  runStatus: SceneWorkspaceViewModel['runStatus']
+  objective: string
+  chapterLabel: string
+  locationId: string
+  locationLabel: string
+  povCharacterId: string
+  timeboxLabel: string
+  setupSummary: string
+  cast: SceneSetupViewModel['cast']
+  externalGoal: string
+  emotionalGoal: string
+  successSignal: string
+  failureCost: string
+  constraints: SceneSetupViewModel['constraints']
+  knowledgeBoundaries: SceneSetupViewModel['knowledgeBoundaries']
+  executionGoal: string
+  tensionLabel: string
+  pacingLabel: string
+  beatId: string
+  beatTitle: string
+  beatSummary: string
+  proposalId: string
+  proposalTitle: string
+  proposalSummary: string
+  acceptedFactLabel: string
+  acceptedFactValue: string
+  proseDraft: string
+  proseStatusLabel: string
+  dockEventTitle: string
+  dockEventDetail: string
+  problemTitle: string
+  problemRecommendation: string
+  latestRunId?: string
+  runId?: string
+  currentVersionLabel?: string
+}
+
 const midnightPlatform: SceneRecord = {
   workspace: {
     id: 'scene-midnight-platform',
@@ -726,10 +769,482 @@ const warehouseBridge: SceneRecord = {
   },
 }
 
+function createLightweightSceneRecord(seed: LightweightSceneSeed): SceneRecord {
+  const selectedCast = seed.cast.filter((member) => member.selected)
+  const acceptedFacts = [{ id: `fact-${seed.sceneId}`, label: seed.acceptedFactLabel, value: seed.acceptedFactValue }]
+  const guardedBoundaries = seed.knowledgeBoundaries.filter((boundary) => boundary.status !== 'known')
+
+  return {
+    workspace: {
+      id: seed.sceneId,
+      title: seed.title,
+      chapterId: seed.chapterId,
+      chapterTitle: seed.chapterTitle,
+      status: seed.status,
+      runStatus: seed.runStatus,
+      objective: seed.objective,
+      castIds: selectedCast.map((member) => member.id),
+      locationId: seed.locationId,
+      latestRunId: seed.latestRunId,
+      pendingProposalCount: 1,
+      warningCount: 1,
+      currentVersionLabel: seed.currentVersionLabel,
+      activeThreadId: 'thread-main',
+      availableThreads: [{ id: 'thread-main', label: 'Mainline' }],
+    },
+    setup: {
+      sceneId: seed.sceneId,
+      identity: {
+        title: seed.title,
+        chapterLabel: seed.chapterLabel,
+        locationLabel: seed.locationLabel,
+        povCharacterId: seed.povCharacterId,
+        timeboxLabel: seed.timeboxLabel,
+        summary: seed.setupSummary,
+      },
+      objective: {
+        externalGoal: seed.externalGoal,
+        emotionalGoal: seed.emotionalGoal,
+        successSignal: seed.successSignal,
+        failureCost: seed.failureCost,
+      },
+      cast: seed.cast,
+      constraints: seed.constraints,
+      knowledgeBoundaries: seed.knowledgeBoundaries,
+      runtimePreset: {
+        selectedPresetId: 'runtime-measured-pressure',
+        presetOptions: midnightPlatform.setup.runtimePreset.presetOptions,
+      },
+    },
+    execution: {
+      runId: seed.runId,
+      objective: {
+        goal: seed.executionGoal,
+        tensionLabel: seed.tensionLabel,
+        pacingLabel: seed.pacingLabel,
+        cast: selectedCast.map((member) => ({ id: member.id, name: member.name, role: member.role })),
+        location: { id: seed.locationId, name: seed.locationLabel },
+        warningsCount: 1,
+        unresolvedCount: seed.knowledgeBoundaries.length,
+        constraintSummary: seed.constraints.map((constraint) => constraint.summary),
+      },
+      beats: [
+        {
+          id: seed.beatId,
+          index: 1,
+          title: seed.beatTitle,
+          status: 'review',
+          proposalCount: 1,
+          warningCount: 1,
+          summary: seed.beatSummary,
+        },
+      ],
+      proposals: [
+        {
+          id: seed.proposalId,
+          beatId: seed.beatId,
+          actor: { id: 'scene-manager', name: 'Scene Manager', type: 'scene-manager' },
+          kind: 'state-change',
+          title: seed.proposalTitle,
+          summary: seed.proposalSummary,
+          status: 'pending',
+          impactTags: ['handoff', 'continuity'],
+          affects: [
+            {
+              path: 'scene.accepted-summary',
+              label: 'Accepted pressure',
+              deltaSummary: seed.proposalSummary,
+            },
+          ],
+          risks: [{ severity: 'warn', message: seed.problemTitle }],
+          evidencePeek: [seed.acceptedFactValue],
+          sourceTraceId: `trace-${seed.sceneId}`,
+        },
+      ],
+      acceptedSummary: {
+        sceneSummary: `Accepted state already keeps ${seed.acceptedFactLabel.toLowerCase()} in play while the next handoff stays reviewable.`,
+        acceptedFacts,
+        readiness: 'draftable',
+        pendingProposalCount: 1,
+        warningCount: 1,
+        patchCandidateCount: 0,
+      },
+      runtimeSummary: {
+        runHealth: 'attention',
+        latencyLabel: seed.runId ? '1.2s avg step' : 'Awaiting run',
+        tokenLabel: seed.runId ? '2.4k tokens' : '0 tokens',
+        costLabel: seed.runId ? '$0.06 est.' : '$0.00',
+        latestFailureSummary: seed.problemTitle,
+      },
+      consistencySummary: {
+        warningsCount: 1,
+        topIssues: [seed.problemTitle],
+      },
+      canContinueRun: false,
+      canOpenProse: true,
+    },
+    prose: {
+      sceneId: seed.sceneId,
+      proseDraft: seed.proseDraft,
+      revisionModes: ['rewrite', 'compress', 'expand', 'tone_adjust', 'continuity_fix'],
+      latestDiffSummary: 'No prose revision requested yet.',
+      warningsCount: 1,
+      focusModeAvailable: true,
+      revisionQueueCount: 0,
+      draftWordCount: seed.proseDraft.trim().split(/\s+/).length,
+      statusLabel: seed.proseStatusLabel,
+    },
+    inspector: {
+      context: {
+        acceptedFacts,
+        privateInfoGuard: {
+          summary:
+            guardedBoundaries.length > 0
+              ? `Protect ${guardedBoundaries.length} guarded reveal point${guardedBoundaries.length === 1 ? '' : 's'} while review stays open.`
+              : 'No guarded reveal points remain.',
+          items: guardedBoundaries.map((boundary) => ({
+            id: `guard-${boundary.id}`,
+            label: boundary.label,
+            summary: boundary.summary,
+            status: boundary.status === 'guarded' ? 'guarded' : 'watching',
+          })),
+        },
+        actorKnowledgeBoundaries: selectedCast.map((member) => ({
+          actor: { id: member.id, name: member.name, role: member.role },
+          boundaries: seed.knowledgeBoundaries.map((boundary) => ({
+            ...boundary,
+          })),
+        })),
+        localState: [
+          { id: 'state-1', label: 'Active beat', value: seed.beatTitle },
+          { id: 'state-2', label: 'Selected runtime preset', value: 'Measured Pressure' },
+          { id: 'state-3', label: 'Accepted patch candidates', value: '0 semantic candidates' },
+        ],
+        overrides: [
+          {
+            id: `override-${seed.sceneId}`,
+            label: 'Chapter handoff',
+            summary: seed.problemRecommendation,
+            status: 'active',
+          },
+        ],
+      },
+      versions: {
+        checkpoints: [
+          {
+            id: `checkpoint-${seed.sceneId}`,
+            label: seed.currentVersionLabel ?? 'Scaffold checkpoint',
+            summary: `Fixture parity for ${seed.title} is available in scene scope.`,
+            status: 'review',
+          },
+        ],
+        acceptanceTimeline: [
+          {
+            id: `timeline-${seed.sceneId}`,
+            title: seed.dockEventTitle,
+            detail: seed.dockEventDetail,
+            meta: 'Review',
+            tone: 'accent',
+          },
+        ],
+        patchCandidates: [],
+      },
+      runtime: {
+        profile: {
+          label: 'Measured Pressure',
+          summary: `Keep ${seed.title} light enough for parity coverage while preserving scene-shape integrity.`,
+        },
+        runHealth: 'attention',
+        metrics: {
+          latencyLabel: seed.runId ? '1.2s avg step' : 'Awaiting run',
+          tokenLabel: seed.runId ? '2.4k tokens' : '0 tokens',
+          costLabel: seed.runId ? '$0.06 est.' : '$0.00',
+        },
+        latestFailure: seed.problemTitle,
+      },
+    },
+    dock: {
+      events: [
+        {
+          id: `event-${seed.sceneId}`,
+          title: seed.dockEventTitle,
+          detail: seed.dockEventDetail,
+          meta: 'Event',
+          tone: 'accent',
+        },
+      ],
+      trace: [
+        {
+          id: `trace-${seed.sceneId}`,
+          title: `Trace / ${seed.title}`,
+          detail: seed.proposalSummary,
+          meta: 'Trace',
+          tone: 'neutral',
+        },
+      ],
+      consistency: {
+        summary: `One continuity checkpoint remains open for ${seed.title}.`,
+        checks: [
+          {
+            id: `consistency-${seed.sceneId}`,
+            label: seed.problemTitle,
+            status: 'warn',
+            detail: seed.problemRecommendation,
+          },
+        ],
+      },
+      problems: {
+        summary: `Keep the remaining risk visible without expanding the scene scaffold.`,
+        items: [
+          {
+            id: `problem-${seed.sceneId}`,
+            title: seed.problemTitle,
+            severity: 'warn',
+            recommendation: seed.problemRecommendation,
+          },
+        ],
+      },
+      cost: {
+        currentWindowLabel: seed.runId ? '$0.06 estimated' : '$0.00 estimated',
+        trendLabel: 'Lightweight parity fixture.',
+        breakdown: [{ id: `cost-${seed.sceneId}`, label: 'Fixture status', value: 'Parity scaffold' }],
+      },
+    },
+  }
+}
+
+const concourseDelay = createLightweightSceneRecord({
+  sceneId: 'scene-concourse-delay',
+  title: 'Concourse Delay',
+  chapterId: 'chapter-signals-in-rain',
+  chapterTitle: 'Signals in Rain',
+  status: 'draft',
+  runStatus: 'idle',
+  objective: 'Hold the crowd bottleneck long enough to keep platform pressure alive.',
+  chapterLabel: 'Signals in Rain / Scene 5',
+  locationId: 'concourse-hall',
+  locationLabel: 'Crowded concourse hall',
+  povCharacterId: 'mei',
+  timeboxLabel: '03:18-03:22',
+  setupSummary: 'A crowd-bound transition scene that delays the exit without resolving who controls the courier line.',
+  cast: [
+    { id: 'mei', name: 'Mei Arden', role: 'POV', agenda: 'Hold the crowd between Ren and the gate.', selected: true },
+    { id: 'ren', name: 'Ren Voss', role: 'Counterforce', agenda: 'Slip through before the delay hardens.', selected: true },
+    { id: 'ushers', name: 'Platform ushers', role: 'Ambient pressure', agenda: 'Keep bodies moving, not answers.', selected: false },
+  ],
+  externalGoal: 'Delay the exit without giving up the courier advantage.',
+  emotionalGoal: 'Let Mei keep control without showing panic.',
+  successSignal: 'The crowd slows the move and the witness pressure survives.',
+  failureCost: 'The handoff escapes the chapter before the pressure lands.',
+  constraints: [{ id: 'constraint-concourse-1', label: 'Do not settle courier ownership', kind: 'canon', summary: 'No one proves who controls the courier line here.' }],
+  knowledgeBoundaries: [{ id: 'boundary-concourse-1', label: 'Courier-line owner', summary: 'The crowd delay should not confirm who actually commands the courier path.', status: 'guarded' }],
+  executionGoal: 'Use the bottleneck to delay motion without turning the chapter private.',
+  tensionLabel: 'Held',
+  pacingLabel: 'Crowded',
+  beatId: 'beat-concourse-delay',
+  beatTitle: 'Crowd bottleneck',
+  beatSummary: 'Bodies compress the exit while Mei tries to keep the witness pressure public.',
+  proposalId: 'proposal-concourse-delay',
+  proposalTitle: 'Keep the delay visible from both sides of the crowd',
+  proposalSummary: 'Let the bottleneck slow everyone down while the witness pressure carries inward from the platform.',
+  acceptedFactLabel: 'Crowd delay established',
+  acceptedFactValue: 'The concourse bottleneck slows motion without resolving courier ownership.',
+  proseDraft: 'The concourse tightened by inches instead of steps, forcing every glance to travel through strangers before it reached the gate.',
+  proseStatusLabel: 'Draft handoff ready',
+  dockEventTitle: 'Concourse delay preserved',
+  dockEventDetail: 'The scene scaffold keeps crowd pressure active without settling the courier line.',
+  problemTitle: 'Crowd pressure still needs a clean exit path',
+  problemRecommendation: 'Keep the witness line visible while the crowd delay hands the chapter forward.',
+})
+
+const ticketWindow = createLightweightSceneRecord({
+  sceneId: 'scene-ticket-window',
+  title: 'Ticket Window',
+  chapterId: 'chapter-signals-in-rain',
+  chapterTitle: 'Signals in Rain',
+  status: 'review',
+  runStatus: 'paused',
+  objective: 'Put speed and certainty in the same beat without letting Ren’s alias surface.',
+  chapterLabel: 'Signals in Rain / Scene 6',
+  locationId: 'ticket-window',
+  locationLabel: 'Station ticket window',
+  povCharacterId: 'ren',
+  timeboxLabel: '03:22-03:25',
+  setupSummary: 'A narrow transaction scene where speed is useful only if the alias stays out of public reach.',
+  cast: [
+    { id: 'ren', name: 'Ren Voss', role: 'POV', agenda: 'Buy speed without naming the alias.', selected: true },
+    { id: 'mei', name: 'Mei Arden', role: 'Counterforce', agenda: 'Force commitment before motion resumes.', selected: true },
+    { id: 'clerk', name: 'Ticket clerk', role: 'Witness', agenda: 'Notice urgency, not the hidden identity.', selected: true },
+  ],
+  externalGoal: 'Secure the next move before the gate closes.',
+  emotionalGoal: 'Keep Ren contained while Mei sharpens the trade-off.',
+  successSignal: 'The trade-off tightens and the alias remains private.',
+  failureCost: 'The chapter exposes the alias before the handoff earns it.',
+  constraints: [{ id: 'constraint-ticket-1', label: 'Alias stays offstage', kind: 'canon', summary: 'No public alias reveal is allowed at the ticket window.' }],
+  knowledgeBoundaries: [{ id: 'boundary-ticket-1', label: 'Alias exposure', summary: 'The alias remains withheld from the clerk and the crowd.', status: 'guarded' }],
+  executionGoal: 'Turn urgency into a visible trade-off instead of an explanation dump.',
+  tensionLabel: 'Tight',
+  pacingLabel: 'Controlled',
+  beatId: 'beat-ticket-window',
+  beatTitle: 'Window bargain',
+  beatSummary: 'Ren reaches for speed while Mei keeps the cost public enough to matter.',
+  proposalId: 'proposal-ticket-window',
+  proposalTitle: 'Force the trade-off into one visible exchange',
+  proposalSummary: 'Let the clerk witness urgency without learning the alias that gives the urgency its edge.',
+  acceptedFactLabel: 'Alias still offstage',
+  acceptedFactValue: 'The ticket-window exchange keeps the alias outside public knowledge.',
+  proseDraft: 'The clerk slid the ticket halfway out, and even that small motion felt like a question Mei wanted answered before Ren could touch it.',
+  proseStatusLabel: 'Ready for prose pass',
+  dockEventTitle: 'Ticket-window trade-off held',
+  dockEventDetail: 'The scene remains usable in scene scope without exposing the alias.',
+  problemTitle: 'Alias pressure needs tighter public cover',
+  problemRecommendation: 'Keep the clerk focused on urgency so the alias never enters the room.',
+  latestRunId: 'run-03',
+  runId: 'run-03',
+  currentVersionLabel: 'Run 03',
+})
+
+const departureBell = createLightweightSceneRecord({
+  sceneId: 'scene-departure-bell',
+  title: 'Departure Bell',
+  chapterId: 'chapter-signals-in-rain',
+  chapterTitle: 'Signals in Rain',
+  status: 'draft',
+  runStatus: 'idle',
+  objective: 'Place the bell without collapsing witness pressure before the chapter closes.',
+  chapterLabel: 'Signals in Rain / Scene 7',
+  locationId: 'departure-gate',
+  locationLabel: 'Departure gate',
+  povCharacterId: 'conductor',
+  timeboxLabel: '03:25-03:27',
+  setupSummary: 'A final timing scene still testing where motion begins and scrutiny stops.',
+  cast: [
+    { id: 'conductor', name: 'Station Conductor', role: 'POV', agenda: 'Keep the platform moving on schedule.', selected: true },
+    { id: 'ren', name: 'Ren Voss', role: 'Pressure point', agenda: 'Leave before the bell turns him into a public fact.', selected: true },
+    { id: 'mei', name: 'Mei Arden', role: 'Counterforce', agenda: 'Make the bell land on her terms.', selected: true },
+  ],
+  externalGoal: 'Choose a bell cue that preserves confrontation pressure to the end.',
+  emotionalGoal: 'Let the conductor read the tension without explaining it.',
+  successSignal: 'The bell lands and the witness pressure still matters.',
+  failureCost: 'Motion starts too early and drains the confrontation.',
+  constraints: [{ id: 'constraint-bell-1', label: 'Bell cannot pre-resolve the chapter', kind: 'timing', summary: 'The bell must not end the pressure before the final beat lands.' }],
+  knowledgeBoundaries: [{ id: 'boundary-bell-1', label: 'Final exit trigger', summary: 'The exact trigger for motion stays provisional until the chapter handoff is stable.', status: 'open-question' }],
+  executionGoal: 'Hold the final cue long enough for the chapter to keep its witness line.',
+  tensionLabel: 'Edge',
+  pacingLabel: 'Measured',
+  beatId: 'beat-departure-bell',
+  beatTitle: 'Bell placement review',
+  beatSummary: 'The conductor measures when the bell becomes motion instead of pressure.',
+  proposalId: 'proposal-departure-bell',
+  proposalTitle: 'Tie the bell to the last visible concession',
+  proposalSummary: 'Keep the bell attached to a visible choice so the chapter does not drift into abstract timing.',
+  acceptedFactLabel: 'Bell timing still provisional',
+  acceptedFactValue: 'The chapter still needs one safe bell placement before motion begins.',
+  proseDraft: 'The bell rope waited above the conductor’s hand like a verdict not yet earned by the people beneath it.',
+  proseStatusLabel: 'Awaiting first prose pass',
+  dockEventTitle: 'Bell timing still under review',
+  dockEventDetail: 'The exit cue is scaffolded for scene scope, but the final placement still needs chapter alignment.',
+  problemTitle: 'Bell cue can still drain pressure too early',
+  problemRecommendation: 'Anchor the bell to the last visible concession, not to a blank timing gap.',
+})
+
+const canalWatch = createLightweightSceneRecord({
+  sceneId: 'scene-canal-watch',
+  title: 'Canal Watch',
+  chapterId: 'chapter-open-water-signals',
+  chapterTitle: 'Open Water Signals',
+  status: 'draft',
+  runStatus: 'idle',
+  objective: 'Tighten trust pressure without proving who owns the package.',
+  chapterLabel: 'Open Water Signals / Scene 3',
+  locationId: 'canal-watchpoint',
+  locationLabel: 'Canal watchpoint',
+  povCharacterId: 'leya',
+  timeboxLabel: 'Early tide',
+  setupSummary: 'A watchpoint scene that carries hesitation forward while keeping ownership unresolved.',
+  cast: [
+    { id: 'leya', name: 'Leya Marr', role: 'POV', agenda: 'Read the watch without naming the owner.', selected: true },
+    { id: 'merek', name: 'Merek Dain', role: 'Counterforce', agenda: 'Pressure trust before the route opens.', selected: true },
+    { id: 'watcher', name: 'Canal watcher', role: 'Witness', agenda: 'See enough movement to matter later.', selected: true },
+  ],
+  externalGoal: 'Carry warehouse hesitation into the canal without inventing a new reveal.',
+  emotionalGoal: 'Keep trust pressure active while everyone stays guarded.',
+  successSignal: 'The watchpoint tightens tension and ownership stays unresolved.',
+  failureCost: 'The chapter names the receiver before the handoff earns it.',
+  constraints: [{ id: 'constraint-canal-1', label: 'Package owner stays unresolved', kind: 'canon', summary: 'No scene beat can prove who the package belongs to.' }],
+  knowledgeBoundaries: [{ id: 'boundary-canal-1', label: 'Real receiver', summary: 'The real receiver remains hidden at the canal watchpoint.', status: 'guarded' }],
+  executionGoal: 'Convert caution into trust pressure without collapsing the mystery.',
+  tensionLabel: 'Suspended',
+  pacingLabel: 'Watchful',
+  beatId: 'beat-canal-watch',
+  beatTitle: 'Watchpoint check',
+  beatSummary: 'The canal watch narrows trust while the owner remains unspoken.',
+  proposalId: 'proposal-canal-watch',
+  proposalTitle: 'Let the watchpoint tighten the trust line',
+  proposalSummary: 'Carry the warehouse hesitation forward instead of replacing it with a new suspense beat.',
+  acceptedFactLabel: 'Receiver still hidden',
+  acceptedFactValue: 'The canal watch keeps the true receiver offstage.',
+  proseDraft: 'The canal lay still enough to look honest, which was exactly why nobody at the rail trusted it.',
+  proseStatusLabel: 'Draft handoff ready',
+  dockEventTitle: 'Canal watchpoint preserved',
+  dockEventDetail: 'The canal watch remains available in scene scope without resolving package ownership.',
+  problemTitle: 'Trust pressure still needs a stronger carry-through',
+  problemRecommendation: 'Let warehouse hesitation flow straight into the watchpoint exchange.',
+})
+
+const dawnSlip = createLightweightSceneRecord({
+  sceneId: 'scene-dawn-slip',
+  title: 'Dawn Slip',
+  chapterId: 'chapter-open-water-signals',
+  chapterTitle: 'Open Water Signals',
+  status: 'draft',
+  runStatus: 'idle',
+  objective: 'Complete the turn from suspicion into motion without skipping the handoff.',
+  chapterLabel: 'Open Water Signals / Scene 4',
+  locationId: 'slipway-exit',
+  locationLabel: 'Slipway exit',
+  povCharacterId: 'watcher',
+  timeboxLabel: 'Dawn release',
+  setupSummary: 'An exit scene still looking for the cleanest bridge between suspicion and movement.',
+  cast: [
+    { id: 'watcher', name: 'Slip watcher', role: 'POV', agenda: 'See the turn before it disappears into motion.', selected: true },
+    { id: 'leya', name: 'Leya Marr', role: 'Pressure point', agenda: 'Move only when the line is stable.', selected: true },
+    { id: 'merek', name: 'Merek Dain', role: 'Counterforce', agenda: 'Force the turn before certainty arrives.', selected: true },
+  ],
+  externalGoal: 'Hand the chapter from caution into movement cleanly.',
+  emotionalGoal: 'Keep suspicion visible even as the exit starts to move.',
+  successSignal: 'The exit feels earned and the handoff remains credible.',
+  failureCost: 'Motion arrives too early and erases the earlier caution.',
+  constraints: [{ id: 'constraint-dawn-1', label: 'Do not skip the handoff', kind: 'staging', summary: 'The exit path still needs a visible bridge between suspicion and motion.' }],
+  knowledgeBoundaries: [{ id: 'boundary-dawn-1', label: 'Exit trigger', summary: 'The exact trigger into motion is still under review.', status: 'open-question' }],
+  executionGoal: 'Make the final slipway move read like consequence, not a jump cut.',
+  tensionLabel: 'Unsettled',
+  pacingLabel: 'Rising',
+  beatId: 'beat-dawn-slip',
+  beatTitle: 'Slipway release',
+  beatSummary: 'The exit starts to move while the last doubts stay visible on the rail.',
+  proposalId: 'proposal-dawn-slip',
+  proposalTitle: 'Bridge suspicion into motion with one visible handoff',
+  proposalSummary: 'Let the exit begin on a visible transfer so the earlier caution still pays off.',
+  acceptedFactLabel: 'Exit bridge still missing',
+  acceptedFactValue: 'The slipway still needs one credible bridge into motion.',
+  proseDraft: 'Dawn thinned the dark along the slipway, but it did nothing to shorten the distance between doubt and movement.',
+  proseStatusLabel: 'Awaiting first prose pass',
+  dockEventTitle: 'Slipway handoff remains provisional',
+  dockEventDetail: 'The dawn exit is openable in scene scope, but the bridge into motion still needs review.',
+  problemTitle: 'Exit motion still outruns its handoff',
+  problemRecommendation: 'Start motion on a visible transfer so the suspicion line stays intact.',
+})
+
 const baseDatabase: SceneMockDatabase = {
   scenes: {
     'scene-midnight-platform': midnightPlatform,
+    'scene-concourse-delay': concourseDelay,
+    'scene-ticket-window': ticketWindow,
+    'scene-departure-bell': departureBell,
     'scene-warehouse-bridge': warehouseBridge,
+    'scene-canal-watch': canalWatch,
+    'scene-dawn-slip': dawnSlip,
   },
 }
 
@@ -895,6 +1410,10 @@ function addDockEvent(
 
 export function createSceneMockDatabase(locale: Locale = 'en'): SceneMockDatabase {
   return localizeSceneMockDatabase(locale, clone(baseDatabase)) as SceneMockDatabase
+}
+
+export function getSceneFixtureChapterId(sceneId: string) {
+  return baseDatabase.scenes[sceneId]?.workspace.chapterId ?? null
 }
 
 export function getSceneFixture(sceneId: string, locale: Locale = 'en') {

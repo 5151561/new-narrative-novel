@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
+import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import { buildChapterStoryWorkspace } from '../components/chapter-story-fixture'
 import * as chapterWorkspaceQuery from '../hooks/useChapterStructureWorkspaceQuery'
 
@@ -11,6 +12,12 @@ import { ChapterStructureWorkspace } from './ChapterStructureWorkspace'
 afterEach(() => {
   vi.restoreAllMocks()
 })
+
+function ChapterRouteHarness() {
+  const { route } = useWorkbenchRouteState()
+
+  return route.scope === 'chapter' ? <ChapterStructureWorkspace /> : <div>Scene scope placeholder</div>
+}
 
 describe('ChapterStructureWorkspace', () => {
   it('keeps binder, stage, inspector, and bottom dock in sync with the chapter route', async () => {
@@ -24,7 +31,7 @@ describe('ChapterStructureWorkspace', () => {
 
     render(
       <AppProviders>
-        <ChapterStructureWorkspace />
+        <ChapterRouteHarness />
       </AppProviders>,
     )
 
@@ -106,7 +113,7 @@ describe('ChapterStructureWorkspace', () => {
 
     render(
       <AppProviders>
-        <ChapterStructureWorkspace />
+        <ChapterRouteHarness />
       </AppProviders>,
     )
 
@@ -154,6 +161,80 @@ describe('ChapterStructureWorkspace', () => {
 
     expect(screen.getByText('Loading bottom dock')).toBeInTheDocument()
     expect(screen.queryByText('Entered Outliner')).not.toBeInTheDocument()
+  })
+
+  it('opens the selected chapter scene in scene scope and browser back returns to the chapter selection', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=outliner&sceneId=scene-concourse-delay',
+    )
+
+    render(
+      <AppProviders>
+        <ChapterRouteHarness />
+      </AppProviders>,
+    )
+
+    await screen.findByRole('button', { name: /Scene 2 Concourse Delay/i })
+
+    await user.click(screen.getByRole('button', { name: 'Scene' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('scene')
+      expect(params.get('id')).toBe('scene-concourse-delay')
+      expect(params.get('lens')).toBe('orchestrate')
+      expect(params.get('tab')).toBe('execution')
+      expect(params.get('view')).toBeNull()
+      expect(params.get('sceneId')).toBeNull()
+    })
+
+    window.history.back()
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('chapter')
+      expect(params.get('id')).toBe('chapter-signals-in-rain')
+      expect(params.get('view')).toBe('outliner')
+      expect(params.get('sceneId')).toBe('scene-concourse-delay')
+    })
+  })
+
+  it('patches the chapter route with the first scene before opening scene scope when no scene is selected', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState({}, '', '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=outliner')
+
+    render(
+      <AppProviders>
+        <ChapterRouteHarness />
+      </AppProviders>,
+    )
+
+    await screen.findByRole('button', { name: /Scene 1 Midnight Platform/i })
+
+    await user.click(screen.getByRole('button', { name: 'Scene' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('scene')
+      expect(params.get('id')).toBe('scene-midnight-platform')
+      expect(params.get('lens')).toBe('orchestrate')
+      expect(params.get('tab')).toBe('execution')
+    })
+
+    window.history.back()
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('chapter')
+      expect(params.get('id')).toBe('chapter-signals-in-rain')
+      expect(params.get('view')).toBe('outliner')
+      expect(params.get('sceneId')).toBe('scene-midnight-platform')
+    })
   })
 
   it.each([
