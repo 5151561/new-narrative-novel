@@ -1,15 +1,15 @@
 import type { Decorator } from '@storybook/react'
 
-import { readStoredLocale, writeStoredLocale, type Locale } from '@/app/i18n'
+import { normalizeLocale, resolveAppLocale, writeStoredLocale, type Locale } from '@/app/i18n'
 
-export const STORYBOOK_DEFAULT_LOCALE: Locale = readStoredLocale() ?? 'zh-CN'
+export const STORYBOOK_DEFAULT_LOCALE: Locale = resolveAppLocale()
 
-export function getStorybookLocale(value: unknown): Locale {
+export function getStorybookLocale(value: unknown, fallback: Locale = resolveAppLocale()): Locale {
   if (typeof value !== 'string') {
-    return 'en'
+    return fallback
   }
 
-  return value.toLowerCase().startsWith('zh') ? 'zh-CN' : value === 'en' ? 'en' : 'en'
+  return normalizeLocale(value)
 }
 
 export function applyStorybookLocale(value: unknown): Locale {

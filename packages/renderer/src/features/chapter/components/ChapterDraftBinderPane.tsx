@@ -61,7 +61,7 @@ export function ChapterDraftBinderPane({ workspace, onSelectScene, onOpenScene }
                     onClick={() => onSelectScene?.(scene.sceneId)}
                     className="w-full rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
                   >
-                    <span className="flex items-start justify-between gap-3">
+                    <span className="flex flex-col gap-2">
                       <span className="min-w-0">
                         <span className="block text-[11px] uppercase tracking-[0.08em] text-text-soft">
                           {getChapterSceneOrdinalLabel(locale, scene.order)}
@@ -69,7 +69,7 @@ export function ChapterDraftBinderPane({ workspace, onSelectScene, onOpenScene }
                         <span className="block text-sm font-medium text-text-main">{scene.title}</span>
                         <span className="mt-1 block text-xs text-text-soft">{scene.proseStatusLabel}</span>
                       </span>
-                      <span className="flex shrink-0 flex-wrap justify-end gap-2">
+                      <span className="flex flex-wrap gap-2">
                         <Badge tone={scene.isMissingDraft ? 'warn' : 'success'}>{getWordCountLabel(locale, scene.draftWordCount)}</Badge>
                         {scene.revisionQueueCount ? <Badge tone="accent">{locale === 'zh-CN' ? `修订 ${scene.revisionQueueCount}` : `Queue ${scene.revisionQueueCount}`}</Badge> : null}
                         {scene.warningsCount > 0 ? <Badge tone="warn">{locale === 'zh-CN' ? `警告 ${scene.warningsCount}` : `Warn ${scene.warningsCount}`}</Badge> : null}

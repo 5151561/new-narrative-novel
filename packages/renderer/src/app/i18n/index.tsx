@@ -17,7 +17,7 @@ export type Locale = 'en' | 'zh-CN'
 
 export const APP_LOCALE_STORAGE_KEY = 'narrative-novel.locale'
 
-function normalizeLocale(value: string | null | undefined): Locale {
+export function normalizeLocale(value: string | null | undefined): Locale {
   if (!value) {
     return 'en'
   }

@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
 import { getWorkbenchLensLabel, useI18n } from '@/app/i18n'
-import { AppProviders } from '@/app/providers'
 import { Badge } from '@/components/ui/Badge'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 
@@ -11,34 +10,12 @@ import { ChapterDraftInspectorPane } from '../components/ChapterDraftInspectorPa
 import { ChapterDraftReader } from '../components/ChapterDraftReader'
 import { ChapterModeRail } from '../components/ChapterModeRail'
 import {
+  ChapterStoryShell,
   buildChapterDraftStoryActivity,
   useLocalizedChapterDraftWorkspace,
   type ChapterDraftStoryVariant,
 } from '../components/chapter-storybook'
 import type { ChapterDraftWorkspaceViewModel } from '../types/chapter-draft-view-models'
-
-function LanguageToggle() {
-  const { locale, setLocale, dictionary } = useI18n()
-
-  return (
-    <div className="flex items-center gap-1 rounded-md border border-line-soft bg-surface-2 p-1">
-      <span className="px-2 text-[11px] uppercase tracking-[0.05em] text-text-soft">{dictionary.common.language}</span>
-      {(['en', 'zh-CN'] as const).map((value) => (
-        <button
-          key={value}
-          type="button"
-          aria-pressed={locale === value}
-          onClick={() => setLocale(value)}
-          className={`rounded-md px-2 py-1 text-xs font-medium ${
-            locale === value ? 'bg-surface-1 text-text-main shadow-ringwarm' : 'text-text-muted'
-          }`}
-        >
-          {value === 'zh-CN' ? '中文' : 'EN'}
-        </button>
-      ))}
-    </div>
-  )
-}
 
 function WorkspacePreview({ workspace }: { workspace: ChapterDraftWorkspaceViewModel }) {
   const { locale, dictionary } = useI18n()
@@ -60,7 +37,6 @@ function WorkspacePreview({ workspace }: { workspace: ChapterDraftWorkspaceViewM
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <LanguageToggle />
             <Badge tone="neutral">{locale === 'zh-CN' ? `已起草 ${workspace.draftedSceneCount}` : `Drafted ${workspace.draftedSceneCount}`}</Badge>
             <Badge tone={workspace.missingDraftCount > 0 ? 'warn' : 'success'}>
               {locale === 'zh-CN' ? `缺稿 ${workspace.missingDraftCount}` : `Missing ${workspace.missingDraftCount}`}
@@ -98,9 +74,9 @@ const meta = {
     layout: 'fullscreen',
   },
   render: (args) => (
-    <AppProviders>
+    <ChapterStoryShell frameClassName="min-h-[720px]">
       <ChapterDraftWorkspaceStory {...args} />
-    </AppProviders>
+    </ChapterStoryShell>
   ),
   args: {
     selectedSceneId: 'scene-midnight-platform',

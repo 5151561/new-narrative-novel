@@ -24,8 +24,8 @@ export function ChapterStoryShell({
 }: PropsWithChildren<{ frameClassName: string }>) {
   return (
     <AppProviders>
-      <div className="min-h-[720px] w-full bg-app p-6">
-        <div className={`w-full ${frameClassName}`}>{children}</div>
+      <div className="min-h-[720px] bg-app p-6">
+        <div className={frameClassName}>{children}</div>
       </div>
     </AppProviders>
   )
