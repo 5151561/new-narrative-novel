@@ -1,35 +1,35 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { AppProviders } from '@/app/providers'
-
-import {
-  buildChapterDraftMissingStoryWorkspace,
-  buildChapterDraftStoryWorkspace,
-  buildQuietChapterDraftStoryWorkspace,
-} from './chapter-story-fixture'
 import { ChapterDraftReader } from './ChapterDraftReader'
+import { ChapterStoryShell, useLocalizedChapterDraftWorkspace, type ChapterDraftStoryVariant } from './chapter-storybook'
+
+interface ChapterDraftReaderStoryProps {
+  selectedSceneId: string
+  variant?: ChapterDraftStoryVariant
+}
+
+function ChapterDraftReaderStory({ selectedSceneId, variant = 'default' }: ChapterDraftReaderStoryProps) {
+  const workspace = useLocalizedChapterDraftWorkspace(selectedSceneId, variant)
+
+  return <ChapterDraftReader workspace={workspace} onSelectScene={() => undefined} onOpenScene={() => undefined} />
+}
 
 const meta = {
   title: 'Business/ChapterDraftReader',
-  component: ChapterDraftReader,
+  component: ChapterDraftReaderStory,
   parameters: {
     layout: 'padded',
   },
   render: (args) => (
-    <AppProviders>
-      <div className="min-h-[720px] bg-app p-6">
-        <div className="rounded-md border border-line-soft bg-surface-1">
-          <ChapterDraftReader {...args} />
-        </div>
-      </div>
-    </AppProviders>
+    <ChapterStoryShell frameClassName="rounded-md border border-line-soft bg-surface-1">
+      <ChapterDraftReaderStory {...args} />
+    </ChapterStoryShell>
   ),
   args: {
-    workspace: buildChapterDraftStoryWorkspace('scene-midnight-platform'),
-    onSelectScene: () => undefined,
-    onOpenScene: () => undefined,
+    selectedSceneId: 'scene-midnight-platform',
+    variant: 'default',
   },
-} satisfies Meta<typeof ChapterDraftReader>
+} satisfies Meta<typeof ChapterDraftReaderStory>
 
 export default meta
 
@@ -39,18 +39,20 @@ export const Default: Story = {}
 
 export const MissingDrafts: Story = {
   args: {
-    workspace: buildChapterDraftMissingStoryWorkspace('scene-concourse-delay'),
+    selectedSceneId: 'scene-concourse-delay',
+    variant: 'missing',
   },
 }
 
 export const SelectedMiddleScene: Story = {
   args: {
-    workspace: buildChapterDraftStoryWorkspace('scene-concourse-delay'),
+    selectedSceneId: 'scene-concourse-delay',
   },
 }
 
 export const QuietChapter: Story = {
   args: {
-    workspace: buildQuietChapterDraftStoryWorkspace('scene-warehouse-bridge'),
+    selectedSceneId: 'scene-warehouse-bridge',
+    variant: 'quiet',
   },
 }

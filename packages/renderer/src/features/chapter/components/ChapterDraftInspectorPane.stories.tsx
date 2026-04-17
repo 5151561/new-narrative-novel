@@ -1,63 +1,67 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { AppProviders } from '@/app/providers'
-
-import {
-  buildChapterDraftMissingStoryWorkspace,
-  buildChapterDraftStoryWorkspace,
-  buildQuietChapterDraftStoryWorkspace,
-} from './chapter-story-fixture'
 import { ChapterDraftInspectorPane } from './ChapterDraftInspectorPane'
+import { ChapterStoryShell, useLocalizedChapterDraftWorkspace, type ChapterDraftStoryVariant } from './chapter-storybook'
+
+interface ChapterDraftInspectorPaneStoryProps {
+  selectedSceneId: string
+  variant?: ChapterDraftStoryVariant
+}
+
+function ChapterDraftInspectorPaneStory({
+  selectedSceneId,
+  variant = 'default',
+}: ChapterDraftInspectorPaneStoryProps) {
+  const workspace = useLocalizedChapterDraftWorkspace(selectedSceneId, variant)
+
+  return (
+    <ChapterDraftInspectorPane
+      chapterTitle={workspace.title}
+      chapterSummary={workspace.summary}
+      inspector={workspace.inspector}
+    />
+  )
+}
 
 const meta = {
   title: 'Business/ChapterDraftInspectorPane',
-  component: ChapterDraftInspectorPane,
+  component: ChapterDraftInspectorPaneStory,
   parameters: {
     layout: 'padded',
   },
   render: (args) => (
-    <AppProviders>
-      <div className="min-h-[720px] bg-app p-6">
-        <div className="max-w-sm">
-          <ChapterDraftInspectorPane {...args} />
-        </div>
-      </div>
-    </AppProviders>
+    <ChapterStoryShell frameClassName="max-w-sm">
+      <ChapterDraftInspectorPaneStory {...args} />
+    </ChapterStoryShell>
   ),
-} satisfies Meta<typeof ChapterDraftInspectorPane>
+  args: {
+    selectedSceneId: 'scene-midnight-platform',
+    variant: 'default',
+  },
+} satisfies Meta<typeof ChapterDraftInspectorPaneStory>
 
 export default meta
 
 type Story = StoryObj<typeof meta>
 
-export const Default: Story = {
-  args: {
-    chapterTitle: 'Signals in Rain',
-    chapterSummary: 'Read the chapter as one continuous draft surface while route.sceneId keeps the focus stable.',
-    inspector: buildChapterDraftStoryWorkspace('scene-midnight-platform').inspector,
-  },
-}
+export const Default: Story = {}
 
 export const MissingDrafts: Story = {
   args: {
-    chapterTitle: 'Signals in Rain',
-    chapterSummary: 'Read the chapter as one continuous draft surface while route.sceneId keeps the focus stable.',
-    inspector: buildChapterDraftMissingStoryWorkspace('scene-concourse-delay').inspector,
+    selectedSceneId: 'scene-concourse-delay',
+    variant: 'missing',
   },
 }
 
 export const SelectedMiddleScene: Story = {
   args: {
-    chapterTitle: 'Signals in Rain',
-    chapterSummary: 'Read the chapter as one continuous draft surface while route.sceneId keeps the focus stable.',
-    inspector: buildChapterDraftStoryWorkspace('scene-concourse-delay').inspector,
+    selectedSceneId: 'scene-concourse-delay',
   },
 }
 
 export const QuietChapter: Story = {
   args: {
-    chapterTitle: 'Open Water Signals',
-    chapterSummary: 'A quieter chapter draft with one stable handoff scene.',
-    inspector: buildQuietChapterDraftStoryWorkspace('scene-warehouse-bridge').inspector,
+    selectedSceneId: 'scene-warehouse-bridge',
+    variant: 'quiet',
   },
 }

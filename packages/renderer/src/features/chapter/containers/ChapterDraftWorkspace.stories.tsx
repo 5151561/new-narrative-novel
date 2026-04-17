@@ -1,23 +1,21 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { useMemo } from 'react'
-
+import { getWorkbenchLensLabel, useI18n } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
-import { getLocaleName, getWorkbenchLensLabel, useI18n } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 
 import { ChapterDraftBinderPane } from '../components/ChapterDraftBinderPane'
+import { ChapterDraftBottomDock } from '../components/ChapterDraftBottomDock'
 import { ChapterDraftInspectorPane } from '../components/ChapterDraftInspectorPane'
 import { ChapterDraftReader } from '../components/ChapterDraftReader'
 import { ChapterModeRail } from '../components/ChapterModeRail'
 import {
-  buildChapterDraftMissingStoryWorkspace,
-  buildChapterDraftStoryWorkspace,
-  buildQuietChapterDraftStoryWorkspace,
-} from '../components/chapter-story-fixture'
+  buildChapterDraftStoryActivity,
+  useLocalizedChapterDraftWorkspace,
+  type ChapterDraftStoryVariant,
+} from '../components/chapter-storybook'
 import type { ChapterDraftWorkspaceViewModel } from '../types/chapter-draft-view-models'
-import { ChapterDraftBottomDock } from '../components/ChapterDraftBottomDock'
 
 function LanguageToggle() {
   const { locale, setLocale, dictionary } = useI18n()
@@ -35,7 +33,7 @@ function LanguageToggle() {
             locale === value ? 'bg-surface-1 text-text-main shadow-ringwarm' : 'text-text-muted'
           }`}
         >
-          {getLocaleName(locale, value)}
+          {value === 'zh-CN' ? '中文' : 'EN'}
         </button>
       ))}
     </div>
@@ -44,28 +42,7 @@ function LanguageToggle() {
 
 function WorkspacePreview({ workspace }: { workspace: ChapterDraftWorkspaceViewModel }) {
   const { locale, dictionary } = useI18n()
-  const activity = useMemo(
-    () => [
-      {
-        id: 'lens-0',
-        kind: 'lens' as const,
-        title: locale === 'zh-CN' ? '进入章节 Draft' : 'Entered chapter draft',
-        detail:
-          locale === 'zh-CN'
-            ? '阅读稿会继续围绕同一个 chapter identity 和 route.sceneId 对齐。'
-            : 'The reading surface stays aligned to the same chapter identity and route.sceneId.',
-        tone: 'accent' as const,
-      },
-      {
-        id: 'scene-1',
-        kind: 'scene' as const,
-        title: locale === 'zh-CN' ? `聚焦${workspace.selectedScene?.title ?? workspace.title}` : `Focused ${workspace.selectedScene?.title ?? workspace.title}`,
-        detail: workspace.selectedScene?.summary ?? workspace.summary,
-        tone: 'neutral' as const,
-      },
-    ],
-    [locale, workspace],
-  )
+  const activity = buildChapterDraftStoryActivity(locale, workspace)
 
   return (
     <WorkbenchShell
@@ -101,43 +78,58 @@ function WorkspacePreview({ workspace }: { workspace: ChapterDraftWorkspaceViewM
   )
 }
 
+interface ChapterDraftWorkspaceStoryProps {
+  selectedSceneId: string
+  variant?: ChapterDraftStoryVariant
+}
+
+function ChapterDraftWorkspaceStory({
+  selectedSceneId,
+  variant = 'default',
+}: ChapterDraftWorkspaceStoryProps) {
+  const workspace = useLocalizedChapterDraftWorkspace(selectedSceneId, variant)
+  return <WorkspacePreview workspace={workspace} />
+}
+
 const meta = {
   title: 'Mockups/Chapter/ChapterDraftWorkspace',
-  component: WorkspacePreview,
+  component: ChapterDraftWorkspaceStory,
   parameters: {
     layout: 'fullscreen',
   },
   render: (args) => (
     <AppProviders>
-      <WorkspacePreview {...args} />
+      <ChapterDraftWorkspaceStory {...args} />
     </AppProviders>
   ),
-} satisfies Meta<typeof WorkspacePreview>
+  args: {
+    selectedSceneId: 'scene-midnight-platform',
+    variant: 'default',
+  },
+} satisfies Meta<typeof ChapterDraftWorkspaceStory>
 
 export default meta
 
 type Story = StoryObj<typeof meta>
 
-export const Default: Story = {
-  args: {
-    workspace: buildChapterDraftStoryWorkspace('scene-midnight-platform'),
-  },
-}
+export const Default: Story = {}
 
 export const MissingDrafts: Story = {
   args: {
-    workspace: buildChapterDraftMissingStoryWorkspace('scene-concourse-delay'),
+    selectedSceneId: 'scene-concourse-delay',
+    variant: 'missing',
   },
 }
 
 export const SelectedMiddleScene: Story = {
   args: {
-    workspace: buildChapterDraftStoryWorkspace('scene-concourse-delay'),
+    selectedSceneId: 'scene-concourse-delay',
   },
 }
 
 export const QuietChapter: Story = {
   args: {
-    workspace: buildQuietChapterDraftStoryWorkspace('scene-warehouse-bridge'),
+    selectedSceneId: 'scene-warehouse-bridge',
+    variant: 'quiet',
   },
 }

@@ -1,32 +1,42 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { AppProviders } from '@/app/providers'
-import { buildChapterStoryWorkspace } from './chapter-story-fixture'
-
 import { ChapterOutlinerView } from './ChapterOutlinerView'
+import { ChapterStoryShell, useLocalizedChapterStructureWorkspace } from './chapter-storybook'
+
+interface ChapterOutlinerViewStoryProps {
+  selectedSceneId: string
+  savingSceneId?: string
+}
+
+function ChapterOutlinerViewStory({ selectedSceneId, savingSceneId }: ChapterOutlinerViewStoryProps) {
+  const workspace = useLocalizedChapterStructureWorkspace(selectedSceneId)
+
+  return (
+    <ChapterOutlinerView
+      workspace={workspace}
+      savingSceneId={savingSceneId}
+      onSelectScene={() => undefined}
+      onSaveScenePatch={() => undefined}
+      onOpenScene={() => undefined}
+    />
+  )
+}
 
 const meta = {
   title: 'Business/ChapterOutlinerView',
-  component: ChapterOutlinerView,
+  component: ChapterOutlinerViewStory,
   parameters: {
     layout: 'padded',
   },
   render: (args) => (
-    <AppProviders>
-      <div className="min-h-[720px] bg-app p-6">
-        <div className="max-w-7xl">
-          <ChapterOutlinerView {...args} />
-        </div>
-      </div>
-    </AppProviders>
+    <ChapterStoryShell frameClassName="max-w-7xl">
+      <ChapterOutlinerViewStory {...args} />
+    </ChapterStoryShell>
   ),
   args: {
-    workspace: buildChapterStoryWorkspace('scene-midnight-platform'),
-    onSelectScene: () => undefined,
-    onSaveScenePatch: () => undefined,
-    onOpenScene: () => undefined,
+    selectedSceneId: 'scene-midnight-platform',
   },
-} satisfies Meta<typeof ChapterOutlinerView>
+} satisfies Meta<typeof ChapterOutlinerViewStory>
 
 export default meta
 
@@ -36,13 +46,13 @@ export const Default: Story = {}
 
 export const SelectedMiddleScene: Story = {
   args: {
-    workspace: buildChapterStoryWorkspace('scene-concourse-delay'),
+    selectedSceneId: 'scene-concourse-delay',
   },
 }
 
 export const SavingSelectedScene: Story = {
   args: {
-    workspace: buildChapterStoryWorkspace('scene-concourse-delay'),
+    selectedSceneId: 'scene-concourse-delay',
     savingSceneId: 'scene-concourse-delay',
   },
 }

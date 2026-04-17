@@ -1,35 +1,45 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { AppProviders } from '@/app/providers'
-import {
-  buildChapterProblemsHeavyStoryWorkspace,
-  buildChapterStoryWorkspace,
-} from './chapter-story-fixture'
-
 import { ChapterStructureInspectorPane } from './ChapterStructureInspectorPane'
+import { ChapterStoryShell, useLocalizedChapterStructureWorkspace, type ChapterStructureStoryVariant } from './chapter-storybook'
+
+interface ChapterStructureInspectorPaneStoryProps {
+  selectedSceneId: string
+  variant?: ChapterStructureStoryVariant
+}
+
+function ChapterStructureInspectorPaneStory({
+  selectedSceneId,
+  variant = 'default',
+}: ChapterStructureInspectorPaneStoryProps) {
+  const workspace = useLocalizedChapterStructureWorkspace(selectedSceneId, variant)
+
+  return (
+    <ChapterStructureInspectorPane
+      chapterTitle={workspace.title}
+      chapterSummary={workspace.summary}
+      unresolvedCount={workspace.unresolvedCount}
+      inspector={workspace.inspector}
+    />
+  )
+}
 
 const meta = {
   title: 'Business/ChapterStructureInspectorPane',
-  component: ChapterStructureInspectorPane,
+  component: ChapterStructureInspectorPaneStory,
   parameters: {
     layout: 'padded',
   },
   render: (args) => (
-    <AppProviders>
-      <div className="min-h-[720px] bg-app p-6">
-        <div className="max-w-sm">
-          <ChapterStructureInspectorPane {...args} />
-        </div>
-      </div>
-    </AppProviders>
+    <ChapterStoryShell frameClassName="max-w-sm">
+      <ChapterStructureInspectorPaneStory {...args} />
+    </ChapterStoryShell>
   ),
   args: {
-    chapterTitle: 'Signals in Rain',
-    chapterSummary: 'Keep structure, density, and assembly pressure in the same chapter workbench.',
-    unresolvedCount: 6,
-    inspector: buildChapterStoryWorkspace('scene-midnight-platform').inspector,
+    selectedSceneId: 'scene-midnight-platform',
+    variant: 'default',
   },
-} satisfies Meta<typeof ChapterStructureInspectorPane>
+} satisfies Meta<typeof ChapterStructureInspectorPaneStory>
 
 export default meta
 
@@ -39,7 +49,7 @@ export const Default: Story = {}
 
 export const ProblemsHeavy: Story = {
   args: {
-    unresolvedCount: 9,
-    inspector: buildChapterProblemsHeavyStoryWorkspace('scene-concourse-delay').inspector,
+    selectedSceneId: 'scene-concourse-delay',
+    variant: 'problems-heavy',
   },
 }

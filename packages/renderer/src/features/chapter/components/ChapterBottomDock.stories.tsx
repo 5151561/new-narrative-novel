@@ -1,92 +1,74 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { AppProviders } from '@/app/providers'
-
-import { buildChapterProblemsHeavyStoryWorkspace, buildChapterStoryWorkspace } from './chapter-story-fixture'
+import { useI18n } from '@/app/i18n'
 
 import { ChapterBottomDock } from './ChapterBottomDock'
+import {
+  ChapterStoryShell,
+  buildChapterBottomDockProblems,
+  buildChapterStructureStoryActivity,
+  useLocalizedChapterStructureWorkspace,
+  type ChapterStructureStoryVariant,
+} from './chapter-storybook'
 
-const recentWorkspace = buildChapterProblemsHeavyStoryWorkspace('scene-midnight-platform')
-const quietWorkspace = buildChapterStoryWorkspace('scene-concourse-delay')
+interface ChapterBottomDockStoryProps {
+  selectedSceneId: string
+  variant?: ChapterStructureStoryVariant
+  quiet?: boolean
+}
+
+function ChapterBottomDockStory({
+  selectedSceneId,
+  variant = 'problems-heavy',
+  quiet = false,
+}: ChapterBottomDockStoryProps) {
+  const { locale } = useI18n()
+  const workspace = useLocalizedChapterStructureWorkspace(selectedSceneId, variant)
+
+  return (
+    <ChapterBottomDock
+      problems={buildChapterBottomDockProblems(workspace)}
+      activity={
+        quiet
+          ? []
+          : buildChapterStructureStoryActivity(locale, workspace, {
+              activeView: 'outliner',
+              includeAssemblySwitch: true,
+              movedSceneTitle: locale === 'zh-CN' ? '售票窗' : 'Ticket Window',
+            })
+      }
+    />
+  )
+}
 
 const meta = {
   title: 'Business/ChapterBottomDock',
-  component: ChapterBottomDock,
+  component: ChapterBottomDockStory,
   parameters: {
     layout: 'padded',
   },
   render: (args) => (
-    <AppProviders>
-      <div className="min-h-[360px] bg-app p-6">
-        <div className="max-w-6xl rounded-md border border-line-soft bg-surface-1">
-          <ChapterBottomDock {...args} />
-        </div>
-      </div>
-    </AppProviders>
+    <ChapterStoryShell frameClassName="max-w-6xl rounded-md border border-line-soft bg-surface-1">
+      <ChapterBottomDockStory {...args} />
+    </ChapterStoryShell>
   ),
-} satisfies Meta<typeof ChapterBottomDock>
+  args: {
+    selectedSceneId: 'scene-midnight-platform',
+    variant: 'problems-heavy',
+    quiet: false,
+  },
+} satisfies Meta<typeof ChapterBottomDockStory>
 
 export default meta
 
 type Story = StoryObj<typeof meta>
 
-export const WithRecentActivity: Story = {
-  args: {
-    problems: {
-      unresolvedCount: recentWorkspace.unresolvedCount,
-      selectedScene: {
-        title: recentWorkspace.inspector.selectedSceneBrief?.title ?? 'Midnight Platform',
-        summary: recentWorkspace.inspector.selectedSceneBrief?.summary ?? recentWorkspace.summary,
-        unresolvedLabel: recentWorkspace.inspector.selectedSceneBrief?.unresolvedLabel ?? 'Unresolved 3',
-      },
-      problemsSummary: recentWorkspace.inspector.problemsSummary,
-      assemblyHints: recentWorkspace.inspector.assemblyHints,
-    },
-    activity: [
-      {
-        id: 'activity-1',
-        kind: 'view',
-        title: 'Entered Outliner',
-        detail: 'The chapter workbench opened on the outliner surface.',
-        tone: 'accent',
-      },
-      {
-        id: 'activity-2',
-        kind: 'scene',
-        title: 'Focused Midnight Platform',
-        detail: recentWorkspace.inspector.selectedSceneBrief?.summary ?? recentWorkspace.summary,
-        tone: 'neutral',
-      },
-      {
-        id: 'activity-3',
-        kind: 'view',
-        title: 'Switched to Assembly',
-        detail: 'Judgment moved to seam review while keeping the same selected scene.',
-        tone: 'accent',
-      },
-      {
-        id: 'activity-4',
-        kind: 'mutation',
-        title: 'Moved Ticket Window earlier',
-        detail: 'Chapter order changed without changing the selected scene.',
-        tone: 'accent',
-      },
-    ],
-  },
-}
+export const WithRecentActivity: Story = {}
 
 export const QuietSession: Story = {
   args: {
-    problems: {
-      unresolvedCount: quietWorkspace.unresolvedCount,
-      selectedScene: {
-        title: quietWorkspace.inspector.selectedSceneBrief?.title ?? 'Concourse Delay',
-        summary: quietWorkspace.inspector.selectedSceneBrief?.summary ?? quietWorkspace.summary,
-        unresolvedLabel: quietWorkspace.inspector.selectedSceneBrief?.unresolvedLabel ?? 'Unresolved 2',
-      },
-      problemsSummary: quietWorkspace.inspector.problemsSummary,
-      assemblyHints: quietWorkspace.inspector.assemblyHints,
-    },
-    activity: [],
+    selectedSceneId: 'scene-concourse-delay',
+    variant: 'default',
+    quiet: true,
   },
 }

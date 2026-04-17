@@ -1,109 +1,149 @@
-import type { ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
+import { getChapterUnresolvedCountLabel, type Locale } from '@/app/i18n'
+
 import type { ChapterDraftWorkspaceViewModel } from '../types/chapter-draft-view-models'
+import type { ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
 
-function buildSelectedSceneBrief(selectedSceneId: string) {
-  if (selectedSceneId === 'scene-concourse-delay') {
-    return {
-      sceneId: selectedSceneId,
-      title: 'Concourse Delay',
-      summary: 'Hold witness pressure at the edge of the exit.',
-      unresolvedCount: 2,
-      unresolvedLabel: 'Unresolved 2',
-    }
-  }
+type LocalizedText = Record<Locale, string>
 
-  if (selectedSceneId === 'scene-ticket-window') {
-    return {
-      sceneId: selectedSceneId,
-      title: 'Ticket Window',
-      summary: 'Keep the alias offstage while the trade-off tightens.',
-      unresolvedCount: 1,
-      unresolvedLabel: 'Unresolved 1',
-    }
-  }
+function text(en: string, zhCN: string): LocalizedText {
+  return { en, 'zh-CN': zhCN }
+}
+
+function pick(locale: Locale, value: LocalizedText) {
+  return value[locale]
+}
+
+function getQueuedRevisionDetail(locale: Locale, count: number) {
+  return locale === 'zh-CN' ? `${count} 个待处理修订` : `${count} queued revision${count === 1 ? '' : 's'}`
+}
+
+const chapterTitle = text('Signals in Rain', '雨中信号')
+const chapterStructureSummary = text(
+  'Keep structure, density, and assembly pressure in the same chapter workbench.',
+  '让结构、密度和装配压力继续停留在同一个章节工作台。',
+)
+const chapterDraftSummary = text(
+  'Read the chapter as one continuous draft surface while route.sceneId keeps the focus stable.',
+  '把整章当作连续草稿面来阅读，同时让 route.sceneId 保持焦点稳定。',
+)
+
+const structureSceneRecords = [
+  {
+    id: 'scene-midnight-platform',
+    order: 1,
+    title: text('Midnight Platform', '午夜站台'),
+    summary: text('Keep the bargain public and constrained.', '让交换继续保持公开且受限。'),
+    purpose: text('Push the bargain into a public stalemate.', '把交换推进到公开僵局里。'),
+    pov: text('Ren Voss', '任·沃斯'),
+    location: text('Eastbound platform', '东行站台'),
+    conflict: text('Ren needs leverage, Mei needs a higher price.', '任需要筹码，梅则要求更高代价。'),
+    reveal: text('The courier signal stays readable only to Ren.', '只有任还能读懂信使留下的信号。'),
+    statusLabel: text('Current', '当前'),
+    proseStatusLabel: text('Needs draft', '待起草'),
+    runStatusLabel: text('Paused', '已暂停'),
+    unresolvedCount: 3,
+    lastRunLabel: text('Run 07', '运行 07'),
+    briefSummary: text(
+      'Keep public witness pressure alive at the edge of the scene.',
+      '让公开见证压力继续停留在场景边缘。',
+    ),
+  },
+  {
+    id: 'scene-concourse-delay',
+    order: 2,
+    title: text('Concourse Delay', '候车厅延误'),
+    summary: text('Hold the exit timing back a little longer.', '让出口时机再延后一点。'),
+    purpose: text('Hold pressure for the next scene.', '把压力继续压送到下一个场景。'),
+    pov: text('Mei Arden', '梅·阿登'),
+    location: text('Concourse hall', '候车厅'),
+    conflict: text('The crowd slows everyone down.', '拥挤的人群拖慢了所有人。'),
+    reveal: text('Witness pressure carries inward.', '见证压力继续向内层传导。'),
+    statusLabel: text('Queued', '排队中'),
+    proseStatusLabel: text('Queued for draft', '待起草'),
+    runStatusLabel: text('Idle', '未开始'),
+    unresolvedCount: 2,
+    lastRunLabel: text('Not run', '未运行'),
+    briefSummary: text(
+      'Hold witness pressure at the edge of the exit.',
+      '把见证压力继续压在出口边缘。',
+    ),
+  },
+  {
+    id: 'scene-ticket-window',
+    order: 3,
+    title: text('Ticket Window', '售票窗'),
+    summary: text('Keep the alias offstage.', '继续让化名留在台后。'),
+    purpose: text('Bring speed and certainty into one beat.', '让速度和确定性落在同一个节拍里。'),
+    pov: text('Ren Voss', '任·沃斯'),
+    location: text('Ticket window', '售票窗'),
+    conflict: text('Ren wants speed, Mei wants commitment first.', '任想要速度，梅先要承诺。'),
+    reveal: text('The alias still has not entered public knowledge.', '化名仍然没有进入公共认知。'),
+    statusLabel: text('Guarded', '受控'),
+    proseStatusLabel: text('Needs draft', '待起草'),
+    runStatusLabel: text('Guarded', '受控'),
+    unresolvedCount: 1,
+    lastRunLabel: text('Run 03', '运行 03'),
+    briefSummary: text(
+      'Keep the alias offstage while the trade-off tightens.',
+      '在交换条件收紧时，继续让化名留在场外。',
+    ),
+  },
+] as const
+
+function buildSelectedSceneBrief(selectedSceneId: string, locale: Locale) {
+  const scene = structureSceneRecords.find((item) => item.id === selectedSceneId) ?? structureSceneRecords[0]
 
   return {
     sceneId: selectedSceneId,
-    title: 'Midnight Platform',
-    summary: 'Keep public witness pressure alive at the edge of the scene.',
-    unresolvedCount: 3,
-    unresolvedLabel: 'Unresolved 3',
+    title: pick(locale, scene.title),
+    summary: pick(locale, scene.briefSummary),
+    unresolvedCount: scene.unresolvedCount,
+    unresolvedLabel: getChapterUnresolvedCountLabel(locale, scene.unresolvedCount),
   }
 }
 
-export function buildChapterStoryWorkspace(selectedSceneId: string): ChapterStructureWorkspaceViewModel {
+export function buildChapterStoryWorkspace(
+  selectedSceneId: string,
+  locale: Locale = 'en',
+): ChapterStructureWorkspaceViewModel {
   return {
     chapterId: 'chapter-signals-in-rain',
-    title: 'Signals in Rain',
-    summary: 'Keep structure, density, and assembly pressure in the same chapter workbench.',
-    sceneCount: 3,
-    unresolvedCount: 6,
+    title: pick(locale, chapterTitle),
+    summary: pick(locale, chapterStructureSummary),
+    sceneCount: structureSceneRecords.length,
+    unresolvedCount: structureSceneRecords.reduce((total, scene) => total + scene.unresolvedCount, 0),
     selectedSceneId,
-    scenes: [
-      {
-        id: 'scene-midnight-platform',
-        order: 1,
-        title: 'Midnight Platform',
-        summary: 'Keep the bargain public and constrained.',
-        purpose: 'Push the bargain into a public stalemate.',
-        pov: 'Ren Voss',
-        location: 'Eastbound platform',
-        conflict: 'Ren needs leverage, Mei needs a higher price.',
-        reveal: 'The courier signal stays readable only to Ren.',
-        statusLabel: 'Current',
-        proseStatusLabel: 'Needs draft',
-        runStatusLabel: 'Paused',
-        unresolvedCount: 3,
-        lastRunLabel: 'Run 07',
-      },
-      {
-        id: 'scene-concourse-delay',
-        order: 2,
-        title: 'Concourse Delay',
-        summary: 'Hold the exit timing back a little longer.',
-        purpose: 'Hold pressure for the next scene.',
-        pov: 'Mei Arden',
-        location: 'Concourse hall',
-        conflict: 'The crowd slows everyone down.',
-        reveal: 'Witness pressure carries inward.',
-        statusLabel: 'Queued',
-        proseStatusLabel: 'Queued for draft',
-        runStatusLabel: 'Idle',
-        unresolvedCount: 2,
-        lastRunLabel: 'Not run',
-      },
-      {
-        id: 'scene-ticket-window',
-        order: 3,
-        title: 'Ticket Window',
-        summary: 'Keep the alias offstage.',
-        purpose: 'Bring speed and certainty into one beat.',
-        pov: 'Ren Voss',
-        location: 'Ticket window',
-        conflict: 'Ren wants speed, Mei wants commitment first.',
-        reveal: 'The alias still has not entered public knowledge.',
-        statusLabel: 'Guarded',
-        proseStatusLabel: 'Needs draft',
-        runStatusLabel: 'Guarded',
-        unresolvedCount: 1,
-        lastRunLabel: 'Run 03',
-      },
-    ],
+    scenes: structureSceneRecords.map((scene) => ({
+      id: scene.id,
+      order: scene.order,
+      title: pick(locale, scene.title),
+      summary: pick(locale, scene.summary),
+      purpose: pick(locale, scene.purpose),
+      pov: pick(locale, scene.pov),
+      location: pick(locale, scene.location),
+      conflict: pick(locale, scene.conflict),
+      reveal: pick(locale, scene.reveal),
+      statusLabel: pick(locale, scene.statusLabel),
+      proseStatusLabel: pick(locale, scene.proseStatusLabel),
+      runStatusLabel: pick(locale, scene.runStatusLabel),
+      unresolvedCount: scene.unresolvedCount,
+      lastRunLabel: pick(locale, scene.lastRunLabel),
+    })),
     inspector: {
-      selectedSceneBrief: buildSelectedSceneBrief(selectedSceneId),
-      chapterNotes: ['Ordering remains structural.'],
+      selectedSceneBrief: buildSelectedSceneBrief(selectedSceneId, locale),
+      chapterNotes: [pick(locale, text('Ordering remains structural.', '排序关系继续只承担结构职责。'))],
       problemsSummary: [
         {
           id: 'bell-timing',
-          label: 'Bell timing',
-          detail: 'The exit bell still lands too early.',
+          label: pick(locale, text('Bell timing', '铃声时机')),
+          detail: pick(locale, text('The exit bell still lands too early.', '出口铃声仍然落得过早。')),
         },
       ],
       assemblyHints: [
         {
           id: 'carry-pressure',
-          label: 'Carry platform pressure',
-          detail: 'Carry platform pressure into the concourse.',
+          label: pick(locale, text('Carry platform pressure', '延续站台压力')),
+          detail: pick(locale, text('Carry platform pressure into the concourse.', '把站台上的压力继续带进候车厅。')),
         },
       ],
     },
@@ -113,94 +153,170 @@ export function buildChapterStoryWorkspace(selectedSceneId: string): ChapterStru
   }
 }
 
-export function buildChapterProblemsHeavyStoryWorkspace(selectedSceneId: string): ChapterStructureWorkspaceViewModel {
-  const workspace = buildChapterStoryWorkspace(selectedSceneId)
+export function buildChapterProblemsHeavyStoryWorkspace(
+  selectedSceneId: string,
+  locale: Locale = 'en',
+): ChapterStructureWorkspaceViewModel {
+  const workspace = buildChapterStoryWorkspace(selectedSceneId, locale)
 
   return {
     ...workspace,
     unresolvedCount: 9,
     inspector: {
       ...workspace.inspector,
-      chapterNotes: ['Ordering remains structural.', 'Carry the witness pressure until the exit is truly blocked.'],
+      chapterNotes: [
+        ...workspace.inspector.chapterNotes,
+        pick(
+          locale,
+          text(
+            'Carry the witness pressure until the exit is truly blocked.',
+            '继续把见证压力顶住，直到出口真的被封死。',
+          ),
+        ),
+      ],
       problemsSummary: [
         ...workspace.inspector.problemsSummary,
         {
           id: 'alias-exposure',
-          label: 'Alias exposure',
-          detail: 'The alias brushes too close to public knowledge in the ticket window handoff.',
+          label: pick(locale, text('Alias exposure', '化名暴露')),
+          detail: pick(
+            locale,
+            text(
+              'The alias brushes too close to public knowledge in the ticket window handoff.',
+              '售票窗交接时，化名已经过于贴近公共认知边界。',
+            ),
+          ),
         },
         {
           id: 'timing-drift',
-          label: 'Timing drift',
-          detail: 'The bell beat and crowd delay still do not share the same structural clock.',
+          label: pick(locale, text('Timing drift', '节奏漂移')),
+          detail: pick(
+            locale,
+            text(
+              'The bell beat and crowd delay still do not share the same structural clock.',
+              '铃声节拍和人群延滞仍然没有落在同一套结构时钟上。',
+            ),
+          ),
         },
       ],
       assemblyHints: [
         ...workspace.inspector.assemblyHints,
         {
           id: 'tighten-handoff',
-          label: 'Tighten the handoff',
-          detail: 'Let the concourse exit decision arrive one beat earlier before the ticket window locks it.',
+          label: pick(locale, text('Tighten the handoff', '压紧交接')),
+          detail: pick(
+            locale,
+            text(
+              'Let the concourse exit decision arrive one beat earlier before the ticket window locks it.',
+              '让候车厅的出口决断再提前一个节拍，然后再由售票窗把它锁死。',
+            ),
+          ),
         },
         {
           id: 'hold-witness-line',
-          label: 'Hold the witness line',
-          detail: 'Keep witness pressure visible so the next seam does not feel privately reset.',
+          label: pick(locale, text('Hold the witness line', '稳住见证线')),
+          detail: pick(
+            locale,
+            text(
+              'Keep witness pressure visible so the next seam does not feel privately reset.',
+              '让见证压力继续可见，避免下一个接缝像是被私下重置。',
+            ),
+          ),
         },
       ],
     },
   }
 }
 
-function buildDraftScenes() {
-  return [
-    {
-      sceneId: 'scene-midnight-platform',
-      order: 1,
-      title: 'Midnight Platform',
-      summary: 'Keep the bargain public and constrained.',
-      proseDraft: 'Rain held the platform in place while Ren refused to blink first.',
-      draftWordCount: 11,
-      proseStatusLabel: 'Ready for revision pass',
-      sceneStatusLabel: 'Current',
-      latestDiffSummary: 'No prose revision requested yet.',
-      revisionQueueCount: 0,
-      warningsCount: 0,
-      isMissingDraft: false,
-    },
-    {
-      sceneId: 'scene-concourse-delay',
-      order: 2,
-      title: 'Concourse Delay',
-      summary: 'Hold the crowd bottleneck long enough to keep platform pressure alive.',
-      proseDraft: 'The concourse tightened by inches instead of steps, forcing every glance to travel through strangers before it reached the gate.',
-      draftWordCount: 18,
-      proseStatusLabel: 'Draft handoff ready',
-      sceneStatusLabel: 'Queued',
-      latestDiffSummary: 'Carry the witness pressure forward without resolving courier ownership.',
-      revisionQueueCount: 1,
-      warningsCount: 1,
-      isMissingDraft: false,
-    },
-    {
-      sceneId: 'scene-ticket-window',
-      order: 3,
-      title: 'Ticket Window',
-      summary: 'Put speed and certainty in the same beat without surfacing the alias.',
-      proseDraft: 'The clerk slid the ticket halfway out, and even that small motion felt like a question Mei wanted answered before Ren could touch it.',
-      draftWordCount: 24,
-      proseStatusLabel: 'Ready for prose pass',
-      sceneStatusLabel: 'Guarded',
-      latestDiffSummary: 'Tighten the visible cost before the clerk notices too much.',
-      revisionQueueCount: 0,
-      warningsCount: 1,
-      isMissingDraft: false,
-    },
-  ]
+const draftSceneRecords = [
+  {
+    sceneId: 'scene-midnight-platform',
+    order: 1,
+    title: text('Midnight Platform', '午夜站台'),
+    summary: text('Keep the bargain public and constrained.', '让交换继续保持公开且受限。'),
+    proseDraft: text(
+      'Rain held the platform in place while Ren refused to blink first.',
+      '雨把站台钉在原地，而任始终没有先眨眼。',
+    ),
+    draftWordCount: 11,
+    proseStatusLabel: text('Ready for revision pass', '可进入修订轮'),
+    sceneStatusLabel: text('Current', '当前'),
+    latestDiffSummary: text('No prose revision requested yet.', '还没有新的正文修订请求。'),
+    revisionQueueCount: 0,
+    warningsCount: 0,
+    isMissingDraft: false,
+  },
+  {
+    sceneId: 'scene-concourse-delay',
+    order: 2,
+    title: text('Concourse Delay', '候车厅延误'),
+    summary: text(
+      'Hold the crowd bottleneck long enough to keep platform pressure alive.',
+      '把人群瓶颈再拖久一点，让站台压力持续存活。',
+    ),
+    proseDraft: text(
+      'The concourse tightened by inches instead of steps, forcing every glance to travel through strangers before it reached the gate.',
+      '候车厅不是一步步收紧，而是一寸寸勒住，让每一道目光都得先穿过陌生人才能抵达闸口。',
+    ),
+    draftWordCount: 18,
+    proseStatusLabel: text('Draft handoff ready', '草稿交接已就绪'),
+    sceneStatusLabel: text('Queued', '排队中'),
+    latestDiffSummary: text(
+      'Carry the witness pressure forward without resolving courier ownership.',
+      '继续把见证压力往后带，不要提前解释信使归属。',
+    ),
+    revisionQueueCount: 1,
+    warningsCount: 1,
+    isMissingDraft: false,
+  },
+  {
+    sceneId: 'scene-ticket-window',
+    order: 3,
+    title: text('Ticket Window', '售票窗'),
+    summary: text(
+      'Put speed and certainty in the same beat without surfacing the alias.',
+      '让速度与确定性落在同一节拍里，同时不要把化名抬到台前。',
+    ),
+    proseDraft: text(
+      'The clerk slid the ticket halfway out, and even that small motion felt like a question Mei wanted answered before Ren could touch it.',
+      '售票员把票只推出一半，而这点小动作都像一个问题，梅要任先回答，才允许他碰到那张票。',
+    ),
+    draftWordCount: 24,
+    proseStatusLabel: text('Ready for prose pass', '可进入正文轮'),
+    sceneStatusLabel: text('Guarded', '受控'),
+    latestDiffSummary: text(
+      'Tighten the visible cost before the clerk notices too much.',
+      '在售票员察觉太多之前，再把可见代价压紧一点。',
+    ),
+    revisionQueueCount: 0,
+    warningsCount: 1,
+    isMissingDraft: false,
+  },
+] as const
+
+function buildDraftScenes(locale: Locale) {
+  return draftSceneRecords.map((scene) => ({
+    sceneId: scene.sceneId,
+    order: scene.order,
+    title: pick(locale, scene.title),
+    summary: pick(locale, scene.summary),
+    proseDraft: pick(locale, scene.proseDraft),
+    draftWordCount: scene.draftWordCount,
+    proseStatusLabel: pick(locale, scene.proseStatusLabel),
+    sceneStatusLabel: pick(locale, scene.sceneStatusLabel),
+    latestDiffSummary: pick(locale, scene.latestDiffSummary),
+    revisionQueueCount: scene.revisionQueueCount,
+    warningsCount: scene.warningsCount,
+    isMissingDraft: scene.isMissingDraft,
+  }))
 }
 
-function buildDraftWorkspace(selectedSceneId: string, overrides?: Partial<ChapterDraftWorkspaceViewModel>): ChapterDraftWorkspaceViewModel {
-  const scenes = buildDraftScenes()
+function buildDraftWorkspace(
+  selectedSceneId: string,
+  locale: Locale,
+  scenes = buildDraftScenes(locale),
+  overrides?: Partial<ChapterDraftWorkspaceViewModel>,
+): ChapterDraftWorkspaceViewModel {
   const selectedScene = scenes.find((scene) => scene.sceneId === selectedSceneId) ?? scenes[0]!
   const draftedSceneCount = scenes.filter((scene) => !scene.isMissingDraft).length
   const missingDraftCount = scenes.filter((scene) => scene.isMissingDraft).length
@@ -210,8 +326,8 @@ function buildDraftWorkspace(selectedSceneId: string, overrides?: Partial<Chapte
 
   return {
     chapterId: 'chapter-signals-in-rain',
-    title: 'Signals in Rain',
-    summary: 'Read the chapter as one continuous draft surface while route.sceneId keeps the focus stable.',
+    title: pick(locale, chapterTitle),
+    summary: pick(locale, chapterDraftSummary),
     selectedSceneId: selectedScene.sceneId,
     scenes,
     assembledWordCount,
@@ -247,75 +363,49 @@ function buildDraftWorkspace(selectedSceneId: string, overrides?: Partial<Chapte
         .map((scene) => ({ sceneId: scene.sceneId, title: scene.title, detail: scene.latestDiffSummary ?? scene.summary })),
       queuedRevisionScenes: scenes
         .filter((scene) => (scene.revisionQueueCount ?? 0) > 0)
-        .map((scene) => ({ sceneId: scene.sceneId, title: scene.title, detail: `${scene.revisionQueueCount} queued revision` })),
+        .map((scene) => ({ sceneId: scene.sceneId, title: scene.title, detail: getQueuedRevisionDetail(locale, scene.revisionQueueCount ?? 0) })),
     },
     ...overrides,
   }
 }
 
-export function buildChapterDraftStoryWorkspace(selectedSceneId: string): ChapterDraftWorkspaceViewModel {
-  return buildDraftWorkspace(selectedSceneId)
+export function buildChapterDraftStoryWorkspace(
+  selectedSceneId: string,
+  locale: Locale = 'en',
+): ChapterDraftWorkspaceViewModel {
+  return buildDraftWorkspace(selectedSceneId, locale)
 }
 
-export function buildChapterDraftMissingStoryWorkspace(selectedSceneId: string): ChapterDraftWorkspaceViewModel {
-  const workspace = buildDraftWorkspace(selectedSceneId)
+export function buildChapterDraftMissingStoryWorkspace(
+  selectedSceneId: string,
+  locale: Locale = 'en',
+): ChapterDraftWorkspaceViewModel {
+  const workspace = buildDraftWorkspace(selectedSceneId, locale)
   const scenes = workspace.scenes.map((scene) =>
     scene.sceneId === 'scene-concourse-delay'
       ? {
           ...scene,
           proseDraft: undefined,
           draftWordCount: undefined,
-          proseStatusLabel: 'Missing draft',
-          latestDiffSummary: 'First prose pass still missing.',
+          proseStatusLabel: pick(locale, text('Missing draft', '缺少草稿')),
+          latestDiffSummary: pick(locale, text('First prose pass still missing.', '首轮正文仍然缺失。')),
           warningsCount: 2,
           revisionQueueCount: 1,
           isMissingDraft: true,
         }
       : scene,
   )
-  const selectedScene = scenes.find((scene) => scene.sceneId === selectedSceneId) ?? scenes[0]!
-  const draftedSceneCount = scenes.filter((scene) => !scene.isMissingDraft).length
-  const missingDraftCount = scenes.filter((scene) => scene.isMissingDraft).length
-  const assembledWordCount = scenes.reduce((total, scene) => total + (scene.draftWordCount ?? 0), 0)
-  const warningsCount = scenes.reduce((total, scene) => total + scene.warningsCount, 0)
-  const queuedRevisionCount = scenes.reduce((total, scene) => total + (scene.revisionQueueCount ?? 0), 0)
 
-  return {
-    ...workspace,
-    selectedSceneId: selectedScene.sceneId,
-    scenes,
-    draftedSceneCount,
-    missingDraftCount,
-    assembledWordCount,
-    selectedScene,
-    inspector: {
-      selectedScene: {
-        sceneId: selectedScene.sceneId,
-        title: selectedScene.title,
-        summary: selectedScene.summary,
-        proseStatusLabel: selectedScene.proseStatusLabel,
-        draftWordCount: selectedScene.draftWordCount,
-        revisionQueueCount: selectedScene.revisionQueueCount,
-        warningsCount: selectedScene.warningsCount,
-        latestDiffSummary: selectedScene.latestDiffSummary,
-      },
-      chapterReadiness: {
-        draftedSceneCount,
-        missingDraftCount,
-        assembledWordCount,
-        warningsCount,
-        queuedRevisionCount,
-      },
-    },
+  return buildDraftWorkspace(selectedSceneId, locale, scenes, {
     dockSummary: {
-      missingDraftCount,
-      warningsCount,
-      queuedRevisionCount,
+      missingDraftCount: scenes.filter((scene) => scene.isMissingDraft).length,
+      warningsCount: scenes.reduce((total, scene) => total + scene.warningsCount, 0),
+      queuedRevisionCount: scenes.reduce((total, scene) => total + (scene.revisionQueueCount ?? 0), 0),
       missingDraftScenes: [
         {
           sceneId: 'scene-concourse-delay',
-          title: 'Concourse Delay',
-          detail: 'First prose pass still missing.',
+          title: pick(locale, text('Concourse Delay', '候车厅延误')),
+          detail: pick(locale, text('First prose pass still missing.', '首轮正文仍然缺失。')),
         },
       ],
       warningScenes: scenes
@@ -323,66 +413,47 @@ export function buildChapterDraftMissingStoryWorkspace(selectedSceneId: string):
         .map((scene) => ({ sceneId: scene.sceneId, title: scene.title, detail: scene.latestDiffSummary ?? scene.summary })),
       queuedRevisionScenes: scenes
         .filter((scene) => (scene.revisionQueueCount ?? 0) > 0)
-        .map((scene) => ({ sceneId: scene.sceneId, title: scene.title, detail: `${scene.revisionQueueCount} queued revision` })),
+        .map((scene) => ({ sceneId: scene.sceneId, title: scene.title, detail: getQueuedRevisionDetail(locale, scene.revisionQueueCount ?? 0) })),
     },
-  }
+  })
 }
 
-export function buildQuietChapterDraftStoryWorkspace(selectedSceneId: string): ChapterDraftWorkspaceViewModel {
+export function buildQuietChapterDraftStoryWorkspace(
+  selectedSceneId: string,
+  locale: Locale = 'en',
+): ChapterDraftWorkspaceViewModel {
   const scenes = [
     {
       sceneId: 'scene-warehouse-bridge',
       order: 1,
-      title: 'Warehouse Bridge',
-      summary: 'Keep the first handoff tentative enough for later betrayal pressure.',
-      proseDraft: 'The bridge kept both hands visible and every promise reversible.',
+      title: pick(locale, text('Warehouse Bridge', '仓桥交接')),
+      summary: pick(
+        locale,
+        text(
+          'Keep the first handoff tentative enough for later betrayal pressure.',
+          '让第一次交接保留足够犹疑，为后续背叛压力留下空间。',
+        ),
+      ),
+      proseDraft: pick(
+        locale,
+        text(
+          'The bridge kept both hands visible and every promise reversible.',
+          '桥面让每只手都留在可见处，也让每个承诺都还能撤回。',
+        ),
+      ),
       draftWordCount: 10,
-      proseStatusLabel: 'Setup draft only',
-      sceneStatusLabel: 'Current',
-      latestDiffSummary: 'No pending prose revisions.',
+      proseStatusLabel: pick(locale, text('Setup draft only', '仅有设定草稿')),
+      sceneStatusLabel: pick(locale, text('Current', '当前')),
+      latestDiffSummary: pick(locale, text('No pending prose revisions.', '当前没有排队中的正文修订。')),
       revisionQueueCount: 0,
       warningsCount: 0,
       isMissingDraft: false,
     },
   ]
-  const selectedScene = scenes[0]!
 
-  return {
+  return buildDraftWorkspace(selectedSceneId, locale, scenes, {
     chapterId: 'chapter-open-water-signals',
-    title: 'Open Water Signals',
-    summary: 'A quieter chapter draft with one stable handoff scene.',
-    selectedSceneId: selectedSceneId,
-    scenes,
-    assembledWordCount: 10,
-    draftedSceneCount: 1,
-    missingDraftCount: 0,
-    selectedScene,
-    inspector: {
-      selectedScene: {
-        sceneId: selectedScene.sceneId,
-        title: selectedScene.title,
-        summary: selectedScene.summary,
-        proseStatusLabel: selectedScene.proseStatusLabel,
-        draftWordCount: selectedScene.draftWordCount,
-        revisionQueueCount: 0,
-        warningsCount: 0,
-        latestDiffSummary: selectedScene.latestDiffSummary,
-      },
-      chapterReadiness: {
-        draftedSceneCount: 1,
-        missingDraftCount: 0,
-        assembledWordCount: 10,
-        warningsCount: 0,
-        queuedRevisionCount: 0,
-      },
-    },
-    dockSummary: {
-      missingDraftCount: 0,
-      warningsCount: 0,
-      queuedRevisionCount: 0,
-      missingDraftScenes: [],
-      warningScenes: [],
-      queuedRevisionScenes: [],
-    },
-  }
+    title: pick(locale, text('Open Water Signals', '开阔水域信号')),
+    summary: pick(locale, text('A quieter chapter draft with one stable handoff scene.', '一个更安静的章节草稿，只保留一个稳定的交接场景。')),
+  })
 }

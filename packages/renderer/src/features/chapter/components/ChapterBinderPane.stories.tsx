@@ -1,35 +1,49 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { AppProviders } from '@/app/providers'
-import { buildChapterStoryWorkspace } from './chapter-story-fixture'
+import { useI18n } from '@/app/i18n'
 
 import { ChapterBinderPane } from './ChapterBinderPane'
+import { ChapterStoryShell, useLocalizedChapterStructureWorkspace } from './chapter-storybook'
+
+interface ChapterBinderPaneStoryProps {
+  selectedSceneId: string
+  movingSceneId?: string | null
+}
+
+function ChapterBinderPaneStory({ selectedSceneId, movingSceneId = null }: ChapterBinderPaneStoryProps) {
+  const { dictionary } = useI18n()
+  const workspace = useLocalizedChapterStructureWorkspace(selectedSceneId)
+
+  return (
+    <ChapterBinderPane
+      title={dictionary.app.chapters}
+      description={dictionary.app.chapterNavigatorDescription}
+      activeView="sequence"
+      workspace={workspace}
+      movingSceneId={movingSceneId}
+      onSelectScene={() => undefined}
+      onMoveScene={() => undefined}
+      onOpenScene={() => undefined}
+    />
+  )
+}
 
 const meta = {
   title: 'Business/ChapterBinderPane',
-  component: ChapterBinderPane,
+  component: ChapterBinderPaneStory,
   parameters: {
     layout: 'padded',
   },
   render: (args) => (
-    <AppProviders>
-      <div className="min-h-[720px] bg-app p-6">
-        <div className="max-w-sm">
-          <ChapterBinderPane {...args} />
-        </div>
-      </div>
-    </AppProviders>
+    <ChapterStoryShell frameClassName="max-w-sm">
+      <ChapterBinderPaneStory {...args} />
+    </ChapterStoryShell>
   ),
   args: {
-    title: 'Chapters',
-    description: 'Keep chapter structure, placeholder scenes, and unresolved signals aligned.',
-    activeView: 'sequence',
-    workspace: buildChapterStoryWorkspace('scene-midnight-platform'),
-    onSelectScene: () => undefined,
-    onMoveScene: () => undefined,
-    onOpenScene: () => undefined,
+    selectedSceneId: 'scene-midnight-platform',
+    movingSceneId: null,
   },
-} satisfies Meta<typeof ChapterBinderPane>
+} satisfies Meta<typeof ChapterBinderPaneStory>
 
 export default meta
 
@@ -39,13 +53,13 @@ export const DefaultSelectedFirstScene: Story = {}
 
 export const SelectedMiddleScene: Story = {
   args: {
-    workspace: buildChapterStoryWorkspace('scene-concourse-delay'),
+    selectedSceneId: 'scene-concourse-delay',
   },
 }
 
 export const MovingSelectedScene: Story = {
   args: {
-    workspace: buildChapterStoryWorkspace('scene-concourse-delay'),
+    selectedSceneId: 'scene-concourse-delay',
     movingSceneId: 'scene-concourse-delay',
   },
 }

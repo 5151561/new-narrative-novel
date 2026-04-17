@@ -1,31 +1,33 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { AppProviders } from '@/app/providers'
-import { buildChapterStoryWorkspace } from './chapter-story-fixture'
-
 import { ChapterAssemblyView } from './ChapterAssemblyView'
+import { ChapterStoryShell, useLocalizedChapterStructureWorkspace } from './chapter-storybook'
+
+interface ChapterAssemblyViewStoryProps {
+  selectedSceneId: string
+}
+
+function ChapterAssemblyViewStory({ selectedSceneId }: ChapterAssemblyViewStoryProps) {
+  const workspace = useLocalizedChapterStructureWorkspace(selectedSceneId)
+
+  return <ChapterAssemblyView workspace={workspace} onSelectScene={() => undefined} onOpenScene={() => undefined} />
+}
 
 const meta = {
   title: 'Business/ChapterAssemblyView',
-  component: ChapterAssemblyView,
+  component: ChapterAssemblyViewStory,
   parameters: {
     layout: 'padded',
   },
   render: (args) => (
-    <AppProviders>
-      <div className="min-h-[720px] bg-app p-6">
-        <div className="max-w-6xl">
-          <ChapterAssemblyView {...args} />
-        </div>
-      </div>
-    </AppProviders>
+    <ChapterStoryShell frameClassName="max-w-6xl">
+      <ChapterAssemblyViewStory {...args} />
+    </ChapterStoryShell>
   ),
   args: {
-    workspace: buildChapterStoryWorkspace('scene-midnight-platform'),
-    onSelectScene: () => undefined,
-    onOpenScene: () => undefined,
+    selectedSceneId: 'scene-midnight-platform',
   },
-} satisfies Meta<typeof ChapterAssemblyView>
+} satisfies Meta<typeof ChapterAssemblyViewStory>
 
 export default meta
 
@@ -35,6 +37,6 @@ export const SelectedFirstScene: Story = {}
 
 export const SelectedMiddleScene: Story = {
   args: {
-    workspace: buildChapterStoryWorkspace('scene-concourse-delay'),
+    selectedSceneId: 'scene-concourse-delay',
   },
 }

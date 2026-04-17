@@ -1,31 +1,33 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { AppProviders } from '@/app/providers'
-import { buildChapterStoryWorkspace } from './chapter-story-fixture'
-
 import { ChapterSequenceView } from './ChapterSequenceView'
+import { ChapterStoryShell, useLocalizedChapterStructureWorkspace } from './chapter-storybook'
+
+interface ChapterSequenceViewStoryProps {
+  selectedSceneId: string
+}
+
+function ChapterSequenceViewStory({ selectedSceneId }: ChapterSequenceViewStoryProps) {
+  const workspace = useLocalizedChapterStructureWorkspace(selectedSceneId)
+
+  return <ChapterSequenceView workspace={workspace} onSelectScene={() => undefined} onOpenScene={() => undefined} />
+}
 
 const meta = {
   title: 'Business/ChapterSequenceView',
-  component: ChapterSequenceView,
+  component: ChapterSequenceViewStory,
   parameters: {
     layout: 'padded',
   },
   render: (args) => (
-    <AppProviders>
-      <div className="min-h-[720px] bg-app p-6">
-        <div className="max-w-6xl">
-          <ChapterSequenceView {...args} />
-        </div>
-      </div>
-    </AppProviders>
+    <ChapterStoryShell frameClassName="max-w-6xl">
+      <ChapterSequenceViewStory {...args} />
+    </ChapterStoryShell>
   ),
   args: {
-    workspace: buildChapterStoryWorkspace('scene-midnight-platform'),
-    onSelectScene: () => undefined,
-    onOpenScene: () => undefined,
+    selectedSceneId: 'scene-midnight-platform',
   },
-} satisfies Meta<typeof ChapterSequenceView>
+} satisfies Meta<typeof ChapterSequenceViewStory>
 
 export default meta
 
@@ -35,6 +37,6 @@ export const NormalSequence: Story = {}
 
 export const SelectedLastScene: Story = {
   args: {
-    workspace: buildChapterStoryWorkspace('scene-ticket-window'),
+    selectedSceneId: 'scene-ticket-window',
   },
 }
