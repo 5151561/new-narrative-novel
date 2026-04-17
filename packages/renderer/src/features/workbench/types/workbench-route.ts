@@ -4,6 +4,7 @@ export type WorkbenchScope = 'scene' | 'chapter'
 export type WorkbenchLens = 'structure' | 'orchestrate' | 'draft'
 export type SceneRouteModal = 'export'
 export type ChapterStructureView = 'sequence' | 'outliner' | 'assembly'
+export type ChapterLens = 'structure' | 'draft'
 
 export interface SceneRouteState {
   scope: 'scene'
@@ -18,7 +19,7 @@ export interface SceneRouteState {
 export interface ChapterRouteState {
   scope: 'chapter'
   chapterId: string
-  lens: 'structure'
+  lens: ChapterLens
   view: ChapterStructureView
   sceneId?: string
 }

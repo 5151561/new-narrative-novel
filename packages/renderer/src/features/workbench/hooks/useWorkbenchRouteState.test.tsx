@@ -33,12 +33,36 @@ function RouteHarness() {
         onClick={() =>
           patchChapterRoute({
             chapterId: 'chapter-open-water-signals',
+            lens: 'structure',
             view: 'assembly',
             sceneId: 'scene-dawn-slip',
           } satisfies Partial<ChapterRouteState>)
         }
       >
         Chapter Assembly
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchChapterRoute({
+            chapterId: 'chapter-open-water-signals',
+            lens: 'draft',
+            view: 'assembly',
+            sceneId: 'scene-dawn-slip',
+          } satisfies Partial<ChapterRouteState>)
+        }
+      >
+        Chapter Draft
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchChapterRoute({
+            lens: 'structure',
+          } satisfies Partial<ChapterRouteState>)
+        }
+      >
+        Chapter Structure
       </button>
       <button
         type="button"
@@ -61,7 +85,7 @@ function readRoute() {
 }
 
 describe('useWorkbenchRouteState', () => {
-  it('normalizes chapter deep links and ignores scene-only params while forcing the structure lens', () => {
+  it('normalizes chapter deep links and ignores scene-only params while preserving a valid draft lens', () => {
     window.history.replaceState(
       {},
       '',
@@ -73,7 +97,7 @@ describe('useWorkbenchRouteState', () => {
     expect(readRoute()).toEqual({
       scope: 'chapter',
       chapterId: 'chapter-signals-in-rain',
-      lens: 'structure',
+      lens: 'draft',
       view: 'sequence',
       sceneId: 'scene-ticket-window',
     })
@@ -151,5 +175,49 @@ describe('useWorkbenchRouteState', () => {
     expect(params.get('view')).toBeNull()
     expect(params.get('chapterId')).toBeNull()
     expect(params.get('chapterView')).toBeNull()
+  })
+
+  it('writes and restores the chapter draft lens while preserving the dormant structure view', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=outliner&sceneId=scene-midnight-platform',
+    )
+
+    render(<RouteHarness />)
+
+    await user.click(screen.getByRole('button', { name: 'Chapter Draft' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'chapter',
+      chapterId: 'chapter-open-water-signals',
+      lens: 'draft',
+      view: 'assembly',
+      sceneId: 'scene-dawn-slip',
+    })
+
+    let params = new URLSearchParams(window.location.search)
+    expect(params.get('scope')).toBe('chapter')
+    expect(params.get('id')).toBe('chapter-open-water-signals')
+    expect(params.get('lens')).toBe('draft')
+    expect(params.get('view')).toBe('assembly')
+    expect(params.get('sceneId')).toBe('scene-dawn-slip')
+
+    await user.click(screen.getByRole('button', { name: 'Chapter Structure' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'chapter',
+      chapterId: 'chapter-open-water-signals',
+      lens: 'structure',
+      view: 'assembly',
+      sceneId: 'scene-dawn-slip',
+    })
+
+    params = new URLSearchParams(window.location.search)
+    expect(params.get('lens')).toBe('structure')
+    expect(params.get('view')).toBe('assembly')
+    expect(params.get('sceneId')).toBe('scene-dawn-slip')
   })
 })

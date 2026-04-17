@@ -12,6 +12,7 @@ import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchR
 import type { WorkbenchLens } from '@/features/workbench/types/workbench-route'
 
 import { ChapterBinderPane } from '../components/ChapterBinderPane'
+import { ChapterModeRail } from '../components/ChapterModeRail'
 import { ChapterStructureInspectorPane } from '../components/ChapterStructureInspectorPane'
 import { ChapterStructureStage } from '../components/ChapterStructureStage'
 import type { ChapterSceneStructurePatch } from '../api/chapter-record-mutations'
@@ -89,42 +90,6 @@ function ChapterTopCommandBar({
   )
 }
 
-function ChapterModeRail({ onSwitchScope }: { onSwitchScope: () => void }) {
-  const { dictionary } = useI18n()
-
-  return (
-    <div className="flex h-full flex-col gap-2 px-2 py-3">
-      <div className="rounded-md border border-line-soft bg-surface-1 p-2">
-        <p className="text-center text-[10px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.scope}</p>
-        <div className="mt-2 grid gap-2">
-          <button
-            type="button"
-            aria-pressed="false"
-            onClick={onSwitchScope}
-            className="rounded-md border border-transparent px-2 py-2 text-sm text-text-muted hover:border-line-soft hover:bg-surface-2"
-          >
-            {dictionary.common.scene}
-          </button>
-          <button
-            type="button"
-            aria-pressed="true"
-            className="rounded-md border border-line-strong bg-surface-1 px-2 py-2 text-sm text-text-main"
-          >
-            {dictionary.common.chapter}
-          </button>
-        </div>
-      </div>
-      <button
-        type="button"
-        aria-pressed="true"
-        className="rounded-md border border-line-strong bg-surface-1 px-2 py-3 text-left text-text-main"
-      >
-        <span className="block text-sm font-medium">{dictionary.app.chapterStructure}</span>
-      </button>
-    </div>
-  )
-}
-
 function ChapterPaneState({ title, message }: { title: string; message: string }) {
   return (
     <div className="p-4">
@@ -181,6 +146,12 @@ export function ChapterStructureWorkspace() {
   const shellModeRail = (
     <ChapterModeRail
       onSwitchScope={() => openSceneFromChapter(route.sceneId ?? workspace?.scenes[0]?.id, 'orchestrate')}
+      activeLens="structure"
+      onSelectLens={(lens) => {
+        if (lens !== route.lens) {
+          patchChapterRoute({ lens })
+        }
+      }}
     />
   )
   const availableViews = workspace?.viewsMeta?.availableViews ?? defaultChapterViews

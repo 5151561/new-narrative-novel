@@ -1,6 +1,7 @@
 import { useCallback, useSyncExternalStore } from 'react'
 
 import type {
+  ChapterLens,
   ChapterRouteState,
   ChapterStructureView,
   SceneRouteModal,
@@ -46,6 +47,7 @@ const VALID_SCENE_TABS = new Set<SceneTab>(['setup', 'execution', 'prose'])
 const VALID_LENSES = new Set<WorkbenchLens>(['structure', 'orchestrate', 'draft'])
 const VALID_MODALS = new Set<SceneRouteModal>(['export'])
 const VALID_CHAPTER_VIEWS = new Set<ChapterStructureView>(['sequence', 'outliner', 'assembly'])
+const VALID_CHAPTER_LENSES = new Set<ChapterLens>(['structure', 'draft'])
 
 let lastRouteSearch = ''
 let lastRouteSnapshot: WorkbenchSearchState | undefined
@@ -87,6 +89,14 @@ function readChapterViewParam(value: string | null) {
   return isChapterStructureView(value) ? value : undefined
 }
 
+function isChapterLens(value: string | null): value is ChapterLens {
+  return value !== null && VALID_CHAPTER_LENSES.has(value as ChapterLens)
+}
+
+function readChapterLensParam(value: string | null) {
+  return isChapterLens(value) ? value : undefined
+}
+
 function normalizeSceneRoute(route: Partial<SceneRouteState>): SceneRouteState {
   return {
     scope: 'scene',
@@ -103,7 +113,7 @@ function normalizeChapterRoute(route: Partial<ChapterRouteState>): ChapterRouteS
   return {
     scope: 'chapter',
     chapterId: route.chapterId ?? DEFAULT_CHAPTER_ID,
-    lens: 'structure',
+    lens: route.lens && VALID_CHAPTER_LENSES.has(route.lens) ? route.lens : 'structure',
     view: route.view && VALID_CHAPTER_VIEWS.has(route.view) ? route.view : 'sequence',
     sceneId: route.sceneId,
   }
@@ -125,10 +135,12 @@ function readSceneSnapshot(params: URLSearchParams) {
 }
 
 function readChapterSnapshot(params: URLSearchParams) {
+  const activeLens = readChapterLensParam(params.get('lens'))
   const activeView = readChapterViewParam(params.get('view'))
 
   return normalizeChapterRoute({
     chapterId: readTextParam(params, 'id'),
+    lens: activeLens,
     view: activeView,
     sceneId: readTextParam(params, 'sceneId'),
   })
@@ -189,7 +201,7 @@ function buildWorkbenchSearch(
     }
   } else {
     params.set('id', state.chapter.chapterId)
-    params.set('lens', 'structure')
+    params.set('lens', state.chapter.lens)
     params.set('view', state.chapter.view)
     if (state.chapter.sceneId) {
       params.set('sceneId', state.chapter.sceneId)

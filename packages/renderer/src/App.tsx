@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/Badge'
 import { PaneHeader } from '@/components/ui/PaneHeader'
 import { getMockChapterRecordById } from '@/features/chapter/api/mock-chapter-db'
 import { readLocalizedChapterText } from '@/features/chapter/api/chapter-records'
-import { ChapterStructureWorkspace } from '@/features/chapter/containers/ChapterStructureWorkspace'
+import { ChapterWorkbench } from '@/features/chapter/containers/ChapterWorkbench'
 import { sceneClient } from '@/features/scene/api/scene-client'
 import { SceneDockContainer } from '@/features/scene/containers/SceneDockContainer'
 import { SceneInspectorContainer } from '@/features/scene/containers/SceneInspectorContainer'
@@ -361,6 +361,6 @@ export default function App() {
   return route.scope === 'scene' ? (
     <SceneWorkbench route={route} replaceRoute={replaceRoute} patchSceneRoute={patchSceneRoute} />
   ) : (
-    <ChapterStructureWorkspace />
+    <ChapterWorkbench />
   )
 }

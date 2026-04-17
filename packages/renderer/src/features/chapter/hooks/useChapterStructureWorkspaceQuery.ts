@@ -132,7 +132,7 @@ function buildChapterStructureWorkspaceModel(
 
 export function useChapterStructureWorkspaceQuery(
   { chapterId, selectedSceneId }: UseChapterStructureWorkspaceQueryInput,
-  client: ChapterClient = chapterClient,
+  client: Pick<ChapterClient, 'getChapterStructureWorkspace'> = chapterClient,
 ) {
   const { locale } = useI18n()
   const query = useQuery({
