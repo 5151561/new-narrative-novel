@@ -2,6 +2,8 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { resetMockChapterDb } from '@/features/chapter/api/mock-chapter-db'
+
 const originalNavigatorLanguage = window.navigator.language
 
 function setSceneBridge(bridge: Record<string, unknown> | undefined) {
@@ -67,6 +69,7 @@ describe('App scene workbench', () => {
     setSceneBridge(undefined)
     window.localStorage.clear()
     setNavigatorLanguage(originalNavigatorLanguage)
+    resetMockChapterDb()
   })
 
   it('restores scene execution route state from URL and keeps tab / beat / proposal in sync', async () => {
@@ -498,5 +501,41 @@ describe('App scene workbench', () => {
 
     expect(await screen.findByRole('button', { name: /Scene 2 Concourse Delay/i })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getAllByText('Concourse Delay').length).toBeGreaterThan(0)
+  })
+
+  it('reorders a chapter scene before opening orchestrate and the scene navigator keeps the new order', async () => {
+    const user = userEvent.setup()
+
+    await renderFreshApp('?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=outliner&sceneId=scene-concourse-delay')
+
+    const ticketWindowBinderItem = (await screen.findByRole('button', { name: /Scene 3 Ticket Window/i })).closest('li')
+    await user.click(within(ticketWindowBinderItem!).getByRole('button', { name: 'Move earlier: Ticket Window' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Scene 2 Ticket Window/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Scene 3 Concourse Delay/i })).toHaveAttribute('aria-pressed', 'true')
+    })
+
+    const reorderedTicketWindowItem = screen.getByRole('button', { name: /Scene 2 Ticket Window/i }).closest('li')
+    await user.click(within(reorderedTicketWindowItem!).getByRole('button', { name: 'Open in Orchestrate: Ticket Window' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('scene')
+      expect(params.get('id')).toBe('scene-ticket-window')
+      expect(params.get('lens')).toBe('orchestrate')
+      expect(params.get('tab')).toBe('execution')
+    })
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+
+    const midnightButton = screen.getByRole('button', { name: /Midnight Platform/i })
+    const ticketButton = screen.getByRole('button', { name: /Ticket Window/i })
+    const concourseButton = screen.getByRole('button', { name: /Concourse Delay/i })
+    const departureButton = screen.getByRole('button', { name: /Departure Bell/i })
+
+    expect(midnightButton.compareDocumentPosition(ticketButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(ticketButton.compareDocumentPosition(concourseButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(concourseButton.compareDocumentPosition(departureButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })

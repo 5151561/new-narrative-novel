@@ -1,7 +1,7 @@
 import { getChapterUnresolvedCountLabel, useI18n } from '@/app/i18n'
 
 import { ChapterBottomDock } from '../components/ChapterBottomDock'
-import { useChapterWorkbenchActivity } from '../hooks/useChapterWorkbenchActivity'
+import { useChapterWorkbenchActivity, type ChapterWorkbenchMutationEvent } from '../hooks/useChapterWorkbenchActivity'
 import type {
   ChapterStructureSceneViewModel,
   ChapterStructureView,
@@ -11,6 +11,7 @@ import type {
 interface ChapterDockContainerProps {
   activeView: ChapterStructureView
   workspace: ChapterStructureWorkspaceViewModel
+  latestMutation?: ChapterWorkbenchMutationEvent | null
 }
 
 function getSelectedScene(
@@ -27,7 +28,7 @@ function getSelectedScene(
   return workspace.scenes[0] ?? null
 }
 
-export function ChapterDockContainer({ activeView, workspace }: ChapterDockContainerProps) {
+export function ChapterDockContainer({ activeView, workspace, latestMutation = null }: ChapterDockContainerProps) {
   const { locale } = useI18n()
   const selectedScene = getSelectedScene(workspace)
   const selectedSceneBrief =
@@ -37,6 +38,7 @@ export function ChapterDockContainer({ activeView, workspace }: ChapterDockConta
   const activity = useChapterWorkbenchActivity({
     chapterId: workspace.chapterId,
     activeView,
+    latestMutation,
     selectedScene: selectedScene
       ? {
           id: selectedScene.id,

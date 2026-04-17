@@ -23,6 +23,7 @@ const meta = {
   args: {
     workspace: buildChapterStoryWorkspace('scene-midnight-platform'),
     onSelectScene: () => undefined,
+    onSaveScenePatch: () => undefined,
     onOpenScene: () => undefined,
   },
 } satisfies Meta<typeof ChapterOutlinerView>
@@ -36,5 +37,12 @@ export const Default: Story = {}
 export const SelectedMiddleScene: Story = {
   args: {
     workspace: buildChapterStoryWorkspace('scene-concourse-delay'),
+  },
+}
+
+export const SavingSelectedScene: Story = {
+  args: {
+    workspace: buildChapterStoryWorkspace('scene-concourse-delay'),
+    savingSceneId: 'scene-concourse-delay',
   },
 }

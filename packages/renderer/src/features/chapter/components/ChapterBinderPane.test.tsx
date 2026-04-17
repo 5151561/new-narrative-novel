@@ -187,4 +187,37 @@ describe('ChapterBinderPane', () => {
     expect(onOpenScene).toHaveBeenCalledWith('scene-concourse-delay', 'draft')
     expect(onSelectScene).not.toHaveBeenCalled()
   })
+
+  it('renders bounded reorder controls and moves a scene without triggering selection', async () => {
+    const user = userEvent.setup()
+    const onSelectScene = vi.fn()
+    const onMoveScene = vi.fn()
+
+    render(
+      <I18nProvider>
+        <ChapterBinderPane
+          title="Chapters"
+          description="Keep chapter structure, placeholder scenes, and unresolved signals aligned."
+          workspace={workspace}
+          activeView="sequence"
+          onSelectScene={onSelectScene}
+          onMoveScene={onMoveScene}
+        />
+      </I18nProvider>,
+    )
+
+    const firstItem = screen.getByRole('button', { name: /Scene 1 Midnight Platform/i }).closest('li')
+    const lastItem = screen.getByRole('button', { name: /Scene 3 Ticket Window/i }).closest('li')
+
+    expect(within(firstItem!).getByRole('button', { name: 'Move earlier: Midnight Platform' })).toBeDisabled()
+    expect(within(firstItem!).getByRole('button', { name: 'Move later: Midnight Platform' })).toBeEnabled()
+    expect(within(lastItem!).getByRole('button', { name: 'Move earlier: Ticket Window' })).toBeEnabled()
+    expect(within(lastItem!).getByRole('button', { name: 'Move later: Ticket Window' })).toBeDisabled()
+
+    await user.click(within(lastItem!).getByRole('button', { name: 'Move earlier: Ticket Window' }))
+
+    expect(onMoveScene).toHaveBeenCalledWith('scene-ticket-window', 'up')
+    expect(onSelectScene).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: /Scene 2 Concourse Delay/i })).toHaveAttribute('aria-pressed', 'true')
+  })
 })

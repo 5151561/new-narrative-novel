@@ -72,6 +72,13 @@ describe('ChapterBottomDock', () => {
             detail: 'The selected scene stayed on Midnight Platform.',
             tone: 'neutral',
           },
+          {
+            id: 'activity-3',
+            kind: 'mutation',
+            title: 'Moved Ticket Window earlier',
+            detail: 'Chapter order changed without changing the selected scene.',
+            tone: 'accent',
+          },
         ]}
       />,
     )
@@ -81,6 +88,8 @@ describe('ChapterBottomDock', () => {
     expect(activitySection).not.toBeNull()
     expect(within(activitySection!).getByText('Entered Outliner')).toBeInTheDocument()
     expect(within(activitySection!).getByText('Focused Midnight Platform')).toBeInTheDocument()
+    expect(within(activitySection!).getByText('Moved Ticket Window earlier')).toBeInTheDocument()
+    expect(within(activitySection!).getByText('Mutation')).toBeInTheDocument()
   })
 
   it('keeps activity display-only so it cannot become a second selected-scene source', async () => {

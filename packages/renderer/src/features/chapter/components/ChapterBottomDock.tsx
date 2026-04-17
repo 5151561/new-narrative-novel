@@ -67,7 +67,18 @@ export function ChapterBottomDock({ problems, activity }: ChapterBottomDockProps
     id: item.id,
     title: item.title,
     detail: item.detail,
-    meta: item.kind === 'view' ? (locale === 'zh-CN' ? '视图' : 'View') : locale === 'zh-CN' ? '场景' : 'Scene',
+    meta:
+      item.kind === 'view'
+        ? locale === 'zh-CN'
+          ? '视图'
+          : 'View'
+        : item.kind === 'scene'
+          ? locale === 'zh-CN'
+            ? '场景'
+            : 'Scene'
+          : locale === 'zh-CN'
+            ? '变更'
+            : 'Mutation',
     tone: item.tone,
   }))
   const selectedSceneLabel = problems.selectedScene

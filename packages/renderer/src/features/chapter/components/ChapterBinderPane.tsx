@@ -15,6 +15,8 @@ interface ChapterBinderPaneProps {
   workspace: ChapterStructureWorkspaceViewModel
   activeView: ChapterStructureView
   onSelectScene?: (sceneId: string) => void
+  onMoveScene?: (sceneId: string, direction: 'up' | 'down') => void
+  movingSceneId?: string | null
   onOpenScene?: (sceneId: string, lens: 'orchestrate' | 'draft') => void
 }
 
@@ -24,6 +26,8 @@ export function ChapterBinderPane({
   workspace,
   activeView,
   onSelectScene,
+  onMoveScene,
+  movingSceneId = null,
   onOpenScene,
 }: ChapterBinderPaneProps) {
   const { locale, dictionary } = useI18n()
@@ -48,9 +52,12 @@ export function ChapterBinderPane({
           </div>
         </section>
         <ul className="space-y-2">
-          {workspace.scenes.map((scene) => {
+          {workspace.scenes.map((scene, index) => {
             const active = scene.id === workspace.selectedSceneId
             const showOpenActions = onOpenScene !== undefined
+            const showReorderActions = onMoveScene !== undefined
+            const disableMoveEarlier = index === 0 || movingSceneId === scene.id
+            const disableMoveLater = index === workspace.scenes.length - 1 || movingSceneId === scene.id
 
             return (
               <li key={scene.id}>
@@ -81,8 +88,40 @@ export function ChapterBinderPane({
                     </span>
                     <span className="mt-2 block text-sm leading-6 text-text-muted">{scene.summary}</span>
                   </button>
-                  {showOpenActions ? (
+                  {showOpenActions || showReorderActions ? (
                     <div className="mt-3 flex flex-wrap justify-end gap-1.5 border-t border-line-soft pt-2">
+                      {showReorderActions ? (
+                        <>
+                          <button
+                            type="button"
+                            aria-label={`${dictionary.app.chapterScaffold.moveEarlier}: ${scene.title}`}
+                            disabled={disableMoveEarlier}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              if (!disableMoveEarlier) {
+                                onMoveScene?.(scene.id, 'up')
+                              }
+                            }}
+                            className="rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-1 hover:text-text-main disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {dictionary.app.chapterScaffold.moveEarlier}
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`${dictionary.app.chapterScaffold.moveLater}: ${scene.title}`}
+                            disabled={disableMoveLater}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              if (!disableMoveLater) {
+                                onMoveScene?.(scene.id, 'down')
+                              }
+                            }}
+                            className="rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-1 hover:text-text-main disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {dictionary.app.chapterScaffold.moveLater}
+                          </button>
+                        </>
+                      ) : null}
                       <button
                         type="button"
                         aria-label={`${dictionary.app.chapterScaffold.openInOrchestrate}: ${scene.title}`}

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
+import { resetMockChapterDb } from '../api/mock-chapter-db'
 import { buildChapterStoryWorkspace } from '../components/chapter-story-fixture'
 import * as chapterWorkspaceQuery from '../hooks/useChapterStructureWorkspaceQuery'
 
@@ -11,6 +12,8 @@ import { ChapterStructureWorkspace } from './ChapterStructureWorkspace'
 
 afterEach(() => {
   vi.restoreAllMocks()
+  resetMockChapterDb()
+  window.localStorage.clear()
 })
 
 function ChapterRouteHarness() {
@@ -243,6 +246,123 @@ describe('ChapterStructureWorkspace', () => {
       expect(params.get('view')).toBe('outliner')
       expect(params.get('sceneId')).toBe('scene-midnight-platform')
     })
+  })
+
+  it('reorders from the binder, keeps selection stable, patches structure from the outliner, and records mutation activity', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=outliner&sceneId=scene-concourse-delay',
+    )
+
+    render(
+      <AppProviders>
+        <ChapterRouteHarness />
+      </AppProviders>,
+    )
+
+    const dockRegion = await screen.findByRole('region', { name: 'Chapter bottom dock' })
+    const ticketWindowBinderItem = screen.getByRole('button', { name: /Scene 3 Ticket Window/i }).closest('li')
+
+    await user.click(within(ticketWindowBinderItem!).getByRole('button', { name: 'Move earlier: Ticket Window' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Scene 2 Ticket Window/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Scene 3 Concourse Delay/i })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: /Beat line 2 Ticket Window/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Beat line 3 Concourse Delay/i })).toHaveAttribute('aria-current', 'true')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Sequence' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Sequence 2 Ticket Window/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Sequence 3 Concourse Delay/i })).toHaveAttribute('aria-current', 'true')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Assembly' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Current seam' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Concourse Delay A crowd bottleneck should slow the exit without resolving who controls the courier line\./i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Ticket Window The alias stays offstage while Mei tests whether Ren will trade certainty for speed\./i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Outliner' }))
+
+    const selectedRow = await screen.findByRole('button', { name: /Beat line 3 Concourse Delay/i })
+    const selectedRowItem = selectedRow.closest('li')
+    await user.click(within(selectedRowItem!).getByRole('button', { name: 'Edit Structure' }))
+
+    const summaryInput = within(selectedRowItem!).getByLabelText('Summary')
+    const purposeInput = within(selectedRowItem!).getByLabelText('Purpose')
+    const revealInput = within(selectedRowItem!).getByLabelText('Reveal')
+
+    await user.clear(summaryInput)
+    await user.type(summaryInput, '  Hold the witness pressure until the gate finally opens.  ')
+    await user.clear(purposeInput)
+    await user.type(purposeInput, '  Delay the exit so the chapter can spend one more beat in public pressure.  ')
+    await user.clear(revealInput)
+    await user.type(revealInput, '  The witness line now carries directly into the gate decision.  ')
+    await user.click(within(selectedRowItem!).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(
+        within(screen.getByRole('heading', { name: 'Summary' }).closest('section')!).getByText(
+          'Hold the witness pressure until the gate finally opens.',
+        ),
+      ).toBeInTheDocument()
+      expect(within(selectedRowItem!).getByText('Delay the exit so the chapter can spend one more beat in public pressure.')).toBeInTheDocument()
+      expect(within(selectedRowItem!).getByText('The witness line now carries directly into the gate decision.')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Assembly' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /Concourse Delay Hold the witness pressure until the gate finally opens\./i }),
+      ).toBeInTheDocument()
+    })
+
+    expect(within(dockRegion).getByText('Moved Ticket Window earlier')).toBeInTheDocument()
+    expect(within(dockRegion).getByText('Updated structure for Concourse Delay')).toBeInTheDocument()
+  })
+
+  it('closes the selected-row edit form when the locale changes before save', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=outliner&sceneId=scene-concourse-delay',
+    )
+
+    render(
+      <AppProviders>
+        <ChapterRouteHarness />
+      </AppProviders>,
+    )
+
+    const selectedRow = await screen.findByRole('button', { name: /Beat line 2 Concourse Delay/i })
+    const selectedRowItem = selectedRow.closest('li')
+
+    await user.click(within(selectedRowItem!).getByRole('button', { name: 'Edit Structure' }))
+    await user.clear(within(selectedRowItem!).getByLabelText('Summary'))
+    await user.type(within(selectedRowItem!).getByLabelText('Summary'), '  English draft that must not cross locales.  ')
+
+    expect(within(selectedRowItem!).getByRole('button', { name: 'Save' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: '中文' }))
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('摘要')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '编辑结构' })).toBeInTheDocument()
+    })
+
+    expect(screen.getAllByText('候车厅延误').length).toBeGreaterThan(0)
+    expect(screen.queryByText('English draft that must not cross locales.')).not.toBeInTheDocument()
   })
 
   it.each([

@@ -64,6 +64,13 @@ export const WithRecentActivity: Story = {
         detail: 'Judgment moved to seam review while keeping the same selected scene.',
         tone: 'accent',
       },
+      {
+        id: 'activity-4',
+        kind: 'mutation',
+        title: 'Moved Ticket Window earlier',
+        detail: 'Chapter order changed without changing the selected scene.',
+        tone: 'accent',
+      },
     ],
   },
 }

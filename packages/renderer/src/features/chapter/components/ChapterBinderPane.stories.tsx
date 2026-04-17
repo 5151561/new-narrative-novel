@@ -26,6 +26,7 @@ const meta = {
     activeView: 'sequence',
     workspace: buildChapterStoryWorkspace('scene-midnight-platform'),
     onSelectScene: () => undefined,
+    onMoveScene: () => undefined,
     onOpenScene: () => undefined,
   },
 } satisfies Meta<typeof ChapterBinderPane>
@@ -39,5 +40,12 @@ export const DefaultSelectedFirstScene: Story = {}
 export const SelectedMiddleScene: Story = {
   args: {
     workspace: buildChapterStoryWorkspace('scene-concourse-delay'),
+  },
+}
+
+export const MovingSelectedScene: Story = {
+  args: {
+    workspace: buildChapterStoryWorkspace('scene-concourse-delay'),
+    movingSceneId: 'scene-concourse-delay',
   },
 }

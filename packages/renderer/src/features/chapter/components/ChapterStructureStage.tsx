@@ -1,4 +1,5 @@
 import { PaneHeader } from '@/components/ui/PaneHeader'
+import type { ChapterSceneStructurePatch } from '../api/chapter-record-mutations'
 import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
 import { ChapterAssemblyView } from './ChapterAssemblyView'
 import { ChapterOutlinerView } from './ChapterOutlinerView'
@@ -13,6 +14,8 @@ interface ChapterStructureStageProps {
   title: string
   onViewChange: (view: ChapterStructureView) => void
   onSelectScene?: (sceneId: string) => void
+  onSaveScenePatch?: (sceneId: string, patch: ChapterSceneStructurePatch) => Promise<void> | void
+  savingSceneId?: string | null
   onOpenScene?: (sceneId: string, lens: 'orchestrate' | 'draft') => void
   availableViews?: ChapterStructureView[]
 }
@@ -24,6 +27,8 @@ export function ChapterStructureStage({
   title,
   onViewChange,
   onSelectScene,
+  onSaveScenePatch,
+  savingSceneId,
   onOpenScene,
   availableViews = defaultAvailableViews,
 }: ChapterStructureStageProps) {
@@ -57,7 +62,13 @@ export function ChapterStructureStage({
           <ChapterSequenceView workspace={workspace} onSelectScene={onSelectScene} onOpenScene={onOpenScene} />
         ) : null}
         {activeView === 'outliner' ? (
-          <ChapterOutlinerView workspace={workspace} onSelectScene={onSelectScene} onOpenScene={onOpenScene} />
+          <ChapterOutlinerView
+            workspace={workspace}
+            onSelectScene={onSelectScene}
+            onSaveScenePatch={onSaveScenePatch}
+            savingSceneId={savingSceneId}
+            onOpenScene={onOpenScene}
+          />
         ) : null}
         {activeView === 'assembly' ? (
           <ChapterAssemblyView workspace={workspace} onSelectScene={onSelectScene} onOpenScene={onOpenScene} />

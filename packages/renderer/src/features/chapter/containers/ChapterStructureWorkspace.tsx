@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   getChapterStructureViewLabel,
@@ -14,7 +14,11 @@ import type { WorkbenchLens } from '@/features/workbench/types/workbench-route'
 import { ChapterBinderPane } from '../components/ChapterBinderPane'
 import { ChapterStructureInspectorPane } from '../components/ChapterStructureInspectorPane'
 import { ChapterStructureStage } from '../components/ChapterStructureStage'
+import type { ChapterSceneStructurePatch } from '../api/chapter-record-mutations'
+import { type ChapterWorkbenchMutationEvent } from '../hooks/useChapterWorkbenchActivity'
+import { useReorderChapterSceneMutation } from '../hooks/useReorderChapterSceneMutation'
 import { useChapterStructureWorkspaceQuery } from '../hooks/useChapterStructureWorkspaceQuery'
+import { useUpdateChapterSceneStructureMutation } from '../hooks/useUpdateChapterSceneStructureMutation'
 import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
 import { ChapterDockContainer } from './ChapterDockContainer'
 
@@ -132,10 +136,19 @@ function ChapterPaneState({ title, message }: { title: string; message: string }
 export function ChapterStructureWorkspace() {
   const { route, replaceRoute, patchChapterRoute } = useWorkbenchRouteState()
   const { locale, dictionary } = useI18n()
+  const [latestMutation, setLatestMutation] = useState<ChapterWorkbenchMutationEvent | null>(null)
+  const mutationSequenceRef = useRef(0)
 
   if (route.scope !== 'chapter') {
     return null
   }
+
+  const reorderSceneMutation = useReorderChapterSceneMutation({
+    chapterId: route.chapterId,
+  })
+  const updateSceneStructureMutation = useUpdateChapterSceneStructureMutation({
+    chapterId: route.chapterId,
+  })
 
   const { workspace, isLoading, error } = useChapterStructureWorkspaceQuery({
     chapterId: route.chapterId,
@@ -172,6 +185,58 @@ export function ChapterStructureWorkspace() {
   )
   const availableViews = workspace?.viewsMeta?.availableViews ?? defaultChapterViews
   const effectiveView = getEffectiveChapterView(route.view, availableViews)
+
+  useEffect(() => {
+    setLatestMutation(null)
+    mutationSequenceRef.current = 0
+  }, [route.chapterId])
+
+  const moveSceneWithinChapter = useCallback(
+    async (sceneId: string, direction: 'up' | 'down') => {
+      if (!workspace) {
+        return
+      }
+
+      const currentIndex = workspace.scenes.findIndex((scene) => scene.id === sceneId)
+      if (currentIndex < 0) {
+        return
+      }
+
+      const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+      if (targetIndex < 0 || targetIndex >= workspace.scenes.length) {
+        return
+      }
+
+      await reorderSceneMutation.mutateAsync({ sceneId, targetIndex })
+
+      setLatestMutation({
+        id: `mutation-${mutationSequenceRef.current++}`,
+        chapterId: route.chapterId,
+        action: 'moved-scene',
+        sceneTitle: workspace.scenes[currentIndex]?.title ?? sceneId,
+        direction,
+      })
+    },
+    [reorderSceneMutation, route.chapterId, workspace],
+  )
+
+  const saveScenePatch = useCallback(
+    async (sceneId: string, patch: ChapterSceneStructurePatch) => {
+      if (!workspace) {
+        return
+      }
+
+      await updateSceneStructureMutation.mutateAsync({ sceneId, locale, patch })
+
+      setLatestMutation({
+        id: `mutation-${mutationSequenceRef.current++}`,
+        chapterId: route.chapterId,
+        action: 'updated-structure',
+        sceneTitle: workspace.scenes.find((scene) => scene.id === sceneId)?.title ?? sceneId,
+      })
+    },
+    [locale, route.chapterId, updateSceneStructureMutation, workspace],
+  )
 
   useEffect(() => {
     if (error || isLoading || workspace === undefined || workspace === null) {
@@ -245,6 +310,8 @@ export function ChapterStructureWorkspace() {
           workspace={workspace}
           activeView={effectiveView}
           onSelectScene={(sceneId) => patchChapterRoute({ sceneId })}
+          onMoveScene={(sceneId, direction) => void moveSceneWithinChapter(sceneId, direction)}
+          movingSceneId={reorderSceneMutation.isPending ? reorderSceneMutation.variables?.sceneId ?? null : null}
           onOpenScene={openSceneFromChapter}
         />
       }
@@ -261,6 +328,8 @@ export function ChapterStructureWorkspace() {
           title={dictionary.app.chapterStructure}
           onViewChange={(view) => patchChapterRoute({ view })}
           onSelectScene={(sceneId) => patchChapterRoute({ sceneId })}
+          onSaveScenePatch={(sceneId, patch) => saveScenePatch(sceneId, patch)}
+          savingSceneId={updateSceneStructureMutation.isPending ? updateSceneStructureMutation.variables?.sceneId ?? null : null}
           onOpenScene={openSceneFromChapter}
         />
       }
@@ -272,7 +341,7 @@ export function ChapterStructureWorkspace() {
           inspector={workspace.inspector}
         />
       }
-      bottomDock={<ChapterDockContainer activeView={effectiveView} workspace={workspace} />}
+      bottomDock={<ChapterDockContainer activeView={effectiveView} workspace={workspace} latestMutation={latestMutation} />}
     />
   )
 }
