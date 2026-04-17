@@ -55,4 +55,42 @@ describe('ChapterOutlinerView', () => {
 
     expect(onSelectScene).toHaveBeenCalledWith('scene-ticket-window')
   })
+
+  it('opens a scene in orchestrate without triggering the primary row click', async () => {
+    const user = userEvent.setup()
+    const onSelectScene = vi.fn()
+    const onOpenScene = vi.fn()
+    const workspace = buildChapterStoryWorkspace('scene-midnight-platform')
+
+    render(
+      <I18nProvider>
+        <ChapterOutlinerView workspace={workspace} onSelectScene={onSelectScene} onOpenScene={onOpenScene} />
+      </I18nProvider>,
+    )
+
+    const targetRow = screen.getByRole('button', { name: /Beat line 2 Concourse Delay/i }).closest('li')
+    await user.click(within(targetRow!).getByRole('button', { name: 'Open in Orchestrate: Concourse Delay' }))
+
+    expect(onOpenScene).toHaveBeenCalledWith('scene-concourse-delay', 'orchestrate')
+    expect(onSelectScene).not.toHaveBeenCalled()
+  })
+
+  it('opens a scene in draft without triggering the primary row click', async () => {
+    const user = userEvent.setup()
+    const onSelectScene = vi.fn()
+    const onOpenScene = vi.fn()
+    const workspace = buildChapterStoryWorkspace('scene-midnight-platform')
+
+    render(
+      <I18nProvider>
+        <ChapterOutlinerView workspace={workspace} onSelectScene={onSelectScene} onOpenScene={onOpenScene} />
+      </I18nProvider>,
+    )
+
+    const targetRow = screen.getByRole('button', { name: /Beat line 3 Ticket Window/i }).closest('li')
+    await user.click(within(targetRow!).getByRole('button', { name: 'Open in Draft: Ticket Window' }))
+
+    expect(onOpenScene).toHaveBeenCalledWith('scene-ticket-window', 'draft')
+    expect(onSelectScene).not.toHaveBeenCalled()
+  })
 })

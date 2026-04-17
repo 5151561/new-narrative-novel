@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { I18nProvider } from '@/app/i18n'
 import type { ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
 
-import { ChapterStructureStagePlaceholder } from './ChapterStructureStagePlaceholder'
+import { ChapterStructureStage } from './ChapterStructureStage'
 
 const workspace: ChapterStructureWorkspaceViewModel = {
   chapterId: 'chapter-signals-in-rain',
@@ -92,11 +92,11 @@ const workspace: ChapterStructureWorkspaceViewModel = {
   },
 }
 
-describe('ChapterStructureStagePlaceholder', () => {
+describe('ChapterStructureStage', () => {
   it('keeps the selected first scene only in the current assembly lane', () => {
     render(
       <I18nProvider>
-        <ChapterStructureStagePlaceholder
+        <ChapterStructureStage
           activeView="assembly"
           labels={{
             sequence: 'Sequence',
@@ -122,7 +122,7 @@ describe('ChapterStructureStagePlaceholder', () => {
   it('renders only the available chapter views when metadata narrows the switcher', () => {
     render(
       <I18nProvider>
-        <ChapterStructureStagePlaceholder
+        <ChapterStructureStage
           activeView="sequence"
           labels={{
             sequence: 'Sequence',
@@ -142,10 +142,10 @@ describe('ChapterStructureStagePlaceholder', () => {
     expect(screen.queryByRole('button', { name: 'Outliner' })).not.toBeInTheDocument()
   })
 
-  it('falls back to the first available chapter view when the active view is disallowed', () => {
+  it('keeps switchboard responsibility only and does not normalize an unsupported active view', () => {
     render(
       <I18nProvider>
-        <ChapterStructureStagePlaceholder
+        <ChapterStructureStage
           activeView="outliner"
           labels={{
             sequence: 'Sequence',
@@ -160,8 +160,9 @@ describe('ChapterStructureStagePlaceholder', () => {
       </I18nProvider>,
     )
 
-    expect(screen.getByRole('button', { name: 'Sequence' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.queryByRole('button', { name: /Beat line 1 Midnight Platform/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Sequence 1 Midnight Platform/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sequence' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Assembly' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByRole('button', { name: /Sequence 1 Midnight Platform/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Current seam' })).not.toBeInTheDocument()
   })
 })

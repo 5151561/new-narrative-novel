@@ -71,7 +71,11 @@ describe('ChapterStructureWorkspace', () => {
 
     expect(currentSeamSection).not.toBeNull()
     expect(outgoingSection).not.toBeNull()
-    expect(within(currentSeamSection!).getByRole('button', { name: /Midnight Platform/i })).toBeInTheDocument()
+    expect(
+      within(currentSeamSection!).getByRole('button', {
+        name: /Midnight Platform Ren has to lock the bargain before the platform witness turns the ledger into public leverage\./i,
+      }),
+    ).toBeInTheDocument()
     expect(within(dockRegion).getByText('Switched to Assembly')).toBeInTheDocument()
 
     await user.click(within(outgoingSection!).getByRole('button', { name: /Concourse Delay/i }))
@@ -81,7 +85,11 @@ describe('ChapterStructureWorkspace', () => {
     })
 
     expect(screen.getByRole('button', { name: /Scene 2 Concourse Delay/i })).toHaveAttribute('aria-pressed', 'true')
-    expect(within(screen.getByRole('heading', { name: 'Current seam' }).closest('section')!).getByRole('button', { name: /Concourse Delay/i })).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('heading', { name: 'Current seam' }).closest('section')!).getByRole('button', {
+        name: /Concourse Delay A crowd bottleneck should slow the exit without resolving who controls the courier line\./i,
+      }),
+    ).toBeInTheDocument()
     expect(within(screen.getByRole('heading', { name: 'Summary' }).closest('section')!).getByText('Concourse Delay · Unresolved 2')).toBeInTheDocument()
     expect(
       within(screen.getByRole('heading', { name: 'Summary' }).closest('section')!).getByText(

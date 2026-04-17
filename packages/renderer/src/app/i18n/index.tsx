@@ -385,6 +385,8 @@ const dictionaries = {
         location: 'Location',
         reveal: 'Reveal',
         conflict: 'Conflict',
+        openInOrchestrate: 'Open in Orchestrate',
+        openInDraft: 'Open in Draft',
       },
     },
     shell: {
@@ -463,6 +465,8 @@ const dictionaries = {
         location: '地点',
         reveal: '揭示',
         conflict: '冲突',
+        openInOrchestrate: '在 Orchestrate 中打开',
+        openInDraft: '在 Draft 中打开',
       },
     },
     shell: {

@@ -6,38 +6,27 @@ import { ChapterSequenceView } from './ChapterSequenceView'
 
 const defaultAvailableViews: ChapterStructureView[] = ['sequence', 'outliner', 'assembly']
 
-function getEffectiveChapterView(
-  activeView: ChapterStructureView,
-  availableViews: ChapterStructureView[],
-): ChapterStructureView {
-  if (availableViews.includes(activeView)) {
-    return activeView
-  }
-
-  return availableViews[0] ?? defaultAvailableViews[0]
-}
-
-interface ChapterStructureStagePlaceholderProps {
+interface ChapterStructureStageProps {
   activeView: ChapterStructureView
   labels: Record<ChapterStructureView, string>
   workspace: ChapterStructureWorkspaceViewModel
   title: string
   onViewChange: (view: ChapterStructureView) => void
   onSelectScene?: (sceneId: string) => void
+  onOpenScene?: (sceneId: string, lens: 'orchestrate' | 'draft') => void
   availableViews?: ChapterStructureView[]
 }
 
-export function ChapterStructureStagePlaceholder({
+export function ChapterStructureStage({
   activeView,
   labels,
   workspace,
   title,
   onViewChange,
   onSelectScene,
+  onOpenScene,
   availableViews = defaultAvailableViews,
-}: ChapterStructureStagePlaceholderProps) {
-  const effectiveView = getEffectiveChapterView(activeView, availableViews)
-
+}: ChapterStructureStageProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PaneHeader
@@ -49,10 +38,10 @@ export function ChapterStructureStagePlaceholder({
               <button
                 key={view}
                 type="button"
-                aria-pressed={effectiveView === view}
+                aria-pressed={activeView === view}
                 onClick={() => onViewChange(view)}
                 className={`rounded-md border px-3 py-2 text-sm ${
-                  effectiveView === view
+                  activeView === view
                     ? 'border-line-strong bg-surface-1 text-text-main'
                     : 'border-line-soft bg-surface-2 text-text-muted'
                 }`}
@@ -64,14 +53,14 @@ export function ChapterStructureStagePlaceholder({
         }
       />
       <div className="min-h-0 flex-1 overflow-auto p-4">
-        {effectiveView === 'sequence' ? (
-          <ChapterSequenceView workspace={workspace} onSelectScene={onSelectScene} />
+        {activeView === 'sequence' ? (
+          <ChapterSequenceView workspace={workspace} onSelectScene={onSelectScene} onOpenScene={onOpenScene} />
         ) : null}
-        {effectiveView === 'outliner' ? (
-          <ChapterOutlinerView workspace={workspace} onSelectScene={onSelectScene} />
+        {activeView === 'outliner' ? (
+          <ChapterOutlinerView workspace={workspace} onSelectScene={onSelectScene} onOpenScene={onOpenScene} />
         ) : null}
-        {effectiveView === 'assembly' ? (
-          <ChapterAssemblyView workspace={workspace} onSelectScene={onSelectScene} />
+        {activeView === 'assembly' ? (
+          <ChapterAssemblyView workspace={workspace} onSelectScene={onSelectScene} onOpenScene={onOpenScene} />
         ) : null}
       </div>
     </div>

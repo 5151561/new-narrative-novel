@@ -24,7 +24,8 @@ const meta = {
     </AppProviders>
   ),
   args: {
-    chapterId: 'chapter-signals-in-rain',
+    chapterTitle: 'Signals in Rain',
+    chapterSummary: 'Keep structure, density, and assembly pressure in the same chapter workbench.',
     unresolvedCount: 6,
     inspector: buildChapterStoryWorkspace('scene-midnight-platform').inspector,
   },

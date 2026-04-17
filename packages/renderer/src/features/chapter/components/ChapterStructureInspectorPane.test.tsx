@@ -13,7 +13,8 @@ describe('ChapterStructureInspectorPane', () => {
     render(
       <I18nProvider>
         <ChapterStructureInspectorPane
-          chapterId={workspace.chapterId}
+          chapterTitle={workspace.title}
+          chapterSummary={workspace.summary}
           unresolvedCount={workspace.unresolvedCount}
           inspector={workspace.inspector}
         />
@@ -23,6 +24,8 @@ describe('ChapterStructureInspectorPane', () => {
     const summarySection = screen.getByRole('heading', { name: 'Summary' }).closest('section')
 
     expect(summarySection).not.toBeNull()
+    expect(screen.getByText(workspace.summary)).toBeInTheDocument()
+    expect(screen.queryByText(workspace.chapterId)).not.toBeInTheDocument()
     expect(within(summarySection!).getByText('Keep public witness pressure alive at the edge of the scene.')).toBeInTheDocument()
     expect(within(summarySection!).getByText('Midnight Platform · Unresolved 3')).toBeInTheDocument()
     expect(within(summarySection!).getByText('Ordering remains structural.')).toBeInTheDocument()
@@ -34,7 +37,8 @@ describe('ChapterStructureInspectorPane', () => {
     render(
       <I18nProvider>
         <ChapterStructureInspectorPane
-          chapterId={workspace.chapterId}
+          chapterTitle={workspace.title}
+          chapterSummary={workspace.summary}
           unresolvedCount={workspace.unresolvedCount}
           inspector={workspace.inspector}
         />
@@ -57,7 +61,8 @@ describe('ChapterStructureInspectorPane', () => {
     const { rerender } = render(
       <I18nProvider>
         <ChapterStructureInspectorPane
-          chapterId={firstWorkspace.chapterId}
+          chapterTitle={firstWorkspace.title}
+          chapterSummary={firstWorkspace.summary}
           unresolvedCount={firstWorkspace.unresolvedCount}
           inspector={firstWorkspace.inspector}
         />
@@ -70,7 +75,8 @@ describe('ChapterStructureInspectorPane', () => {
     rerender(
       <I18nProvider>
         <ChapterStructureInspectorPane
-          chapterId={secondWorkspace.chapterId}
+          chapterTitle={secondWorkspace.title}
+          chapterSummary={secondWorkspace.summary}
           unresolvedCount={secondWorkspace.unresolvedCount}
           inspector={secondWorkspace.inspector}
         />

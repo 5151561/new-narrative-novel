@@ -26,6 +26,7 @@ const meta = {
     activeView: 'sequence',
     workspace: buildChapterStoryWorkspace('scene-midnight-platform'),
     onSelectScene: () => undefined,
+    onOpenScene: () => undefined,
   },
 } satisfies Meta<typeof ChapterBinderPane>
 

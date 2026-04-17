@@ -5,7 +5,7 @@ import { AppProviders } from '@/app/providers'
 import { Badge } from '@/components/ui/Badge'
 import { ChapterBinderPane } from '@/features/chapter/components/ChapterBinderPane'
 import { ChapterStructureInspectorPane } from '@/features/chapter/components/ChapterStructureInspectorPane'
-import { ChapterStructureStagePlaceholder } from '@/features/chapter/components/ChapterStructureStagePlaceholder'
+import { ChapterStructureStage } from '@/features/chapter/components/ChapterStructureStage'
 import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '@/features/chapter/types/chapter-view-models'
 import { TimelineList } from '@/components/ui/TimelineList'
 
@@ -235,10 +235,11 @@ function ChapterWorkbenchShellStoryPreview() {
           description={dictionary.app.chapterNavigatorDescription}
           workspace={model}
           activeView={activeView}
+          onOpenScene={() => {}}
         />
       }
       mainStage={
-        <ChapterStructureStagePlaceholder
+        <ChapterStructureStage
           activeView={activeView}
           labels={{
             sequence: dictionary.app.sequence,
@@ -250,11 +251,13 @@ function ChapterWorkbenchShellStoryPreview() {
           title={dictionary.app.chapterStructure}
           onViewChange={() => {}}
           onSelectScene={() => {}}
+          onOpenScene={() => {}}
         />
       }
       inspector={
         <ChapterStructureInspectorPane
-          chapterId={model.chapterId}
+          chapterTitle={model.title}
+          chapterSummary={model.summary}
           unresolvedCount={model.unresolvedCount}
           inspector={model.inspector}
         />

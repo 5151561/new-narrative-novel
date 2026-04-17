@@ -77,4 +77,62 @@ describe('ChapterAssemblyView', () => {
 
     expect(onSelectScene).toHaveBeenCalledWith('scene-midnight-platform')
   })
+
+  it('calls onSelectScene when the current seam primary button is clicked', async () => {
+    const user = userEvent.setup()
+    const onSelectScene = vi.fn()
+    const workspace = buildChapterStoryWorkspace('scene-concourse-delay')
+
+    render(
+      <I18nProvider>
+        <ChapterAssemblyView workspace={workspace} onSelectScene={onSelectScene} />
+      </I18nProvider>,
+    )
+
+    const currentSeamSection = screen.getByRole('heading', { name: 'Current seam' }).closest('section')
+
+    await user.click(within(currentSeamSection!).getByRole('button', { name: /Concourse Delay/i }))
+
+    expect(onSelectScene).toHaveBeenCalledWith('scene-concourse-delay')
+  })
+
+  it('opens the current seam in orchestrate without triggering primary selection', async () => {
+    const user = userEvent.setup()
+    const onSelectScene = vi.fn()
+    const onOpenScene = vi.fn()
+    const workspace = buildChapterStoryWorkspace('scene-concourse-delay')
+
+    render(
+      <I18nProvider>
+        <ChapterAssemblyView workspace={workspace} onSelectScene={onSelectScene} onOpenScene={onOpenScene} />
+      </I18nProvider>,
+    )
+
+    const currentSeamSection = screen.getByRole('heading', { name: 'Current seam' }).closest('section')
+
+    await user.click(within(currentSeamSection!).getByRole('button', { name: 'Open in Orchestrate: Concourse Delay' }))
+
+    expect(onOpenScene).toHaveBeenCalledWith('scene-concourse-delay', 'orchestrate')
+    expect(onSelectScene).not.toHaveBeenCalled()
+  })
+
+  it('opens the current seam in draft without triggering primary selection', async () => {
+    const user = userEvent.setup()
+    const onSelectScene = vi.fn()
+    const onOpenScene = vi.fn()
+    const workspace = buildChapterStoryWorkspace('scene-concourse-delay')
+
+    render(
+      <I18nProvider>
+        <ChapterAssemblyView workspace={workspace} onSelectScene={onSelectScene} onOpenScene={onOpenScene} />
+      </I18nProvider>,
+    )
+
+    const currentSeamSection = screen.getByRole('heading', { name: 'Current seam' }).closest('section')
+
+    await user.click(within(currentSeamSection!).getByRole('button', { name: 'Open in Draft: Concourse Delay' }))
+
+    expect(onOpenScene).toHaveBeenCalledWith('scene-concourse-delay', 'draft')
+    expect(onSelectScene).not.toHaveBeenCalled()
+  })
 })

@@ -430,4 +430,73 @@ describe('App scene workbench', () => {
     expect(screen.getByRole('button', { name: /Scene 3 Ticket Window/i })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getAllByRole('heading', { name: 'Ticket Window' }).length).toBeGreaterThanOrEqual(1)
   })
+
+  it('supports chapter outliner -> orchestrate -> back without losing the chapter view or selected scene', async () => {
+    const user = userEvent.setup()
+
+    await renderFreshApp(
+      '?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=outliner&sceneId=scene-midnight-platform',
+    )
+
+    const targetRow = (await screen.findByRole('button', { name: /Beat line 3 Ticket Window/i })).closest('li')
+    await user.click(within(targetRow!).getByRole('button', { name: 'Open in Orchestrate: Ticket Window' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('scene')
+      expect(params.get('id')).toBe('scene-ticket-window')
+      expect(params.get('lens')).toBe('orchestrate')
+      expect(params.get('tab')).toBe('execution')
+    })
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Ticket Window/i })).toHaveClass('border-line-strong')
+
+    window.history.back()
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('chapter')
+      expect(params.get('id')).toBe('chapter-signals-in-rain')
+      expect(params.get('view')).toBe('outliner')
+      expect(params.get('sceneId')).toBe('scene-ticket-window')
+    })
+
+    expect(await screen.findByRole('button', { name: /Beat line 3 Ticket Window/i })).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByRole('button', { name: /Scene 3 Ticket Window/i })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('supports chapter assembly -> draft -> back without losing the chapter view or selected scene', async () => {
+    const user = userEvent.setup()
+
+    await renderFreshApp(
+      '?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=assembly&sceneId=scene-concourse-delay',
+    )
+
+    const currentSeamSection = (await screen.findByRole('heading', { name: 'Current seam' })).closest('section')
+    await user.click(within(currentSeamSection!).getByRole('button', { name: 'Open in Draft: Concourse Delay' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('scene')
+      expect(params.get('id')).toBe('scene-concourse-delay')
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('tab')).toBe('prose')
+    })
+
+    expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
+
+    window.history.back()
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('chapter')
+      expect(params.get('id')).toBe('chapter-signals-in-rain')
+      expect(params.get('view')).toBe('assembly')
+      expect(params.get('sceneId')).toBe('scene-concourse-delay')
+    })
+
+    expect(await screen.findByRole('button', { name: /Scene 2 Concourse Delay/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getAllByText('Concourse Delay').length).toBeGreaterThan(0)
+  })
 })

@@ -23,6 +23,7 @@ const meta = {
   args: {
     workspace: buildChapterStoryWorkspace('scene-midnight-platform'),
     onSelectScene: () => undefined,
+    onOpenScene: () => undefined,
   },
 } satisfies Meta<typeof ChapterSequenceView>
 

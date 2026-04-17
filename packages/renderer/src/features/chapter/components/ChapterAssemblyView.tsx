@@ -9,6 +9,7 @@ import type {
 interface ChapterAssemblyViewProps {
   workspace: ChapterStructureWorkspaceViewModel
   onSelectScene?: (sceneId: string) => void
+  onOpenScene?: (sceneId: string, lens: 'orchestrate' | 'draft') => void
 }
 
 interface SceneTransitionCardProps {
@@ -144,7 +145,7 @@ function getStatusImpactText(
   return `${unresolvedLabel} stay active while ${selectedScene.statusLabel}, ${selectedScene.proseStatusLabel}, and ${selectedScene.runStatusLabel} keep the seam under pressure.`
 }
 
-export function ChapterAssemblyView({ workspace, onSelectScene }: ChapterAssemblyViewProps) {
+export function ChapterAssemblyView({ workspace, onSelectScene, onOpenScene }: ChapterAssemblyViewProps) {
   const { locale, dictionary } = useI18n()
   const selectedSceneIndex = getSelectedSceneIndex(workspace)
   const selectedScene = selectedSceneIndex >= 0 ? workspace.scenes[selectedSceneIndex] ?? null : null
@@ -167,20 +168,48 @@ export function ChapterAssemblyView({ workspace, onSelectScene }: ChapterAssembl
         <h4 className="text-base text-text-main">{dictionary.app.chapterScaffold.currentSeam}</h4>
         <div className="mt-3 rounded-md border border-line-strong bg-surface-2 p-3">
           {selectedScene ? (
-            <button
-              type="button"
-              aria-current="true"
-              onClick={() => onSelectScene?.(selectedScene.id)}
-              className="w-full rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
-            >
-              <span className="block text-base font-medium text-text-main">{selectedScene.title}</span>
-              <span className="mt-2 block text-sm leading-6 text-text-muted">{selectedScene.summary}</span>
-              <span className="mt-3 flex flex-wrap gap-2">
-                <Badge tone="accent">{selectedScene.statusLabel}</Badge>
-                <Badge tone="neutral">{selectedScene.proseStatusLabel}</Badge>
-                <Badge tone="neutral">{selectedScene.runStatusLabel}</Badge>
-              </span>
-            </button>
+            <>
+              <button
+                type="button"
+                aria-current="true"
+                onClick={() => onSelectScene?.(selectedScene.id)}
+                className="w-full rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+              >
+                <span className="block text-base font-medium text-text-main">{selectedScene.title}</span>
+                <span className="mt-2 block text-sm leading-6 text-text-muted">{selectedScene.summary}</span>
+                <span className="mt-3 flex flex-wrap gap-2">
+                  <Badge tone="accent">{selectedScene.statusLabel}</Badge>
+                  <Badge tone="neutral">{selectedScene.proseStatusLabel}</Badge>
+                  <Badge tone="neutral">{selectedScene.runStatusLabel}</Badge>
+                </span>
+              </button>
+              {onOpenScene ? (
+                <div className="mt-3 flex flex-wrap justify-end gap-1.5 border-t border-line-soft pt-2">
+                  <button
+                    type="button"
+                    aria-label={`${dictionary.app.chapterScaffold.openInOrchestrate}: ${selectedScene.title}`}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onOpenScene?.(selectedScene.id, 'orchestrate')
+                    }}
+                    className="rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-1 hover:text-text-main"
+                  >
+                    {dictionary.app.chapterScaffold.openInOrchestrate}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`${dictionary.app.chapterScaffold.openInDraft}: ${selectedScene.title}`}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onOpenScene?.(selectedScene.id, 'draft')
+                    }}
+                    className="rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-1 hover:text-text-main"
+                  >
+                    {dictionary.app.chapterScaffold.openInDraft}
+                  </button>
+                </div>
+              ) : null}
+            </>
           ) : (
             <p className="text-sm leading-6 text-text-muted">{dictionary.common.loading}</p>
           )}

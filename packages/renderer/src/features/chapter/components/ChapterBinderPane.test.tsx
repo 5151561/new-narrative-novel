@@ -137,4 +137,54 @@ describe('ChapterBinderPane', () => {
 
     expect(onSelectScene).toHaveBeenCalledWith('scene-midnight-platform')
   })
+
+  it('opens a scene in orchestrate without triggering the primary selection click', async () => {
+    const user = userEvent.setup()
+    const onSelectScene = vi.fn()
+    const onOpenScene = vi.fn()
+
+    render(
+      <I18nProvider>
+        <ChapterBinderPane
+          title="Chapters"
+          description="Keep chapter structure, placeholder scenes, and unresolved signals aligned."
+          workspace={workspace}
+          activeView="sequence"
+          onSelectScene={onSelectScene}
+          onOpenScene={onOpenScene}
+        />
+      </I18nProvider>,
+    )
+
+    const midnightPlatformItem = screen.getByRole('button', { name: /Scene 1 Midnight Platform/i }).closest('li')
+    await user.click(within(midnightPlatformItem!).getByRole('button', { name: 'Open in Orchestrate: Midnight Platform' }))
+
+    expect(onOpenScene).toHaveBeenCalledWith('scene-midnight-platform', 'orchestrate')
+    expect(onSelectScene).not.toHaveBeenCalled()
+  })
+
+  it('opens a scene in draft without triggering the primary selection click', async () => {
+    const user = userEvent.setup()
+    const onSelectScene = vi.fn()
+    const onOpenScene = vi.fn()
+
+    render(
+      <I18nProvider>
+        <ChapterBinderPane
+          title="Chapters"
+          description="Keep chapter structure, placeholder scenes, and unresolved signals aligned."
+          workspace={workspace}
+          activeView="sequence"
+          onSelectScene={onSelectScene}
+          onOpenScene={onOpenScene}
+        />
+      </I18nProvider>,
+    )
+
+    const concourseDelayItem = screen.getByRole('button', { name: /Scene 2 Concourse Delay/i }).closest('li')
+    await user.click(within(concourseDelayItem!).getByRole('button', { name: 'Open in Draft: Concourse Delay' }))
+
+    expect(onOpenScene).toHaveBeenCalledWith('scene-concourse-delay', 'draft')
+    expect(onSelectScene).not.toHaveBeenCalled()
+  })
 })

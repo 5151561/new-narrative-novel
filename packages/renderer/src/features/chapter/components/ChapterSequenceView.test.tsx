@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -124,5 +124,43 @@ describe('ChapterSequenceView', () => {
     await user.click(screen.getByRole('button', { name: /Sequence 2 Concourse Delay/i }))
 
     expect(onSelectScene).toHaveBeenCalledWith('scene-concourse-delay')
+  })
+
+  it('opens a scene in orchestrate without triggering the primary card click', async () => {
+    const user = userEvent.setup()
+    const onSelectScene = vi.fn()
+    const onOpenScene = vi.fn()
+
+    render(
+      <I18nProvider>
+        <ChapterSequenceView workspace={workspace} onSelectScene={onSelectScene} onOpenScene={onOpenScene} />
+      </I18nProvider>,
+    )
+
+    const midnightPlatformCard = screen.getByRole('button', { name: /Sequence 1 Midnight Platform/i }).closest('li')
+    await user.click(
+      within(midnightPlatformCard!).getByRole('button', { name: 'Open in Orchestrate: Midnight Platform' }),
+    )
+
+    expect(onOpenScene).toHaveBeenCalledWith('scene-midnight-platform', 'orchestrate')
+    expect(onSelectScene).not.toHaveBeenCalled()
+  })
+
+  it('opens a scene in draft without triggering the primary card click', async () => {
+    const user = userEvent.setup()
+    const onSelectScene = vi.fn()
+    const onOpenScene = vi.fn()
+
+    render(
+      <I18nProvider>
+        <ChapterSequenceView workspace={workspace} onSelectScene={onSelectScene} onOpenScene={onOpenScene} />
+      </I18nProvider>,
+    )
+
+    const ticketWindowCard = screen.getByRole('button', { name: /Sequence 3 Ticket Window/i }).closest('li')
+    await user.click(within(ticketWindowCard!).getByRole('button', { name: 'Open in Draft: Ticket Window' }))
+
+    expect(onOpenScene).toHaveBeenCalledWith('scene-ticket-window', 'draft')
+    expect(onSelectScene).not.toHaveBeenCalled()
   })
 })

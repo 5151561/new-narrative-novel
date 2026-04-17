@@ -5,22 +5,25 @@ import { PaneHeader } from '@/components/ui/PaneHeader'
 import type { ChapterStructureInspectorViewModel } from '../types/chapter-view-models'
 
 interface ChapterStructureInspectorPaneProps {
-  chapterId: string
+  chapterTitle: string
+  chapterSummary?: string
   unresolvedCount: number
   inspector: ChapterStructureInspectorViewModel
 }
 
 export function ChapterStructureInspectorPane({
-  chapterId,
+  chapterTitle,
+  chapterSummary,
   unresolvedCount,
   inspector,
 }: ChapterStructureInspectorPaneProps) {
   const { locale, dictionary } = useI18n()
   const selectedSceneBrief = inspector.selectedSceneBrief
+  const headerDescription = chapterSummary ?? chapterTitle
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <PaneHeader title={selectedSceneBrief?.title ?? dictionary.app.chapterWorkbench} description={chapterId} />
+      <PaneHeader title={selectedSceneBrief?.title ?? dictionary.app.chapterWorkbench} description={headerDescription} />
       <div className="min-h-0 flex-1 space-y-3 overflow-auto p-4">
         <section className="rounded-md border border-line-soft bg-surface-2 p-4">
           <h4 className="text-base text-text-main">{dictionary.app.chapterScaffold.summary}</h4>

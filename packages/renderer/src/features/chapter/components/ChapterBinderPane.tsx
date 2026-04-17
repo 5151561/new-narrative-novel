@@ -15,6 +15,7 @@ interface ChapterBinderPaneProps {
   workspace: ChapterStructureWorkspaceViewModel
   activeView: ChapterStructureView
   onSelectScene?: (sceneId: string) => void
+  onOpenScene?: (sceneId: string, lens: 'orchestrate' | 'draft') => void
 }
 
 export function ChapterBinderPane({
@@ -23,6 +24,7 @@ export function ChapterBinderPane({
   workspace,
   activeView,
   onSelectScene,
+  onOpenScene,
 }: ChapterBinderPaneProps) {
   const { locale, dictionary } = useI18n()
 
@@ -48,33 +50,64 @@ export function ChapterBinderPane({
         <ul className="space-y-2">
           {workspace.scenes.map((scene) => {
             const active = scene.id === workspace.selectedSceneId
+            const showOpenActions = onOpenScene !== undefined
 
             return (
               <li key={scene.id}>
-                <button
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => onSelectScene?.(scene.id)}
-                  className={`w-full rounded-md border px-3 py-3 text-left transition-colors ${
+                <div
+                  className={`rounded-md border px-3 py-3 transition-colors ${
                     active ? 'border-line-strong bg-surface-1 shadow-sm' : 'border-line-soft bg-surface-2/80'
                   }`}
                 >
-                  <span className="flex items-start justify-between gap-3">
-                    <span className="min-w-0">
-                      <span className="block text-[11px] uppercase tracking-[0.08em] text-text-soft">
-                        {getChapterSceneOrdinalLabel(locale, scene.order)}
+                  <button
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => onSelectScene?.(scene.id)}
+                    className="w-full rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+                  >
+                    <span className="flex items-start justify-between gap-3">
+                      <span className="min-w-0">
+                        <span className="block text-[11px] uppercase tracking-[0.08em] text-text-soft">
+                          {getChapterSceneOrdinalLabel(locale, scene.order)}
+                        </span>
+                        <span className="block text-sm font-medium text-text-main">{scene.title}</span>
                       </span>
-                      <span className="block text-sm font-medium text-text-main">{scene.title}</span>
+                      <span className="flex shrink-0 flex-wrap justify-end gap-2">
+                        <Badge tone={active ? 'accent' : 'neutral'}>{scene.statusLabel}</Badge>
+                        <Badge tone={scene.unresolvedCount > 0 ? 'warn' : 'success'}>
+                          {getChapterUnresolvedCountLabel(locale, scene.unresolvedCount)}
+                        </Badge>
+                      </span>
                     </span>
-                    <span className="flex shrink-0 flex-wrap justify-end gap-2">
-                      <Badge tone={active ? 'accent' : 'neutral'}>{scene.statusLabel}</Badge>
-                      <Badge tone={scene.unresolvedCount > 0 ? 'warn' : 'success'}>
-                        {getChapterUnresolvedCountLabel(locale, scene.unresolvedCount)}
-                      </Badge>
-                    </span>
-                  </span>
-                  <span className="mt-2 block text-sm leading-6 text-text-muted">{scene.summary}</span>
-                </button>
+                    <span className="mt-2 block text-sm leading-6 text-text-muted">{scene.summary}</span>
+                  </button>
+                  {showOpenActions ? (
+                    <div className="mt-3 flex flex-wrap justify-end gap-1.5 border-t border-line-soft pt-2">
+                      <button
+                        type="button"
+                        aria-label={`${dictionary.app.chapterScaffold.openInOrchestrate}: ${scene.title}`}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          onOpenScene?.(scene.id, 'orchestrate')
+                        }}
+                        className="rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-1 hover:text-text-main"
+                      >
+                        {dictionary.app.chapterScaffold.openInOrchestrate}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`${dictionary.app.chapterScaffold.openInDraft}: ${scene.title}`}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          onOpenScene?.(scene.id, 'draft')
+                        }}
+                        className="rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-1 hover:text-text-main"
+                      >
+                        {dictionary.app.chapterScaffold.openInDraft}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               </li>
             )
           })}

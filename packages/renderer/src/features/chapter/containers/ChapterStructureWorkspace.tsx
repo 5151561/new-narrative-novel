@@ -13,7 +13,7 @@ import type { WorkbenchLens } from '@/features/workbench/types/workbench-route'
 
 import { ChapterBinderPane } from '../components/ChapterBinderPane'
 import { ChapterStructureInspectorPane } from '../components/ChapterStructureInspectorPane'
-import { ChapterStructureStagePlaceholder } from '../components/ChapterStructureStagePlaceholder'
+import { ChapterStructureStage } from '../components/ChapterStructureStage'
 import { useChapterStructureWorkspaceQuery } from '../hooks/useChapterStructureWorkspaceQuery'
 import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
 import { ChapterDockContainer } from './ChapterDockContainer'
@@ -245,10 +245,11 @@ export function ChapterStructureWorkspace() {
           workspace={workspace}
           activeView={effectiveView}
           onSelectScene={(sceneId) => patchChapterRoute({ sceneId })}
+          onOpenScene={openSceneFromChapter}
         />
       }
       mainStage={
-        <ChapterStructureStagePlaceholder
+        <ChapterStructureStage
           activeView={effectiveView}
           labels={{
             sequence: dictionary.app.sequence,
@@ -260,11 +261,13 @@ export function ChapterStructureWorkspace() {
           title={dictionary.app.chapterStructure}
           onViewChange={(view) => patchChapterRoute({ view })}
           onSelectScene={(sceneId) => patchChapterRoute({ sceneId })}
+          onOpenScene={openSceneFromChapter}
         />
       }
       inspector={
         <ChapterStructureInspectorPane
-          chapterId={workspace.chapterId}
+          chapterTitle={workspace.title}
+          chapterSummary={workspace.summary}
           unresolvedCount={workspace.unresolvedCount}
           inspector={workspace.inspector}
         />
