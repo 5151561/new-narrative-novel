@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 
 import { AssetKnowledgeWorkspace } from './AssetKnowledgeWorkspace'
 import { withAssetStoryShell } from './asset-storybook'
+import { getAssetStorySearch } from '../components/asset-story-fixture'
 
 const meta = {
   title: 'Mockups/Asset/Knowledge Workspace',
@@ -16,26 +17,26 @@ export default meta
 
 type Story = StoryObj<typeof meta>
 
-export const Profile: Story = {
+export const CharacterProfile: Story = {
   parameters: {
     assetStory: {
-      search: '?scope=asset&id=asset-ren-voss&lens=knowledge&view=profile',
+      search: getAssetStorySearch('character', 'profile'),
     },
   },
 }
 
-export const Mentions: Story = {
+export const LocationMentions: Story = {
   parameters: {
     assetStory: {
-      search: '?scope=asset&id=asset-ren-voss&lens=knowledge&view=mentions',
+      search: getAssetStorySearch('location', 'mentions'),
     },
   },
 }
 
-export const Relations: Story = {
+export const RuleRelations: Story = {
   parameters: {
     assetStory: {
-      search: '?scope=asset&id=asset-ren-voss&lens=knowledge&view=relations',
+      search: getAssetStorySearch('rule', 'relations'),
     },
   },
 }
