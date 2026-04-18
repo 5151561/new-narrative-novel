@@ -1,5 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react'
 
+import { DEFAULT_BOOK_EXPORT_PROFILE_ID } from '@/features/book/api/book-export-profiles'
 import { DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID } from '@/features/book/api/book-manuscript-checkpoints'
 import type {
   AssetKnowledgeView,
@@ -59,6 +60,7 @@ const CANONICAL_ROUTE_KEYS = [
   'view',
   'draftView',
   'checkpointId',
+  'exportProfileId',
   'sceneId',
   'selectedChapterId',
 ] as const
@@ -81,7 +83,7 @@ const VALID_ASSET_VIEWS = new Set<AssetKnowledgeView>(['profile', 'mentions', 'r
 const VALID_ASSET_LENSES = new Set<AssetLens>(['knowledge'])
 const VALID_BOOK_VIEWS = new Set<BookStructureView>(['sequence', 'outliner', 'signals'])
 const VALID_BOOK_LENSES = new Set<BookLens>(['structure', 'draft'])
-const VALID_BOOK_DRAFT_VIEWS = new Set<BookDraftView>(['read', 'compare'])
+const VALID_BOOK_DRAFT_VIEWS = new Set<BookDraftView>(['read', 'compare', 'export'])
 
 let lastRouteSearch = ''
 let lastRouteSnapshot: WorkbenchSearchState | undefined
@@ -211,6 +213,7 @@ function normalizeBookRoute(route: Partial<BookRouteState>): BookRouteState {
         ? 'read'
         : undefined
   const checkpointId = route.checkpointId?.trim() || undefined
+  const exportProfileId = route.exportProfileId?.trim() || undefined
 
   return {
     scope: 'book',
@@ -219,6 +222,7 @@ function normalizeBookRoute(route: Partial<BookRouteState>): BookRouteState {
     view: route.view && VALID_BOOK_VIEWS.has(route.view) ? route.view : 'sequence',
     draftView,
     checkpointId: draftView === 'compare' ? checkpointId ?? DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID : checkpointId,
+    exportProfileId: draftView === 'export' ? exportProfileId ?? DEFAULT_BOOK_EXPORT_PROFILE_ID : exportProfileId,
     selectedChapterId: route.selectedChapterId,
   }
 }
@@ -272,6 +276,7 @@ function readBookSnapshot(params: URLSearchParams) {
     view: activeView,
     draftView: activeDraftView,
     checkpointId: readTextParam(params, 'checkpointId'),
+    exportProfileId: readTextParam(params, 'exportProfileId'),
     selectedChapterId: readTextParam(params, 'selectedChapterId'),
   })
 }
@@ -371,6 +376,9 @@ function buildWorkbenchSearch(
     }
     if (state.book.checkpointId) {
       params.set('checkpointId', state.book.checkpointId)
+    }
+    if (state.book.exportProfileId) {
+      params.set('exportProfileId', state.book.exportProfileId)
     }
     if (state.book.selectedChapterId) {
       params.set('selectedChapterId', state.book.selectedChapterId)

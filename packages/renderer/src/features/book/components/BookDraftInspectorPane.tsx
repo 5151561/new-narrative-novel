@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/Badge'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { FactList } from '@/components/ui/FactList'
 import { PaneHeader } from '@/components/ui/PaneHeader'
 
@@ -8,12 +9,15 @@ import type { BookDraftView } from '@/features/workbench/types/workbench-route'
 import { buildCompareReviewAttention } from '../lib/book-draft-compare-presentation'
 import type { BookManuscriptCompareWorkspaceViewModel } from '../types/book-compare-view-models'
 import type { BookDraftInspectorViewModel } from '../types/book-draft-view-models'
+import type { BookExportPreviewWorkspaceViewModel } from '../types/book-export-view-models'
 
 interface BookDraftInspectorPaneProps {
   bookTitle: string
   inspector: BookDraftInspectorViewModel
   activeDraftView?: BookDraftView
   compare?: BookManuscriptCompareWorkspaceViewModel | null
+  exportPreview?: BookExportPreviewWorkspaceViewModel | null
+  exportError?: Error | null
   checkpointMeta?: {
     title: string
     createdAtLabel: string
@@ -26,6 +30,8 @@ export function BookDraftInspectorPane({
   inspector,
   activeDraftView = 'read',
   compare = null,
+  exportPreview = null,
+  exportError = null,
   checkpointMeta = null,
 }: BookDraftInspectorPaneProps) {
   const { locale } = useI18n()
@@ -37,6 +43,18 @@ export function BookDraftInspectorPane({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PaneHeader title={selectedChapter?.title ?? bookTitle} description={bookTitle} />
       <div className="min-h-0 flex-1 space-y-3 overflow-auto p-4">
+        {activeDraftView === 'export' && exportError && !exportPreview ? (
+          <section className="rounded-md border border-line-soft bg-surface-2 p-4">
+            <h4 className="text-base text-text-main">{locale === 'zh-CN' ? '导出基线不可用' : 'Export baseline unavailable'}</h4>
+            <div className="mt-4">
+              <EmptyState
+                title={locale === 'zh-CN' ? '无法检查导出准备度' : 'Export readiness unavailable'}
+                message={exportError.message}
+              />
+            </div>
+          </section>
+        ) : (
+          <>
         <section className="rounded-md border border-line-soft bg-surface-2 p-4">
           <h4 className="text-base text-text-main">{locale === 'zh-CN' ? '选中章节' : 'Selected Chapter'}</h4>
           <div className="mt-3 space-y-3">
@@ -137,6 +155,77 @@ export function BookDraftInspectorPane({
             </section>
           </>
         ) : null}
+        {activeDraftView === 'export' && exportPreview ? (
+          <>
+            <section className="rounded-md border border-line-soft bg-surface-2 p-4">
+              <h4 className="text-base text-text-main">{locale === 'zh-CN' ? '导出配置' : 'Export Profile'}</h4>
+              <div className="mt-3 rounded-md border border-line-soft bg-surface-1 p-3">
+                <p className="text-sm font-medium text-text-main">{exportPreview.profile.title}</p>
+                <p className="mt-2 text-sm text-text-muted">{exportPreview.profile.kind}</p>
+                <p className="mt-2 text-sm leading-6 text-text-muted">{exportPreview.packageSummary.includedSections.join(', ')}</p>
+              </div>
+            </section>
+            <section className="rounded-md border border-line-soft bg-surface-2 p-4">
+              <h4 className="text-base text-text-main">{locale === 'zh-CN' ? '准备度' : 'Readiness'}</h4>
+              <div className="mt-3 space-y-3">
+                <div className="rounded-md border border-line-soft bg-surface-1 p-3">
+                  <p className="text-sm font-medium text-text-main">{exportPreview.readiness.label}</p>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">
+                    {exportPreview.readiness.issues.slice(0, 3).map((issue) => issue.title).join(locale === 'zh-CN' ? '、' : ', ') || (locale === 'zh-CN' ? '当前没有额外准备度问题。' : 'No extra readiness issues are visible right now.')}
+                  </p>
+                </div>
+                <FactList
+                  items={[
+                    { id: 'export-blockers', label: locale === 'zh-CN' ? '阻塞项' : 'Blockers', value: `${exportPreview.readiness.blockerCount}` },
+                    { id: 'export-warnings', label: locale === 'zh-CN' ? '警告' : 'Warnings', value: `${exportPreview.readiness.warningCount}` },
+                    { id: 'export-package-size', label: locale === 'zh-CN' ? '包估算' : 'Package estimate', value: exportPreview.packageSummary.estimatedPackageLabel },
+                    { id: 'export-changed-scenes', label: locale === 'zh-CN' ? 'Compare 变更场景' : 'Compare changed scenes', value: `${exportPreview.totals.compareChangedSceneCount}` },
+                  ]}
+                />
+              </div>
+            </section>
+            <section className="rounded-md border border-line-soft bg-surface-2 p-4">
+              <h4 className="text-base text-text-main">{locale === 'zh-CN' ? '选中章节导出' : 'Selected chapter export'}</h4>
+              <div className="mt-3">
+                <FactList
+                  items={[
+                    {
+                      id: 'selected-export-status',
+                      label: locale === 'zh-CN' ? '状态' : 'Status',
+                      value:
+                        exportPreview.selectedChapter?.readinessStatus === 'blocked'
+                          ? locale === 'zh-CN'
+                            ? '阻塞'
+                            : 'Blocked'
+                          : exportPreview.selectedChapter?.readinessStatus === 'attention'
+                            ? locale === 'zh-CN'
+                              ? '需关注'
+                              : 'Attention'
+                            : locale === 'zh-CN'
+                              ? '已就绪'
+                              : 'Ready',
+                    },
+                    {
+                      id: 'selected-export-scenes',
+                      label: locale === 'zh-CN' ? '纳入场景' : 'Included scenes',
+                      value: `${exportPreview.selectedChapter?.scenes.filter((scene) => scene.isIncluded).length ?? 0}`,
+                    },
+                    {
+                      id: 'selected-export-missing-drafts',
+                      label: locale === 'zh-CN' ? '缺稿场景' : 'Missing drafts',
+                      value: `${exportPreview.selectedChapter?.missingDraftCount ?? 0}`,
+                    },
+                    {
+                      id: 'selected-export-trace-gaps',
+                      label: locale === 'zh-CN' ? '缺溯源场景' : 'Trace gaps',
+                      value: `${exportPreview.selectedChapter?.missingTraceCount ?? 0}`,
+                    },
+                  ]}
+                />
+              </div>
+            </section>
+          </>
+        ) : null}
         <section className="rounded-md border border-line-soft bg-surface-2 p-4">
           <h4 className="text-base text-text-main">{locale === 'zh-CN' ? '手稿准备度' : 'Manuscript Readiness'}</h4>
           <div className="mt-3">
@@ -185,6 +274,8 @@ export function BookDraftInspectorPane({
             </div>
           </div>
         </section>
+          </>
+        )}
       </div>
     </div>
   )

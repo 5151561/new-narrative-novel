@@ -5,6 +5,7 @@ import { AppProviders } from '@/app/providers'
 
 import type { BookManuscriptCompareWorkspaceViewModel } from '../types/book-compare-view-models'
 import type { BookDraftInspectorViewModel } from '../types/book-draft-view-models'
+import type { BookExportPreviewWorkspaceViewModel } from '../types/book-export-view-models'
 import { BookDraftInspectorPane } from './BookDraftInspectorPane'
 
 const inspector: BookDraftInspectorViewModel = {
@@ -129,6 +130,89 @@ const compare: BookManuscriptCompareWorkspaceViewModel = {
   },
 }
 
+const exportPreview: BookExportPreviewWorkspaceViewModel = {
+  bookId: 'book-signal-arc',
+  title: 'Signal Arc',
+  summary: 'Export preview workspace',
+  selectedChapterId: 'chapter-open-water-signals',
+  selectedChapter: {
+    chapterId: 'chapter-open-water-signals',
+    order: 2,
+    title: 'Open Water Signals',
+    summary: 'Carry the courier handoff into open water.',
+    isIncluded: true,
+    assembledWordCount: 320,
+    missingDraftCount: 1,
+    missingTraceCount: 1,
+    warningCount: 2,
+    scenes: [],
+    readinessStatus: 'attention',
+  },
+  profile: {
+    exportProfileId: 'export-review-packet',
+    bookId: 'book-signal-arc',
+    kind: 'review_packet',
+    title: 'Review Packet',
+    summary: 'Full manuscript packet with compare and trace context attached.',
+    createdAtLabel: 'Updated for PR13 baseline',
+    includes: {
+      manuscriptBody: true,
+      chapterSummaries: true,
+      sceneHeadings: true,
+      traceAppendix: true,
+      compareSummary: true,
+      readinessChecklist: true,
+    },
+    rules: {
+      requireAllScenesDrafted: true,
+      requireTraceReady: true,
+      allowWarnings: false,
+      allowDraftMissing: false,
+    },
+  },
+  chapters: [],
+  totals: {
+    includedChapterCount: 2,
+    includedSceneCount: 5,
+    assembledWordCount: 680,
+    blockerCount: 1,
+    warningCount: 2,
+    infoCount: 1,
+    missingDraftCount: 1,
+    traceGapCount: 1,
+    compareChangedSceneCount: 2,
+  },
+  readiness: {
+    status: 'blocked',
+    label: 'Blocked by missing draft coverage',
+    issues: [
+      {
+        id: 'issue-missing-draft',
+        severity: 'blocker',
+        kind: 'missing_draft',
+        chapterId: 'chapter-open-water-signals',
+        chapterTitle: 'Open Water Signals',
+        title: 'Draft coverage incomplete',
+        detail: 'One included scene still needs current draft prose.',
+      },
+      {
+        id: 'issue-trace-gap',
+        severity: 'warning',
+        kind: 'trace_gap',
+        chapterId: 'chapter-open-water-signals',
+        chapterTitle: 'Open Water Signals',
+        title: 'Trace appendix is incomplete',
+        detail: 'One included scene still lacks trace coverage.',
+      },
+    ],
+  },
+  packageSummary: {
+    includedSections: ['Manuscript body', 'Trace appendix', 'Compare summary', 'Readiness checklist'],
+    excludedSections: ['Scene headings'],
+    estimatedPackageLabel: 'Approx. 8 manuscript pages',
+  },
+}
+
 describe('BookDraftInspectorPane', () => {
   it('keeps read-mode content intact when compare mode is inactive', () => {
     render(
@@ -165,5 +249,44 @@ describe('BookDraftInspectorPane', () => {
     expect(screen.getAllByText('Dawn Slip').length).toBeGreaterThan(0)
     expect(screen.getAllByText('River Ledger').length).toBeGreaterThan(0)
     expect(screen.getByText('PR11 Baseline')).toBeInTheDocument()
+  })
+
+  it('shows export profile, readiness summary, and selected chapter export facts in export mode', () => {
+    render(
+      <AppProviders>
+        <BookDraftInspectorPane
+          bookTitle="Signal Arc"
+          inspector={inspector}
+          activeDraftView="export"
+          exportPreview={exportPreview}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Export Profile')).toBeInTheDocument()
+    expect(screen.getByText('Review Packet')).toBeInTheDocument()
+    expect(screen.getByText('Readiness')).toBeInTheDocument()
+    expect(screen.getByText('Blocked by missing draft coverage')).toBeInTheDocument()
+    expect(screen.getByText('Selected chapter export')).toBeInTheDocument()
+    expect(screen.getByText('Approx. 8 manuscript pages')).toBeInTheDocument()
+  })
+
+  it('shows an export-baseline error state instead of generic manuscript support when export mode is broken', () => {
+    render(
+      <AppProviders>
+        <BookDraftInspectorPane
+          bookTitle="Signal Arc"
+          inspector={inspector}
+          activeDraftView="export"
+          exportPreview={null}
+          exportError={new Error('Book manuscript checkpoint "checkpoint-missing" could not be found for "book-signal-arc".')}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Export baseline unavailable')).toBeInTheDocument()
+    expect(screen.getByText('Export readiness unavailable')).toBeInTheDocument()
+    expect(screen.getByText('Book manuscript checkpoint "checkpoint-missing" could not be found for "book-signal-arc".')).toBeInTheDocument()
+    expect(screen.queryByText('Manuscript Readiness')).not.toBeInTheDocument()
   })
 })

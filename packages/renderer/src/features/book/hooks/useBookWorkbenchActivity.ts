@@ -22,7 +22,20 @@ interface BookWorkbenchCheckpoint {
   summary: string
 }
 
-export type BookWorkbenchActivityKind = 'lens' | 'view' | 'chapter' | 'handoff' | 'draft-view' | 'checkpoint'
+interface BookWorkbenchExportProfile {
+  id: string
+  title: string
+  summary: string
+}
+
+export type BookWorkbenchActivityKind =
+  | 'lens'
+  | 'view'
+  | 'chapter'
+  | 'handoff'
+  | 'draft-view'
+  | 'checkpoint'
+  | 'export-profile'
 
 interface BookWorkbenchActivityEntry {
   id: string
@@ -38,7 +51,10 @@ interface BookWorkbenchActivityEntry {
     | 'opened-draft'
     | 'entered-compare'
     | 'returned-read'
+    | 'entered-export'
+    | 'returned-compare'
     | 'selected-checkpoint'
+    | 'selected-export-profile'
   lens?: BookLens
   view?: BookStructureView
   draftView?: BookDraftView
@@ -46,6 +62,8 @@ interface BookWorkbenchActivityEntry {
   chapterSummary?: string
   checkpointTitle?: string
   checkpointSummary?: string
+  exportProfileTitle?: string
+  exportProfileSummary?: string
 }
 
 export interface BookWorkbenchActivityItem {
@@ -62,6 +80,7 @@ interface UseBookWorkbenchActivityOptions {
   activeView: BookStructureView
   activeDraftView?: BookDraftView
   selectedCheckpoint?: BookWorkbenchCheckpoint | null
+  selectedExportProfile?: BookWorkbenchExportProfile | null
   selectedChapter: BookWorkbenchActivityChapter | null
   latestHandoff?: BookWorkbenchHandoffEvent | null
   maxItems?: number
@@ -170,17 +189,29 @@ function localizeActivityEntry(
         locale === 'zh-CN'
           ? entry.action === 'entered-compare'
             ? '进入 Compare'
-            : '返回 Read'
+            : entry.action === 'entered-export'
+              ? '进入导出预览'
+              : entry.action === 'returned-compare'
+                ? '返回 Compare'
+                : '返回 Read'
           : entry.action === 'entered-compare'
             ? 'Entered Compare'
-            : 'Returned to Read',
+            : entry.action === 'entered-export'
+              ? 'Entered Export Preview'
+              : entry.action === 'returned-compare'
+                ? 'Returned to Compare'
+                : 'Returned to Read',
       detail:
         locale === 'zh-CN'
           ? entry.draftView === 'compare'
             ? 'Compare 面板继续把 checkpoint 与章节焦点交给路由。'
+            : entry.draftView === 'export'
+              ? 'Export 预览继续把 chapter focus 与 export profile 交给路由。'
             : 'Read 面板恢复连续阅读，不接管结构视图。'
           : entry.draftView === 'compare'
             ? 'Compare keeps checkpoint and chapter focus route-owned.'
+            : entry.draftView === 'export'
+              ? 'Export preview keeps chapter focus and profile selection route-owned.'
             : 'Read mode restores the manuscript reader without taking over the dormant structure view.',
     }
   }
@@ -195,6 +226,19 @@ function localizeActivityEntry(
           ? `选择 checkpoint ${entry.checkpointTitle ?? ''}`
           : `Selected checkpoint ${entry.checkpointTitle ?? ''}`,
       detail: entry.checkpointSummary ?? '',
+    }
+  }
+
+  if (entry.kind === 'export-profile') {
+    return {
+      id: entry.id,
+      kind: entry.kind,
+      tone: entry.tone,
+      title:
+        locale === 'zh-CN'
+          ? `选择导出配置 ${entry.exportProfileTitle ?? ''}`
+          : `Selected export profile ${entry.exportProfileTitle ?? ''}`,
+      detail: entry.exportProfileSummary ?? '',
     }
   }
 
@@ -213,6 +257,7 @@ export function useBookWorkbenchActivity({
   activeView,
   activeDraftView = 'read',
   selectedCheckpoint = null,
+  selectedExportProfile = null,
   selectedChapter,
   latestHandoff = null,
   maxItems = 6,
@@ -225,6 +270,7 @@ export function useBookWorkbenchActivity({
   const lastViewRef = useRef<BookStructureView | null>(null)
   const lastDraftViewRef = useRef<BookDraftView | null>(null)
   const lastCheckpointIdRef = useRef<string | null>(null)
+  const lastExportProfileIdRef = useRef<string | null>(null)
   const lastChapterIdRef = useRef<string | null>(null)
   const seenHandoffIdsRef = useRef<Set<string>>(new Set())
   const sequenceRef = useRef(0)
@@ -246,6 +292,7 @@ export function useBookWorkbenchActivity({
       lastViewRef.current = null
       lastDraftViewRef.current = null
       lastCheckpointIdRef.current = null
+      lastExportProfileIdRef.current = null
       lastChapterIdRef.current = null
       seenHandoffIdsRef.current = new Set()
       sequenceRef.current = 0
@@ -270,12 +317,28 @@ export function useBookWorkbenchActivity({
       lastViewRef.current = activeView
 
       if (lastDraftViewRef.current !== activeDraftView) {
-        if (activeDraftView === 'compare') {
+        if (lastDraftViewRef.current === 'export') {
+          nextEntries.push({
+            id: `draft-view-${sequenceRef.current++}`,
+            kind: 'draft-view',
+            tone: 'neutral',
+            action: activeDraftView === 'compare' ? 'returned-compare' : 'returned-read',
+            draftView: activeDraftView,
+          })
+        } else if (activeDraftView === 'compare') {
           nextEntries.push({
             id: `draft-view-${sequenceRef.current++}`,
             kind: 'draft-view',
             tone: 'accent',
             action: 'entered-compare',
+            draftView: activeDraftView,
+          })
+        } else if (activeDraftView === 'export') {
+          nextEntries.push({
+            id: `draft-view-${sequenceRef.current++}`,
+            kind: 'draft-view',
+            tone: 'accent',
+            action: 'entered-export',
             draftView: activeDraftView,
           })
         } else if (lastDraftViewRef.current === 'compare') {
@@ -308,10 +371,26 @@ export function useBookWorkbenchActivity({
       } else if (activeDraftView !== 'compare') {
         lastCheckpointIdRef.current = checkpointId
       }
+
+      const exportProfileId = selectedExportProfile?.id ?? null
+      if (activeDraftView === 'export' && selectedExportProfile && lastExportProfileIdRef.current !== exportProfileId) {
+        nextEntries.push({
+          id: `export-profile-${sequenceRef.current++}`,
+          kind: 'export-profile',
+          tone: 'neutral',
+          action: 'selected-export-profile',
+          exportProfileTitle: selectedExportProfile.title,
+          exportProfileSummary: selectedExportProfile.summary,
+        })
+        lastExportProfileIdRef.current = exportProfileId
+      } else if (activeDraftView !== 'export') {
+        lastExportProfileIdRef.current = exportProfileId
+      }
     } else {
       lastLensRef.current = activeLens
       lastDraftViewRef.current = activeDraftView
       lastCheckpointIdRef.current = selectedCheckpoint?.id ?? null
+      lastExportProfileIdRef.current = selectedExportProfile?.id ?? null
       if (lastViewRef.current !== activeView) {
         nextEntries.push({
           id: `view-${sequenceRef.current++}`,
@@ -357,7 +436,7 @@ export function useBookWorkbenchActivity({
     }
 
     setActivity((current) => (bookChanged ? nextEntries : [...nextEntries, ...current]).slice(0, maxItems))
-  }, [activeDraftView, activeLens, activeView, bookId, latestHandoff, locale, maxItems, selectedChapter, selectedCheckpoint])
+  }, [activeDraftView, activeLens, activeView, bookId, latestHandoff, locale, maxItems, selectedChapter, selectedCheckpoint, selectedExportProfile])
 
   return useMemo(
     () => activity.map((item) => localizeActivityEntry(item, locale)),

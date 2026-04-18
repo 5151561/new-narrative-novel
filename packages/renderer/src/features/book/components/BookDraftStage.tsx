@@ -7,8 +7,13 @@ import type {
   BookManuscriptCompareWorkspaceViewModel,
 } from '../types/book-compare-view-models'
 import type { BookDraftWorkspaceViewModel } from '../types/book-draft-view-models'
+import type {
+  BookExportPreviewWorkspaceViewModel,
+  BookExportProfileSummaryViewModel,
+} from '../types/book-export-view-models'
 import { BookDraftCheckpointPicker } from './BookDraftCheckpointPicker'
 import { BookDraftCompareView } from './BookDraftCompareView'
+import { BookDraftExportView } from './BookDraftExportView'
 import { BookDraftReader } from './BookDraftReader'
 
 interface BookDraftStageProps {
@@ -16,12 +21,17 @@ interface BookDraftStageProps {
   workspace: BookDraftWorkspaceViewModel
   compare: BookManuscriptCompareWorkspaceViewModel | null
   compareError?: Error | null
+  exportPreview?: BookExportPreviewWorkspaceViewModel | null
+  exportProfiles: BookExportProfileSummaryViewModel[]
+  selectedExportProfileId: string
+  exportError?: Error | null
   checkpoints: BookManuscriptCheckpointSummaryViewModel[]
   selectedCheckpointId: string
   onSelectDraftView: (draftView: BookDraftView) => void
   onSelectChapter: (chapterId: string) => void
   onOpenChapter: (chapterId: string, lens: 'structure' | 'draft') => void
   onSelectCheckpoint: (checkpointId: string) => void
+  onSelectExportProfile: (exportProfileId: string) => void
 }
 
 export function BookDraftStage({
@@ -29,12 +39,17 @@ export function BookDraftStage({
   workspace,
   compare,
   compareError = null,
+  exportPreview = null,
+  exportProfiles,
+  selectedExportProfileId,
+  exportError = null,
   checkpoints,
   selectedCheckpointId,
   onSelectDraftView,
   onSelectChapter,
   onOpenChapter,
   onSelectCheckpoint,
+  onSelectExportProfile,
 }: BookDraftStageProps) {
   const { locale } = useI18n()
 
@@ -45,6 +60,7 @@ export function BookDraftStage({
           {([
             { value: 'read' as const, label: locale === 'zh-CN' ? 'Read' : 'Read' },
             { value: 'compare' as const, label: locale === 'zh-CN' ? 'Compare' : 'Compare' },
+            { value: 'export' as const, label: locale === 'zh-CN' ? 'Export' : 'Export' },
           ]).map((option) => (
             <button
               key={option.value}
@@ -77,6 +93,16 @@ export function BookDraftStage({
             onOpenChapter={onOpenChapter}
           />
         </>
+      ) : draftView === 'export' ? (
+        <BookDraftExportView
+          exportPreview={exportPreview}
+          exportProfiles={exportProfiles}
+          selectedExportProfileId={selectedExportProfileId}
+          errorMessage={exportError?.message ?? null}
+          onSelectChapter={onSelectChapter}
+          onOpenChapter={onOpenChapter}
+          onSelectExportProfile={onSelectExportProfile}
+        />
       ) : (
         <BookDraftReader workspace={workspace} onSelectChapter={onSelectChapter} onOpenChapter={onOpenChapter} />
       )}

@@ -11,10 +11,12 @@ import { BookDraftInspectorPane } from '../components/BookDraftInspectorPane'
 import { BookDraftStage } from '../components/BookDraftStage'
 import { BookModeRail } from '../components/BookModeRail'
 import { useBookDraftWorkspaceQuery } from '../hooks/useBookDraftWorkspaceQuery'
+import { useBookExportPreviewQuery } from '../hooks/useBookExportPreviewQuery'
 import { useBookManuscriptCompareQuery } from '../hooks/useBookManuscriptCompareQuery'
 import { rememberBookWorkbenchHandoff } from '../hooks/useBookWorkbenchActivity'
 import { BookDraftDockContainer } from './BookDraftDockContainer'
 import { DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID } from '../api/book-manuscript-checkpoints'
+import { DEFAULT_BOOK_EXPORT_PROFILE_ID } from '../api/book-export-profiles'
 
 let rememberedBookDraftHandoffSequence = 0
 
@@ -110,6 +112,7 @@ export function BookDraftWorkspace() {
   })
   const activeDraftView = route.draftView ?? 'read'
   const effectiveCheckpointId = route.checkpointId ?? DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID
+  const effectiveExportProfileId = route.exportProfileId ?? DEFAULT_BOOK_EXPORT_PROFILE_ID
   const {
     compareWorkspace,
     checkpoints,
@@ -121,6 +124,22 @@ export function BookDraftWorkspace() {
     currentDraftWorkspace: workspace,
     checkpointId: effectiveCheckpointId,
   })
+  const {
+    exportWorkspace,
+    exportProfiles,
+    selectedExportProfile,
+    isLoading: isExportLoading,
+    error: exportError,
+  } = useBookExportPreviewQuery({
+    bookId: route.bookId,
+    currentDraftWorkspace: workspace,
+    compareWorkspace,
+    exportProfileId: effectiveExportProfileId,
+    enabled: activeDraftView === 'export',
+  })
+  const exportBaselineError = activeDraftView === 'export' ? compareError : null
+  const effectiveExportError = exportBaselineError ?? exportError
+  const effectiveExportPreview = exportBaselineError ? null : (exportWorkspace ?? null)
 
   useEffect(() => {
     if (isLoading || error || workspace === undefined || workspace === null) {
@@ -175,13 +194,14 @@ export function BookDraftWorkspace() {
     [patchBookRoute, route.selectedChapterId],
   )
   const onSelectDraftView = useCallback(
-    (draftView: 'read' | 'compare') => {
+    (draftView: 'read' | 'compare' | 'export') => {
       patchBookRoute({
         draftView,
         checkpointId: draftView === 'compare' ? effectiveCheckpointId : route.checkpointId ?? effectiveCheckpointId,
+        exportProfileId: draftView === 'export' ? effectiveExportProfileId : route.exportProfileId ?? effectiveExportProfileId,
       })
     },
-    [effectiveCheckpointId, patchBookRoute, route.checkpointId],
+    [effectiveCheckpointId, effectiveExportProfileId, patchBookRoute, route.checkpointId, route.exportProfileId],
   )
   const onSelectCheckpoint = useCallback(
     (checkpointId: string) => {
@@ -195,6 +215,15 @@ export function BookDraftWorkspace() {
       })
     },
     [activeDraftView, effectiveCheckpointId, patchBookRoute],
+  )
+  const onSelectExportProfile = useCallback(
+    (exportProfileId: string) => {
+      patchBookRoute({
+        draftView: 'export',
+        exportProfileId,
+      })
+    },
+    [patchBookRoute],
   )
 
   const modeRail = (
@@ -237,7 +266,12 @@ export function BookDraftWorkspace() {
     )
   }
 
-  if (isLoading || workspace === undefined || (activeDraftView === 'compare' && (isCompareLoading || compareWorkspace === undefined))) {
+  if (
+    isLoading ||
+    workspace === undefined ||
+    (activeDraftView === 'compare' && (isCompareLoading || compareWorkspace === undefined)) ||
+    (activeDraftView === 'export' && (isExportLoading || exportWorkspace === undefined))
+  ) {
     const message =
       locale === 'zh-CN'
         ? '正在按书籍顺序装配章节手稿，并同步检查器与底部面板摘要。'
@@ -295,12 +329,17 @@ export function BookDraftWorkspace() {
           workspace={workspace}
           compare={compareWorkspace ?? null}
           compareError={compareError}
+          exportPreview={effectiveExportPreview}
+          exportProfiles={exportProfiles ?? []}
+          selectedExportProfileId={selectedExportProfile?.exportProfileId ?? effectiveExportProfileId}
+          exportError={effectiveExportError}
           checkpoints={checkpoints ?? []}
           selectedCheckpointId={selectedCheckpoint?.checkpointId ?? effectiveCheckpointId}
           onSelectDraftView={onSelectDraftView}
           onSelectChapter={onSelectChapter}
           onOpenChapter={openChapterFromBook}
           onSelectCheckpoint={onSelectCheckpoint}
+          onSelectExportProfile={onSelectExportProfile}
         />
       }
       inspector={
@@ -309,10 +348,20 @@ export function BookDraftWorkspace() {
           inspector={workspace.inspector}
           activeDraftView={activeDraftView}
           compare={compareWorkspace ?? null}
+          exportPreview={effectiveExportPreview}
+          exportError={effectiveExportError}
           checkpointMeta={selectedCheckpoint ?? null}
         />
       }
-      bottomDock={<BookDraftDockContainer workspace={workspace} activeDraftView={activeDraftView} compare={compareWorkspace ?? null} />}
+      bottomDock={
+        <BookDraftDockContainer
+          workspace={workspace}
+          activeDraftView={activeDraftView}
+          compare={compareWorkspace ?? null}
+          exportPreview={effectiveExportPreview}
+          exportError={effectiveExportError}
+        />
+      }
     />
   )
 }

@@ -230,4 +230,72 @@ describe('useBookWorkbenchActivity', () => {
 
     expect(result.current[0]?.title).toBe('Returned to Read')
   })
+
+  it('records export entry, export profile selection, and switching away from export', () => {
+    const { result, rerender } = renderHook(
+      ({ activeDraftView = 'read', selectedChapter, selectedExportProfile = null }: ActivityHookProps & { selectedExportProfile?: { id: string; title: string; summary: string } | null }) =>
+        useBookWorkbenchActivity({
+          bookId: 'book-signal-arc',
+          activeLens: 'draft',
+          activeView: 'sequence',
+          activeDraftView,
+          selectedCheckpoint: null,
+          selectedExportProfile,
+          selectedChapter,
+          maxItems: 6,
+        }),
+      {
+        initialProps: {
+          activeView: 'sequence',
+          activeDraftView: 'read',
+          selectedChapter: {
+            id: 'chapter-open-water-signals',
+            title: 'Open Water Signals',
+            summary: 'Warehouse pressure should stay legible as the exit opens.',
+          },
+          selectedExportProfile: null,
+        },
+        wrapper: AppProviders,
+      },
+    )
+
+    rerender({
+      activeView: 'sequence',
+      activeDraftView: 'export',
+      selectedExportProfile: {
+        id: 'export-review-packet',
+        title: 'Review Packet',
+        summary: 'Full manuscript packet with compare and trace context attached.',
+      },
+      selectedChapter: {
+        id: 'chapter-open-water-signals',
+        title: 'Open Water Signals',
+        summary: 'Warehouse pressure should stay legible as the exit opens.',
+      },
+    })
+
+    expect(result.current.map((item) => item.title)).toEqual([
+      'Entered Export Preview',
+      'Selected export profile Review Packet',
+      'Entered Draft',
+      'Focused Open Water Signals',
+    ])
+
+    rerender({
+      activeView: 'sequence',
+      activeDraftView: 'compare',
+      selectedExportProfile: {
+        id: 'export-review-packet',
+        title: 'Review Packet',
+        summary: 'Full manuscript packet with compare and trace context attached.',
+      },
+      selectedChapter: {
+        id: 'chapter-open-water-signals',
+        title: 'Open Water Signals',
+        summary: 'Warehouse pressure should stay legible as the exit opens.',
+      },
+    })
+
+    expect(result.current[0]?.title).toBe('Returned to Compare')
+  })
 })

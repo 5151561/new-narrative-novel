@@ -6,6 +6,7 @@ import { AppProviders } from '@/app/providers'
 
 import type { BookManuscriptCheckpointSummaryViewModel, BookManuscriptCompareWorkspaceViewModel } from '../types/book-compare-view-models'
 import type { BookDraftWorkspaceViewModel } from '../types/book-draft-view-models'
+import type { BookExportPreviewWorkspaceViewModel, BookExportProfileSummaryViewModel } from '../types/book-export-view-models'
 import { BookDraftStage } from './BookDraftStage'
 
 function buildWorkspace(): BookDraftWorkspaceViewModel {
@@ -335,6 +336,103 @@ const checkpoints: BookManuscriptCheckpointSummaryViewModel[] = [
   },
 ]
 
+const exportProfiles: BookExportProfileSummaryViewModel[] = [
+  {
+    exportProfileId: 'export-review-packet',
+    bookId: 'book-signal-arc',
+    kind: 'review_packet',
+    title: 'Review Packet',
+    summary: 'Full manuscript packet with compare and trace context.',
+    createdAtLabel: 'Updated for PR13 baseline',
+    includes: {
+      manuscriptBody: true,
+      chapterSummaries: true,
+      sceneHeadings: true,
+      traceAppendix: true,
+      compareSummary: true,
+      readinessChecklist: true,
+    },
+    rules: {
+      requireAllScenesDrafted: true,
+      requireTraceReady: true,
+      allowWarnings: false,
+      allowDraftMissing: false,
+    },
+  },
+]
+
+function buildExportWorkspace(): BookExportPreviewWorkspaceViewModel {
+  return {
+    bookId: 'book-signal-arc',
+    title: 'Signal Arc',
+    summary: 'Export-ready manuscript preview.',
+    selectedChapterId: 'chapter-open-water-signals',
+    selectedChapter: {
+      chapterId: 'chapter-open-water-signals',
+      order: 2,
+      title: 'Open Water Signals',
+      summary: 'Carry the courier handoff into open water.',
+      isIncluded: true,
+      assembledWordCount: 24,
+      missingDraftCount: 0,
+      missingTraceCount: 1,
+      warningCount: 1,
+      scenes: [],
+      readinessStatus: 'attention',
+    },
+    profile: exportProfiles[0]!,
+    chapters: [
+      {
+        chapterId: 'chapter-signals-in-rain',
+        order: 1,
+        title: 'Signals in Rain',
+        summary: 'Keep platform pressure audible.',
+        isIncluded: true,
+        assembledWordCount: 20,
+        missingDraftCount: 1,
+        missingTraceCount: 0,
+        warningCount: 0,
+        scenes: [],
+        readinessStatus: 'blocked',
+      },
+      {
+        chapterId: 'chapter-open-water-signals',
+        order: 2,
+        title: 'Open Water Signals',
+        summary: 'Carry the courier handoff into open water.',
+        isIncluded: true,
+        assembledWordCount: 24,
+        missingDraftCount: 0,
+        missingTraceCount: 1,
+        warningCount: 1,
+        scenes: [],
+        readinessStatus: 'attention',
+      },
+    ],
+    totals: {
+      includedChapterCount: 2,
+      includedSceneCount: 2,
+      assembledWordCount: 44,
+      blockerCount: 1,
+      warningCount: 1,
+      infoCount: 0,
+      missingDraftCount: 1,
+      traceGapCount: 1,
+      compareChangedSceneCount: 1,
+    },
+    readiness: {
+      status: 'blocked',
+      label: 'Blocked by missing draft coverage',
+      issues: [],
+    },
+    packageSummary: {
+      includedSections: ['Manuscript body', 'Compare summary'],
+      excludedSections: ['Trace appendix'],
+      estimatedPackageLabel: 'Approx. 6 manuscript pages',
+    },
+  }
+}
+
 describe('BookDraftStage', () => {
   it('renders BookDraftReader in read view', () => {
     render(
@@ -343,12 +441,16 @@ describe('BookDraftStage', () => {
           draftView="read"
           workspace={buildWorkspace()}
           compare={buildCompare()}
+          exportPreview={buildExportWorkspace()}
+          exportProfiles={exportProfiles}
+          selectedExportProfileId="export-review-packet"
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
           onSelectDraftView={vi.fn()}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
           onSelectCheckpoint={vi.fn()}
+          onSelectExportProfile={vi.fn()}
         />
       </AppProviders>,
     )
@@ -363,18 +465,47 @@ describe('BookDraftStage', () => {
           draftView="compare"
           workspace={buildWorkspace()}
           compare={buildCompare()}
+          exportPreview={buildExportWorkspace()}
+          exportProfiles={exportProfiles}
+          selectedExportProfileId="export-review-packet"
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
           onSelectDraftView={vi.fn()}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
           onSelectCheckpoint={vi.fn()}
+          onSelectExportProfile={vi.fn()}
         />
       </AppProviders>,
     )
 
     expect(screen.getByRole('heading', { name: 'Book manuscript compare' })).toBeInTheDocument()
     expect(screen.getByLabelText('Manuscript checkpoint')).toBeInTheDocument()
+  })
+
+  it('renders BookDraftExportView in export view', () => {
+    render(
+      <AppProviders>
+        <BookDraftStage
+          draftView="export"
+          workspace={buildWorkspace()}
+          compare={buildCompare()}
+          exportPreview={buildExportWorkspace()}
+          exportProfiles={exportProfiles}
+          selectedExportProfileId="export-review-packet"
+          checkpoints={checkpoints}
+          selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          onSelectDraftView={vi.fn()}
+          onSelectChapter={vi.fn()}
+          onOpenChapter={vi.fn()}
+          onSelectCheckpoint={vi.fn()}
+          onSelectExportProfile={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Book export preview' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Manuscript checkpoint')).not.toBeInTheDocument()
   })
 
   it('switching view triggers the callback', async () => {
@@ -387,12 +518,16 @@ describe('BookDraftStage', () => {
           draftView="read"
           workspace={buildWorkspace()}
           compare={buildCompare()}
+          exportPreview={buildExportWorkspace()}
+          exportProfiles={exportProfiles}
+          selectedExportProfileId="export-review-packet"
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
           onSelectDraftView={onSelectDraftView}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
           onSelectCheckpoint={vi.fn()}
+          onSelectExportProfile={vi.fn()}
         />
       </AppProviders>,
     )
@@ -400,5 +535,34 @@ describe('BookDraftStage', () => {
     await user.click(screen.getByRole('button', { name: 'Compare' }))
 
     expect(onSelectDraftView).toHaveBeenCalledWith('compare')
+  })
+
+  it('switching to export triggers the export draft view callback', async () => {
+    const user = userEvent.setup()
+    const onSelectDraftView = vi.fn()
+
+    render(
+      <AppProviders>
+        <BookDraftStage
+          draftView="read"
+          workspace={buildWorkspace()}
+          compare={buildCompare()}
+          exportPreview={buildExportWorkspace()}
+          exportProfiles={exportProfiles}
+          selectedExportProfileId="export-review-packet"
+          checkpoints={checkpoints}
+          selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          onSelectDraftView={onSelectDraftView}
+          onSelectChapter={vi.fn()}
+          onOpenChapter={vi.fn()}
+          onSelectCheckpoint={vi.fn()}
+          onSelectExportProfile={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+
+    expect(onSelectDraftView).toHaveBeenCalledWith('export')
   })
 })

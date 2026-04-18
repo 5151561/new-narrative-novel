@@ -4,9 +4,17 @@ import { useI18n, type Locale } from '@/app/i18n'
 import type { BookWorkbenchActivityItem } from '@/features/book/hooks/useBookWorkbenchActivity'
 
 import {
+  DEFAULT_BOOK_EXPORT_PROFILE_ID,
+  mockBookExportProfileSeeds,
+} from '../api/book-export-profiles'
+import {
   DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
   mockBookManuscriptCheckpointSeeds,
 } from '../api/book-manuscript-checkpoints'
+import {
+  buildBookExportPreviewWorkspace,
+  normalizeBookExportProfile,
+} from '../lib/book-export-preview-mappers'
 import {
   buildCurrentManuscriptSnapshotFromBookDraft,
   compareBookManuscriptSnapshots,
@@ -22,6 +30,11 @@ import type {
   BookDraftSceneSectionViewModel,
   BookDraftWorkspaceViewModel,
 } from '../types/book-draft-view-models'
+import type {
+  BookExportPreviewWorkspaceViewModel,
+  BookExportProfileSummaryViewModel,
+  BookExportProfileViewModel,
+} from '../types/book-export-view-models'
 import { buildBookStoryWorkspace, type BookStoryVariant } from './book-storybook'
 
 type LocalizedText = {
@@ -462,6 +475,56 @@ export function buildBookDraftCompareStoryData(
   }
 }
 
+export function buildBookDraftExportStoryData(
+  locale: Locale,
+  options?: {
+    variant?: BookStoryVariant
+    selectedChapterId?: string
+    checkpointId?: string
+    exportProfileId?: string
+  },
+): {
+  workspace: BookDraftWorkspaceViewModel
+  compare: BookManuscriptCompareWorkspaceViewModel
+  exportWorkspace: BookExportPreviewWorkspaceViewModel
+  exportProfiles: BookExportProfileSummaryViewModel[]
+  selectedExportProfile: BookExportProfileViewModel
+} {
+  const workspace = buildBookDraftStoryWorkspace(locale, options)
+  const compareData = buildBookDraftCompareStoryData(locale, {
+    variant: options?.variant,
+    selectedChapterId: options?.selectedChapterId,
+    checkpointId: options?.checkpointId,
+  })
+  const exportProfileRecords = (mockBookExportProfileSeeds['book-signal-arc'] ?? []).map((record) => ({
+    ...record,
+    bookId: workspace.bookId,
+  }))
+  const exportProfiles = exportProfileRecords.map((record) =>
+    normalizeBookExportProfile(record, locale) satisfies BookExportProfileSummaryViewModel,
+  )
+  const selectedExportProfile =
+    exportProfiles.find((profile) => profile.exportProfileId === (options?.exportProfileId ?? DEFAULT_BOOK_EXPORT_PROFILE_ID)) ??
+    exportProfiles[0]!
+
+  return {
+    workspace,
+    compare: compareData.compare,
+    exportWorkspace: buildBookExportPreviewWorkspace({
+      currentDraftWorkspace: workspace,
+      compareWorkspace: compareData.compare,
+      profile: selectedExportProfile,
+      locale,
+    }),
+    exportProfiles,
+    selectedExportProfile,
+  }
+}
+
+export function buildBookDraftExportBaselineError() {
+  return new Error('Book manuscript checkpoint "checkpoint-missing" could not be found for "book-signal-arc".')
+}
+
 export function useLocalizedBookDraftWorkspace(options?: {
   variant?: BookStoryVariant
   selectedChapterId?: string
@@ -481,7 +544,13 @@ export function useLocalizedBookDraftWorkspace(options?: {
 export function buildBookDraftStoryActivity(
   locale: Locale,
   workspace: BookDraftWorkspaceViewModel,
-  options?: { quiet?: boolean; draftView?: 'read' | 'compare'; checkpointTitle?: string },
+  options?: {
+    quiet?: boolean
+    draftView?: 'read' | 'compare' | 'export'
+    checkpointTitle?: string
+    exportProfileTitle?: string
+    exportProfileSummary?: string
+  },
 ): BookWorkbenchActivityItem[] {
   if (options?.quiet) {
     return []
@@ -510,6 +579,42 @@ export function buildBookDraftStoryActivity(
           locale === 'zh-CN'
             ? '对照手稿基线继续复核章节级差异。'
             : 'Review chapter-level deltas against the selected manuscript baseline.',
+        tone: 'neutral',
+      },
+      {
+        id: 'chapter-2',
+        kind: 'chapter',
+        title: locale === 'zh-CN' ? `聚焦${workspace.selectedChapter?.title ?? workspace.title}` : `Focused ${workspace.selectedChapter?.title ?? workspace.title}`,
+        detail: workspace.selectedChapter?.summary ?? workspace.summary,
+        tone: 'neutral',
+      },
+    ]
+  }
+
+  if (options?.draftView === 'export') {
+    return [
+      {
+        id: 'draft-view-0',
+        kind: 'draft-view',
+        title: locale === 'zh-CN' ? '进入导出预览' : 'Entered Export Preview',
+        detail:
+          locale === 'zh-CN'
+            ? 'Export 预览继续把 chapter focus 与 export profile 交给路由。'
+            : 'Export preview keeps chapter focus and profile selection route-owned.',
+        tone: 'accent',
+      },
+      {
+        id: 'export-profile-1',
+        kind: 'export-profile',
+        title:
+          locale === 'zh-CN'
+            ? `选择导出配置 ${options.exportProfileTitle ?? '审阅包'}`
+            : `Selected export profile ${options.exportProfileTitle ?? 'Review Packet'}`,
+        detail:
+          options.exportProfileSummary ??
+          (locale === 'zh-CN'
+            ? '导出预览继续沿用同一份 chapter package 数据。'
+            : 'Export preview keeps using the same chapter package dataset.'),
         tone: 'neutral',
       },
       {

@@ -1,38 +1,50 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
+import { useI18n } from '@/app/i18n'
+
 import { BookDraftStage } from './BookDraftStage'
 import { BookStoryShell, type BookStoryVariant } from './book-storybook'
-import { buildBookDraftCompareStoryData, buildBookDraftStoryActivity, useLocalizedBookDraftWorkspace } from './book-draft-storybook'
-import { useI18n } from '@/app/i18n'
+import {
+  buildBookDraftCompareStoryData,
+  buildBookDraftExportStoryData,
+  useLocalizedBookDraftWorkspace,
+} from './book-draft-storybook'
 
 interface BookDraftStageStoryProps {
   variant?: BookStoryVariant
   selectedChapterId?: string
   checkpointId?: string
-  draftView?: 'read' | 'compare'
+  exportProfileId?: string
+  draftView?: 'read' | 'compare' | 'export'
 }
 
 function StoryComponent({
   variant = 'default',
   selectedChapterId,
   checkpointId,
+  exportProfileId,
   draftView = 'read',
 }: BookDraftStageStoryProps) {
   const { locale } = useI18n()
   const workspace = useLocalizedBookDraftWorkspace({ variant, selectedChapterId })
   const compareData = buildBookDraftCompareStoryData(locale, { variant, selectedChapterId, checkpointId })
+  const exportData = buildBookDraftExportStoryData(locale, { variant, selectedChapterId, checkpointId, exportProfileId })
 
   return (
     <BookDraftStage
       draftView={draftView}
       workspace={workspace}
       compare={compareData.compare}
+      exportPreview={draftView === 'export' ? exportData.exportWorkspace : null}
+      exportProfiles={exportData.exportProfiles}
+      selectedExportProfileId={exportData.selectedExportProfile.exportProfileId}
       checkpoints={compareData.checkpoints}
       selectedCheckpointId={compareData.selectedCheckpoint.checkpointId}
       onSelectDraftView={() => undefined}
       onSelectChapter={() => undefined}
       onOpenChapter={() => undefined}
       onSelectCheckpoint={() => undefined}
+      onSelectExportProfile={() => undefined}
     />
   )
 }
@@ -91,5 +103,26 @@ export const CompareQuietCheckpoint: Story = {
     draftView: 'compare',
     checkpointId: 'checkpoint-book-signal-arc-quiet-pass',
     selectedChapterId: 'chapter-open-water-signals',
+  },
+}
+
+export const ExportReviewPacket: Story = {
+  args: {
+    draftView: 'export',
+    exportProfileId: 'export-review-packet',
+  },
+}
+
+export const ExportSubmissionPreview: Story = {
+  args: {
+    draftView: 'export',
+    exportProfileId: 'export-submission-preview',
+  },
+}
+
+export const ExportArchiveSnapshot: Story = {
+  args: {
+    draftView: 'export',
+    exportProfileId: 'export-archive-snapshot',
   },
 }

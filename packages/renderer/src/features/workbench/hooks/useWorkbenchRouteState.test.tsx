@@ -13,6 +13,8 @@ import {
 } from '../types/workbench-route'
 import { readWorkbenchRouteState, useWorkbenchRouteState } from './useWorkbenchRouteState'
 
+const DEFAULT_BOOK_EXPORT_PROFILE_ID = 'export-review-packet'
+
 function RouteHarness() {
   const { route, replaceRoute, patchBookRoute, patchChapterRoute, patchSceneRoute } = useWorkbenchRouteState()
 
@@ -149,6 +151,20 @@ function RouteHarness() {
         type="button"
         onClick={() =>
           patchBookRoute({
+            bookId: 'book-signal-arc',
+            lens: 'draft',
+            draftView: 'export',
+            exportProfileId: DEFAULT_BOOK_EXPORT_PROFILE_ID,
+            selectedChapterId: 'chapter-open-water-signals',
+          } satisfies Partial<BookRouteState>)
+        }
+      >
+        Book Export
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchBookRoute({
             lens: 'draft',
             draftView: 'compare',
             checkpointId: undefined,
@@ -156,6 +172,18 @@ function RouteHarness() {
         }
       >
         Book Compare Default Checkpoint
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchBookRoute({
+            lens: 'draft',
+            draftView: 'export',
+            exportProfileId: undefined,
+          } satisfies Partial<BookRouteState>)
+        }
+      >
+        Book Export Default Profile
       </button>
       <button
         type="button"
@@ -455,6 +483,26 @@ describe('useWorkbenchRouteState', () => {
     })
   })
 
+  it('reads export draft links while preserving dormant structure view and export profile id', () => {
+    window.history.replaceState(
+      {},
+      '',
+      `/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=export&exportProfileId=${DEFAULT_BOOK_EXPORT_PROFILE_ID}&selectedChapterId=chapter-open-water-signals`,
+    )
+
+    render(<RouteHarness />)
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'draft',
+      view: 'signals',
+      draftView: 'export',
+      exportProfileId: DEFAULT_BOOK_EXPORT_PROFILE_ID,
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+  })
+
   it('writes and restores the book draft lens while keeping the dormant structure view stable', async () => {
     const user = userEvent.setup()
 
@@ -549,6 +597,56 @@ describe('useWorkbenchRouteState', () => {
     expect(params.get('checkpointId')).toBe(DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID)
   })
 
+  it('writes and restores book export draftView with exportProfileId while preserving dormant compare checkpoint', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      `/workbench?scope=book&id=book-signal-arc&lens=structure&view=outliner&draftView=compare&checkpointId=${DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID}&selectedChapterId=chapter-signals-in-rain`,
+    )
+
+    render(<RouteHarness />)
+
+    await user.click(screen.getByRole('button', { name: 'Book Export' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'draft',
+      view: 'outliner',
+      draftView: 'export',
+      checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+      exportProfileId: DEFAULT_BOOK_EXPORT_PROFILE_ID,
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+
+    let params = new URLSearchParams(window.location.search)
+    expect(params.get('draftView')).toBe('export')
+    expect(params.get('exportProfileId')).toBe(DEFAULT_BOOK_EXPORT_PROFILE_ID)
+    expect(params.get('checkpointId')).toBe(DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID)
+    expect(params.get('view')).toBe('outliner')
+
+    await user.click(screen.getByRole('button', { name: 'Book Structure' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'structure',
+      view: 'outliner',
+      draftView: 'export',
+      checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+      exportProfileId: DEFAULT_BOOK_EXPORT_PROFILE_ID,
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+
+    params = new URLSearchParams(window.location.search)
+    expect(params.get('lens')).toBe('structure')
+    expect(params.get('draftView')).toBe('export')
+    expect(params.get('exportProfileId')).toBe(DEFAULT_BOOK_EXPORT_PROFILE_ID)
+    expect(params.get('checkpointId')).toBe(DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID)
+  })
+
   it('falls back missing draftView to read and missing compare checkpointId to the default checkpoint id', () => {
     window.history.replaceState(
       {},
@@ -578,6 +676,19 @@ describe('useWorkbenchRouteState', () => {
       draftView: 'compare',
       checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
     })
+
+    expect(
+      readWorkbenchRouteState(
+        '?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=export',
+      ),
+    ).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'draft',
+      view: 'signals',
+      draftView: 'export',
+      exportProfileId: DEFAULT_BOOK_EXPORT_PROFILE_ID,
+    })
   })
 
   it('keeps dormant draftView and checkpointId from breaking book structure mode', () => {
@@ -596,6 +707,27 @@ describe('useWorkbenchRouteState', () => {
       view: 'signals',
       draftView: 'compare',
       checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+      selectedChapterId: 'chapter-signals-in-rain',
+    })
+  })
+
+  it('keeps dormant exportProfileId and compare checkpoint state intact in structure mode', () => {
+    window.history.replaceState(
+      {},
+      '',
+      `/workbench?scope=book&id=book-signal-arc&lens=structure&view=signals&draftView=export&checkpointId=${DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID}&exportProfileId=${DEFAULT_BOOK_EXPORT_PROFILE_ID}&selectedChapterId=chapter-signals-in-rain`,
+    )
+
+    render(<RouteHarness />)
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'structure',
+      view: 'signals',
+      draftView: 'export',
+      checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+      exportProfileId: DEFAULT_BOOK_EXPORT_PROFILE_ID,
       selectedChapterId: 'chapter-signals-in-rain',
     })
   })

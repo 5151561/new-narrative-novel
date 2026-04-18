@@ -850,6 +850,47 @@ describe('App scene workbench', () => {
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
   })
 
+  it('supports scene -> book draft export -> scene without breaking dormant snapshots', async () => {
+    const user = userEvent.setup()
+
+    await renderFreshApp(
+      '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution&beatId=beat-bargain&proposalId=proposal-2',
+    )
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+
+    pushExternalRoute(
+      '?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=export&checkpointId=checkpoint-book-signal-arc-pr11-baseline&exportProfileId=export-review-packet&selectedChapterId=chapter-open-water-signals',
+    )
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('draftView')).toBe('export')
+      expect(params.get('checkpointId')).toBe('checkpoint-book-signal-arc-pr11-baseline')
+      expect(params.get('exportProfileId')).toBe('export-review-packet')
+      expect(params.get('selectedChapterId')).toBe('chapter-open-water-signals')
+    })
+
+    expect(screen.queryByText('Book unavailable')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Scene' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('scene')
+      expect(params.get('id')).toBe('scene-midnight-platform')
+      expect(params.get('lens')).toBe('orchestrate')
+      expect(params.get('tab')).toBe('execution')
+      expect(params.get('beatId')).toBe('beat-bargain')
+      expect(params.get('proposalId')).toBe('proposal-2')
+    })
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+  })
+
+
   it('supports scene -> book -> scene without losing the dormant scene snapshot', async () => {
     const user = userEvent.setup()
 

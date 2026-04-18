@@ -1,29 +1,33 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
+import { useI18n } from '@/app/i18n'
+
 import { BookDraftInspectorPane } from './BookDraftInspectorPane'
 import {
   BookStoryShell,
   type BookStoryVariant,
 } from './book-storybook'
-import { buildBookDraftCompareStoryData, useLocalizedBookDraftWorkspace } from './book-draft-storybook'
-import { useI18n } from '@/app/i18n'
+import { buildBookDraftCompareStoryData, buildBookDraftExportStoryData, useLocalizedBookDraftWorkspace } from './book-draft-storybook'
 
 interface BookDraftInspectorPaneStoryProps {
   variant?: BookStoryVariant
   selectedChapterId?: string
   checkpointId?: string
-  draftView?: 'read' | 'compare'
+  exportProfileId?: string
+  draftView?: 'read' | 'compare' | 'export'
 }
 
 function StoryComponent({
   variant = 'default',
   selectedChapterId,
   checkpointId,
+  exportProfileId,
   draftView = 'read',
 }: BookDraftInspectorPaneStoryProps) {
   const { locale } = useI18n()
   const workspace = useLocalizedBookDraftWorkspace({ variant, selectedChapterId })
   const compareData = buildBookDraftCompareStoryData(locale, { variant, selectedChapterId, checkpointId })
+  const exportData = buildBookDraftExportStoryData(locale, { variant, selectedChapterId, checkpointId, exportProfileId })
 
   return (
     <BookDraftInspectorPane
@@ -31,6 +35,7 @@ function StoryComponent({
       inspector={workspace.inspector}
       activeDraftView={draftView}
       compare={draftView === 'compare' ? compareData.compare : null}
+      exportPreview={draftView === 'export' ? exportData.exportWorkspace : null}
       checkpointMeta={draftView === 'compare' ? compareData.selectedCheckpoint : null}
     />
   )
@@ -70,5 +75,29 @@ export const CompareQuietCheckpoint: Story = {
     draftView: 'compare',
     checkpointId: 'checkpoint-book-signal-arc-quiet-pass',
     selectedChapterId: 'chapter-open-water-signals',
+  },
+}
+
+export const ExportBlockedByMissingDraft: Story = {
+  args: {
+    draftView: 'export',
+    exportProfileId: 'export-review-packet',
+  },
+}
+
+export const ExportBlockedByTraceGap: Story = {
+  args: {
+    draftView: 'export',
+    variant: 'missing-trace-attention',
+    exportProfileId: 'export-review-packet',
+  },
+}
+
+export const ExportReady: Story = {
+  args: {
+    draftView: 'export',
+    variant: 'quiet-book',
+    checkpointId: 'checkpoint-book-signal-arc-quiet-pass',
+    exportProfileId: 'export-review-packet',
   },
 }

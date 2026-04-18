@@ -11,11 +11,26 @@ import type { BookWorkbenchActivityItem } from '../hooks/useBookWorkbenchActivit
 import type { BookDraftCompareProblems } from '../lib/book-draft-compare-presentation'
 import type { BookDraftDockSummaryItem, BookDraftDockSummaryViewModel } from '../types/book-draft-view-models'
 
+export interface BookDraftExportProblems {
+  blockerCount: number
+  warningCount: number
+  traceGapCount: number
+  missingDraftCount: number
+  compareRegressionCount: number
+  blockers: BookDraftDockSummaryItem[]
+  warnings: BookDraftDockSummaryItem[]
+  traceGaps: BookDraftDockSummaryItem[]
+  missingDrafts: BookDraftDockSummaryItem[]
+  compareRegressions: BookDraftDockSummaryItem[]
+}
+
 interface BookDraftBottomDockProps {
   summary: BookDraftDockSummaryViewModel
   activity: BookWorkbenchActivityItem[]
   activeDraftView?: BookDraftView
   compareProblems?: BookDraftCompareProblems | null
+  exportProblems?: BookDraftExportProblems | null
+  exportError?: Error | null
 }
 
 function SupportList({
@@ -65,6 +80,10 @@ function getActivityMeta(locale: 'en' | 'zh-CN', item: BookWorkbenchActivityItem
     return 'Checkpoint'
   }
 
+  if (item.kind === 'export-profile') {
+    return locale === 'zh-CN' ? '导出配置' : 'Profile'
+  }
+
   return locale === 'zh-CN' ? '跳转' : 'Handoff'
 }
 
@@ -73,9 +92,13 @@ export function BookDraftBottomDock({
   activity,
   activeDraftView = 'read',
   compareProblems = null,
+  exportProblems = null,
+  exportError = null,
 }: BookDraftBottomDockProps) {
   const { locale } = useI18n()
   const compareMode = activeDraftView === 'compare' && compareProblems !== null
+  const exportMode = activeDraftView === 'export' && exportProblems !== null
+  const exportErrorMode = activeDraftView === 'export' && exportError !== null && exportProblems === null
 
   return (
     <section
@@ -92,6 +115,12 @@ export function BookDraftBottomDock({
       />
       <div className="grid min-h-0 flex-1 gap-4 overflow-auto p-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <SectionCard title={locale === 'zh-CN' ? '问题' : 'Problems'} eyebrow={locale === 'zh-CN' ? '阅读支持' : 'Reading Support'}>
+          {exportErrorMode ? (
+            <EmptyState
+              title={locale === 'zh-CN' ? '导出基线不可用' : 'Export baseline unavailable'}
+              message={exportError.message}
+            />
+          ) : (
           <div className="space-y-4">
             <FactList
               items={
@@ -103,22 +132,46 @@ export function BookDraftBottomDock({
                       { id: 'warnings-increased', label: locale === 'zh-CN' ? '警告上升章节' : 'Warnings increased chapters', value: `${compareProblems.warningsIncreasedChapterCount}` },
                       { id: 'checkpoint-missing', label: locale === 'zh-CN' ? 'Checkpoint 缺失段落' : 'Checkpoint missing sections', value: `${compareProblems.checkpointMissingSectionCount}` },
                     ]
-                  : [
+                  : exportMode
+                    ? [
+                        { id: 'export-blockers', label: locale === 'zh-CN' ? '阻塞项' : 'Blockers', value: `${exportProblems.blockerCount}` },
+                        { id: 'export-warnings', label: locale === 'zh-CN' ? '警告' : 'Warnings', value: `${exportProblems.warningCount}` },
+                        { id: 'export-trace-gaps', label: locale === 'zh-CN' ? '缺溯源场景' : 'Trace gaps', value: `${exportProblems.traceGapCount}` },
+                        { id: 'export-missing-drafts', label: locale === 'zh-CN' ? '缺稿场景' : 'Missing drafts', value: `${exportProblems.missingDraftCount}` },
+                        { id: 'export-compare-regressions', label: locale === 'zh-CN' ? 'Compare 回退' : 'Compare regressions', value: `${exportProblems.compareRegressionCount}` },
+                      ]
+                    : [
                       { id: 'missing-draft-count', label: locale === 'zh-CN' ? '缺稿章节' : 'Missing draft chapters', value: `${summary.missingDraftChapterCount}` },
                       { id: 'missing-trace-count', label: locale === 'zh-CN' ? '缺溯源章节' : 'Missing trace chapters', value: `${summary.missingTraceChapterCount}` },
                       { id: 'warnings-count', label: locale === 'zh-CN' ? '警告章节' : 'Warning chapters', value: `${summary.warningsChapterCount}` },
                       { id: 'queued-count', label: locale === 'zh-CN' ? '待处理修订章节' : 'Queued revision chapters', value: `${summary.queuedRevisionChapterCount}` },
-                    ]
+                      ]
               }
             />
             <SupportList
-              title={compareMode ? (locale === 'zh-CN' ? '变更章节' : 'Changed chapters') : locale === 'zh-CN' ? '缺稿' : 'Missing drafts'}
-              items={compareMode ? compareProblems.changedChapters : summary.missingDraftChapters}
+              title={
+                compareMode
+                  ? locale === 'zh-CN'
+                    ? '变更章节'
+                    : 'Changed chapters'
+                  : exportMode
+                    ? locale === 'zh-CN'
+                      ? '阻塞项'
+                      : 'Blockers'
+                    : locale === 'zh-CN'
+                      ? '缺稿'
+                      : 'Missing drafts'
+              }
+              items={compareMode ? compareProblems.changedChapters : exportMode ? exportProblems.blockers : summary.missingDraftChapters}
               emptyTitle={
                 compareMode
                   ? locale === 'zh-CN'
                     ? '当前没有变更章节'
                     : 'No changed chapters'
+                  : exportMode
+                    ? locale === 'zh-CN'
+                      ? '当前没有阻塞项'
+                      : 'No blockers'
                   : locale === 'zh-CN'
                     ? '没有缺稿章节'
                     : 'No missing draft chapters'
@@ -128,19 +181,39 @@ export function BookDraftBottomDock({
                   ? locale === 'zh-CN'
                     ? '当前 compare 结果没有章节级变更。'
                     : 'The current compare pass has no chapter-level changes.'
+                  : exportMode
+                    ? locale === 'zh-CN'
+                      ? '当前导出预览没有阻塞项。'
+                      : 'The current export preview has no blockers.'
                   : locale === 'zh-CN'
                     ? '当前每个章节都有可读正文。'
                     : 'Every chapter currently has readable draft prose.'
               }
             />
             <SupportList
-              title={compareMode ? (locale === 'zh-CN' ? '当前缺稿场景' : 'Draft missing scenes') : locale === 'zh-CN' ? '缺溯源' : 'Missing trace'}
-              items={compareMode ? compareProblems.missingDraftScenes : summary.missingTraceChapters}
+              title={
+                compareMode
+                  ? locale === 'zh-CN'
+                    ? '当前缺稿场景'
+                    : 'Draft missing scenes'
+                  : exportMode
+                    ? locale === 'zh-CN'
+                      ? '警告'
+                      : 'Warnings'
+                    : locale === 'zh-CN'
+                      ? '缺溯源'
+                      : 'Missing trace'
+              }
+              items={compareMode ? compareProblems.missingDraftScenes : exportMode ? exportProblems.warnings : summary.missingTraceChapters}
               emptyTitle={
                 compareMode
                   ? locale === 'zh-CN'
                     ? '当前没有缺稿场景'
                     : 'No draft-missing scenes'
+                  : exportMode
+                    ? locale === 'zh-CN'
+                      ? '当前没有警告'
+                      : 'No warnings'
                   : locale === 'zh-CN'
                     ? '没有缺溯源章节'
                     : 'No missing trace chapters'
@@ -150,19 +223,39 @@ export function BookDraftBottomDock({
                   ? locale === 'zh-CN'
                     ? '当前 compare 结果里没有 draft_missing 场景。'
                     : 'No compare rows are currently marked draft_missing.'
+                  : exportMode
+                    ? locale === 'zh-CN'
+                      ? '当前导出预览没有额外警告。'
+                      : 'The current export preview has no extra warnings.'
                   : locale === 'zh-CN'
                     ? '当前每个章节都已有 trace rollup。'
                     : 'Every chapter currently has a trace rollup.'
               }
             />
             <SupportList
-              title={compareMode ? (locale === 'zh-CN' ? '溯源回退' : 'Trace regressions') : locale === 'zh-CN' ? '高压章节' : 'Highest pressure'}
-              items={compareMode ? compareProblems.traceRegressions : summary.highestPressureChapters}
+              title={
+                compareMode
+                  ? locale === 'zh-CN'
+                    ? '溯源回退'
+                    : 'Trace regressions'
+                  : exportMode
+                    ? locale === 'zh-CN'
+                      ? '缺溯源'
+                      : 'Trace gaps'
+                    : locale === 'zh-CN'
+                      ? '高压章节'
+                      : 'Highest pressure'
+              }
+              items={compareMode ? compareProblems.traceRegressions : exportMode ? exportProblems.traceGaps : summary.highestPressureChapters}
               emptyTitle={
                 compareMode
                   ? locale === 'zh-CN'
                     ? '当前没有溯源回退'
                     : 'No trace regressions'
+                  : exportMode
+                    ? locale === 'zh-CN'
+                      ? '当前没有溯源缺口'
+                      : 'No trace gaps'
                   : locale === 'zh-CN'
                     ? '当前没有高压章节'
                     : 'No high-pressure chapters'
@@ -172,6 +265,10 @@ export function BookDraftBottomDock({
                   ? locale === 'zh-CN'
                     ? '当前 compare 结果没有 trace regression。'
                     : 'The current compare pass has no trace regressions.'
+                  : exportMode
+                    ? locale === 'zh-CN'
+                      ? '当前导出预览没有额外溯源缺口。'
+                      : 'The current export preview has no extra trace gaps.'
                   : locale === 'zh-CN'
                     ? '当前阅读轮次比较平稳。'
                     : 'The current manuscript pass is relatively calm.'
@@ -200,8 +297,32 @@ export function BookDraftBottomDock({
                   }
                 />
               </>
+            ) : exportMode ? (
+              <>
+                <SupportList
+                  title={locale === 'zh-CN' ? '缺稿' : 'Missing drafts'}
+                  items={exportProblems.missingDrafts}
+                  emptyTitle={locale === 'zh-CN' ? '当前没有缺稿场景' : 'No missing drafts'}
+                  emptyMessage={
+                    locale === 'zh-CN'
+                      ? '当前导出预览没有额外缺稿场景。'
+                      : 'The current export preview has no extra missing-draft scenes.'
+                  }
+                />
+                <SupportList
+                  title={locale === 'zh-CN' ? 'Compare 回退' : 'Compare regressions'}
+                  items={exportProblems.compareRegressions}
+                  emptyTitle={locale === 'zh-CN' ? '当前没有 Compare 回退' : 'No compare regressions'}
+                  emptyMessage={
+                    locale === 'zh-CN'
+                      ? '当前导出预览没有额外 compare 回退。'
+                      : 'The current export preview has no extra compare regressions.'
+                  }
+                />
+              </>
             ) : null}
           </div>
+          )}
         </SectionCard>
         <SectionCard title={locale === 'zh-CN' ? '活动' : 'Activity'} eyebrow={locale === 'zh-CN' ? '会话日志' : 'Session Log'}>
           {activity.length > 0 ? (
