@@ -13,7 +13,14 @@ import {
   BookStoryShell,
   type BookStoryVariant,
 } from '../components/book-storybook'
-import { buildBookDraftCompareStoryData, buildBookDraftExportStoryData, buildBookDraftStoryActivity, useLocalizedBookDraftWorkspace } from '../components/book-draft-storybook'
+import {
+  buildBookDraftBranchProblemsStoryData,
+  buildBookDraftBranchStoryData,
+  buildBookDraftCompareStoryData,
+  buildBookDraftExportStoryData,
+  buildBookDraftStoryActivity,
+  useLocalizedBookDraftWorkspace,
+} from '../components/book-draft-storybook'
 import { buildBookDraftExportBaselineError } from '../components/book-draft-storybook'
 import type { BookDraftExportProblems } from '../components/BookDraftBottomDock'
 import type { BookExportPreviewWorkspaceViewModel } from '../types/book-export-view-models'
@@ -22,8 +29,10 @@ interface BookDraftWorkspaceStoryProps {
   variant?: BookStoryVariant
   selectedChapterId?: string
   checkpointId?: string
+  branchId?: string
+  branchBaseline?: 'current' | 'checkpoint'
   exportProfileId?: string
-  draftView?: 'read' | 'compare' | 'export'
+  draftView?: 'read' | 'compare' | 'export' | 'branch'
   exportState?: 'ready' | 'error'
 }
 
@@ -62,6 +71,8 @@ function WorkspacePreview({
   variant = 'default',
   selectedChapterId,
   checkpointId,
+  branchId,
+  branchBaseline = 'current',
   exportProfileId,
   draftView = 'read',
   exportState = 'ready',
@@ -69,6 +80,7 @@ function WorkspacePreview({
   const { locale } = useI18n()
   const workspace = useLocalizedBookDraftWorkspace({ variant, selectedChapterId })
   const compareData = buildBookDraftCompareStoryData(locale, { variant, selectedChapterId, checkpointId })
+  const branchData = buildBookDraftBranchStoryData(locale, { variant, selectedChapterId, branchId, branchBaseline, checkpointId })
   const exportData = buildBookDraftExportStoryData(locale, { variant, selectedChapterId, checkpointId, exportProfileId })
   const exportError = draftView === 'export' && exportState === 'error' ? buildBookDraftExportBaselineError() : null
   const effectiveExportPreview = exportError ? null : exportData.exportWorkspace
@@ -76,6 +88,11 @@ function WorkspacePreview({
     quiet: variant === 'quiet-book' && draftView === 'read',
     draftView,
     checkpointTitle: compareData.selectedCheckpoint.title,
+    branchTitle: branchData.selectedBranch.title,
+    branchSummary: branchData.selectedBranch.rationale,
+    branchBaselineTitle: branchData.branchWorkspace.baseline.label,
+    branchBaselineKind: branchData.branchWorkspace.baseline.kind,
+    branchBaselineCheckpointId: branchData.branchWorkspace.baseline.checkpointId,
     exportProfileTitle: exportData.selectedExportProfile.title,
     exportProfileSummary: exportData.selectedExportProfile.summary,
   })
@@ -112,6 +129,11 @@ function WorkspacePreview({
           draftView={draftView}
           workspace={workspace}
           compare={compareData.compare}
+          branchWorkspace={draftView === 'branch' ? branchData.branchWorkspace : null}
+          branchError={null}
+          branches={branchData.branches}
+          selectedBranchId={branchData.selectedBranch.branchId}
+          branchBaseline={branchBaseline}
           exportPreview={draftView === 'export' ? effectiveExportPreview : null}
           exportProfiles={exportData.exportProfiles}
           selectedExportProfileId={exportData.selectedExportProfile.exportProfileId}
@@ -122,6 +144,8 @@ function WorkspacePreview({
           onSelectChapter={() => undefined}
           onOpenChapter={() => undefined}
           onSelectCheckpoint={() => undefined}
+          onSelectBranch={() => undefined}
+          onSelectBranchBaseline={() => undefined}
           onSelectExportProfile={() => undefined}
         />
       }
@@ -131,6 +155,7 @@ function WorkspacePreview({
           inspector={workspace.inspector}
           activeDraftView={draftView}
           compare={draftView === 'compare' ? compareData.compare : null}
+          branch={draftView === 'branch' ? branchData.branchWorkspace : null}
           exportPreview={draftView === 'export' ? effectiveExportPreview : null}
           exportError={exportError}
           checkpointMeta={draftView === 'compare' ? compareData.selectedCheckpoint : null}
@@ -142,6 +167,7 @@ function WorkspacePreview({
           activity={activity}
           activeDraftView={draftView}
           compareProblems={draftView === 'compare' ? compareData.compareProblems : null}
+          branchProblems={draftView === 'branch' ? buildBookDraftBranchProblemsStoryData(locale, branchData.branchWorkspace) : null}
           exportProblems={draftView === 'export' ? buildExportProblems(effectiveExportPreview) : null}
           exportError={exportError}
         />
@@ -268,6 +294,46 @@ export const ExportReady: Story = {
     variant: 'quiet-book',
     checkpointId: 'checkpoint-book-signal-arc-quiet-pass',
     exportProfileId: 'export-review-packet',
+  },
+}
+
+export const BranchCurrentBaselineQuietEnding: Story = {
+  args: {
+    draftView: 'branch',
+    branchId: 'branch-book-signal-arc-quiet-ending',
+    branchBaseline: 'current',
+    selectedChapterId: 'chapter-open-water-signals',
+  },
+}
+
+export const BranchCheckpointBaselineHighPressure: Story = {
+  args: {
+    draftView: 'branch',
+    branchId: 'branch-book-signal-arc-high-pressure',
+    branchBaseline: 'checkpoint',
+    checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+    selectedChapterId: 'chapter-signals-in-rain',
+  },
+}
+
+export const BranchBlockedMissingDraft: Story = {
+  args: {
+    draftView: 'branch',
+    branchId: 'branch-book-signal-arc-high-pressure',
+    branchBaseline: 'checkpoint',
+    checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+    selectedChapterId: 'chapter-open-water-signals',
+  },
+}
+
+export const BranchTraceImprovedQuietEnding: Story = {
+  args: {
+    draftView: 'branch',
+    branchId: 'branch-book-signal-arc-quiet-ending',
+    branchBaseline: 'checkpoint',
+    checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+    variant: 'missing-trace-attention',
+    selectedChapterId: 'chapter-open-water-signals',
   },
 }
 

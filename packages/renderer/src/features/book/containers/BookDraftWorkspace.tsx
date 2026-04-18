@@ -404,6 +404,7 @@ export function BookDraftWorkspace() {
           inspector={workspace.inspector}
           activeDraftView={activeDraftView}
           compare={compareWorkspace ?? null}
+          branch={branchWorkspace ?? null}
           exportPreview={effectiveExportPreview}
           exportError={effectiveExportError}
           checkpointMeta={selectedCheckpoint ?? null}
@@ -414,6 +415,7 @@ export function BookDraftWorkspace() {
           workspace={workspace}
           activeDraftView={activeDraftView}
           compare={compareWorkspace ?? null}
+          branch={branchWorkspace ?? null}
           exportPreview={effectiveExportPreview}
           exportError={effectiveExportError}
         />

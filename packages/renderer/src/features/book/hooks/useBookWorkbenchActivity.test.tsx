@@ -25,6 +25,17 @@ interface ActivityHookProps {
     title: string
     summary: string
   } | null
+  selectedBranch?: {
+    id: string
+    title: string
+    summary: string
+  } | null
+  selectedBranchBaseline?: {
+    id: string
+    title: string
+    kind: 'current' | 'checkpoint'
+    checkpointId?: string
+  } | null
   selectedChapter: ActivityTestSelectedChapter | null
   latestHandoff?: BookWorkbenchHandoffEvent | null
 }
@@ -297,5 +308,210 @@ describe('useBookWorkbenchActivity', () => {
     })
 
     expect(result.current[0]?.title).toBe('Returned to Compare')
+  })
+
+  it('records export -> branch as branch entry instead of returning to read', () => {
+    const { result, rerender } = renderHook(
+      ({
+        activeDraftView = 'read',
+        selectedChapter,
+        selectedExportProfile = null,
+        selectedBranch = null,
+        selectedBranchBaseline = null,
+      }: ActivityHookProps & {
+        selectedExportProfile?: { id: string; title: string; summary: string } | null
+      }) =>
+        useBookWorkbenchActivity({
+          bookId: 'book-signal-arc',
+          activeLens: 'draft',
+          activeView: 'sequence',
+          activeDraftView,
+          selectedCheckpoint: null,
+          selectedExportProfile,
+          selectedBranch,
+          selectedBranchBaseline,
+          selectedChapter,
+          maxItems: 7,
+        }),
+      {
+        initialProps: {
+          activeView: 'sequence',
+          activeDraftView: 'export',
+          selectedExportProfile: {
+            id: 'export-review-packet',
+            title: 'Review Packet',
+            summary: 'Full manuscript packet with compare and trace context attached.',
+          },
+          selectedBranch: null,
+          selectedBranchBaseline: null,
+          selectedChapter: {
+            id: 'chapter-open-water-signals',
+            title: 'Open Water Signals',
+            summary: 'Warehouse pressure should stay legible as the exit opens.',
+          },
+        },
+        wrapper: AppProviders,
+      },
+    )
+
+    rerender({
+      activeView: 'sequence',
+      activeDraftView: 'branch',
+      selectedExportProfile: {
+        id: 'export-review-packet',
+        title: 'Review Packet',
+        summary: 'Full manuscript packet with compare and trace context attached.',
+      },
+      selectedBranch: {
+        id: 'branch-book-signal-arc-high-pressure',
+        title: 'High Pressure',
+        summary: 'Stress the witness line and hold the courier cost in public view.',
+      },
+      selectedBranchBaseline: {
+        id: 'checkpoint:checkpoint-book-signal-arc-pr11-baseline',
+        title: 'Checkpoint baseline',
+        kind: 'checkpoint',
+        checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      },
+      selectedChapter: {
+        id: 'chapter-open-water-signals',
+        title: 'Open Water Signals',
+        summary: 'Warehouse pressure should stay legible as the exit opens.',
+      },
+    })
+
+    expect(result.current[0]?.title).toBe('Entered Branch Review')
+    expect(result.current[0]?.detail).toBe('Branch review keeps branch selection and baseline route-owned.')
+    expect(result.current[2]).toMatchObject({
+      title: 'Selected checkpoint baseline',
+      detail: 'Review branch deltas against Checkpoint baseline (checkpoint-book-signal-arc-pr11-baseline).',
+    })
+  })
+
+  it('records branch entry, branch selection, and checkpoint baseline selection', () => {
+    const { result, rerender } = renderHook(
+      ({
+        activeDraftView = 'read',
+        selectedChapter,
+        selectedBranch = null,
+        selectedBranchBaseline = null,
+      }: ActivityHookProps) =>
+        useBookWorkbenchActivity({
+          bookId: 'book-signal-arc',
+          activeLens: 'draft',
+          activeView: 'sequence',
+          activeDraftView,
+          selectedCheckpoint: null,
+          selectedExportProfile: null,
+          selectedBranch,
+          selectedBranchBaseline,
+          selectedChapter,
+          maxItems: 7,
+        }),
+      {
+        initialProps: {
+          activeView: 'sequence',
+          activeDraftView: 'read',
+          selectedBranch: null,
+          selectedBranchBaseline: null,
+          selectedChapter: {
+            id: 'chapter-open-water-signals',
+            title: 'Open Water Signals',
+            summary: 'Warehouse pressure should stay legible as the exit opens.',
+          },
+        },
+        wrapper: AppProviders,
+      },
+    )
+
+    rerender({
+      activeView: 'sequence',
+      activeDraftView: 'branch',
+      selectedBranch: {
+        id: 'branch-book-signal-arc-high-pressure',
+        title: 'High Pressure',
+        summary: 'Stress the witness line and hold the courier cost in public view.',
+      },
+      selectedBranchBaseline: {
+        id: 'checkpoint:checkpoint-book-signal-arc-pr11-baseline',
+        title: 'Checkpoint baseline',
+        kind: 'checkpoint',
+        checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      },
+      selectedChapter: {
+        id: 'chapter-open-water-signals',
+        title: 'Open Water Signals',
+        summary: 'Warehouse pressure should stay legible as the exit opens.',
+      },
+    })
+
+    expect(result.current.map((item) => item.title)).toEqual([
+      'Entered Branch Review',
+      'Selected branch High Pressure',
+      'Selected checkpoint baseline',
+      'Entered Draft',
+      'Focused Open Water Signals',
+    ])
+
+    rerender({
+      activeView: 'sequence',
+      activeDraftView: 'read',
+      selectedBranch: {
+        id: 'branch-book-signal-arc-high-pressure',
+        title: 'High Pressure',
+        summary: 'Stress the witness line and hold the courier cost in public view.',
+      },
+      selectedBranchBaseline: {
+        id: 'checkpoint:checkpoint-book-signal-arc-pr11-baseline',
+        title: 'Checkpoint baseline',
+        kind: 'checkpoint',
+        checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      },
+      selectedChapter: {
+        id: 'chapter-open-water-signals',
+        title: 'Open Water Signals',
+        summary: 'Warehouse pressure should stay legible as the exit opens.',
+      },
+    })
+
+    expect(result.current[0]?.title).toBe('Returned to Read')
+  })
+
+  it('localizes current baseline activity detail without inventing caller summary text', () => {
+    const { result } = renderHook(
+      () =>
+        useBookWorkbenchActivity({
+          bookId: 'book-signal-arc',
+          activeLens: 'draft',
+          activeView: 'sequence',
+          activeDraftView: 'branch',
+          selectedCheckpoint: null,
+          selectedExportProfile: null,
+          selectedBranch: {
+            id: 'branch-book-signal-arc-quiet-ending',
+            title: 'Quiet Ending',
+            summary: 'A lower-conflict ending branch.',
+          },
+          selectedBranchBaseline: {
+            id: 'current:current',
+            title: 'Current baseline',
+            kind: 'current',
+          },
+          selectedChapter: {
+            id: 'chapter-open-water-signals',
+            title: 'Open Water Signals',
+            summary: 'Warehouse pressure should stay legible as the exit opens.',
+          },
+          maxItems: 6,
+        }),
+      {
+        wrapper: AppProviders,
+      },
+    )
+
+    expect(result.current.find((item) => item.kind === 'branch-baseline')).toMatchObject({
+      title: 'Selected current baseline',
+      detail: 'Keep the current manuscript as the branch review baseline.',
+    })
   })
 })

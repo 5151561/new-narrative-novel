@@ -6,7 +6,14 @@ import {
   type BookStoryVariant,
 } from './book-storybook'
 import { useI18n } from '@/app/i18n'
-import { buildBookDraftCompareStoryData, buildBookDraftExportStoryData, buildBookDraftStoryActivity, useLocalizedBookDraftWorkspace } from './book-draft-storybook'
+import {
+  buildBookDraftBranchProblemsStoryData,
+  buildBookDraftBranchStoryData,
+  buildBookDraftCompareStoryData,
+  buildBookDraftExportStoryData,
+  buildBookDraftStoryActivity,
+  useLocalizedBookDraftWorkspace,
+} from './book-draft-storybook'
 import type { BookDraftExportProblems } from './BookDraftBottomDock'
 import type { BookExportPreviewWorkspaceViewModel } from '../types/book-export-view-models'
 
@@ -14,8 +21,10 @@ interface BookDraftBottomDockStoryProps {
   variant?: BookStoryVariant
   selectedChapterId?: string
   checkpointId?: string
+  branchId?: string
+  branchBaseline?: 'current' | 'checkpoint'
   exportProfileId?: string
-  draftView?: 'read' | 'compare' | 'export'
+  draftView?: 'read' | 'compare' | 'export' | 'branch'
 }
 
 function buildExportProblems(exportPreview: BookExportPreviewWorkspaceViewModel | null): BookDraftExportProblems | null {
@@ -53,12 +62,15 @@ function StoryComponent({
   variant = 'default',
   selectedChapterId,
   checkpointId,
+  branchId,
+  branchBaseline = 'current',
   exportProfileId,
   draftView = 'read',
 }: BookDraftBottomDockStoryProps) {
   const { locale } = useI18n()
   const workspace = useLocalizedBookDraftWorkspace({ variant, selectedChapterId })
   const compareData = buildBookDraftCompareStoryData(locale, { variant, selectedChapterId, checkpointId })
+  const branchData = buildBookDraftBranchStoryData(locale, { variant, selectedChapterId, branchId, branchBaseline, checkpointId })
   const exportData = buildBookDraftExportStoryData(locale, { variant, selectedChapterId, checkpointId, exportProfileId })
 
   return (
@@ -68,11 +80,17 @@ function StoryComponent({
         quiet: variant === 'quiet-book' && draftView === 'read',
         draftView,
         checkpointTitle: compareData.selectedCheckpoint.title,
+        branchTitle: branchData.selectedBranch.title,
+        branchSummary: branchData.selectedBranch.rationale,
+        branchBaselineTitle: branchData.branchWorkspace.baseline.label,
+        branchBaselineKind: branchData.branchWorkspace.baseline.kind,
+        branchBaselineCheckpointId: branchData.branchWorkspace.baseline.checkpointId,
         exportProfileTitle: exportData.selectedExportProfile.title,
         exportProfileSummary: exportData.selectedExportProfile.summary,
       })}
       activeDraftView={draftView}
       compareProblems={draftView === 'compare' ? compareData.compareProblems : null}
+      branchProblems={draftView === 'branch' ? buildBookDraftBranchProblemsStoryData(locale, branchData.branchWorkspace) : null}
       exportProblems={draftView === 'export' ? buildExportProblems(exportData.exportWorkspace) : null}
     />
   )
@@ -158,5 +176,34 @@ export const ExportReady: Story = {
     variant: 'quiet-book',
     checkpointId: 'checkpoint-book-signal-arc-quiet-pass',
     exportProfileId: 'export-review-packet',
+  },
+}
+
+export const BranchCurrentBaselineQuietEnding: Story = {
+  args: {
+    draftView: 'branch',
+    branchId: 'branch-book-signal-arc-quiet-ending',
+    branchBaseline: 'current',
+    selectedChapterId: 'chapter-open-water-signals',
+  },
+}
+
+export const BranchCheckpointBaselineHighPressure: Story = {
+  args: {
+    draftView: 'branch',
+    branchId: 'branch-book-signal-arc-high-pressure',
+    branchBaseline: 'checkpoint',
+    checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+    selectedChapterId: 'chapter-signals-in-rain',
+  },
+}
+
+export const BranchBlockedMissingDraft: Story = {
+  args: {
+    draftView: 'branch',
+    branchId: 'branch-book-signal-arc-high-pressure',
+    branchBaseline: 'checkpoint',
+    checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+    selectedChapterId: 'chapter-open-water-signals',
   },
 }

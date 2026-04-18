@@ -1,8 +1,10 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
+import { APP_LOCALE_STORAGE_KEY } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
 
+import type { BookExperimentBranchWorkspaceViewModel } from '../types/book-branch-view-models'
 import type { BookManuscriptCompareWorkspaceViewModel } from '../types/book-compare-view-models'
 import type { BookDraftInspectorViewModel } from '../types/book-draft-view-models'
 import type { BookExportPreviewWorkspaceViewModel } from '../types/book-export-view-models'
@@ -213,6 +215,101 @@ const exportPreview: BookExportPreviewWorkspaceViewModel = {
   },
 }
 
+const branchWorkspace: BookExperimentBranchWorkspaceViewModel = {
+  bookId: 'book-signal-arc',
+  title: 'Signal Arc',
+  summary: 'Experimental branch workspace',
+  branch: {
+    branchId: 'branch-book-signal-arc-high-pressure',
+    bookId: 'book-signal-arc',
+    title: 'High Pressure',
+    summary: 'Push the platform pressure higher before the release.',
+    rationale: 'Stress the witness line and hold the courier cost in public view.',
+    createdAtLabel: '2026-04-18 10:00',
+    status: 'active',
+    basedOnCheckpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+  },
+  branches: [],
+  selectedChapterId: 'chapter-open-water-signals',
+  baseline: {
+    kind: 'checkpoint',
+    label: 'Checkpoint baseline',
+    checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+  },
+  chapters: [
+    {
+      chapterId: 'chapter-open-water-signals',
+      order: 2,
+      title: 'Open Water Signals',
+      summary: 'Carry the courier handoff into open water.',
+      changedSceneCount: 1,
+      addedSceneCount: 1,
+      missingSceneCount: 0,
+      draftMissingSceneCount: 1,
+      wordDelta: 42,
+      traceRegressionCount: 1,
+      traceImprovementCount: 2,
+      warningsDelta: 1,
+      sourceProposalDelta: -1,
+      readinessStatus: 'blocked',
+      sceneDeltas: [],
+    },
+  ],
+  selectedChapter: {
+    chapterId: 'chapter-open-water-signals',
+    order: 2,
+    title: 'Open Water Signals',
+    summary: 'Carry the courier handoff into open water.',
+    changedSceneCount: 1,
+    addedSceneCount: 1,
+    missingSceneCount: 0,
+    draftMissingSceneCount: 1,
+    wordDelta: 42,
+    traceRegressionCount: 1,
+    traceImprovementCount: 2,
+    warningsDelta: 1,
+    sourceProposalDelta: -1,
+    readinessStatus: 'blocked',
+    sceneDeltas: [],
+  },
+  totals: {
+    changedChapterCount: 1,
+    changedSceneCount: 1,
+    addedSceneCount: 1,
+    missingSceneCount: 0,
+    draftMissingSceneCount: 1,
+    wordDelta: 42,
+    traceRegressionCount: 1,
+    traceImprovementCount: 2,
+    warningsDelta: 1,
+    sourceProposalDelta: -1,
+    blockedChapterCount: 1,
+    attentionChapterCount: 0,
+  },
+  readiness: {
+    status: 'blocked',
+    label: 'Blocked by draft gaps',
+    issues: [
+      {
+        id: 'branch-blocker-1',
+        severity: 'blocker',
+        chapterId: 'chapter-open-water-signals',
+        sceneId: 'scene-dawn-slip',
+        title: 'Draft gap still visible',
+        detail: 'Dawn Slip still has no branch draft.',
+      },
+      {
+        id: 'branch-warning-1',
+        severity: 'warning',
+        chapterId: 'chapter-open-water-signals',
+        sceneId: 'scene-warehouse-bridge',
+        title: 'Warnings increased',
+        detail: 'Warehouse Bridge carries one additional warning.',
+      },
+    ],
+  },
+}
+
 describe('BookDraftInspectorPane', () => {
   it('keeps read-mode content intact when compare mode is inactive', () => {
     render(
@@ -288,5 +385,54 @@ describe('BookDraftInspectorPane', () => {
     expect(screen.getByText('Export readiness unavailable')).toBeInTheDocument()
     expect(screen.getByText('Book manuscript checkpoint "checkpoint-missing" could not be found for "book-signal-arc".')).toBeInTheDocument()
     expect(screen.queryByText('Manuscript Readiness')).not.toBeInTheDocument()
+  })
+
+  it('shows branch summary, selected chapter branch delta, and readiness support in branch mode', () => {
+    render(
+      <AppProviders>
+        <BookDraftInspectorPane
+          bookTitle="Signal Arc"
+          inspector={inspector}
+          activeDraftView="branch"
+          branch={branchWorkspace}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Selected branch')).toBeInTheDocument()
+    expect(screen.getByText('High Pressure')).toBeInTheDocument()
+    expect(screen.getAllByText('Active').length).toBeGreaterThan(0)
+    expect(screen.getByText('Checkpoint baseline')).toBeInTheDocument()
+    expect(screen.getByText('Selected chapter branch summary')).toBeInTheDocument()
+    expect(screen.getByText('Draft missing')).toBeInTheDocument()
+    expect(screen.getByText('Trace improvements')).toBeInTheDocument()
+    expect(screen.getByText('Branch readiness')).toBeInTheDocument()
+    expect(screen.getByText('Blocked by draft gaps')).toBeInTheDocument()
+    expect(screen.getAllByText('Draft gap still visible').length).toBeGreaterThan(0)
+  })
+
+  it('uses the same zh-CN review status wording as the branch picker', () => {
+    window.localStorage.setItem(APP_LOCALE_STORAGE_KEY, 'zh-CN')
+
+    render(
+      <AppProviders>
+        <BookDraftInspectorPane
+          bookTitle="Signal Arc"
+          inspector={inspector}
+          activeDraftView="branch"
+          branch={{
+            ...branchWorkspace,
+            branch: branchWorkspace.branch
+              ? {
+                  ...branchWorkspace.branch,
+                  status: 'review',
+                }
+              : null,
+          }}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getAllByText('审阅中').length).toBeGreaterThan(0)
   })
 })

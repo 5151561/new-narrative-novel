@@ -7,6 +7,7 @@ import { useI18n } from '@/app/i18n'
 import type { BookDraftView } from '@/features/workbench/types/workbench-route'
 
 import { buildCompareReviewAttention } from '../lib/book-draft-compare-presentation'
+import type { BookExperimentBranchWorkspaceViewModel } from '../types/book-branch-view-models'
 import type { BookManuscriptCompareWorkspaceViewModel } from '../types/book-compare-view-models'
 import type { BookDraftInspectorViewModel } from '../types/book-draft-view-models'
 import type { BookExportPreviewWorkspaceViewModel } from '../types/book-export-view-models'
@@ -16,6 +17,7 @@ interface BookDraftInspectorPaneProps {
   inspector: BookDraftInspectorViewModel
   activeDraftView?: BookDraftView
   compare?: BookManuscriptCompareWorkspaceViewModel | null
+  branch?: BookExperimentBranchWorkspaceViewModel | null
   exportPreview?: BookExportPreviewWorkspaceViewModel | null
   exportError?: Error | null
   checkpointMeta?: {
@@ -30,6 +32,7 @@ export function BookDraftInspectorPane({
   inspector,
   activeDraftView = 'read',
   compare = null,
+  branch = null,
   exportPreview = null,
   exportError = null,
   checkpointMeta = null,
@@ -38,6 +41,19 @@ export function BookDraftInspectorPane({
   const selectedChapter = inspector.selectedChapter
   const compareSelectedChapter = compare?.selectedChapter ?? null
   const compareAttention = buildCompareReviewAttention(compareSelectedChapter)
+  const branchSelectedChapter = branch?.selectedChapter ?? null
+  const branchBlockers = branch?.readiness.issues.filter((issue) => issue.severity === 'blocker') ?? []
+  const branchWarnings = branch?.readiness.issues.filter((issue) => issue.severity === 'warning') ?? []
+
+  const getBranchStatusLabel = (status: NonNullable<BookExperimentBranchWorkspaceViewModel['branch']>['status']) => {
+    if (locale === 'zh-CN') {
+      return status === 'active' ? '进行中' : status === 'review' ? '审阅中' : '已归档'
+    }
+
+    return status === 'active' ? 'Active' : status === 'review' ? 'In Review' : 'Archived'
+  }
+
+  const formatSignedValue = (value: number) => `${value > 0 ? '+' : ''}${value}`
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -150,6 +166,130 @@ export function BookDraftInspectorPane({
                         ? '当前没有溯源回退提示。'
                         : 'No trace regressions are currently visible.'}
                   </p>
+                </div>
+              </div>
+            </section>
+          </>
+        ) : null}
+        {activeDraftView === 'branch' && branch ? (
+          <>
+            <section className="rounded-md border border-line-soft bg-surface-2 p-4">
+              <h4 className="text-base text-text-main">{locale === 'zh-CN' ? '选中实验稿' : 'Selected branch'}</h4>
+              <div className="mt-3 space-y-3">
+                <div className="rounded-md border border-line-soft bg-surface-1 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-medium text-text-main">{branch.branch?.title ?? bookTitle}</p>
+                    {branch.branch ? <Badge tone="accent">{getBranchStatusLabel(branch.branch.status)}</Badge> : null}
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">
+                    {branch.branch?.rationale ??
+                      branch.branch?.summary ??
+                      (locale === 'zh-CN'
+                        ? '当前实验稿还没有附加说明。'
+                        : 'The selected branch does not currently include extra rationale.')}
+                  </p>
+                </div>
+                <FactList
+                  items={[
+                    {
+                      id: 'branch-baseline-label',
+                      label: locale === 'zh-CN' ? '基线' : 'Baseline',
+                      value: branch.baseline.label,
+                    },
+                    {
+                      id: 'branch-status',
+                      label: locale === 'zh-CN' ? '状态' : 'Status',
+                      value: branch.branch ? getBranchStatusLabel(branch.branch.status) : '—',
+                    },
+                  ]}
+                />
+              </div>
+            </section>
+            <section className="rounded-md border border-line-soft bg-surface-2 p-4">
+              <h4 className="text-base text-text-main">{locale === 'zh-CN' ? '选中章节实验稿摘要' : 'Selected chapter branch summary'}</h4>
+              {branchSelectedChapter ? (
+                <div className="mt-3 space-y-3">
+                  <div className="rounded-md border border-line-soft bg-surface-1 p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium text-text-main">{branchSelectedChapter.title}</p>
+                      <Badge tone={branchSelectedChapter.readinessStatus === 'blocked' ? 'danger' : branchSelectedChapter.readinessStatus === 'attention' ? 'warn' : 'success'}>
+                        {branchSelectedChapter.readinessStatus === 'blocked'
+                          ? locale === 'zh-CN'
+                            ? '阻塞'
+                            : 'Blocked'
+                          : branchSelectedChapter.readinessStatus === 'attention'
+                            ? locale === 'zh-CN'
+                              ? '需关注'
+                              : 'Attention'
+                            : locale === 'zh-CN'
+                              ? '已就绪'
+                              : 'Ready'}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-text-muted">{branchSelectedChapter.summary}</p>
+                  </div>
+                  <FactList
+                    items={[
+                      { id: 'branch-changed-scenes', label: locale === 'zh-CN' ? '变更场景' : 'Changed scenes', value: `${branchSelectedChapter.changedSceneCount}` },
+                      { id: 'branch-added-scenes', label: locale === 'zh-CN' ? '新增场景' : 'Added scenes', value: `${branchSelectedChapter.addedSceneCount}` },
+                      { id: 'branch-missing-scenes', label: locale === 'zh-CN' ? '缺失场景' : 'Missing scenes', value: `${branchSelectedChapter.missingSceneCount}` },
+                      { id: 'branch-draft-missing-scenes', label: locale === 'zh-CN' ? '缺稿场景' : 'Draft missing', value: `${branchSelectedChapter.draftMissingSceneCount}` },
+                      { id: 'branch-word-delta', label: locale === 'zh-CN' ? '字数变化' : 'Word delta', value: formatSignedValue(branchSelectedChapter.wordDelta) },
+                      { id: 'branch-trace-regressions', label: locale === 'zh-CN' ? '溯源回退' : 'Trace regressions', value: `${branchSelectedChapter.traceRegressionCount}` },
+                      { id: 'branch-trace-improvements', label: locale === 'zh-CN' ? '溯源改善' : 'Trace improvements', value: `${branchSelectedChapter.traceImprovementCount}` },
+                      { id: 'branch-warnings-delta', label: locale === 'zh-CN' ? '警告变化' : 'Warnings delta', value: formatSignedValue(branchSelectedChapter.warningsDelta) },
+                    ]}
+                  />
+                </div>
+              ) : (
+                <div className="mt-3">
+                  <EmptyState
+                    title={locale === 'zh-CN' ? '还没有章节焦点' : 'No chapter selected'}
+                    message={
+                      locale === 'zh-CN'
+                        ? '请先从左侧章节列表里选择一个章节。'
+                        : 'Choose a chapter from the binder to inspect the branch summary.'
+                    }
+                  />
+                </div>
+              )}
+            </section>
+            <section className="rounded-md border border-line-soft bg-surface-2 p-4">
+              <h4 className="text-base text-text-main">{locale === 'zh-CN' ? '实验稿准备度' : 'Branch readiness'}</h4>
+              <div className="mt-3 space-y-3">
+                <div className="rounded-md border border-line-soft bg-surface-1 p-3">
+                  <p className="text-sm font-medium text-text-main">{branch.readiness.label}</p>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">
+                    {branchBlockers.length > 0
+                      ? branchBlockers.slice(0, 2).map((issue) => issue.title).join(locale === 'zh-CN' ? '、' : ', ')
+                      : branchWarnings.length > 0
+                        ? branchWarnings.slice(0, 2).map((issue) => issue.title).join(locale === 'zh-CN' ? '、' : ', ')
+                        : locale === 'zh-CN'
+                          ? '当前没有额外阻塞或警告。'
+                          : 'No extra blockers or warnings are visible right now.'}
+                  </p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-md border border-line-soft bg-surface-1 p-3">
+                    <p className="text-sm font-medium text-text-main">{locale === 'zh-CN' ? '主要阻塞' : 'Top blockers'}</p>
+                    <p className="mt-2 text-sm leading-6 text-text-muted">
+                      {branchBlockers.length > 0
+                        ? branchBlockers.slice(0, 3).map((issue) => issue.title).join(locale === 'zh-CN' ? '、' : ', ')
+                        : locale === 'zh-CN'
+                          ? '当前没有阻塞项。'
+                          : 'No blockers are currently visible.'}
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-line-soft bg-surface-1 p-3">
+                    <p className="text-sm font-medium text-text-main">{locale === 'zh-CN' ? '主要警告' : 'Top warnings'}</p>
+                    <p className="mt-2 text-sm leading-6 text-text-muted">
+                      {branchWarnings.length > 0
+                        ? branchWarnings.slice(0, 3).map((issue) => issue.title).join(locale === 'zh-CN' ? '、' : ', ')
+                        : locale === 'zh-CN'
+                          ? '当前没有警告。'
+                          : 'No warnings are currently visible.'}
+                    </p>
+                  </div>
                 </div>
               </div>
             </section>

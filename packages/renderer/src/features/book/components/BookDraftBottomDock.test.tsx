@@ -167,4 +167,74 @@ describe('BookDraftBottomDock', () => {
     expect(screen.getByText('Book manuscript checkpoint "checkpoint-missing" could not be found for "book-signal-arc".')).toBeInTheDocument()
     expect(screen.queryByText('Missing draft chapters')).not.toBeInTheDocument()
   })
+
+  it('shows branch blockers, warnings, regressions, and baseline activity in branch mode', () => {
+    const activity: BookWorkbenchActivityItem[] = [
+      {
+        id: 'draft-view-0',
+        kind: 'draft-view',
+        title: 'Entered Branch Review',
+        detail: 'Branch review keeps branch selection and baseline route-owned.',
+        tone: 'accent',
+      },
+      {
+        id: 'branch-1',
+        kind: 'branch',
+        title: 'Selected branch High Pressure',
+        detail: 'Stress the witness line and hold the courier cost in public view.',
+        tone: 'neutral',
+      },
+      {
+        id: 'branch-baseline-2',
+        kind: 'branch-baseline',
+        title: 'Selected checkpoint baseline',
+        detail: 'PR11 Baseline',
+        tone: 'neutral',
+      },
+    ]
+
+    render(
+      <AppProviders>
+        <BookDraftBottomDock
+          summary={{
+            missingDraftChapterCount: 0,
+            missingTraceChapterCount: 0,
+            warningsChapterCount: 0,
+            queuedRevisionChapterCount: 0,
+            highestPressureChapters: [],
+            missingDraftChapters: [],
+            missingTraceChapters: [],
+            warningsChapters: [],
+            queuedRevisionChapters: [],
+          }}
+          activity={activity}
+          activeDraftView="branch"
+          branchProblems={{
+            blockerCount: 1,
+            warningCount: 2,
+            draftMissingSceneCount: 1,
+            traceRegressionCount: 1,
+            warningIncreaseCount: 1,
+            addedWithoutSourceCount: 2,
+            blockers: [{ chapterId: 'chapter-open-water-signals:blocker-1', title: 'Open Water Signals', detail: 'Dawn Slip still has no branch draft.' }],
+            warnings: [{ chapterId: 'chapter-open-water-signals:warning-1', title: 'Open Water Signals', detail: 'Warehouse Bridge carries one additional warning.' }],
+            draftMissingScenes: [{ chapterId: 'chapter-open-water-signals:scene-dawn-slip', title: 'Open Water Signals', detail: 'Dawn Slip is still draft_missing in the branch.' }],
+            traceRegressions: [{ chapterId: 'chapter-open-water-signals:scene-warehouse-bridge', title: 'Open Water Signals', detail: 'Warehouse Bridge lost trace readiness against the baseline.' }],
+            warningIncreases: [{ chapterId: 'chapter-open-water-signals:warning-delta', title: 'Open Water Signals', detail: 'Warnings +1 against the checkpoint baseline.' }],
+            addedWithoutSource: [{ chapterId: 'chapter-open-water-signals:scene-added', title: 'Open Water Signals', detail: 'Canal Watch was added without a source proposal.' }],
+          }}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getAllByText('Branch blockers').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Branch warnings').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Draft missing scenes').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Trace regressions').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Warning increases').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Added without source').length).toBeGreaterThan(0)
+    expect(screen.getByText('Entered Branch Review')).toBeInTheDocument()
+    expect(screen.getByText('Selected branch High Pressure')).toBeInTheDocument()
+    expect(screen.getByText('Selected checkpoint baseline')).toBeInTheDocument()
+  })
 })

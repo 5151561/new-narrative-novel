@@ -283,7 +283,7 @@ describe('BookDraftWorkspace', () => {
     })
   })
 
-  it('roundtrips a deep-linked branch session while preserving branchId, branchBaseline, and selectedChapterId', async () => {
+  it('roundtrips a deep-linked branch session while keeping binder, branch panels, draft/export handoff, and dormant view state aligned', async () => {
     const user = userEvent.setup()
 
     window.history.replaceState(
@@ -304,6 +304,8 @@ describe('BookDraftWorkspace', () => {
     expect(
       screen.getAllByRole('button', { name: 'Chapter 2 Open Water Signals' }).some((button) => button.getAttribute('aria-pressed') === 'true'),
     ).toBe(true)
+    expect(screen.getByText('Selected chapter branch summary')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Book draft bottom dock' })).getByText(/Entered Branch Review/i)).toBeInTheDocument()
 
     await user.click(screen.getAllByRole('button', { name: 'Chapter 1 Signals in Rain' })[0]!)
 
@@ -333,6 +335,79 @@ describe('BookDraftWorkspace', () => {
       expect(params.get('branchId')).toBe('branch-book-signal-arc-quiet-ending')
       expect(params.get('branchBaseline')).toBe('current')
       expect(params.get('selectedChapterId')).toBe('chapter-signals-in-rain')
+    })
+
+    expect(screen.getAllByText('Quiet Ending').length).toBeGreaterThan(0)
+    expect(screen.getByText('Selected branch')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Checkpoint baseline' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('draftView')).toBe('branch')
+      expect(params.get('branchId')).toBe('branch-book-signal-arc-quiet-ending')
+      expect(params.get('branchBaseline')).toBe('checkpoint')
+      expect(params.get('checkpointId')).toBe('checkpoint-book-signal-arc-pr11-baseline')
+      expect(params.get('selectedChapterId')).toBe('chapter-signals-in-rain')
+    })
+
+    await user.click(screen.getAllByRole('button', { name: 'Open in Draft: Signals in Rain' })[0]!)
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('chapter')
+      expect(params.get('id')).toBe('chapter-signals-in-rain')
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('sceneId')).toBeNull()
+    })
+
+    window.history.back()
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('id')).toBe('book-signal-arc')
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('view')).toBe('signals')
+      expect(params.get('draftView')).toBe('branch')
+      expect(params.get('branchId')).toBe('branch-book-signal-arc-quiet-ending')
+      expect(params.get('branchBaseline')).toBe('checkpoint')
+      expect(params.get('checkpointId')).toBe('checkpoint-book-signal-arc-pr11-baseline')
+      expect(params.get('selectedChapterId')).toBe('chapter-signals-in-rain')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Book experiment branch' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('draftView')).toBe('export')
+      expect(params.get('checkpointId')).toBe('checkpoint-book-signal-arc-pr11-baseline')
+      expect(params.get('selectedChapterId')).toBe('chapter-signals-in-rain')
+    })
+
+    await user.click(screen.getByRole('button', { name: /Submission Preview/i }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('draftView')).toBe('export')
+      expect(params.get('exportProfileId')).toBe('export-submission-preview')
+      expect(params.get('checkpointId')).toBe('checkpoint-book-signal-arc-pr11-baseline')
+      expect(params.get('selectedChapterId')).toBe('chapter-signals-in-rain')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Structure' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('lens')).toBe('structure')
+      expect(params.get('view')).toBe('signals')
+      expect(params.get('draftView')).toBe('export')
+      expect(params.get('exportProfileId')).toBe('export-submission-preview')
+      expect(params.get('branchId')).toBe('branch-book-signal-arc-quiet-ending')
+      expect(params.get('branchBaseline')).toBe('checkpoint')
     })
   })
 

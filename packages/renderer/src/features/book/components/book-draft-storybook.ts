@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 
 import { useI18n, type Locale } from '@/app/i18n'
+import type { BookDraftBranchProblems } from '@/features/book/components/BookDraftBottomDock'
 import type { BookWorkbenchActivityItem } from '@/features/book/hooks/useBookWorkbenchActivity'
 
 import {
@@ -581,6 +582,62 @@ export function buildBookDraftExportBaselineError() {
   return new Error('Book manuscript checkpoint "checkpoint-missing" could not be found for "book-signal-arc".')
 }
 
+export function buildBookDraftBranchProblemsStoryData(
+  locale: Locale,
+  branchWorkspace: BookExperimentBranchWorkspaceViewModel,
+): BookDraftBranchProblems {
+  const blockers = branchWorkspace.readiness.issues.filter((issue) => issue.severity === 'blocker')
+  const warnings = branchWorkspace.readiness.issues.filter((issue) => issue.severity === 'warning')
+  const rows = branchWorkspace.chapters.flatMap((chapter) => chapter.sceneDeltas.map((scene) => ({ chapter, scene })))
+  const draftMissingScenes = rows.filter(({ scene }) => scene.delta === 'draft_missing')
+  const traceRegressions = rows.filter(
+    ({ scene }) => scene.traceReadyChanged && scene.baselineScene?.traceReady && !scene.branchScene?.traceReady,
+  )
+  const warningIncreases = rows.filter(({ scene }) => scene.warningsDelta > 0)
+  const addedWithoutSource = rows.filter(({ scene }) => scene.delta === 'added' && (scene.branchSourceProposalCount ?? 0) <= 0)
+  const toIssueItems = (issues: typeof blockers) =>
+    issues.map((issue) => ({
+      chapterId: `${issue.chapterId ?? 'branch'}:${issue.id}`,
+      title:
+        issue.chapterId != null
+          ? branchWorkspace.chapters.find((chapter) => chapter.chapterId === issue.chapterId)?.title ?? branchWorkspace.title
+          : branchWorkspace.title,
+      detail: issue.detail,
+    }))
+  const toSceneItems = (
+    sceneRows: typeof draftMissingScenes,
+    detailBuilder: (sceneTitle: string) => string,
+  ) =>
+    sceneRows.map(({ chapter, scene }) => ({
+      chapterId: `${chapter.chapterId}:${scene.sceneId}`,
+      title: chapter.title,
+      detail: detailBuilder(scene.title),
+    }))
+
+  return {
+    blockerCount: blockers.length,
+    warningCount: warnings.length,
+    draftMissingSceneCount: draftMissingScenes.length,
+    traceRegressionCount: traceRegressions.length,
+    warningIncreaseCount: warningIncreases.length,
+    addedWithoutSourceCount: addedWithoutSource.length,
+    blockers: toIssueItems(blockers),
+    warnings: toIssueItems(warnings),
+    draftMissingScenes: toSceneItems(draftMissingScenes, (sceneTitle) =>
+      locale === 'zh-CN' ? `${sceneTitle} 仍然缺少分支正文。` : `${sceneTitle} is still draft-missing in the branch.`,
+    ),
+    traceRegressions: toSceneItems(traceRegressions, (sceneTitle) =>
+      locale === 'zh-CN' ? `${sceneTitle} 相对基线失去了溯源就绪。` : `${sceneTitle} lost trace readiness against the baseline.`,
+    ),
+    warningIncreases: toSceneItems(warningIncreases, (sceneTitle) =>
+      locale === 'zh-CN' ? `${sceneTitle} 的警告继续上升。` : `${sceneTitle} increases warning pressure against the baseline.`,
+    ),
+    addedWithoutSource: toSceneItems(addedWithoutSource, (sceneTitle) =>
+      locale === 'zh-CN' ? `${sceneTitle} 是没有来源提案的新增场景。` : `${sceneTitle} was added without a source proposal.`,
+    ),
+  }
+}
+
 export function useLocalizedBookDraftWorkspace(options?: {
   variant?: BookStoryVariant
   selectedChapterId?: string
@@ -602,8 +659,13 @@ export function buildBookDraftStoryActivity(
   workspace: BookDraftWorkspaceViewModel,
   options?: {
     quiet?: boolean
-    draftView?: 'read' | 'compare' | 'export'
+    draftView?: 'read' | 'compare' | 'export' | 'branch'
     checkpointTitle?: string
+    branchTitle?: string
+    branchSummary?: string
+    branchBaselineTitle?: string
+    branchBaselineKind?: 'current' | 'checkpoint'
+    branchBaselineCheckpointId?: string
     exportProfileTitle?: string
     exportProfileSummary?: string
   },
@@ -675,6 +737,63 @@ export function buildBookDraftStoryActivity(
       },
       {
         id: 'chapter-2',
+        kind: 'chapter',
+        title: locale === 'zh-CN' ? `聚焦${workspace.selectedChapter?.title ?? workspace.title}` : `Focused ${workspace.selectedChapter?.title ?? workspace.title}`,
+        detail: workspace.selectedChapter?.summary ?? workspace.summary,
+        tone: 'neutral',
+      },
+    ]
+  }
+
+  if (options?.draftView === 'branch') {
+    return [
+      {
+        id: 'draft-view-0',
+        kind: 'draft-view',
+        title: locale === 'zh-CN' ? '进入实验稿审阅' : 'Entered Branch Review',
+        detail:
+          locale === 'zh-CN'
+            ? '实验稿审阅继续把 branch 选择与 baseline 都交给路由。'
+            : 'Branch review keeps branch selection and baseline route-owned.',
+        tone: 'accent',
+      },
+      {
+        id: 'branch-1',
+        kind: 'branch',
+        title:
+          locale === 'zh-CN'
+            ? `选择实验稿 ${options.branchTitle ?? '静默收束稿'}`
+            : `Selected branch ${options.branchTitle ?? 'Quiet Ending'}`,
+        detail:
+          options.branchSummary ??
+          (locale === 'zh-CN'
+            ? '实验稿继续沿用同一份 chapter selection。'
+            : 'The branch view keeps using the same chapter selection.'),
+        tone: 'neutral',
+      },
+      {
+        id: 'branch-baseline-2',
+        kind: 'branch-baseline',
+        title:
+          locale === 'zh-CN'
+            ? `选择${options.branchBaselineTitle ?? '当前正文基线'}`
+            : `Selected ${(options.branchBaselineTitle ?? 'Current baseline').toLowerCase()}`,
+        detail:
+          options.branchBaselineKind === 'current'
+            ? locale === 'zh-CN'
+              ? '继续以当前正文作为实验稿审阅基线。'
+              : 'Keep the current manuscript as the branch review baseline.'
+            : options.branchBaselineCheckpointId && options.branchBaselineTitle
+              ? locale === 'zh-CN'
+                ? `相对${options.branchBaselineTitle}继续复核分支差异（${options.branchBaselineCheckpointId}）。`
+                : `Review branch deltas against ${options.branchBaselineTitle} (${options.branchBaselineCheckpointId}).`
+              : locale === 'zh-CN'
+                ? '继续相对 checkpoint 手稿基线复核分支差异。'
+                : 'Review branch deltas against the checkpoint manuscript baseline.',
+        tone: 'neutral',
+      },
+      {
+        id: 'chapter-3',
         kind: 'chapter',
         title: locale === 'zh-CN' ? `聚焦${workspace.selectedChapter?.title ?? workspace.title}` : `Focused ${workspace.selectedChapter?.title ?? workspace.title}`,
         detail: workspace.selectedChapter?.summary ?? workspace.summary,
