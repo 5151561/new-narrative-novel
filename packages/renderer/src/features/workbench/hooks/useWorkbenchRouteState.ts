@@ -6,6 +6,7 @@ import type {
   AssetKnowledgeView,
   AssetLens,
   AssetRouteState,
+  BookBranchBaseline,
   BookDraftView,
   BookLens,
   BookRouteState,
@@ -48,6 +49,7 @@ const DEFAULT_SCENE_ID = 'scene-midnight-platform'
 const DEFAULT_CHAPTER_ID = 'chapter-signals-in-rain'
 const DEFAULT_ASSET_ID = 'asset-ren-voss'
 const DEFAULT_BOOK_ID = 'book-signal-arc'
+const DEFAULT_BOOK_EXPERIMENT_BRANCH_ID = 'branch-book-signal-arc-quiet-ending'
 const ROUTE_CHANGE_EVENT = 'workbench-route-change'
 const CANONICAL_ROUTE_KEYS = [
   'scope',
@@ -59,6 +61,8 @@ const CANONICAL_ROUTE_KEYS = [
   'modal',
   'view',
   'draftView',
+  'branchId',
+  'branchBaseline',
   'checkpointId',
   'exportProfileId',
   'sceneId',
@@ -83,7 +87,8 @@ const VALID_ASSET_VIEWS = new Set<AssetKnowledgeView>(['profile', 'mentions', 'r
 const VALID_ASSET_LENSES = new Set<AssetLens>(['knowledge'])
 const VALID_BOOK_VIEWS = new Set<BookStructureView>(['sequence', 'outliner', 'signals'])
 const VALID_BOOK_LENSES = new Set<BookLens>(['structure', 'draft'])
-const VALID_BOOK_DRAFT_VIEWS = new Set<BookDraftView>(['read', 'compare', 'export'])
+const VALID_BOOK_DRAFT_VIEWS = new Set<BookDraftView>(['read', 'compare', 'export', 'branch'])
+const VALID_BOOK_BRANCH_BASELINES = new Set<BookBranchBaseline>(['current', 'checkpoint'])
 
 let lastRouteSearch = ''
 let lastRouteSnapshot: WorkbenchSearchState | undefined
@@ -173,6 +178,14 @@ function readBookDraftViewParam(value: string | null) {
   return isBookDraftView(value) ? value : undefined
 }
 
+function isBookBranchBaseline(value: string | null): value is BookBranchBaseline {
+  return value !== null && VALID_BOOK_BRANCH_BASELINES.has(value as BookBranchBaseline)
+}
+
+function readBookBranchBaselineParam(value: string | null) {
+  return isBookBranchBaseline(value) ? value : undefined
+}
+
 function normalizeSceneRoute(route: Partial<SceneRouteState>): SceneRouteState {
   return {
     scope: 'scene',
@@ -212,6 +225,9 @@ function normalizeBookRoute(route: Partial<BookRouteState>): BookRouteState {
       : lens === 'draft'
         ? 'read'
         : undefined
+  const branchId = route.branchId?.trim() || undefined
+  const branchBaseline =
+    route.branchBaseline && VALID_BOOK_BRANCH_BASELINES.has(route.branchBaseline) ? route.branchBaseline : undefined
   const checkpointId = route.checkpointId?.trim() || undefined
   const exportProfileId = route.exportProfileId?.trim() || undefined
 
@@ -221,7 +237,12 @@ function normalizeBookRoute(route: Partial<BookRouteState>): BookRouteState {
     lens,
     view: route.view && VALID_BOOK_VIEWS.has(route.view) ? route.view : 'sequence',
     draftView,
-    checkpointId: draftView === 'compare' ? checkpointId ?? DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID : checkpointId,
+    branchId: draftView === 'branch' ? branchId ?? DEFAULT_BOOK_EXPERIMENT_BRANCH_ID : branchId,
+    branchBaseline: draftView === 'branch' ? branchBaseline ?? 'current' : branchBaseline,
+    checkpointId:
+      draftView === 'compare' || (draftView === 'branch' && (branchBaseline ?? 'current') === 'checkpoint')
+        ? checkpointId ?? DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID
+        : checkpointId,
     exportProfileId: draftView === 'export' ? exportProfileId ?? DEFAULT_BOOK_EXPORT_PROFILE_ID : exportProfileId,
     selectedChapterId: route.selectedChapterId,
   }
@@ -269,12 +290,15 @@ function readBookSnapshot(params: URLSearchParams) {
   const activeLens = readBookLensParam(params.get('lens'))
   const activeView = readBookViewParam(params.get('view'))
   const activeDraftView = readBookDraftViewParam(params.get('draftView'))
+  const activeBranchBaseline = readBookBranchBaselineParam(params.get('branchBaseline'))
 
   return normalizeBookRoute({
     bookId: readTextParam(params, 'id'),
     lens: activeLens,
     view: activeView,
     draftView: activeDraftView,
+    branchId: readTextParam(params, 'branchId'),
+    branchBaseline: activeBranchBaseline,
     checkpointId: readTextParam(params, 'checkpointId'),
     exportProfileId: readTextParam(params, 'exportProfileId'),
     selectedChapterId: readTextParam(params, 'selectedChapterId'),
@@ -373,6 +397,12 @@ function buildWorkbenchSearch(
     params.set('view', state.book.view)
     if (state.book.draftView) {
       params.set('draftView', state.book.draftView)
+    }
+    if (state.book.branchId) {
+      params.set('branchId', state.book.branchId)
+    }
+    if (state.book.branchBaseline) {
+      params.set('branchBaseline', state.book.branchBaseline)
     }
     if (state.book.checkpointId) {
       params.set('checkpointId', state.book.checkpointId)
