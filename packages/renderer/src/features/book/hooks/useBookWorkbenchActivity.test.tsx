@@ -3,8 +3,25 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
 import { useI18n } from '@/app/i18n'
+import type { BookStructureView } from '@/features/workbench/types/workbench-route'
 
-import { resetRememberedBookWorkbenchHandoffs, useBookWorkbenchActivity } from './useBookWorkbenchActivity'
+import {
+  resetRememberedBookWorkbenchHandoffs,
+  useBookWorkbenchActivity,
+  type BookWorkbenchHandoffEvent,
+} from './useBookWorkbenchActivity'
+
+interface ActivityTestSelectedChapter {
+  id: string
+  title: string
+  summary: string
+}
+
+interface ActivityHookProps {
+  activeView: BookStructureView
+  selectedChapter: ActivityTestSelectedChapter | null
+  latestHandoff?: BookWorkbenchHandoffEvent | null
+}
 
 describe('useBookWorkbenchActivity', () => {
   afterEach(() => {
@@ -13,8 +30,17 @@ describe('useBookWorkbenchActivity', () => {
   })
 
   it('dedupes repeated view and chapter inputs and caps the recent log', () => {
+    const initialProps: ActivityHookProps = {
+      activeView: 'outliner',
+      selectedChapter: {
+        id: 'chapter-signals-in-rain',
+        title: 'Signals in Rain',
+        summary: 'Platform pressure needs to hold until the departure bell.',
+      },
+    }
+
     const { result, rerender } = renderHook(
-      ({ activeView, selectedChapter }) =>
+      ({ activeView, selectedChapter }: ActivityHookProps) =>
         useBookWorkbenchActivity({
           bookId: 'book-signal-arc',
           activeView,
@@ -22,14 +48,7 @@ describe('useBookWorkbenchActivity', () => {
           maxItems: 3,
         }),
       {
-        initialProps: {
-          activeView: 'outliner' as const,
-          selectedChapter: {
-            id: 'chapter-signals-in-rain',
-            title: 'Signals in Rain',
-            summary: 'Platform pressure needs to hold until the departure bell.',
-          },
-        },
+        initialProps,
         wrapper: AppProviders,
       },
     )
@@ -60,8 +79,18 @@ describe('useBookWorkbenchActivity', () => {
   })
 
   it('records handoff activity and re-localizes existing entries without duplicating them', () => {
+    const initialProps: ActivityHookProps = {
+      activeView: 'sequence',
+      selectedChapter: {
+        id: 'chapter-signals-in-rain',
+        title: 'Signals in Rain',
+        summary: 'Platform pressure needs to hold until the departure bell.',
+      },
+      latestHandoff: null,
+    }
+
     const { result, rerender } = renderHook(
-      ({ activeView, selectedChapter, latestHandoff }) => {
+      ({ activeView, selectedChapter, latestHandoff }: ActivityHookProps) => {
         const activity = useBookWorkbenchActivity({
           bookId: 'book-signal-arc',
           activeView,
@@ -74,15 +103,7 @@ describe('useBookWorkbenchActivity', () => {
         return { activity, setLocale, locale }
       },
       {
-        initialProps: {
-          activeView: 'sequence' as const,
-          selectedChapter: {
-            id: 'chapter-signals-in-rain',
-            title: 'Signals in Rain',
-            summary: 'Platform pressure needs to hold until the departure bell.',
-          },
-          latestHandoff: null,
-        },
+        initialProps,
         wrapper: AppProviders,
       },
     )

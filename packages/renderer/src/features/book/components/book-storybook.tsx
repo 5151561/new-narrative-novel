@@ -639,7 +639,7 @@ export function buildBookStoryActivity(
         locale === 'zh-CN'
           ? '底部活动只保留会话级判断，不替代主舞台。'
           : 'Session-local dock activity stays supportive without replacing the main stage.',
-      tone: workspace.dockSummary.missingTraceSceneCount > 0 ? 'warn' : 'success',
+      tone: workspace.dockSummary.missingTraceSceneCount > 0 ? 'accent' : 'neutral',
     },
   ]
 }

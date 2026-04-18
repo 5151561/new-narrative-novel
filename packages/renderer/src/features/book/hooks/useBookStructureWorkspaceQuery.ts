@@ -87,7 +87,7 @@ export function useBookStructureWorkspaceQuery(
 
   const orderedSceneIds = useMemo(
     () =>
-      chapterIds.flatMap((chapterId, index) => {
+      chapterIds.flatMap((_, index) => {
         const chapter = chapterQueries[index]?.data
         if (!chapter) {
           return []
