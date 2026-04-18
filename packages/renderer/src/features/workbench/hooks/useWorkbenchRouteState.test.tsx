@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   type AssetRouteState,
+  type BookRouteState,
   type ChapterRouteState,
   type SceneRouteState,
   type WorkbenchRouteState,
@@ -11,7 +12,7 @@ import {
 import { useWorkbenchRouteState } from './useWorkbenchRouteState'
 
 function RouteHarness() {
-  const { route, replaceRoute, patchChapterRoute, patchSceneRoute } = useWorkbenchRouteState()
+  const { route, replaceRoute, patchBookRoute, patchChapterRoute, patchSceneRoute } = useWorkbenchRouteState()
 
   return (
     <div>
@@ -28,6 +29,21 @@ function RouteHarness() {
         }
       >
         Scene Draft
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchSceneRoute({
+            sceneId: 'scene-midnight-platform',
+            lens: 'orchestrate',
+            tab: 'execution',
+            proposalId: undefined,
+            beatId: undefined,
+            modal: undefined,
+          } satisfies Partial<SceneRouteState>)
+        }
+      >
+        Scene Default
       </button>
       <button
         type="button"
@@ -99,6 +115,29 @@ function RouteHarness() {
         }
       >
         Open Asset
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchBookRoute({
+            bookId: 'book-signal-arc',
+            lens: 'structure',
+            view: 'signals',
+            selectedChapterId: 'chapter-open-water-signals',
+          } satisfies Partial<BookRouteState>)
+        }
+      >
+        Book Signals
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          replaceRoute({
+            scope: 'book',
+          } satisfies { scope: 'book' } & Partial<Omit<BookRouteState, 'scope'>>)
+        }
+      >
+        Open Book
       </button>
     </div>
   )
@@ -325,6 +364,102 @@ describe('useWorkbenchRouteState', () => {
       lens: 'draft',
       tab: 'prose',
       proposalId: 'proposal-2',
+    })
+  })
+
+  it('normalizes book deep links and ignores non-book params while keeping selectedChapterId', () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=invalid&view=signals&selectedChapterId=chapter-open-water-signals&tab=prose&proposalId=proposal-2',
+    )
+
+    render(<RouteHarness />)
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'structure',
+      view: 'signals',
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+  })
+
+  it('preserves the dormant book snapshot when switching away and restores it after returning', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=structure&view=outliner&selectedChapterId=chapter-signals-in-rain',
+    )
+
+    render(<RouteHarness />)
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'structure',
+      view: 'outliner',
+      selectedChapterId: 'chapter-signals-in-rain',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Scene Default' }))
+    await user.click(screen.getByRole('button', { name: 'Chapter Assembly' }))
+    await user.click(screen.getByRole('button', { name: 'Open Scene' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'scene',
+      sceneId: 'scene-midnight-platform',
+      lens: 'orchestrate',
+      tab: 'execution',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Open Book' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'structure',
+      view: 'outliner',
+      selectedChapterId: 'chapter-signals-in-rain',
+    })
+
+    let params = new URLSearchParams(window.location.search)
+    expect(params.get('scope')).toBe('book')
+    expect(params.get('id')).toBe('book-signal-arc')
+    expect(params.get('lens')).toBe('structure')
+    expect(params.get('view')).toBe('outliner')
+    expect(params.get('selectedChapterId')).toBe('chapter-signals-in-rain')
+    expect(params.get('tab')).toBeNull()
+    expect(params.get('proposalId')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Book Signals' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'structure',
+      view: 'signals',
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+
+    params = new URLSearchParams(window.location.search)
+    expect(params.get('scope')).toBe('book')
+    expect(params.get('id')).toBe('book-signal-arc')
+    expect(params.get('lens')).toBe('structure')
+    expect(params.get('view')).toBe('signals')
+    expect(params.get('selectedChapterId')).toBe('chapter-open-water-signals')
+
+    await user.click(screen.getByRole('button', { name: 'Open Chapter' }))
+    await user.click(screen.getByRole('button', { name: 'Open Book' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'structure',
+      view: 'signals',
+      selectedChapterId: 'chapter-open-water-signals',
     })
   })
 })

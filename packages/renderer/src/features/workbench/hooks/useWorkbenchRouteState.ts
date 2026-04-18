@@ -4,6 +4,9 @@ import type {
   AssetKnowledgeView,
   AssetLens,
   AssetRouteState,
+  BookLens,
+  BookRouteState,
+  BookStructureView,
   ChapterLens,
   ChapterRouteState,
   ChapterStructureView,
@@ -22,10 +25,12 @@ interface SetWorkbenchRouteOptions {
 type SceneRoutePatch = Partial<Omit<SceneRouteState, 'scope'>>
 type ChapterRoutePatch = Partial<Omit<ChapterRouteState, 'scope'>>
 type AssetRoutePatch = Partial<Omit<AssetRouteState, 'scope'>>
+type BookRoutePatch = Partial<Omit<BookRouteState, 'scope'>>
 type WorkbenchRouteInput =
   | ({ scope: 'scene' } & SceneRoutePatch)
   | ({ scope: 'chapter' } & ChapterRoutePatch)
   | ({ scope: 'asset' } & AssetRoutePatch)
+  | ({ scope: 'book' } & BookRoutePatch)
 
 interface WorkbenchSearchState {
   scope: WorkbenchScope
@@ -33,13 +38,26 @@ interface WorkbenchSearchState {
   scene: SceneRouteState
   chapter: ChapterRouteState
   asset: AssetRouteState
+  book: BookRouteState
 }
 
 const DEFAULT_SCENE_ID = 'scene-midnight-platform'
 const DEFAULT_CHAPTER_ID = 'chapter-signals-in-rain'
 const DEFAULT_ASSET_ID = 'asset-ren-voss'
+const DEFAULT_BOOK_ID = 'book-signal-arc'
 const ROUTE_CHANGE_EVENT = 'workbench-route-change'
-const CANONICAL_ROUTE_KEYS = ['scope', 'id', 'lens', 'tab', 'beatId', 'proposalId', 'modal', 'view', 'sceneId'] as const
+const CANONICAL_ROUTE_KEYS = [
+  'scope',
+  'id',
+  'lens',
+  'tab',
+  'beatId',
+  'proposalId',
+  'modal',
+  'view',
+  'sceneId',
+  'selectedChapterId',
+] as const
 const LEGACY_INACTIVE_SCOPE_KEYS = [
   'sceneId',
   'sceneLens',
@@ -57,6 +75,8 @@ const VALID_CHAPTER_VIEWS = new Set<ChapterStructureView>(['sequence', 'outliner
 const VALID_CHAPTER_LENSES = new Set<ChapterLens>(['structure', 'draft'])
 const VALID_ASSET_VIEWS = new Set<AssetKnowledgeView>(['profile', 'mentions', 'relations'])
 const VALID_ASSET_LENSES = new Set<AssetLens>(['knowledge'])
+const VALID_BOOK_VIEWS = new Set<BookStructureView>(['sequence', 'outliner', 'signals'])
+const VALID_BOOK_LENSES = new Set<BookLens>(['structure'])
 
 let lastRouteSearch = ''
 let lastRouteSnapshot: WorkbenchSearchState | undefined
@@ -122,6 +142,22 @@ function readAssetViewParam(value: string | null) {
   return isAssetKnowledgeView(value) ? value : undefined
 }
 
+function isBookLens(value: string | null): value is BookLens {
+  return value !== null && VALID_BOOK_LENSES.has(value as BookLens)
+}
+
+function readBookLensParam(value: string | null) {
+  return isBookLens(value) ? value : undefined
+}
+
+function isBookStructureView(value: string | null): value is BookStructureView {
+  return value !== null && VALID_BOOK_VIEWS.has(value as BookStructureView)
+}
+
+function readBookViewParam(value: string | null) {
+  return isBookStructureView(value) ? value : undefined
+}
+
 function normalizeSceneRoute(route: Partial<SceneRouteState>): SceneRouteState {
   return {
     scope: 'scene',
@@ -150,6 +186,16 @@ function normalizeAssetRoute(route: Partial<AssetRouteState>): AssetRouteState {
     assetId: route.assetId ?? DEFAULT_ASSET_ID,
     lens: route.lens && VALID_ASSET_LENSES.has(route.lens) ? route.lens : 'knowledge',
     view: route.view && VALID_ASSET_VIEWS.has(route.view) ? route.view : 'profile',
+  }
+}
+
+function normalizeBookRoute(route: Partial<BookRouteState>): BookRouteState {
+  return {
+    scope: 'book',
+    bookId: route.bookId ?? DEFAULT_BOOK_ID,
+    lens: route.lens && VALID_BOOK_LENSES.has(route.lens) ? route.lens : 'structure',
+    view: route.view && VALID_BOOK_VIEWS.has(route.view) ? route.view : 'sequence',
+    selectedChapterId: route.selectedChapterId,
   }
 }
 
@@ -191,6 +237,34 @@ function readAssetSnapshot(params: URLSearchParams) {
   })
 }
 
+function readBookSnapshot(params: URLSearchParams) {
+  const activeLens = readBookLensParam(params.get('lens'))
+  const activeView = readBookViewParam(params.get('view'))
+
+  return normalizeBookRoute({
+    bookId: readTextParam(params, 'id'),
+    lens: activeLens,
+    view: activeView,
+    selectedChapterId: readTextParam(params, 'selectedChapterId'),
+  })
+}
+
+function resolveActiveRoute(state: WorkbenchSearchState): WorkbenchRouteState {
+  if (state.scope === 'chapter') {
+    return state.chapter
+  }
+
+  if (state.scope === 'asset') {
+    return state.asset
+  }
+
+  if (state.scope === 'book') {
+    return state.book
+  }
+
+  return state.scene
+}
+
 function readWorkbenchSearchState(search = typeof window === 'undefined' ? '' : window.location.search): WorkbenchSearchState {
   if (lastRouteSnapshot && search === lastRouteSearch) {
     return lastRouteSnapshot
@@ -198,17 +272,20 @@ function readWorkbenchSearchState(search = typeof window === 'undefined' ? '' : 
 
   const params = new URLSearchParams(search)
   const rawScope = params.get('scope')
-  const scope: WorkbenchScope = rawScope === 'chapter' ? 'chapter' : rawScope === 'asset' ? 'asset' : 'scene'
+  const scope: WorkbenchScope =
+    rawScope === 'chapter' ? 'chapter' : rawScope === 'asset' ? 'asset' : rawScope === 'book' ? 'book' : 'scene'
   const previous = lastRouteSnapshot
   const scene = scope === 'scene' ? readSceneSnapshot(params) : previous?.scene ?? normalizeSceneRoute({})
   const chapter = scope === 'chapter' ? readChapterSnapshot(params) : previous?.chapter ?? normalizeChapterRoute({})
   const asset = scope === 'asset' ? readAssetSnapshot(params) : previous?.asset ?? normalizeAssetRoute({})
+  const book = scope === 'book' ? readBookSnapshot(params) : previous?.book ?? normalizeBookRoute({})
   const snapshot: WorkbenchSearchState = {
     scope,
     scene,
     chapter,
     asset,
-    route: scope === 'chapter' ? chapter : scope === 'asset' ? asset : scene,
+    book,
+    route: scope === 'chapter' ? chapter : scope === 'asset' ? asset : scope === 'book' ? book : scene,
   }
 
   lastRouteSearch = search
@@ -254,10 +331,17 @@ function buildWorkbenchSearch(
     if (state.chapter.sceneId) {
       params.set('sceneId', state.chapter.sceneId)
     }
-  } else {
+  } else if (state.scope === 'asset') {
     params.set('id', state.asset.assetId)
     params.set('lens', state.asset.lens)
     params.set('view', state.asset.view)
+  } else {
+    params.set('id', state.book.bookId)
+    params.set('lens', state.book.lens)
+    params.set('view', state.book.view)
+    if (state.book.selectedChapterId) {
+      params.set('selectedChapterId', state.book.selectedChapterId)
+    }
   }
 
   const nextSearch = params.toString()
@@ -271,7 +355,7 @@ function writeWorkbenchRouteState(state: WorkbenchSearchState, options?: SetWork
   lastRouteSearch = nextSearch
   lastRouteSnapshot = {
     ...state,
-    route: state.scope === 'chapter' ? state.chapter : state.scope === 'asset' ? state.asset : state.scene,
+    route: resolveActiveRoute(state),
   }
 
   if (options?.replace) {
@@ -315,6 +399,13 @@ export function useWorkbenchRouteState() {
               asset: normalizeAssetRoute({ ...current.asset, ...next, scope: 'asset' }),
               route: current.asset,
             }
+          : next.scope === 'book'
+            ? {
+                ...current,
+                scope: 'book',
+                book: normalizeBookRoute({ ...current.book, ...next, scope: 'book' }),
+                route: current.book,
+              }
         : {
             ...current,
             scope: 'chapter',
@@ -329,7 +420,7 @@ export function useWorkbenchRouteState() {
       lastRouteSearch = nextSearch
       lastRouteSnapshot = {
         ...nextState,
-        route: nextState.scope === 'chapter' ? nextState.chapter : nextState.scope === 'asset' ? nextState.asset : nextState.scene,
+        route: resolveActiveRoute(nextState),
       }
       return
     }
@@ -354,7 +445,7 @@ export function useWorkbenchRouteState() {
       lastRouteSearch = nextSearch
       lastRouteSnapshot = {
         ...nextState,
-        route: nextState.scope === 'chapter' ? nextState.chapter : nextState.scope === 'asset' ? nextState.asset : nextState.scene,
+        route: resolveActiveRoute(nextState),
       }
       return
     }
@@ -379,7 +470,7 @@ export function useWorkbenchRouteState() {
       lastRouteSearch = nextSearch
       lastRouteSnapshot = {
         ...nextState,
-        route: nextState.scope === 'chapter' ? nextState.chapter : nextState.scope === 'asset' ? nextState.asset : nextState.scene,
+        route: resolveActiveRoute(nextState),
       }
       return
     }
@@ -404,7 +495,32 @@ export function useWorkbenchRouteState() {
       lastRouteSearch = nextSearch
       lastRouteSnapshot = {
         ...nextState,
-        route: nextState.scope === 'chapter' ? nextState.chapter : nextState.scope === 'asset' ? nextState.asset : nextState.scene,
+        route: resolveActiveRoute(nextState),
+      }
+      return
+    }
+
+    writeWorkbenchRouteState(nextState, options)
+  }, [])
+
+  const patchBookRoute = useCallback((patch: BookRoutePatch, options?: SetWorkbenchRouteOptions) => {
+    const current = readWorkbenchSearchState()
+    const baseSearch = typeof window === 'undefined' ? lastRouteSearch : window.location.search
+    const nextBook = normalizeBookRoute({ ...current.book, ...patch, scope: 'book' })
+    const nextState: WorkbenchSearchState = {
+      ...current,
+      book: nextBook,
+      route: current.scope === 'book' ? nextBook : current.route,
+    }
+
+    const currentSearch = buildWorkbenchSearch(current, baseSearch)
+    const nextSearch = buildWorkbenchSearch(nextState, baseSearch)
+
+    if (currentSearch === nextSearch) {
+      lastRouteSearch = nextSearch
+      lastRouteSnapshot = {
+        ...nextState,
+        route: resolveActiveRoute(nextState),
       }
       return
     }
@@ -418,5 +534,6 @@ export function useWorkbenchRouteState() {
     patchSceneRoute,
     patchChapterRoute,
     patchAssetRoute,
+    patchBookRoute,
   }
 }
