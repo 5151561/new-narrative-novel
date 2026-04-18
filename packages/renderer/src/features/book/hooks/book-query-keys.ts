@@ -12,4 +12,12 @@ export const bookQueryKeys = {
     locale
       ? ([...bookQueryKeys.all, 'checkpoint', bookId, checkpointId, locale] as const)
       : ([...bookQueryKeys.all, 'checkpoint', bookId, checkpointId] as const),
+  exportProfiles: (bookId: string, locale?: Locale) =>
+    locale
+      ? ([...bookQueryKeys.all, 'exportProfiles', bookId, locale] as const)
+      : ([...bookQueryKeys.all, 'exportProfiles', bookId] as const),
+  exportProfile: (bookId: string, exportProfileId: string, locale?: Locale) =>
+    locale
+      ? ([...bookQueryKeys.all, 'exportProfile', bookId, exportProfileId, locale] as const)
+      : ([...bookQueryKeys.all, 'exportProfile', bookId, exportProfileId] as const),
 }
