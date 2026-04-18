@@ -3,6 +3,20 @@ import { useMemo } from 'react'
 import { useI18n, type Locale } from '@/app/i18n'
 import type { BookWorkbenchActivityItem } from '@/features/book/hooks/useBookWorkbenchActivity'
 
+import {
+  DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+  mockBookManuscriptCheckpointSeeds,
+} from '../api/book-manuscript-checkpoints'
+import {
+  buildCurrentManuscriptSnapshotFromBookDraft,
+  compareBookManuscriptSnapshots,
+  normalizeBookManuscriptCheckpoint,
+} from '../lib/book-manuscript-compare-mappers'
+import type {
+  BookManuscriptCheckpointSummaryViewModel,
+  BookManuscriptCheckpointViewModel,
+  BookManuscriptCompareWorkspaceViewModel,
+} from '../types/book-compare-view-models'
 import type {
   BookDraftChapterViewModel,
   BookDraftSceneSectionViewModel,
@@ -341,6 +355,113 @@ function buildBookDraftStoryWorkspace(
   }
 }
 
+function buildQuietCheckpoint(workspace: BookDraftWorkspaceViewModel): BookManuscriptCheckpointViewModel {
+  const snapshot = buildCurrentManuscriptSnapshotFromBookDraft(workspace)
+
+  return {
+    checkpointId: 'checkpoint-book-signal-arc-quiet-pass',
+    bookId: snapshot.bookId,
+    title: 'Quiet Checkpoint',
+    createdAtLabel: '2026-04-18 09:00',
+    summary: 'Quiet snapshot aligned with the current story workspace.',
+    chapters: snapshot.chapters,
+  }
+}
+
+export function buildBookDraftCompareStoryData(
+  locale: Locale,
+  options?: {
+    variant?: BookStoryVariant
+    selectedChapterId?: string
+    checkpointId?: string
+  },
+) {
+  const workspace = buildBookDraftStoryWorkspace(locale, options)
+  const defaultCheckpointRecord = mockBookManuscriptCheckpointSeeds['book-signal-arc']?.[0]
+  const checkpoints = [
+    defaultCheckpointRecord ? normalizeBookManuscriptCheckpoint(defaultCheckpointRecord, locale) : null,
+    buildQuietCheckpoint(workspace),
+  ].filter((value): value is BookManuscriptCheckpointViewModel => value !== null)
+  const selectedCheckpoint =
+    checkpoints.find((checkpoint) => checkpoint.checkpointId === (options?.checkpointId ?? DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID)) ??
+    checkpoints[0] ??
+    buildQuietCheckpoint(workspace)
+  const compare = compareBookManuscriptSnapshots({
+    current: buildCurrentManuscriptSnapshotFromBookDraft(workspace),
+    checkpoint: selectedCheckpoint,
+    selectedChapterId: options?.selectedChapterId ?? workspace.selectedChapterId,
+  })
+
+  const compareProblems = {
+    changedChapterCount: compare.chapters.filter(
+      (chapter) =>
+        chapter.totals.changedCount > 0 ||
+        chapter.totals.addedCount > 0 ||
+        chapter.totals.missingCount > 0 ||
+        chapter.totals.draftMissingCount > 0,
+    ).length,
+    draftMissingSceneCount: compare.chapters.flatMap((chapter) => chapter.scenes.filter((scene) => scene.delta === 'draft_missing')).length,
+    traceRegressionCount: compare.chapters.flatMap((chapter) => chapter.scenes.filter((scene) => scene.checkpointScene?.traceReady && !scene.currentScene?.traceReady)).length,
+    warningsIncreasedChapterCount: compare.chapters.filter((chapter) => chapter.warningsDelta > 0).length,
+    checkpointMissingSectionCount: compare.chapters.flatMap((chapter) => chapter.scenes.filter((scene) => scene.delta === 'missing')).length,
+    changedChapters: compare.chapters
+      .filter((chapter) => chapter.totals.changedCount > 0 || chapter.totals.addedCount > 0 || chapter.totals.missingCount > 0)
+      .map((chapter) => ({
+        chapterId: chapter.chapterId,
+        title: chapter.title,
+        detail: `Changed ${chapter.totals.changedCount} / Added ${chapter.totals.addedCount} / Missing ${chapter.totals.missingCount}`,
+      })),
+    missingDraftScenes: compare.chapters.flatMap((chapter) =>
+      chapter.scenes
+        .filter((scene) => scene.delta === 'draft_missing')
+        .map((scene) => ({
+          chapterId: `${chapter.chapterId}:${scene.sceneId}`,
+          title: chapter.title,
+          detail: `${scene.title} still has no current draft.`,
+        })),
+    ),
+    traceRegressions: compare.chapters.flatMap((chapter) =>
+      chapter.scenes
+        .filter((scene) => scene.checkpointScene?.traceReady && !scene.currentScene?.traceReady)
+        .map((scene) => ({
+          chapterId: `${chapter.chapterId}:${scene.sceneId}`,
+          title: chapter.title,
+          detail: `${scene.title} lost trace readiness.`,
+        })),
+    ),
+    warningsIncreasedChapters: compare.chapters
+      .filter((chapter) => chapter.warningsDelta > 0)
+      .map((chapter) => ({
+        chapterId: chapter.chapterId,
+        title: chapter.title,
+        detail: `Warnings +${chapter.warningsDelta}`,
+      })),
+    checkpointMissingSections: compare.chapters.flatMap((chapter) =>
+      chapter.scenes
+        .filter((scene) => scene.delta === 'missing')
+        .map((scene) => ({
+          chapterId: `${chapter.chapterId}:${scene.sceneId}`,
+          title: chapter.title,
+          detail: `${scene.title} only exists in the checkpoint.`,
+        })),
+    ),
+  }
+
+  return {
+    workspace,
+    compare,
+    checkpoints: checkpoints.map<BookManuscriptCheckpointSummaryViewModel>((checkpoint) => ({
+      checkpointId: checkpoint.checkpointId,
+      bookId: checkpoint.bookId,
+      title: checkpoint.title,
+      createdAtLabel: checkpoint.createdAtLabel,
+      summary: checkpoint.summary,
+    })),
+    selectedCheckpoint,
+    compareProblems,
+  }
+}
+
 export function useLocalizedBookDraftWorkspace(options?: {
   variant?: BookStoryVariant
   selectedChapterId?: string
@@ -360,10 +481,45 @@ export function useLocalizedBookDraftWorkspace(options?: {
 export function buildBookDraftStoryActivity(
   locale: Locale,
   workspace: BookDraftWorkspaceViewModel,
-  options?: { quiet?: boolean },
+  options?: { quiet?: boolean; draftView?: 'read' | 'compare'; checkpointTitle?: string },
 ): BookWorkbenchActivityItem[] {
   if (options?.quiet) {
     return []
+  }
+
+  if (options?.draftView === 'compare') {
+    return [
+      {
+        id: 'draft-view-0',
+        kind: 'draft-view',
+        title: locale === 'zh-CN' ? '进入 Compare' : 'Entered Compare',
+        detail:
+          locale === 'zh-CN'
+            ? 'Compare 面板继续把 checkpoint 与章节焦点交给路由。'
+            : 'Compare keeps checkpoint and chapter focus route-owned.',
+        tone: 'accent',
+      },
+      {
+        id: 'checkpoint-1',
+        kind: 'checkpoint',
+        title:
+          locale === 'zh-CN'
+            ? `选择 checkpoint ${options.checkpointTitle ?? 'PR11 Baseline'}`
+            : `Selected checkpoint ${options.checkpointTitle ?? 'PR11 Baseline'}`,
+        detail:
+          locale === 'zh-CN'
+            ? '对照手稿基线继续复核章节级差异。'
+            : 'Review chapter-level deltas against the selected manuscript baseline.',
+        tone: 'neutral',
+      },
+      {
+        id: 'chapter-2',
+        kind: 'chapter',
+        title: locale === 'zh-CN' ? `聚焦${workspace.selectedChapter?.title ?? workspace.title}` : `Focused ${workspace.selectedChapter?.title ?? workspace.title}`,
+        detail: workspace.selectedChapter?.summary ?? workspace.summary,
+        tone: 'neutral',
+      },
+    ]
   }
 
   return [

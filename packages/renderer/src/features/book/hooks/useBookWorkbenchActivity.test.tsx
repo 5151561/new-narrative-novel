@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
 import { useI18n } from '@/app/i18n'
-import type { BookStructureView } from '@/features/workbench/types/workbench-route'
+import type { BookDraftView, BookStructureView } from '@/features/workbench/types/workbench-route'
 
 import {
   resetRememberedBookWorkbenchHandoffs,
@@ -19,6 +19,12 @@ interface ActivityTestSelectedChapter {
 
 interface ActivityHookProps {
   activeView: BookStructureView
+  activeDraftView?: BookDraftView
+  selectedCheckpoint?: {
+    id: string
+    title: string
+    summary: string
+  } | null
   selectedChapter: ActivityTestSelectedChapter | null
   latestHandoff?: BookWorkbenchHandoffEvent | null
 }
@@ -44,6 +50,8 @@ describe('useBookWorkbenchActivity', () => {
         useBookWorkbenchActivity({
           bookId: 'book-signal-arc',
           activeView,
+          activeDraftView: 'read',
+          selectedCheckpoint: null,
           selectedChapter,
           maxItems: 3,
         }),
@@ -94,6 +102,8 @@ describe('useBookWorkbenchActivity', () => {
         const activity = useBookWorkbenchActivity({
           bookId: 'book-signal-arc',
           activeView,
+          activeDraftView: 'read',
+          selectedCheckpoint: null,
           selectedChapter,
           latestHandoff,
           maxItems: 4,
@@ -152,5 +162,72 @@ describe('useBookWorkbenchActivity', () => {
     expect(result.current.activity[0]?.title).toBe('在成稿中打开 Signals in Rain')
     expect(result.current.activity[1]?.title).toBe('进入顺序')
     expect(result.current.activity[2]?.title).toBe('聚焦雨中信号')
+  })
+
+  it('records compare entry, checkpoint selection, and returning to read', () => {
+    const { result, rerender } = renderHook(
+      ({ activeDraftView = 'read', selectedCheckpoint = null, selectedChapter }: ActivityHookProps) =>
+        useBookWorkbenchActivity({
+          bookId: 'book-signal-arc',
+          activeLens: 'draft',
+          activeView: 'sequence',
+          activeDraftView,
+          selectedCheckpoint,
+          selectedChapter,
+          maxItems: 6,
+        }),
+      {
+        initialProps: {
+          activeView: 'sequence',
+          activeDraftView: 'read',
+          selectedCheckpoint: null,
+          selectedChapter: {
+            id: 'chapter-open-water-signals',
+            title: 'Open Water Signals',
+            summary: 'Warehouse pressure should stay legible as the exit opens.',
+          },
+        },
+        wrapper: AppProviders,
+      },
+    )
+
+    rerender({
+      activeView: 'sequence',
+      activeDraftView: 'compare',
+      selectedCheckpoint: {
+        id: 'checkpoint-book-signal-arc-pr11-baseline',
+        title: 'PR11 Baseline',
+        summary: 'Baseline manuscript snapshot.',
+      },
+      selectedChapter: {
+        id: 'chapter-open-water-signals',
+        title: 'Open Water Signals',
+        summary: 'Warehouse pressure should stay legible as the exit opens.',
+      },
+    })
+
+    expect(result.current.map((item) => item.title)).toEqual([
+      'Entered Compare',
+      'Selected checkpoint PR11 Baseline',
+      'Entered Draft',
+      'Focused Open Water Signals',
+    ])
+
+    rerender({
+      activeView: 'sequence',
+      activeDraftView: 'read',
+      selectedCheckpoint: {
+        id: 'checkpoint-book-signal-arc-pr11-baseline',
+        title: 'PR11 Baseline',
+        summary: 'Baseline manuscript snapshot.',
+      },
+      selectedChapter: {
+        id: 'chapter-open-water-signals',
+        title: 'Open Water Signals',
+        summary: 'Warehouse pressure should stay legible as the exit opens.',
+      },
+    })
+
+    expect(result.current[0]?.title).toBe('Returned to Read')
   })
 })

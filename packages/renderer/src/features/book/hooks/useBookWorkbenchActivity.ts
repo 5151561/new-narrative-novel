@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useI18n } from '@/app/i18n'
-import type { BookLens, BookStructureView } from '@/features/workbench/types/workbench-route'
+import type { BookDraftView, BookLens, BookStructureView } from '@/features/workbench/types/workbench-route'
 
 interface BookWorkbenchActivityChapter {
   id: string
@@ -16,7 +16,13 @@ export interface BookWorkbenchHandoffEvent {
   lens: 'structure' | 'draft'
 }
 
-export type BookWorkbenchActivityKind = 'lens' | 'view' | 'chapter' | 'handoff'
+interface BookWorkbenchCheckpoint {
+  id: string
+  title: string
+  summary: string
+}
+
+export type BookWorkbenchActivityKind = 'lens' | 'view' | 'chapter' | 'handoff' | 'draft-view' | 'checkpoint'
 
 interface BookWorkbenchActivityEntry {
   id: string
@@ -30,10 +36,16 @@ interface BookWorkbenchActivityEntry {
     | 'focused-chapter'
     | 'opened-structure'
     | 'opened-draft'
+    | 'entered-compare'
+    | 'returned-read'
+    | 'selected-checkpoint'
   lens?: BookLens
   view?: BookStructureView
+  draftView?: BookDraftView
   chapterTitle?: string
   chapterSummary?: string
+  checkpointTitle?: string
+  checkpointSummary?: string
 }
 
 export interface BookWorkbenchActivityItem {
@@ -48,6 +60,8 @@ interface UseBookWorkbenchActivityOptions {
   bookId: string
   activeLens?: BookLens
   activeView: BookStructureView
+  activeDraftView?: BookDraftView
+  selectedCheckpoint?: BookWorkbenchCheckpoint | null
   selectedChapter: BookWorkbenchActivityChapter | null
   latestHandoff?: BookWorkbenchHandoffEvent | null
   maxItems?: number
@@ -147,6 +161,43 @@ function localizeActivityEntry(
     }
   }
 
+  if (entry.kind === 'draft-view' && entry.draftView) {
+    return {
+      id: entry.id,
+      kind: entry.kind,
+      tone: entry.tone,
+      title:
+        locale === 'zh-CN'
+          ? entry.action === 'entered-compare'
+            ? '进入 Compare'
+            : '返回 Read'
+          : entry.action === 'entered-compare'
+            ? 'Entered Compare'
+            : 'Returned to Read',
+      detail:
+        locale === 'zh-CN'
+          ? entry.draftView === 'compare'
+            ? 'Compare 面板继续把 checkpoint 与章节焦点交给路由。'
+            : 'Read 面板恢复连续阅读，不接管结构视图。'
+          : entry.draftView === 'compare'
+            ? 'Compare keeps checkpoint and chapter focus route-owned.'
+            : 'Read mode restores the manuscript reader without taking over the dormant structure view.',
+    }
+  }
+
+  if (entry.kind === 'checkpoint') {
+    return {
+      id: entry.id,
+      kind: entry.kind,
+      tone: entry.tone,
+      title:
+        locale === 'zh-CN'
+          ? `选择 checkpoint ${entry.checkpointTitle ?? ''}`
+          : `Selected checkpoint ${entry.checkpointTitle ?? ''}`,
+      detail: entry.checkpointSummary ?? '',
+    }
+  }
+
   return {
     id: entry.id,
     kind: entry.kind,
@@ -160,6 +211,8 @@ export function useBookWorkbenchActivity({
   bookId,
   activeLens = 'structure',
   activeView,
+  activeDraftView = 'read',
+  selectedCheckpoint = null,
   selectedChapter,
   latestHandoff = null,
   maxItems = 6,
@@ -170,6 +223,8 @@ export function useBookWorkbenchActivity({
   const lastLocaleRef = useRef<'en' | 'zh-CN' | null>(null)
   const lastLensRef = useRef<BookLens | null>(null)
   const lastViewRef = useRef<BookStructureView | null>(null)
+  const lastDraftViewRef = useRef<BookDraftView | null>(null)
+  const lastCheckpointIdRef = useRef<string | null>(null)
   const lastChapterIdRef = useRef<string | null>(null)
   const seenHandoffIdsRef = useRef<Set<string>>(new Set())
   const sequenceRef = useRef(0)
@@ -189,6 +244,8 @@ export function useBookWorkbenchActivity({
       lastLocaleRef.current = locale
       lastLensRef.current = null
       lastViewRef.current = null
+      lastDraftViewRef.current = null
+      lastCheckpointIdRef.current = null
       lastChapterIdRef.current = null
       seenHandoffIdsRef.current = new Set()
       sequenceRef.current = 0
@@ -211,8 +268,50 @@ export function useBookWorkbenchActivity({
       }
       lastLensRef.current = activeLens
       lastViewRef.current = activeView
+
+      if (lastDraftViewRef.current !== activeDraftView) {
+        if (activeDraftView === 'compare') {
+          nextEntries.push({
+            id: `draft-view-${sequenceRef.current++}`,
+            kind: 'draft-view',
+            tone: 'accent',
+            action: 'entered-compare',
+            draftView: activeDraftView,
+          })
+        } else if (lastDraftViewRef.current === 'compare') {
+          nextEntries.push({
+            id: `draft-view-${sequenceRef.current++}`,
+            kind: 'draft-view',
+            tone: 'neutral',
+            action: 'returned-read',
+            draftView: activeDraftView,
+          })
+        }
+        lastDraftViewRef.current = activeDraftView
+      }
+
+      const checkpointId = selectedCheckpoint?.id ?? null
+      if (
+        activeDraftView === 'compare' &&
+        selectedCheckpoint &&
+        lastCheckpointIdRef.current !== checkpointId
+      ) {
+        nextEntries.push({
+          id: `checkpoint-${sequenceRef.current++}`,
+          kind: 'checkpoint',
+          tone: 'neutral',
+          action: 'selected-checkpoint',
+          checkpointTitle: selectedCheckpoint.title,
+          checkpointSummary: selectedCheckpoint.summary,
+        })
+        lastCheckpointIdRef.current = checkpointId
+      } else if (activeDraftView !== 'compare') {
+        lastCheckpointIdRef.current = checkpointId
+      }
     } else {
       lastLensRef.current = activeLens
+      lastDraftViewRef.current = activeDraftView
+      lastCheckpointIdRef.current = selectedCheckpoint?.id ?? null
       if (lastViewRef.current !== activeView) {
         nextEntries.push({
           id: `view-${sequenceRef.current++}`,
@@ -258,7 +357,7 @@ export function useBookWorkbenchActivity({
     }
 
     setActivity((current) => (bookChanged ? nextEntries : [...nextEntries, ...current]).slice(0, maxItems))
-  }, [activeLens, activeView, bookId, latestHandoff, locale, maxItems, selectedChapter])
+  }, [activeDraftView, activeLens, activeView, bookId, latestHandoff, locale, maxItems, selectedChapter, selectedCheckpoint])
 
   return useMemo(
     () => activity.map((item) => localizeActivityEntry(item, locale)),

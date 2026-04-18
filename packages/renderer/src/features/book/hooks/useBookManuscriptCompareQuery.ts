@@ -62,6 +62,7 @@ export function useBookManuscriptCompareQuery(
           checkpointId: normalized.checkpointId,
           bookId: normalized.bookId,
           title: normalized.title,
+          createdAtLabel: normalized.createdAtLabel,
           summary: normalized.summary,
         } satisfies BookManuscriptCheckpointSummaryViewModel
       }),

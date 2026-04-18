@@ -8,11 +8,13 @@ import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchR
 import { getLocaleName, getWorkbenchLensLabel, useI18n } from '@/app/i18n'
 import { BookDraftBinderPane } from '../components/BookDraftBinderPane'
 import { BookDraftInspectorPane } from '../components/BookDraftInspectorPane'
-import { BookDraftReader } from '../components/BookDraftReader'
+import { BookDraftStage } from '../components/BookDraftStage'
 import { BookModeRail } from '../components/BookModeRail'
 import { useBookDraftWorkspaceQuery } from '../hooks/useBookDraftWorkspaceQuery'
+import { useBookManuscriptCompareQuery } from '../hooks/useBookManuscriptCompareQuery'
 import { rememberBookWorkbenchHandoff } from '../hooks/useBookWorkbenchActivity'
 import { BookDraftDockContainer } from './BookDraftDockContainer'
+import { DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID } from '../api/book-manuscript-checkpoints'
 
 let rememberedBookDraftHandoffSequence = 0
 
@@ -106,6 +108,19 @@ export function BookDraftWorkspace() {
     bookId: route.bookId,
     selectedChapterId: route.selectedChapterId ?? null,
   })
+  const activeDraftView = route.draftView ?? 'read'
+  const effectiveCheckpointId = route.checkpointId ?? DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID
+  const {
+    compareWorkspace,
+    checkpoints,
+    selectedCheckpoint,
+    isLoading: isCompareLoading,
+    error: compareError,
+  } = useBookManuscriptCompareQuery({
+    bookId: route.bookId,
+    currentDraftWorkspace: workspace,
+    checkpointId: effectiveCheckpointId,
+  })
 
   useEffect(() => {
     if (isLoading || error || workspace === undefined || workspace === null) {
@@ -159,6 +174,28 @@ export function BookDraftWorkspace() {
     },
     [patchBookRoute, route.selectedChapterId],
   )
+  const onSelectDraftView = useCallback(
+    (draftView: 'read' | 'compare') => {
+      patchBookRoute({
+        draftView,
+        checkpointId: draftView === 'compare' ? effectiveCheckpointId : route.checkpointId ?? effectiveCheckpointId,
+      })
+    },
+    [effectiveCheckpointId, patchBookRoute, route.checkpointId],
+  )
+  const onSelectCheckpoint = useCallback(
+    (checkpointId: string) => {
+      if (checkpointId === effectiveCheckpointId && activeDraftView === 'compare') {
+        return
+      }
+
+      patchBookRoute({
+        draftView: 'compare',
+        checkpointId,
+      })
+    },
+    [activeDraftView, effectiveCheckpointId, patchBookRoute],
+  )
 
   const modeRail = (
     <BookModeRail
@@ -200,7 +237,7 @@ export function BookDraftWorkspace() {
     )
   }
 
-  if (isLoading || workspace === undefined) {
+  if (isLoading || workspace === undefined || (activeDraftView === 'compare' && (isCompareLoading || compareWorkspace === undefined))) {
     const message =
       locale === 'zh-CN'
         ? '正在按书籍顺序装配章节手稿，并同步检查器与底部面板摘要。'
@@ -253,14 +290,29 @@ export function BookDraftWorkspace() {
         />
       }
       mainStage={
-        <BookDraftReader
+        <BookDraftStage
+          draftView={activeDraftView}
           workspace={workspace}
+          compare={compareWorkspace ?? null}
+          compareError={compareError}
+          checkpoints={checkpoints ?? []}
+          selectedCheckpointId={selectedCheckpoint?.checkpointId ?? effectiveCheckpointId}
+          onSelectDraftView={onSelectDraftView}
           onSelectChapter={onSelectChapter}
           onOpenChapter={openChapterFromBook}
+          onSelectCheckpoint={onSelectCheckpoint}
         />
       }
-      inspector={<BookDraftInspectorPane bookTitle={workspace.title} inspector={workspace.inspector} />}
-      bottomDock={<BookDraftDockContainer workspace={workspace} />}
+      inspector={
+        <BookDraftInspectorPane
+          bookTitle={workspace.title}
+          inspector={workspace.inspector}
+          activeDraftView={activeDraftView}
+          compare={compareWorkspace ?? null}
+          checkpointMeta={selectedCheckpoint ?? null}
+        />
+      }
+      bottomDock={<BookDraftDockContainer workspace={workspace} activeDraftView={activeDraftView} compare={compareWorkspace ?? null} />}
     />
   )
 }

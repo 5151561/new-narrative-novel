@@ -31,6 +31,7 @@ export interface BookManuscriptCheckpointSummaryViewModel {
   checkpointId: string
   bookId: string
   title: string
+  createdAtLabel: string
   summary: string
 }
 

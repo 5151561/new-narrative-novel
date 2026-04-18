@@ -1,14 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { BookDraftInspectorPane } from './BookDraftInspectorPane'
-import {
-  BookStoryShell,
-  type BookStoryVariant,
-} from './book-storybook'
-import { buildBookDraftCompareStoryData, useLocalizedBookDraftWorkspace } from './book-draft-storybook'
+import { BookDraftStage } from './BookDraftStage'
+import { BookStoryShell, type BookStoryVariant } from './book-storybook'
+import { buildBookDraftCompareStoryData, buildBookDraftStoryActivity, useLocalizedBookDraftWorkspace } from './book-draft-storybook'
 import { useI18n } from '@/app/i18n'
 
-interface BookDraftInspectorPaneStoryProps {
+interface BookDraftStageStoryProps {
   variant?: BookStoryVariant
   selectedChapterId?: string
   checkpointId?: string
@@ -20,28 +17,32 @@ function StoryComponent({
   selectedChapterId,
   checkpointId,
   draftView = 'read',
-}: BookDraftInspectorPaneStoryProps) {
+}: BookDraftStageStoryProps) {
   const { locale } = useI18n()
   const workspace = useLocalizedBookDraftWorkspace({ variant, selectedChapterId })
   const compareData = buildBookDraftCompareStoryData(locale, { variant, selectedChapterId, checkpointId })
 
   return (
-    <BookDraftInspectorPane
-      bookTitle={workspace.title}
-      inspector={workspace.inspector}
-      activeDraftView={draftView}
-      compare={draftView === 'compare' ? compareData.compare : null}
-      checkpointMeta={draftView === 'compare' ? compareData.selectedCheckpoint : null}
+    <BookDraftStage
+      draftView={draftView}
+      workspace={workspace}
+      compare={compareData.compare}
+      checkpoints={compareData.checkpoints}
+      selectedCheckpointId={compareData.selectedCheckpoint.checkpointId}
+      onSelectDraftView={() => undefined}
+      onSelectChapter={() => undefined}
+      onOpenChapter={() => undefined}
+      onSelectCheckpoint={() => undefined}
     />
   )
 }
 
 const meta = {
-  title: 'Business/BookDraftInspectorPane',
+  title: 'Business/BookDraftStage',
   component: StoryComponent,
-  parameters: { layout: 'padded' },
+  parameters: { layout: 'fullscreen' },
   render: (args) => (
-    <BookStoryShell frameClassName="max-w-md rounded-md border border-line-soft bg-surface-1">
+    <BookStoryShell frameClassName="min-h-[780px]">
       <StoryComponent {...args} />
     </BookStoryShell>
   ),
@@ -56,6 +57,26 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const ReadDefault: Story = {}
+
+export const CompareDefault: Story = {
+  args: {
+    draftView: 'compare',
+  },
+}
+
+export const CompareSelectedSecondChapter: Story = {
+  args: {
+    draftView: 'compare',
+    selectedChapterId: 'chapter-open-water-signals',
+  },
+}
+
+export const CompareMissingDrafts: Story = {
+  args: {
+    draftView: 'compare',
+    selectedChapterId: 'chapter-signals-in-rain',
+  },
+}
 
 export const CompareTraceRegression: Story = {
   args: {

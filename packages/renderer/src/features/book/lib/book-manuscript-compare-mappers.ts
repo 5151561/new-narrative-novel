@@ -145,6 +145,7 @@ export function normalizeBookManuscriptCheckpoint(
     checkpointId: record.checkpointId,
     bookId: record.bookId,
     title: readLocalizedBookText(record.title, locale),
+    createdAtLabel: record.createdAtLabel ? readLocalizedBookText(record.createdAtLabel, locale) : record.checkpointId,
     summary: readLocalizedBookText(record.summary, locale),
     chapters: record.chapters.map((chapter) => ({
       chapterId: chapter.chapterId,
@@ -265,6 +266,7 @@ export function compareBookManuscriptSnapshots({
       checkpointId: checkpoint.checkpointId,
       bookId: checkpoint.bookId,
       title: checkpoint.title,
+      createdAtLabel: checkpoint.createdAtLabel,
       summary: checkpoint.summary,
     },
     selectedChapterId: selectedChapter?.chapterId ?? null,

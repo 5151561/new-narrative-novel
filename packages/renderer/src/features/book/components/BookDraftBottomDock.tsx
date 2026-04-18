@@ -5,12 +5,17 @@ import { SectionCard } from '@/components/ui/SectionCard'
 import { TimelineList } from '@/components/ui/TimelineList'
 
 import { useI18n } from '@/app/i18n'
+import type { BookDraftView } from '@/features/workbench/types/workbench-route'
+
 import type { BookWorkbenchActivityItem } from '../hooks/useBookWorkbenchActivity'
+import type { BookDraftCompareProblems } from '../lib/book-draft-compare-presentation'
 import type { BookDraftDockSummaryItem, BookDraftDockSummaryViewModel } from '../types/book-draft-view-models'
 
 interface BookDraftBottomDockProps {
   summary: BookDraftDockSummaryViewModel
   activity: BookWorkbenchActivityItem[]
+  activeDraftView?: BookDraftView
+  compareProblems?: BookDraftCompareProblems | null
 }
 
 function SupportList({
@@ -43,8 +48,34 @@ function SupportList({
   )
 }
 
-export function BookDraftBottomDock({ summary, activity }: BookDraftBottomDockProps) {
+function getActivityMeta(locale: 'en' | 'zh-CN', item: BookWorkbenchActivityItem) {
+  if (item.kind === 'lens') {
+    return 'Lens'
+  }
+
+  if (item.kind === 'chapter') {
+    return locale === 'zh-CN' ? '章节' : 'Chapter'
+  }
+
+  if (item.kind === 'draft-view') {
+    return 'Draft'
+  }
+
+  if (item.kind === 'checkpoint') {
+    return 'Checkpoint'
+  }
+
+  return locale === 'zh-CN' ? '跳转' : 'Handoff'
+}
+
+export function BookDraftBottomDock({
+  summary,
+  activity,
+  activeDraftView = 'read',
+  compareProblems = null,
+}: BookDraftBottomDockProps) {
   const { locale } = useI18n()
+  const compareMode = activeDraftView === 'compare' && compareProblems !== null
 
   return (
     <section
@@ -63,31 +94,113 @@ export function BookDraftBottomDock({ summary, activity }: BookDraftBottomDockPr
         <SectionCard title={locale === 'zh-CN' ? '问题' : 'Problems'} eyebrow={locale === 'zh-CN' ? '阅读支持' : 'Reading Support'}>
           <div className="space-y-4">
             <FactList
-              items={[
-                { id: 'missing-draft-count', label: locale === 'zh-CN' ? '缺稿章节' : 'Missing draft chapters', value: `${summary.missingDraftChapterCount}` },
-                { id: 'missing-trace-count', label: locale === 'zh-CN' ? '缺溯源章节' : 'Missing trace chapters', value: `${summary.missingTraceChapterCount}` },
-                { id: 'warnings-count', label: locale === 'zh-CN' ? '警告章节' : 'Warning chapters', value: `${summary.warningsChapterCount}` },
-                { id: 'queued-count', label: locale === 'zh-CN' ? '待处理修订章节' : 'Queued revision chapters', value: `${summary.queuedRevisionChapterCount}` },
-              ]}
+              items={
+                compareMode
+                  ? [
+                      { id: 'changed-chapters', label: locale === 'zh-CN' ? '变更章节' : 'Changed chapters', value: `${compareProblems.changedChapterCount}` },
+                      { id: 'draft-missing-scenes', label: locale === 'zh-CN' ? '当前缺稿场景' : 'Draft missing scenes', value: `${compareProblems.draftMissingSceneCount}` },
+                      { id: 'trace-regressions', label: locale === 'zh-CN' ? '溯源回退' : 'Trace regressions', value: `${compareProblems.traceRegressionCount}` },
+                      { id: 'warnings-increased', label: locale === 'zh-CN' ? '警告上升章节' : 'Warnings increased chapters', value: `${compareProblems.warningsIncreasedChapterCount}` },
+                      { id: 'checkpoint-missing', label: locale === 'zh-CN' ? 'Checkpoint 缺失段落' : 'Checkpoint missing sections', value: `${compareProblems.checkpointMissingSectionCount}` },
+                    ]
+                  : [
+                      { id: 'missing-draft-count', label: locale === 'zh-CN' ? '缺稿章节' : 'Missing draft chapters', value: `${summary.missingDraftChapterCount}` },
+                      { id: 'missing-trace-count', label: locale === 'zh-CN' ? '缺溯源章节' : 'Missing trace chapters', value: `${summary.missingTraceChapterCount}` },
+                      { id: 'warnings-count', label: locale === 'zh-CN' ? '警告章节' : 'Warning chapters', value: `${summary.warningsChapterCount}` },
+                      { id: 'queued-count', label: locale === 'zh-CN' ? '待处理修订章节' : 'Queued revision chapters', value: `${summary.queuedRevisionChapterCount}` },
+                    ]
+              }
             />
             <SupportList
-              title={locale === 'zh-CN' ? '缺稿' : 'Missing drafts'}
-              items={summary.missingDraftChapters}
-              emptyTitle={locale === 'zh-CN' ? '没有缺稿章节' : 'No missing draft chapters'}
-              emptyMessage={locale === 'zh-CN' ? '当前每个章节都有可读正文。' : 'Every chapter currently has readable draft prose.'}
+              title={compareMode ? (locale === 'zh-CN' ? '变更章节' : 'Changed chapters') : locale === 'zh-CN' ? '缺稿' : 'Missing drafts'}
+              items={compareMode ? compareProblems.changedChapters : summary.missingDraftChapters}
+              emptyTitle={
+                compareMode
+                  ? locale === 'zh-CN'
+                    ? '当前没有变更章节'
+                    : 'No changed chapters'
+                  : locale === 'zh-CN'
+                    ? '没有缺稿章节'
+                    : 'No missing draft chapters'
+              }
+              emptyMessage={
+                compareMode
+                  ? locale === 'zh-CN'
+                    ? '当前 compare 结果没有章节级变更。'
+                    : 'The current compare pass has no chapter-level changes.'
+                  : locale === 'zh-CN'
+                    ? '当前每个章节都有可读正文。'
+                    : 'Every chapter currently has readable draft prose.'
+              }
             />
             <SupportList
-              title={locale === 'zh-CN' ? '缺溯源' : 'Missing trace'}
-              items={summary.missingTraceChapters}
-              emptyTitle={locale === 'zh-CN' ? '没有缺溯源章节' : 'No missing trace chapters'}
-              emptyMessage={locale === 'zh-CN' ? '当前每个章节都已有 trace rollup。' : 'Every chapter currently has a trace rollup.'}
+              title={compareMode ? (locale === 'zh-CN' ? '当前缺稿场景' : 'Draft missing scenes') : locale === 'zh-CN' ? '缺溯源' : 'Missing trace'}
+              items={compareMode ? compareProblems.missingDraftScenes : summary.missingTraceChapters}
+              emptyTitle={
+                compareMode
+                  ? locale === 'zh-CN'
+                    ? '当前没有缺稿场景'
+                    : 'No draft-missing scenes'
+                  : locale === 'zh-CN'
+                    ? '没有缺溯源章节'
+                    : 'No missing trace chapters'
+              }
+              emptyMessage={
+                compareMode
+                  ? locale === 'zh-CN'
+                    ? '当前 compare 结果里没有 draft_missing 场景。'
+                    : 'No compare rows are currently marked draft_missing.'
+                  : locale === 'zh-CN'
+                    ? '当前每个章节都已有 trace rollup。'
+                    : 'Every chapter currently has a trace rollup.'
+              }
             />
             <SupportList
-              title={locale === 'zh-CN' ? '高压章节' : 'Highest pressure'}
-              items={summary.highestPressureChapters}
-              emptyTitle={locale === 'zh-CN' ? '当前没有高压章节' : 'No high-pressure chapters'}
-              emptyMessage={locale === 'zh-CN' ? '当前阅读轮次比较平稳。' : 'The current manuscript pass is relatively calm.'}
+              title={compareMode ? (locale === 'zh-CN' ? '溯源回退' : 'Trace regressions') : locale === 'zh-CN' ? '高压章节' : 'Highest pressure'}
+              items={compareMode ? compareProblems.traceRegressions : summary.highestPressureChapters}
+              emptyTitle={
+                compareMode
+                  ? locale === 'zh-CN'
+                    ? '当前没有溯源回退'
+                    : 'No trace regressions'
+                  : locale === 'zh-CN'
+                    ? '当前没有高压章节'
+                    : 'No high-pressure chapters'
+              }
+              emptyMessage={
+                compareMode
+                  ? locale === 'zh-CN'
+                    ? '当前 compare 结果没有 trace regression。'
+                    : 'The current compare pass has no trace regressions.'
+                  : locale === 'zh-CN'
+                    ? '当前阅读轮次比较平稳。'
+                    : 'The current manuscript pass is relatively calm.'
+              }
             />
+            {compareMode ? (
+              <>
+                <SupportList
+                  title={locale === 'zh-CN' ? '警告上升章节' : 'Warnings increased chapters'}
+                  items={compareProblems.warningsIncreasedChapters}
+                  emptyTitle={locale === 'zh-CN' ? '当前没有警告上升章节' : 'No warnings increased chapters'}
+                  emptyMessage={
+                    locale === 'zh-CN'
+                      ? '当前 compare 结果没有章节的 warnings 继续上升。'
+                      : 'No chapters currently show increased warnings against the checkpoint.'
+                  }
+                />
+                <SupportList
+                  title={locale === 'zh-CN' ? 'Checkpoint 缺失段落' : 'Checkpoint missing sections'}
+                  items={compareProblems.checkpointMissingSections}
+                  emptyTitle={locale === 'zh-CN' ? '当前没有 checkpoint 缺失段落' : 'No checkpoint missing sections'}
+                  emptyMessage={
+                    locale === 'zh-CN'
+                      ? '当前 compare 结果没有只存在于 checkpoint 的段落。'
+                      : 'No sections currently exist only in the checkpoint.'
+                  }
+                />
+              </>
+            ) : null}
           </div>
         </SectionCard>
         <SectionCard title={locale === 'zh-CN' ? '活动' : 'Activity'} eyebrow={locale === 'zh-CN' ? '会话日志' : 'Session Log'}>
@@ -98,18 +211,7 @@ export function BookDraftBottomDock({ summary, activity }: BookDraftBottomDockPr
                 title: item.title,
                 detail: item.detail,
                 tone: item.tone,
-                meta:
-                  item.kind === 'lens'
-                    ? locale === 'zh-CN'
-                      ? 'Lens'
-                      : 'Lens'
-                    : item.kind === 'chapter'
-                      ? locale === 'zh-CN'
-                        ? '章节'
-                        : 'Chapter'
-                      : locale === 'zh-CN'
-                        ? '跳转'
-                        : 'Handoff',
+                meta: getActivityMeta(locale, item),
               }))}
             />
           ) : (

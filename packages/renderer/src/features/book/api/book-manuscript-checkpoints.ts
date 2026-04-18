@@ -23,6 +23,7 @@ export interface BookManuscriptCheckpointRecord {
   checkpointId: string
   bookId: string
   title: BookLocalizedText
+  createdAtLabel: BookLocalizedText
   summary: BookLocalizedText
   chapters: BookManuscriptCheckpointChapterRecord[]
 }
@@ -46,6 +47,7 @@ export const mockBookManuscriptCheckpointSeeds: Record<string, BookManuscriptChe
       checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
       bookId: 'book-signal-arc',
       title: text('PR11 Baseline', 'PR11 基线'),
+      createdAtLabel: text('2026-04-17 22:10', '2026-04-17 22:10'),
       summary: text(
         'Baseline manuscript snapshot captured before compare/review work started.',
         '在 compare/review 工作开始前采集的基线稿快照。',
