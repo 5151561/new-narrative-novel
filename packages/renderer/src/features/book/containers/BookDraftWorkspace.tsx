@@ -11,6 +11,7 @@ import { BookDraftInspectorPane } from '../components/BookDraftInspectorPane'
 import { BookDraftStage } from '../components/BookDraftStage'
 import { BookModeRail } from '../components/BookModeRail'
 import { useBookDraftWorkspaceQuery } from '../hooks/useBookDraftWorkspaceQuery'
+import { useBookExperimentBranchQuery } from '../hooks/useBookExperimentBranchQuery'
 import { useBookExportPreviewQuery } from '../hooks/useBookExportPreviewQuery'
 import { useBookManuscriptCompareQuery } from '../hooks/useBookManuscriptCompareQuery'
 import { rememberBookWorkbenchHandoff } from '../hooks/useBookWorkbenchActivity'
@@ -19,6 +20,7 @@ import { DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID } from '../api/book-manuscript-ch
 import { DEFAULT_BOOK_EXPORT_PROFILE_ID } from '../api/book-export-profiles'
 
 let rememberedBookDraftHandoffSequence = 0
+const DEFAULT_BOOK_EXPERIMENT_BRANCH_ID = 'branch-book-signal-arc-quiet-ending'
 
 function LanguageToggle() {
   const { locale, setLocale, dictionary } = useI18n()
@@ -113,6 +115,8 @@ export function BookDraftWorkspace() {
   const activeDraftView = route.draftView ?? 'read'
   const effectiveCheckpointId = route.checkpointId ?? DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID
   const effectiveExportProfileId = route.exportProfileId ?? DEFAULT_BOOK_EXPORT_PROFILE_ID
+  const effectiveBranchId = route.branchId ?? DEFAULT_BOOK_EXPERIMENT_BRANCH_ID
+  const effectiveBranchBaseline = route.branchBaseline ?? 'current'
   const {
     compareWorkspace,
     checkpoints,
@@ -136,6 +140,19 @@ export function BookDraftWorkspace() {
     compareWorkspace,
     exportProfileId: effectiveExportProfileId,
     enabled: activeDraftView === 'export',
+  })
+  const {
+    branchWorkspace,
+    branches,
+    selectedBranch,
+    isLoading: isBranchLoading,
+    error: branchError,
+  } = useBookExperimentBranchQuery({
+    bookId: route.bookId,
+    currentDraftWorkspace: workspace,
+    branchId: effectiveBranchId,
+    branchBaseline: effectiveBranchBaseline,
+    checkpointId: effectiveCheckpointId,
   })
   const exportBaselineError = activeDraftView === 'export' ? compareError : null
   const effectiveExportError = exportBaselineError ?? exportError
@@ -194,14 +211,26 @@ export function BookDraftWorkspace() {
     [patchBookRoute, route.selectedChapterId],
   )
   const onSelectDraftView = useCallback(
-    (draftView: 'read' | 'compare' | 'export') => {
+    (draftView: 'read' | 'compare' | 'export' | 'branch') => {
       patchBookRoute({
         draftView,
         checkpointId: draftView === 'compare' ? effectiveCheckpointId : route.checkpointId ?? effectiveCheckpointId,
         exportProfileId: draftView === 'export' ? effectiveExportProfileId : route.exportProfileId ?? effectiveExportProfileId,
+        branchId: draftView === 'branch' ? effectiveBranchId : route.branchId ?? effectiveBranchId,
+        branchBaseline: draftView === 'branch' ? effectiveBranchBaseline : route.branchBaseline ?? effectiveBranchBaseline,
       })
     },
-    [effectiveCheckpointId, effectiveExportProfileId, patchBookRoute, route.checkpointId, route.exportProfileId],
+    [
+      effectiveBranchBaseline,
+      effectiveBranchId,
+      effectiveCheckpointId,
+      effectiveExportProfileId,
+      patchBookRoute,
+      route.branchBaseline,
+      route.branchId,
+      route.checkpointId,
+      route.exportProfileId,
+    ],
   )
   const onSelectCheckpoint = useCallback(
     (checkpointId: string) => {
@@ -224,6 +253,25 @@ export function BookDraftWorkspace() {
       })
     },
     [patchBookRoute],
+  )
+  const onSelectBranch = useCallback(
+    (branchId: string) => {
+      patchBookRoute({
+        draftView: 'branch',
+        branchId,
+      })
+    },
+    [patchBookRoute],
+  )
+  const onSelectBranchBaseline = useCallback(
+    (branchBaseline: 'current' | 'checkpoint') => {
+      patchBookRoute({
+        draftView: 'branch',
+        branchBaseline,
+        checkpointId: route.checkpointId ?? effectiveCheckpointId,
+      })
+    },
+    [effectiveCheckpointId, patchBookRoute, route.checkpointId],
   )
 
   const modeRail = (
@@ -270,7 +318,8 @@ export function BookDraftWorkspace() {
     isLoading ||
     workspace === undefined ||
     (activeDraftView === 'compare' && (isCompareLoading || compareWorkspace === undefined)) ||
-    (activeDraftView === 'export' && (isExportLoading || exportWorkspace === undefined))
+    (activeDraftView === 'export' && (isExportLoading || exportWorkspace === undefined)) ||
+    (activeDraftView === 'branch' && (isBranchLoading || (branchWorkspace === undefined && branchError === null)))
   ) {
     const message =
       locale === 'zh-CN'
@@ -329,6 +378,11 @@ export function BookDraftWorkspace() {
           workspace={workspace}
           compare={compareWorkspace ?? null}
           compareError={compareError}
+          branchWorkspace={branchWorkspace ?? null}
+          branchError={branchError}
+          branches={branches ?? []}
+          selectedBranchId={selectedBranch?.branchId ?? effectiveBranchId}
+          branchBaseline={effectiveBranchBaseline}
           exportPreview={effectiveExportPreview}
           exportProfiles={exportProfiles ?? []}
           selectedExportProfileId={selectedExportProfile?.exportProfileId ?? effectiveExportProfileId}
@@ -339,6 +393,8 @@ export function BookDraftWorkspace() {
           onSelectChapter={onSelectChapter}
           onOpenChapter={openChapterFromBook}
           onSelectCheckpoint={onSelectCheckpoint}
+          onSelectBranch={onSelectBranch}
+          onSelectBranchBaseline={onSelectBranchBaseline}
           onSelectExportProfile={onSelectExportProfile}
         />
       }

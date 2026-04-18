@@ -4,6 +4,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
 
+import { mockBookExperimentBranchSeeds } from '../api/book-experiment-branches'
+import { buildBookExperimentBranchWorkspace, normalizeBookExperimentBranch } from '../lib/book-experiment-branch-mappers'
+import type { BookExperimentBranchSummaryViewModel, BookExperimentBranchWorkspaceViewModel } from '../types/book-branch-view-models'
 import type { BookManuscriptCheckpointSummaryViewModel, BookManuscriptCompareWorkspaceViewModel } from '../types/book-compare-view-models'
 import type { BookDraftWorkspaceViewModel } from '../types/book-draft-view-models'
 import type { BookExportPreviewWorkspaceViewModel, BookExportProfileSummaryViewModel } from '../types/book-export-view-models'
@@ -361,6 +364,10 @@ const exportProfiles: BookExportProfileSummaryViewModel[] = [
   },
 ]
 
+const branches: BookExperimentBranchSummaryViewModel[] = mockBookExperimentBranchSeeds['book-signal-arc']!.map((record) =>
+  normalizeBookExperimentBranch(record, 'en'),
+)
+
 function buildExportWorkspace(): BookExportPreviewWorkspaceViewModel {
   return {
     bookId: 'book-signal-arc',
@@ -433,6 +440,17 @@ function buildExportWorkspace(): BookExportPreviewWorkspaceViewModel {
   }
 }
 
+function buildBranchWorkspace(): BookExperimentBranchWorkspaceViewModel {
+  return buildBookExperimentBranchWorkspace({
+    currentDraftWorkspace: buildWorkspace(),
+    branch: mockBookExperimentBranchSeeds['book-signal-arc']![0]!,
+    branches: mockBookExperimentBranchSeeds['book-signal-arc']!,
+    checkpoint: null,
+    branchBaseline: 'current',
+    locale: 'en',
+  })
+}
+
 describe('BookDraftStage', () => {
   it('renders BookDraftReader in read view', () => {
     render(
@@ -442,6 +460,10 @@ describe('BookDraftStage', () => {
           workspace={buildWorkspace()}
           compare={buildCompare()}
           exportPreview={buildExportWorkspace()}
+          branchWorkspace={buildBranchWorkspace()}
+          branches={branches}
+          selectedBranchId="branch-book-signal-arc-quiet-ending"
+          branchBaseline="current"
           exportProfiles={exportProfiles}
           selectedExportProfileId="export-review-packet"
           checkpoints={checkpoints}
@@ -450,6 +472,8 @@ describe('BookDraftStage', () => {
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
           onSelectCheckpoint={vi.fn()}
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
           onSelectExportProfile={vi.fn()}
         />
       </AppProviders>,
@@ -466,6 +490,10 @@ describe('BookDraftStage', () => {
           workspace={buildWorkspace()}
           compare={buildCompare()}
           exportPreview={buildExportWorkspace()}
+          branchWorkspace={buildBranchWorkspace()}
+          branches={branches}
+          selectedBranchId="branch-book-signal-arc-quiet-ending"
+          branchBaseline="current"
           exportProfiles={exportProfiles}
           selectedExportProfileId="export-review-packet"
           checkpoints={checkpoints}
@@ -474,6 +502,8 @@ describe('BookDraftStage', () => {
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
           onSelectCheckpoint={vi.fn()}
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
           onSelectExportProfile={vi.fn()}
         />
       </AppProviders>,
@@ -491,6 +521,10 @@ describe('BookDraftStage', () => {
           workspace={buildWorkspace()}
           compare={buildCompare()}
           exportPreview={buildExportWorkspace()}
+          branchWorkspace={buildBranchWorkspace()}
+          branches={branches}
+          selectedBranchId="branch-book-signal-arc-quiet-ending"
+          branchBaseline="current"
           exportProfiles={exportProfiles}
           selectedExportProfileId="export-review-packet"
           checkpoints={checkpoints}
@@ -499,6 +533,8 @@ describe('BookDraftStage', () => {
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
           onSelectCheckpoint={vi.fn()}
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
           onSelectExportProfile={vi.fn()}
         />
       </AppProviders>,
@@ -506,6 +542,71 @@ describe('BookDraftStage', () => {
 
     expect(screen.getByRole('heading', { name: 'Book export preview' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Manuscript checkpoint')).not.toBeInTheDocument()
+  })
+
+  it('renders BookDraftBranchView in branch view', () => {
+    render(
+      <AppProviders>
+        <BookDraftStage
+          draftView="branch"
+          workspace={buildWorkspace()}
+          compare={buildCompare()}
+          exportPreview={buildExportWorkspace()}
+          branchWorkspace={buildBranchWorkspace()}
+          branchError={null}
+          branches={branches}
+          selectedBranchId="branch-book-signal-arc-quiet-ending"
+          branchBaseline="current"
+          exportProfiles={exportProfiles}
+          selectedExportProfileId="export-review-packet"
+          checkpoints={checkpoints}
+          selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          onSelectDraftView={vi.fn()}
+          onSelectChapter={vi.fn()}
+          onOpenChapter={vi.fn()}
+          onSelectCheckpoint={vi.fn()}
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
+          onSelectExportProfile={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Book experiment branch' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Branch' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Branch preview')).toBeInTheDocument()
+  })
+
+  it('passes the specific branch error through the branch stage path', () => {
+    render(
+      <AppProviders>
+        <BookDraftStage
+          draftView="branch"
+          workspace={buildWorkspace()}
+          compare={buildCompare()}
+          exportPreview={buildExportWorkspace()}
+          branchWorkspace={null}
+          branchError={new Error('Book experiment branch \"branch-missing\" could not be found for \"book-signal-arc\".')}
+          branches={branches}
+          selectedBranchId="branch-missing"
+          branchBaseline="checkpoint"
+          exportProfiles={exportProfiles}
+          selectedExportProfileId="export-review-packet"
+          checkpoints={checkpoints}
+          selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          onSelectDraftView={vi.fn()}
+          onSelectChapter={vi.fn()}
+          onOpenChapter={vi.fn()}
+          onSelectCheckpoint={vi.fn()}
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
+          onSelectExportProfile={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Branch unavailable')).toBeInTheDocument()
+    expect(screen.getByText('Book experiment branch \"branch-missing\" could not be found for \"book-signal-arc\".')).toBeInTheDocument()
   })
 
   it('switching view triggers the callback', async () => {
@@ -519,6 +620,10 @@ describe('BookDraftStage', () => {
           workspace={buildWorkspace()}
           compare={buildCompare()}
           exportPreview={buildExportWorkspace()}
+          branchWorkspace={buildBranchWorkspace()}
+          branches={branches}
+          selectedBranchId="branch-book-signal-arc-quiet-ending"
+          branchBaseline="current"
           exportProfiles={exportProfiles}
           selectedExportProfileId="export-review-packet"
           checkpoints={checkpoints}
@@ -527,6 +632,8 @@ describe('BookDraftStage', () => {
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
           onSelectCheckpoint={vi.fn()}
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
           onSelectExportProfile={vi.fn()}
         />
       </AppProviders>,
@@ -548,6 +655,10 @@ describe('BookDraftStage', () => {
           workspace={buildWorkspace()}
           compare={buildCompare()}
           exportPreview={buildExportWorkspace()}
+          branchWorkspace={buildBranchWorkspace()}
+          branches={branches}
+          selectedBranchId="branch-book-signal-arc-quiet-ending"
+          branchBaseline="current"
           exportProfiles={exportProfiles}
           selectedExportProfileId="export-review-packet"
           checkpoints={checkpoints}
@@ -556,6 +667,8 @@ describe('BookDraftStage', () => {
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
           onSelectCheckpoint={vi.fn()}
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
           onSelectExportProfile={vi.fn()}
         />
       </AppProviders>,
@@ -564,5 +677,40 @@ describe('BookDraftStage', () => {
     await user.click(screen.getByRole('button', { name: 'Export' }))
 
     expect(onSelectDraftView).toHaveBeenCalledWith('export')
+  })
+
+  it('switching to branch triggers the branch draft view callback', async () => {
+    const user = userEvent.setup()
+    const onSelectDraftView = vi.fn()
+
+    render(
+      <AppProviders>
+        <BookDraftStage
+          draftView="read"
+          workspace={buildWorkspace()}
+          compare={buildCompare()}
+          exportPreview={buildExportWorkspace()}
+          branchWorkspace={buildBranchWorkspace()}
+          branches={branches}
+          selectedBranchId="branch-book-signal-arc-quiet-ending"
+          branchBaseline="current"
+          exportProfiles={exportProfiles}
+          selectedExportProfileId="export-review-packet"
+          checkpoints={checkpoints}
+          selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          onSelectDraftView={onSelectDraftView}
+          onSelectChapter={vi.fn()}
+          onOpenChapter={vi.fn()}
+          onSelectCheckpoint={vi.fn()}
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
+          onSelectExportProfile={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Branch' }))
+
+    expect(onSelectDraftView).toHaveBeenCalledWith('branch')
   })
 })

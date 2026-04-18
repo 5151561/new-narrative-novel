@@ -5,6 +5,7 @@ import { useI18n } from '@/app/i18n'
 import { BookDraftStage } from './BookDraftStage'
 import { BookStoryShell, type BookStoryVariant } from './book-storybook'
 import {
+  buildBookDraftBranchStoryData,
   buildBookDraftCompareStoryData,
   buildBookDraftExportStoryData,
   useLocalizedBookDraftWorkspace,
@@ -15,7 +16,9 @@ interface BookDraftStageStoryProps {
   selectedChapterId?: string
   checkpointId?: string
   exportProfileId?: string
-  draftView?: 'read' | 'compare' | 'export'
+  branchId?: string
+  branchBaseline?: 'current' | 'checkpoint'
+  draftView?: 'read' | 'compare' | 'export' | 'branch'
 }
 
 function StoryComponent({
@@ -23,18 +26,25 @@ function StoryComponent({
   selectedChapterId,
   checkpointId,
   exportProfileId,
+  branchId,
+  branchBaseline = 'current',
   draftView = 'read',
 }: BookDraftStageStoryProps) {
   const { locale } = useI18n()
   const workspace = useLocalizedBookDraftWorkspace({ variant, selectedChapterId })
   const compareData = buildBookDraftCompareStoryData(locale, { variant, selectedChapterId, checkpointId })
   const exportData = buildBookDraftExportStoryData(locale, { variant, selectedChapterId, checkpointId, exportProfileId })
+  const branchData = buildBookDraftBranchStoryData(locale, { variant, selectedChapterId, checkpointId, branchId, branchBaseline })
 
   return (
     <BookDraftStage
       draftView={draftView}
       workspace={workspace}
       compare={compareData.compare}
+      branchWorkspace={draftView === 'branch' ? branchData.branchWorkspace : branchData.branchWorkspace}
+      branches={branchData.branches}
+      selectedBranchId={branchData.selectedBranch.branchId}
+      branchBaseline={branchBaseline}
       exportPreview={draftView === 'export' ? exportData.exportWorkspace : null}
       exportProfiles={exportData.exportProfiles}
       selectedExportProfileId={exportData.selectedExportProfile.exportProfileId}
@@ -44,6 +54,8 @@ function StoryComponent({
       onSelectChapter={() => undefined}
       onOpenChapter={() => undefined}
       onSelectCheckpoint={() => undefined}
+      onSelectBranch={() => undefined}
+      onSelectBranchBaseline={() => undefined}
       onSelectExportProfile={() => undefined}
     />
   )
@@ -124,5 +136,29 @@ export const ExportArchiveSnapshot: Story = {
   args: {
     draftView: 'export',
     exportProfileId: 'export-archive-snapshot',
+  },
+}
+
+export const BranchCurrentBaseline: Story = {
+  args: {
+    draftView: 'branch',
+    branchId: 'branch-book-signal-arc-quiet-ending',
+    branchBaseline: 'current',
+  },
+}
+
+export const BranchCheckpointBaseline: Story = {
+  args: {
+    draftView: 'branch',
+    branchId: 'branch-book-signal-arc-quiet-ending',
+    branchBaseline: 'checkpoint',
+  },
+}
+
+export const BranchHighPressure: Story = {
+  args: {
+    draftView: 'branch',
+    branchId: 'branch-book-signal-arc-high-pressure',
+    branchBaseline: 'current',
   },
 }

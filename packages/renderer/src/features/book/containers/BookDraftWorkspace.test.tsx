@@ -1,10 +1,11 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 
+import * as bookExperimentBranchQueryModule from '../hooks/useBookExperimentBranchQuery'
 import { resetRememberedBookWorkbenchHandoffs } from '../hooks/useBookWorkbenchActivity'
 import { BookDraftWorkspace } from './BookDraftWorkspace'
 
@@ -16,6 +17,7 @@ function BookRouteHarness() {
 
 describe('BookDraftWorkspace', () => {
   afterEach(() => {
+    vi.restoreAllMocks()
     resetRememberedBookWorkbenchHandoffs()
   })
 
@@ -165,8 +167,8 @@ describe('BookDraftWorkspace', () => {
     )
 
     expect(await screen.findByRole('heading', { name: 'Book manuscript' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Manuscript checkpoint')).toBeInTheDocument()
-    expect(screen.getByText('Compare unavailable')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Manuscript checkpoint')).toBeInTheDocument()
+    expect(await screen.findByText('Compare unavailable')).toBeInTheDocument()
     expect(screen.queryByText('Book unavailable')).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Chapter 2 Open Water Signals' }).length).toBeGreaterThan(0)
 
@@ -279,5 +281,85 @@ describe('BookDraftWorkspace', () => {
       expect(params.get('checkpointId')).toBe('checkpoint-missing')
       expect(params.get('exportProfileId')).toBe('export-review-packet')
     })
+  })
+
+  it('roundtrips a deep-linked branch session while preserving branchId, branchBaseline, and selectedChapterId', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=branch&branchId=branch-book-signal-arc-high-pressure&branchBaseline=checkpoint&checkpointId=checkpoint-book-signal-arc-pr11-baseline&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Book experiment branch' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Branch' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Checkpoint baseline' })).toHaveAttribute('aria-pressed', 'true')
+    expect(
+      screen.getAllByRole('button', { name: 'Chapter 2 Open Water Signals' }).some((button) => button.getAttribute('aria-pressed') === 'true'),
+    ).toBe(true)
+
+    await user.click(screen.getAllByRole('button', { name: 'Chapter 1 Signals in Rain' })[0]!)
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('draftView')).toBe('branch')
+      expect(params.get('branchId')).toBe('branch-book-signal-arc-high-pressure')
+      expect(params.get('branchBaseline')).toBe('checkpoint')
+      expect(params.get('selectedChapterId')).toBe('chapter-signals-in-rain')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Current baseline' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('draftView')).toBe('branch')
+      expect(params.get('branchId')).toBe('branch-book-signal-arc-high-pressure')
+      expect(params.get('branchBaseline')).toBe('current')
+      expect(params.get('selectedChapterId')).toBe('chapter-signals-in-rain')
+    })
+
+    await user.click(screen.getAllByRole('button', { name: /Quiet Ending/i })[0]!)
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('draftView')).toBe('branch')
+      expect(params.get('branchId')).toBe('branch-book-signal-arc-quiet-ending')
+      expect(params.get('branchBaseline')).toBe('current')
+      expect(params.get('selectedChapterId')).toBe('chapter-signals-in-rain')
+    })
+  })
+
+  it('renders branch unavailable instead of the loading shell when the branch list query fails', async () => {
+    vi.spyOn(bookExperimentBranchQueryModule, 'useBookExperimentBranchQuery').mockReturnValue({
+      branchWorkspace: undefined,
+      branches: [],
+      selectedBranch: undefined,
+      isLoading: false,
+      error: new Error('Branch list failed'),
+    })
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=branch&branchId=branch-book-signal-arc-high-pressure&branchBaseline=current&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Book experiment branch' })).toBeInTheDocument()
+    expect(await screen.findByText('Branch unavailable')).toBeInTheDocument()
+    expect(screen.getByText('Branch list failed')).toBeInTheDocument()
+    expect(screen.queryByText('Loading manuscript')).not.toBeInTheDocument()
   })
 })

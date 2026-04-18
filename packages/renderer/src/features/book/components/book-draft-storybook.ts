@@ -7,14 +7,23 @@ import {
   DEFAULT_BOOK_EXPORT_PROFILE_ID,
   mockBookExportProfileSeeds,
 } from '../api/book-export-profiles'
+import { mockBookExperimentBranchSeeds } from '../api/book-experiment-branches'
 import {
   DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
   mockBookManuscriptCheckpointSeeds,
 } from '../api/book-manuscript-checkpoints'
 import {
+  buildBookExperimentBranchWorkspace,
+  normalizeBookExperimentBranch,
+} from '../lib/book-experiment-branch-mappers'
+import {
   buildBookExportPreviewWorkspace,
   normalizeBookExportProfile,
 } from '../lib/book-export-preview-mappers'
+import type {
+  BookExperimentBranchSummaryViewModel,
+  BookExperimentBranchWorkspaceViewModel,
+} from '../types/book-branch-view-models'
 import {
   buildCurrentManuscriptSnapshotFromBookDraft,
   compareBookManuscriptSnapshots,
@@ -36,6 +45,8 @@ import type {
   BookExportProfileViewModel,
 } from '../types/book-export-view-models'
 import { buildBookStoryWorkspace, type BookStoryVariant } from './book-storybook'
+
+const DEFAULT_BOOK_EXPERIMENT_BRANCH_ID = 'branch-book-signal-arc-quiet-ending'
 
 type LocalizedText = {
   en: string
@@ -518,6 +529,51 @@ export function buildBookDraftExportStoryData(
     }),
     exportProfiles,
     selectedExportProfile,
+  }
+}
+
+export function buildBookDraftBranchStoryData(
+  locale: Locale,
+  options?: {
+    variant?: BookStoryVariant
+    selectedChapterId?: string
+    branchId?: string
+    branchBaseline?: 'current' | 'checkpoint'
+    checkpointId?: string
+  },
+): {
+  workspace: BookDraftWorkspaceViewModel
+  branchWorkspace: BookExperimentBranchWorkspaceViewModel
+  branches: BookExperimentBranchSummaryViewModel[]
+  selectedBranch: BookExperimentBranchSummaryViewModel
+} {
+  const workspace = buildBookDraftStoryWorkspace(locale, options)
+  const branchBaseline = options?.branchBaseline ?? 'current'
+  const branchRecords = mockBookExperimentBranchSeeds['book-signal-arc'] ?? []
+  const branches = branchRecords.map((record) => normalizeBookExperimentBranch(record, locale))
+  const selectedBranch =
+    branches.find((branch) => branch.branchId === (options?.branchId ?? DEFAULT_BOOK_EXPERIMENT_BRANCH_ID)) ?? branches[0]!
+  const selectedBranchRecord =
+    branchRecords.find((branch) => branch.branchId === selectedBranch.branchId) ?? branchRecords[0]!
+  const checkpoint =
+    branchBaseline === 'checkpoint'
+      ? mockBookManuscriptCheckpointSeeds['book-signal-arc']?.find(
+          (record) => record.checkpointId === (options?.checkpointId ?? DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID),
+        ) ?? mockBookManuscriptCheckpointSeeds['book-signal-arc']?.[0]
+      : null
+
+  return {
+    workspace,
+    branchWorkspace: buildBookExperimentBranchWorkspace({
+      currentDraftWorkspace: workspace,
+      branch: selectedBranchRecord,
+      branches: branchRecords,
+      checkpoint: checkpoint ?? null,
+      branchBaseline,
+      locale,
+    }),
+    branches,
+    selectedBranch,
   }
 }
 
