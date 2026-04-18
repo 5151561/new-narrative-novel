@@ -47,18 +47,21 @@ export function BookModeRail({
           ))}
         </div>
       </div>
-      <button
-        type="button"
-        aria-pressed={activeLens === 'structure'}
-        onClick={() => onSelectLens('structure')}
-        className={`rounded-md border px-2 py-3 text-left ${
-          activeLens === 'structure'
-            ? 'border-line-strong bg-surface-1 text-text-main'
-            : 'border-transparent text-text-muted hover:border-line-soft hover:bg-surface-1'
-        }`}
-      >
-        <span className="block text-sm font-medium">{getWorkbenchLensLabel(locale, 'structure')}</span>
-      </button>
+      {(['structure', 'draft'] as const).map((lens) => (
+        <button
+          key={lens}
+          type="button"
+          aria-pressed={activeLens === lens}
+          onClick={() => onSelectLens(lens)}
+          className={`rounded-md border px-2 py-3 text-left ${
+            activeLens === lens
+              ? 'border-line-strong bg-surface-1 text-text-main'
+              : 'border-transparent text-text-muted hover:border-line-soft hover:bg-surface-1'
+          }`}
+        >
+          <span className="block text-sm font-medium">{getWorkbenchLensLabel(locale, lens)}</span>
+        </button>
+      ))}
     </div>
   )
 }

@@ -742,6 +742,75 @@ describe('App scene workbench', () => {
     expect(new URLSearchParams(window.location.search).get('selectedChapterId')).toBe('chapter-open-water-signals')
   })
 
+  it('supports book structure -> book draft -> structure while restoring the dormant structure view', async () => {
+    const user = userEvent.setup()
+
+    await renderFreshApp(
+      '?scope=book&id=book-signal-arc&lens=structure&view=signals&selectedChapterId=chapter-open-water-signals',
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Book workbench' })).toBeInTheDocument()
+    expect(screen.getByText('Book / Structure / Signals')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Draft' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('view')).toBe('signals')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Book manuscript' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Structure' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('lens')).toBe('structure')
+      expect(params.get('view')).toBe('signals')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Book workbench' })).toBeInTheDocument()
+    expect(screen.getByText('Book / Structure / Signals')).toBeInTheDocument()
+  })
+
+  it('supports book draft -> chapter draft -> browser back while restoring the selected chapter', async () => {
+    await renderFreshApp('?scope=book&id=book-signal-arc&lens=draft&view=signals&selectedChapterId=chapter-open-water-signals')
+
+    expect(await screen.findByRole('heading', { name: 'Book manuscript' })).toBeInTheDocument()
+
+    act(() => {
+      latestReplaceRoute?.({
+        scope: 'chapter',
+        chapterId: 'chapter-open-water-signals',
+        lens: 'draft',
+        sceneId: undefined,
+      })
+    })
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('chapter')
+      expect(params.get('id')).toBe('chapter-open-water-signals')
+      expect(params.get('lens')).toBe('draft')
+    })
+
+    window.history.back()
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('id')).toBe('book-signal-arc')
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('selectedChapterId')).toBe('chapter-open-water-signals')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Book manuscript' })).toBeInTheDocument()
+    expect(new URLSearchParams(window.location.search).get('selectedChapterId')).toBe('chapter-open-water-signals')
+  })
+
   it('supports scene -> book -> scene without losing the dormant scene snapshot', async () => {
     const user = userEvent.setup()
 
@@ -783,6 +852,8 @@ describe('App scene workbench', () => {
   })
 
   it('keeps chapter and asset dormant snapshots intact while book is added as a fourth scope', async () => {
+    const user = userEvent.setup()
+
     await renderFreshApp(
       '?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=assembly&sceneId=scene-concourse-delay',
     )
@@ -832,6 +903,17 @@ describe('App scene workbench', () => {
     })
 
     expect(await screen.findByRole('heading', { name: 'Book workbench' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Draft' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('view')).toBe('sequence')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Book manuscript' })).toBeInTheDocument()
 
     restoreDormantScope('asset')
 

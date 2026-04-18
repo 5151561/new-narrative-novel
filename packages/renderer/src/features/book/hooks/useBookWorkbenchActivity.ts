@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useI18n } from '@/app/i18n'
-import type { BookStructureView } from '@/features/workbench/types/workbench-route'
+import type { BookLens, BookStructureView } from '@/features/workbench/types/workbench-route'
 
 interface BookWorkbenchActivityChapter {
   id: string
@@ -16,13 +16,21 @@ export interface BookWorkbenchHandoffEvent {
   lens: 'structure' | 'draft'
 }
 
-export type BookWorkbenchActivityKind = 'view' | 'chapter' | 'handoff'
+export type BookWorkbenchActivityKind = 'lens' | 'view' | 'chapter' | 'handoff'
 
 interface BookWorkbenchActivityEntry {
   id: string
   kind: BookWorkbenchActivityKind
   tone: 'accent' | 'neutral'
-  action: 'entered-view' | 'switched-view' | 'focused-chapter' | 'opened-structure' | 'opened-draft'
+  action:
+    | 'entered-lens'
+    | 'switched-lens'
+    | 'entered-view'
+    | 'switched-view'
+    | 'focused-chapter'
+    | 'opened-structure'
+    | 'opened-draft'
+  lens?: BookLens
   view?: BookStructureView
   chapterTitle?: string
   chapterSummary?: string
@@ -38,6 +46,7 @@ export interface BookWorkbenchActivityItem {
 
 interface UseBookWorkbenchActivityOptions {
   bookId: string
+  activeLens?: BookLens
   activeView: BookStructureView
   selectedChapter: BookWorkbenchActivityChapter | null
   latestHandoff?: BookWorkbenchHandoffEvent | null
@@ -88,6 +97,22 @@ function localizeActivityEntry(
   entry: BookWorkbenchActivityEntry,
   locale: 'en' | 'zh-CN',
 ): BookWorkbenchActivityItem {
+  if (entry.kind === 'lens' && entry.lens) {
+    return {
+      id: entry.id,
+      kind: entry.kind,
+      tone: entry.tone,
+      title:
+        locale === 'zh-CN'
+          ? `${entry.action === 'entered-lens' ? '进入' : '切换到'}${getLensLabel(locale, entry.lens)}`
+          : `${entry.action === 'entered-lens' ? 'Entered' : 'Switched to'} ${getLensLabel(locale, entry.lens)}`,
+      detail:
+        locale === 'zh-CN'
+          ? '书籍工作区继续保持 lens 与章节焦点都由路由拥有。'
+          : 'The book workspace keeps the active lens and selected chapter route-owned.',
+    }
+  }
+
   if (entry.kind === 'view' && entry.view) {
     const viewLabel = getViewLabel(locale, entry.view)
     return {
@@ -133,6 +158,7 @@ function localizeActivityEntry(
 
 export function useBookWorkbenchActivity({
   bookId,
+  activeLens = 'structure',
   activeView,
   selectedChapter,
   latestHandoff = null,
@@ -142,6 +168,7 @@ export function useBookWorkbenchActivity({
   const [activity, setActivity] = useState<BookWorkbenchActivityEntry[]>([])
   const lastBookIdRef = useRef<string | null>(null)
   const lastLocaleRef = useRef<'en' | 'zh-CN' | null>(null)
+  const lastLensRef = useRef<BookLens | null>(null)
   const lastViewRef = useRef<BookStructureView | null>(null)
   const lastChapterIdRef = useRef<string | null>(null)
   const seenHandoffIdsRef = useRef<Set<string>>(new Set())
@@ -160,6 +187,7 @@ export function useBookWorkbenchActivity({
     if (bookChanged || localeChanged) {
       lastBookIdRef.current = bookId
       lastLocaleRef.current = locale
+      lastLensRef.current = null
       lastViewRef.current = null
       lastChapterIdRef.current = null
       seenHandoffIdsRef.current = new Set()
@@ -171,15 +199,30 @@ export function useBookWorkbenchActivity({
       }
     }
 
-    if (lastViewRef.current !== activeView) {
-      nextEntries.push({
-        id: `view-${sequenceRef.current++}`,
-        kind: 'view',
-        tone: 'accent',
-        action: lastViewRef.current === null ? 'entered-view' : 'switched-view',
-        view: activeView,
-      })
+    if (activeLens === 'draft') {
+      if (lastLensRef.current !== activeLens) {
+        nextEntries.push({
+          id: `lens-${sequenceRef.current++}`,
+          kind: 'lens',
+          tone: 'accent',
+          action: lastLensRef.current === null ? 'entered-lens' : 'switched-lens',
+          lens: activeLens,
+        })
+      }
+      lastLensRef.current = activeLens
       lastViewRef.current = activeView
+    } else {
+      lastLensRef.current = activeLens
+      if (lastViewRef.current !== activeView) {
+        nextEntries.push({
+          id: `view-${sequenceRef.current++}`,
+          kind: 'view',
+          tone: 'accent',
+          action: lastViewRef.current === null ? 'entered-view' : 'switched-view',
+          view: activeView,
+        })
+        lastViewRef.current = activeView
+      }
     }
 
     const selectedChapterId = selectedChapter?.id ?? null
@@ -215,7 +258,7 @@ export function useBookWorkbenchActivity({
     }
 
     setActivity((current) => (bookChanged ? nextEntries : [...nextEntries, ...current]).slice(0, maxItems))
-  }, [activeView, bookId, latestHandoff, locale, maxItems, selectedChapter])
+  }, [activeLens, activeView, bookId, latestHandoff, locale, maxItems, selectedChapter])
 
   return useMemo(
     () => activity.map((item) => localizeActivityEntry(item, locale)),

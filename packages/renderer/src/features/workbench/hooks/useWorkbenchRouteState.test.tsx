@@ -121,6 +121,28 @@ function RouteHarness() {
         onClick={() =>
           patchBookRoute({
             bookId: 'book-signal-arc',
+            lens: 'draft',
+            selectedChapterId: 'chapter-open-water-signals',
+          } satisfies Partial<BookRouteState>)
+        }
+      >
+        Book Draft
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchBookRoute({
+            lens: 'structure',
+          } satisfies Partial<BookRouteState>)
+        }
+      >
+        Book Structure
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchBookRoute({
+            bookId: 'book-signal-arc',
             lens: 'structure',
             view: 'signals',
             selectedChapterId: 'chapter-open-water-signals',
@@ -385,6 +407,68 @@ describe('useWorkbenchRouteState', () => {
     })
   })
 
+  it('accepts the book draft lens in deep links while preserving the dormant structure view', () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&selectedChapterId=chapter-open-water-signals&tab=prose&proposalId=proposal-2',
+    )
+
+    render(<RouteHarness />)
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'draft',
+      view: 'signals',
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+  })
+
+  it('writes and restores the book draft lens while keeping the dormant structure view stable', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=structure&view=signals&selectedChapterId=chapter-signals-in-rain',
+    )
+
+    render(<RouteHarness />)
+
+    await user.click(screen.getByRole('button', { name: 'Book Draft' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'draft',
+      view: 'signals',
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+
+    let params = new URLSearchParams(window.location.search)
+    expect(params.get('scope')).toBe('book')
+    expect(params.get('id')).toBe('book-signal-arc')
+    expect(params.get('lens')).toBe('draft')
+    expect(params.get('view')).toBe('signals')
+    expect(params.get('selectedChapterId')).toBe('chapter-open-water-signals')
+
+    await user.click(screen.getByRole('button', { name: 'Book Structure' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'structure',
+      view: 'signals',
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+
+    params = new URLSearchParams(window.location.search)
+    expect(params.get('lens')).toBe('structure')
+    expect(params.get('view')).toBe('signals')
+    expect(params.get('selectedChapterId')).toBe('chapter-open-water-signals')
+  })
+
   it('preserves the dormant book snapshot when switching away and restores it after returning', async () => {
     const user = userEvent.setup()
 
@@ -460,6 +544,50 @@ describe('useWorkbenchRouteState', () => {
       lens: 'structure',
       view: 'signals',
       selectedChapterId: 'chapter-open-water-signals',
+    })
+  })
+
+  it('keeps scene chapter and asset dormant snapshots stable while book switches between structure and draft', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=scene&id=scene-midnight-platform&lens=draft&tab=prose&proposalId=proposal-2',
+    )
+
+    render(<RouteHarness />)
+
+    await user.click(screen.getByRole('button', { name: 'Chapter Assembly' }))
+    await user.click(screen.getByRole('button', { name: 'Asset Relations' }))
+    await user.click(screen.getByRole('button', { name: 'Book Signals' }))
+    await user.click(screen.getByRole('button', { name: 'Book Draft' }))
+    await user.click(screen.getByRole('button', { name: 'Book Structure' }))
+
+    await user.click(screen.getByRole('button', { name: 'Open Scene' }))
+    expect(readRoute()).toEqual({
+      scope: 'scene',
+      sceneId: 'scene-midnight-platform',
+      lens: 'draft',
+      tab: 'prose',
+      proposalId: 'proposal-2',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Open Chapter' }))
+    expect(readRoute()).toEqual({
+      scope: 'chapter',
+      chapterId: 'chapter-open-water-signals',
+      lens: 'structure',
+      view: 'assembly',
+      sceneId: 'scene-dawn-slip',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Open Asset' }))
+    expect(readRoute()).toEqual({
+      scope: 'asset',
+      assetId: 'asset-ren-voss',
+      lens: 'knowledge',
+      view: 'relations',
     })
   })
 })

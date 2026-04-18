@@ -3,7 +3,7 @@ import type { SceneTab } from '@/features/scene/types/scene-view-models'
 export type SceneLens = 'structure' | 'orchestrate' | 'draft'
 export type ChapterLens = 'structure' | 'draft'
 export type AssetLens = 'knowledge'
-export type BookLens = 'structure'
+export type BookLens = 'structure' | 'draft'
 export type WorkbenchLens = SceneLens | ChapterLens | AssetLens | BookLens
 export type WorkbenchScope = 'scene' | 'chapter' | 'asset' | 'book'
 export type SceneRouteModal = 'export'

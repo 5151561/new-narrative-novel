@@ -5,36 +5,31 @@ import type { ChapterClient } from '@/features/chapter/api/chapter-client'
 import type { SceneClient } from '@/features/scene/api/scene-client'
 import type { TraceabilitySceneClient } from '@/features/traceability/hooks/useTraceabilitySceneSources'
 
-import { buildBookStructureWorkspaceViewModel } from '../lib/book-workspace-mappers'
 import type { BookClient } from '../api/book-client'
+import { buildBookDraftWorkspaceViewModel } from '../lib/book-draft-workspace-mappers'
 import { useBookWorkspaceSources } from './useBookWorkspaceSources'
 
-interface UseBookStructureWorkspaceQueryInput {
+interface UseBookDraftWorkspaceQueryInput {
   bookId: string
   selectedChapterId?: string | null
 }
 
-interface BookStructureWorkspaceQueryDeps {
+interface BookDraftWorkspaceQueryDeps {
   bookClient?: Pick<BookClient, 'getBookStructureRecord'>
   chapterClient?: Pick<ChapterClient, 'getChapterStructureWorkspace'>
   sceneClient?: Pick<SceneClient, 'getSceneProse'>
   traceabilitySceneClient?: TraceabilitySceneClient
 }
 
-export function useBookStructureWorkspaceQuery(
-  { bookId, selectedChapterId }: UseBookStructureWorkspaceQueryInput,
-  deps: BookStructureWorkspaceQueryDeps = {},
+export function useBookDraftWorkspaceQuery(
+  { bookId, selectedChapterId }: UseBookDraftWorkspaceQueryInput,
+  deps: BookDraftWorkspaceQueryDeps = {},
 ) {
   const { locale } = useI18n()
   const sources = useBookWorkspaceSources({ bookId }, deps)
-  const proseError =
-    sources.orderedSceneIds
-      .map((sceneId) => sources.sceneProseStateBySceneId[sceneId]?.error)
-      .find((error) => error instanceof Error) ?? null
-  const error = sources.error ?? proseError
 
   const workspace = useMemo(() => {
-    if (sources.bookRecord === undefined || !sources.chaptersReady || !sources.proseReady || !sources.traceReady || error) {
+    if (sources.isLoading || sources.error || sources.bookRecord === undefined) {
       return undefined
     }
 
@@ -42,36 +37,31 @@ export function useBookStructureWorkspaceQuery(
       return null
     }
 
-    return buildBookStructureWorkspaceViewModel({
+    return buildBookDraftWorkspaceViewModel({
       record: sources.bookRecord,
       locale,
       selectedChapterId,
       chapterWorkspacesById: sources.chapterWorkspacesById,
       sceneProseBySceneId: sources.sceneProseBySceneId,
+      sceneProseStateBySceneId: sources.sceneProseStateBySceneId,
       traceRollupsBySceneId: sources.traceRollupsBySceneId,
     })
   }, [
-    error,
     locale,
     selectedChapterId,
     sources.bookRecord,
     sources.chapterWorkspacesById,
-    sources.chaptersReady,
-    sources.proseReady,
+    sources.error,
+    sources.isLoading,
     sources.sceneProseBySceneId,
-    sources.traceReady,
+    sources.sceneProseStateBySceneId,
     sources.traceRollupsBySceneId,
   ])
 
   return {
     workspace,
-    isLoading:
-      sources.bookRecord === undefined ||
-      (sources.bookRecord !== null &&
-        sources.bookRecord !== undefined &&
-        error === null &&
-        (!sources.chaptersReady || !sources.proseReady || !sources.traceReady)),
-    error,
+    isLoading: sources.isLoading,
+    error: sources.error,
     refetch: sources.refetch,
   }
 }

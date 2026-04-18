@@ -76,7 +76,7 @@ const VALID_CHAPTER_LENSES = new Set<ChapterLens>(['structure', 'draft'])
 const VALID_ASSET_VIEWS = new Set<AssetKnowledgeView>(['profile', 'mentions', 'relations'])
 const VALID_ASSET_LENSES = new Set<AssetLens>(['knowledge'])
 const VALID_BOOK_VIEWS = new Set<BookStructureView>(['sequence', 'outliner', 'signals'])
-const VALID_BOOK_LENSES = new Set<BookLens>(['structure'])
+const VALID_BOOK_LENSES = new Set<BookLens>(['structure', 'draft'])
 
 let lastRouteSearch = ''
 let lastRouteSnapshot: WorkbenchSearchState | undefined

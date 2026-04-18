@@ -1,5 +1,6 @@
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 
+import { BookDraftWorkspace } from './BookDraftWorkspace'
 import { BookStructureWorkspace } from './BookStructureWorkspace'
 
 export function BookWorkbench() {
@@ -9,5 +10,5 @@ export function BookWorkbench() {
     return null
   }
 
-  return <BookStructureWorkspace />
+  return route.lens === 'draft' ? <BookDraftWorkspace /> : <BookStructureWorkspace />
 }
