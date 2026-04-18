@@ -1,9 +1,17 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
+import { useI18n } from '@/app/i18n'
 import { AssetStoryShell } from '../containers/asset-storybook'
+import { useAssetTraceabilitySummaryQuery } from '@/features/traceability/hooks/useAssetTraceabilitySummaryQuery'
 
 import { AssetBottomDock } from './AssetBottomDock'
-import { getAssetStoryVariantSearch, useAssetStoryWorkspace, type AssetStoryVariant } from './asset-story-fixture'
+import { mergeAssetTraceabilityIntoWorkspace } from '../lib/mergeAssetTraceabilityIntoWorkspace'
+import {
+  getAssetStoryVariantAssetId,
+  getAssetStoryVariantSearch,
+  useAssetStoryWorkspace,
+  type AssetStoryVariant,
+} from './asset-story-fixture'
 
 interface AssetBottomDockStoryProps {
   variant?: Extract<AssetStoryVariant, 'character' | 'warnings-heavy'>
@@ -11,12 +19,25 @@ interface AssetBottomDockStoryProps {
 
 function AssetBottomDockStory({ variant = 'character' }: AssetBottomDockStoryProps) {
   const workspace = useAssetStoryWorkspace(variant, variant === 'warnings-heavy' ? 'relations' : 'mentions')
+  const traceability = useAssetTraceabilitySummaryQuery(getAssetStoryVariantAssetId(variant))
+  const { locale } = useI18n()
 
   if (!workspace) {
     return null
   }
+  const mergedWorkspace = mergeAssetTraceabilityIntoWorkspace({
+    workspace,
+    traceability: {
+      summary: traceability.summary,
+      isLoading: traceability.isLoading,
+      error: traceability.error,
+    },
+    locale,
+  })
 
-  return <AssetBottomDock summary={workspace.dockSummary} activity={workspace.dockActivity} />
+  return (
+    <AssetBottomDock summary={mergedWorkspace.dockSummary} activity={mergedWorkspace.dockActivity} />
+  )
 }
 
 const meta = {

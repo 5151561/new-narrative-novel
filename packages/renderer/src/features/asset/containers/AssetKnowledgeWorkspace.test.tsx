@@ -4,13 +4,27 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
+import { useAssetTraceabilitySummaryQuery } from '@/features/traceability/hooks/useAssetTraceabilitySummaryQuery'
 
 import { AssetKnowledgeWorkspace } from './AssetKnowledgeWorkspace'
+
+vi.mock('@/features/traceability/hooks/useAssetTraceabilitySummaryQuery', async () => {
+  const actual = await vi.importActual<typeof import('@/features/traceability/hooks/useAssetTraceabilitySummaryQuery')>(
+    '@/features/traceability/hooks/useAssetTraceabilitySummaryQuery',
+  )
+
+  return {
+    ...actual,
+    useAssetTraceabilitySummaryQuery: vi.fn(actual.useAssetTraceabilitySummaryQuery),
+  }
+})
 
 afterEach(() => {
   vi.restoreAllMocks()
   window.localStorage.clear()
 })
+
+const mockedUseAssetTraceabilitySummaryQuery = vi.mocked(useAssetTraceabilitySummaryQuery)
 
 function AssetRouteHarness() {
   const { route } = useWorkbenchRouteState()
@@ -41,14 +55,22 @@ describe('AssetKnowledgeWorkspace', () => {
     const draftHandoff = await screen.findByRole('button', { name: 'Open in Draft: Midnight Platform' })
     const navigatorRen = screen.getByRole('button', { name: /Ren Voss/i })
     const inspectorSummary = screen.getByRole('heading', { name: 'Summary' }).closest('section')
+    const inspectorConsistency = screen.getByRole('heading', { name: 'Consistency' }).closest('section')
     const dockRegion = screen.getByRole('region', { name: 'Asset bottom dock' })
 
     expect(navigatorRen).toHaveClass('border-line-strong')
     expect(screen.getByText('Primary POV')).toBeInTheDocument()
+    expect(screen.getByText('Canon-backed')).toBeInTheDocument()
+    expect(screen.getAllByText('Trace detail').length).toBeGreaterThan(0)
+    expect(screen.getByText('Courier signal spotted')).toBeInTheDocument()
     expect(inspectorSummary).not.toBeNull()
+    expect(inspectorConsistency).not.toBeNull()
     expect(within(inspectorSummary!).getByText('Ren Voss')).toBeInTheDocument()
+    expect(within(inspectorConsistency!).getByText('Canon-backed mentions')).toBeInTheDocument()
     expect(within(dockRegion).getByText('Switched to Mentions')).toBeInTheDocument()
     expect(within(dockRegion).getByText('Focused Ren Voss')).toBeInTheDocument()
+    expect(within(dockRegion).getByText('Mentions without canon backing')).toBeInTheDocument()
+    expect(within(dockRegion).getByText('Relations present but no narrative backing')).toBeInTheDocument()
 
     await user.click(draftHandoff)
 
@@ -120,5 +142,65 @@ describe('AssetKnowledgeWorkspace', () => {
 
     expect(screen.getByRole('button', { name: 'Open in Draft: Midnight Platform' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Ren Voss/i })).toHaveClass('border-line-strong')
+    expect(screen.getByText('Canon-backed')).toBeInTheDocument()
+  })
+
+  it('does not render trace-derived inspector and dock judgments while traceability is still loading', async () => {
+    mockedUseAssetTraceabilitySummaryQuery.mockReturnValue({
+      summary: null,
+      isLoading: true,
+      error: null,
+      refetch: async () => undefined,
+    })
+
+    window.history.replaceState({}, '', '/workbench?scope=asset&id=asset-ren-voss&lens=knowledge&view=mentions')
+
+    render(
+      <AppProviders>
+        <AssetRouteHarness />
+      </AppProviders>,
+    )
+
+    const inspectorConsistencyHeading = await screen.findByRole('heading', { name: 'Consistency' })
+    const inspectorConsistency = inspectorConsistencyHeading.closest('section')
+    const dockRegion = screen.getByRole('region', { name: 'Asset bottom dock' })
+
+    expect(screen.getByText('Canon-backed')).toBeInTheDocument()
+    expect(screen.getAllByText('Loading trace detail').length).toBeGreaterThan(0)
+    expect(inspectorConsistency).not.toBeNull()
+    expect(within(inspectorConsistency!).getByText('Loading traceability')).toBeInTheDocument()
+    expect(within(inspectorConsistency!).queryByText('Canon-backed mentions')).not.toBeInTheDocument()
+    expect(within(dockRegion).getByText('Loading traceability')).toBeInTheDocument()
+    expect(within(dockRegion).queryByText('Mentions without canon backing')).not.toBeInTheDocument()
+    expect(within(dockRegion).queryByText('Without canon backing')).not.toBeInTheDocument()
+  })
+
+  it('surfaces traceability errors as unavailable state instead of fake trace judgments', async () => {
+    mockedUseAssetTraceabilitySummaryQuery.mockReturnValue({
+      summary: null,
+      isLoading: false,
+      error: new Error('Trace sources failed'),
+      refetch: async () => undefined,
+    })
+
+    window.history.replaceState({}, '', '/workbench?scope=asset&id=asset-ren-voss&lens=knowledge&view=mentions')
+
+    render(
+      <AppProviders>
+        <AssetRouteHarness />
+      </AppProviders>,
+    )
+
+    const inspectorConsistencyHeading = await screen.findByRole('heading', { name: 'Consistency' })
+    const inspectorConsistency = inspectorConsistencyHeading.closest('section')
+    const dockRegion = screen.getByRole('region', { name: 'Asset bottom dock' })
+
+    expect(screen.getByText('Canon-backed')).toBeInTheDocument()
+    expect(screen.getAllByText('Traceability unavailable').length).toBeGreaterThan(0)
+    expect(inspectorConsistency).not.toBeNull()
+    expect(within(inspectorConsistency!).getByText('Trace sources failed')).toBeInTheDocument()
+    expect(within(dockRegion).getByText('Traceability unavailable')).toBeInTheDocument()
+    expect(within(dockRegion).getByText('Trace sources failed')).toBeInTheDocument()
+    expect(within(dockRegion).queryByText('Narrative backing gaps')).not.toBeInTheDocument()
   })
 })

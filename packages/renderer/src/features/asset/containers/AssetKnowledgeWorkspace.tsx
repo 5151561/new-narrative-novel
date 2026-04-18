@@ -11,8 +11,10 @@ import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
+import { useAssetTraceabilitySummaryQuery } from '@/features/traceability/hooks/useAssetTraceabilitySummaryQuery'
 
 import { AssetDockContainer } from './AssetDockContainer'
+import { mergeAssetTraceabilityIntoWorkspace } from '../lib/mergeAssetTraceabilityIntoWorkspace'
 import { AssetModeRail } from '../components/AssetModeRail'
 import { AssetInspectorPane } from '../components/AssetInspectorPane'
 import { AssetKnowledgeStage } from '../components/AssetKnowledgeStage'
@@ -98,6 +100,7 @@ export function AssetKnowledgeWorkspace() {
     assetId: route.assetId,
     activeView: route.view,
   })
+  const traceability = useAssetTraceabilitySummaryQuery(route.assetId)
 
   const openSceneFromAsset = useCallback(
     (sceneId: string, lens: 'draft' | 'orchestrate') => {
@@ -155,8 +158,8 @@ export function AssetKnowledgeWorkspace() {
   if (isLoading || workspace === undefined) {
     const message =
       locale === 'zh-CN'
-        ? '正在准备知识页、mentions、relations 和检查器摘要。'
-        : 'Preparing the knowledge workspace, mentions, relations, and inspector summary.'
+        ? '正在准备知识页、mentions、relations、trace detail 和检查器摘要。'
+        : 'Preparing the knowledge workspace, mentions, relations, trace detail, and inspector summary.'
 
     return (
       <WorkbenchShell
@@ -209,9 +212,26 @@ export function AssetKnowledgeWorkspace() {
     )
   }
 
+  const traceAwareWorkspace = mergeAssetTraceabilityIntoWorkspace({
+    workspace,
+    traceability: {
+      summary: traceability.summary,
+      isLoading: traceability.isLoading,
+      error: traceability.error,
+    },
+    locale,
+  })
+
   return (
     <WorkbenchShell
-      topBar={<AssetTopBar title={workspace.title} summary={workspace.summary} kind={workspace.kind} view={route.view} />}
+      topBar={
+        <AssetTopBar
+          title={traceAwareWorkspace.title}
+          summary={traceAwareWorkspace.summary}
+          kind={traceAwareWorkspace.kind}
+          view={route.view}
+        />
+      }
       modeRail={
         <AssetModeRail
           activeScope="asset"
@@ -231,28 +251,28 @@ export function AssetKnowledgeWorkspace() {
       }
       navigator={
         <AssetNavigatorPane
-          groups={workspace.navigator}
-          activeAssetId={workspace.assetId}
+          groups={traceAwareWorkspace.navigator}
+          activeAssetId={traceAwareWorkspace.assetId}
           onSelectAsset={(assetId) => patchAssetRoute({ assetId })}
         />
       }
       mainStage={
         <AssetKnowledgeStage
-          assetTitle={workspace.title}
-          assetSummary={workspace.summary}
+          assetTitle={traceAwareWorkspace.title}
+          assetSummary={traceAwareWorkspace.summary}
           activeView={route.view}
-          availableViews={workspace.viewsMeta.availableViews}
-          profile={workspace.profile}
-          mentions={workspace.mentions}
-          relations={workspace.relations}
+          availableViews={traceAwareWorkspace.viewsMeta.availableViews}
+          profile={traceAwareWorkspace.profile}
+          mentions={traceAwareWorkspace.mentions}
+          relations={traceAwareWorkspace.relations}
           onViewChange={(view) => patchAssetRoute({ view })}
           onOpenScene={openSceneFromAsset}
           onOpenChapter={openChapterFromAsset}
           onSelectAsset={(assetId) => patchAssetRoute({ assetId })}
         />
       }
-      inspector={<AssetInspectorPane title={workspace.title} inspector={workspace.inspector} />}
-      bottomDock={<AssetDockContainer workspace={workspace} />}
+      inspector={<AssetInspectorPane title={traceAwareWorkspace.title} inspector={traceAwareWorkspace.inspector} />}
+      bottomDock={<AssetDockContainer workspace={traceAwareWorkspace} />}
     />
   )
 }

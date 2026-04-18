@@ -14,6 +14,7 @@ interface AssetBottomDockProps {
 
 export function AssetBottomDock({ summary, activity }: AssetBottomDockProps) {
   const { locale } = useI18n()
+  const traceabilityReady = !summary.traceabilityStatus
 
   return (
     <section
@@ -41,8 +42,30 @@ export function AssetBottomDock({ summary, activity }: AssetBottomDockProps) {
                   label: locale === 'zh-CN' ? '缺失字段' : 'Missing fields',
                   value: `${summary.missingFieldCount}`,
                 },
+                ...(traceabilityReady
+                  ? [
+                      {
+                        id: 'without-canon-backing',
+                        label: locale === 'zh-CN' ? '无 canon 支撑' : 'Without canon backing',
+                        value: `${summary.mentionsWithoutCanonBackingCount ?? 0}`,
+                      },
+                      {
+                        id: 'missing-scene-trace',
+                        label: locale === 'zh-CN' ? '缺失场景来源链' : 'Missing scene trace',
+                        value: `${summary.mentionsWithMissingSceneTraceCount ?? 0}`,
+                      },
+                      {
+                        id: 'narrative-backing-gaps',
+                        label: locale === 'zh-CN' ? '叙事支撑缺口' : 'Narrative backing gaps',
+                        value: `${summary.relationsWithoutNarrativeBackingCount ?? 0}`,
+                      },
+                    ]
+                  : []),
               ]}
             />
+            {summary.traceabilityStatus ? (
+              <EmptyState title={summary.traceabilityStatus.title} message={summary.traceabilityStatus.message} className="min-h-0" />
+            ) : null}
             {summary.problemItems.length > 0 ? (
               <ul className="space-y-3">
                 {summary.problemItems.map((item) => (

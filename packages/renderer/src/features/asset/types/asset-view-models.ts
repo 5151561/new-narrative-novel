@@ -2,7 +2,7 @@ import type { ChapterLens, SceneLens } from '@/features/workbench/types/workbenc
 import type { AssetKnowledgeView } from '@/features/workbench/types/workbench-route'
 
 export type { AssetKind } from '@/features/asset/api/asset-records'
-import type { AssetKind, AssetMentionBackingRecord } from '@/features/asset/api/asset-records'
+import type { AssetKind, AssetMentionBackingKind, AssetMentionBackingRecord } from '@/features/asset/api/asset-records'
 
 export interface AssetNavigatorItemViewModel {
   id: string
@@ -31,6 +31,12 @@ export interface AssetProfileViewModel {
   sections: AssetProfileSectionViewModel[]
 }
 
+export interface AssetTraceabilityStatusViewModel {
+  state: 'ready' | 'loading' | 'unavailable'
+  title: string
+  message: string
+}
+
 interface AssetMentionViewModelBase {
   id: string
   targetScope: 'scene' | 'chapter'
@@ -39,6 +45,16 @@ interface AssetMentionViewModelBase {
   relationLabel: string
   excerpt: string
   backing?: AssetMentionBackingRecord
+  traceDetail?: AssetMentionTraceDetailViewModel | null
+  traceDetailStatus?: AssetTraceabilityStatusViewModel | null
+}
+
+export interface AssetMentionTraceDetailViewModel {
+  backingKind: AssetMentionBackingKind
+  factLabels: string[]
+  proposalTitles: string[]
+  patchId?: string
+  sceneTraceMissing: boolean
 }
 
 export interface AssetSceneMentionViewModel extends AssetMentionViewModelBase {
@@ -95,6 +111,10 @@ export interface AssetInspectorViewModel {
   notes: string[]
   isOrphan: boolean
   missingFields: string[]
+  canonBackedMentionCount?: number
+  draftContextMentionCount?: number
+  unlinkedMentionCount?: number
+  traceabilityStatus?: AssetTraceabilityStatusViewModel | null
 }
 
 export interface AssetDockSummaryItem {
@@ -110,6 +130,10 @@ export interface AssetDockSummaryViewModel {
   relationCount: number
   mentionCount: number
   isOrphan: boolean
+  mentionsWithoutCanonBackingCount?: number
+  mentionsWithMissingSceneTraceCount?: number
+  relationsWithoutNarrativeBackingCount?: number
+  traceabilityStatus?: AssetTraceabilityStatusViewModel | null
 }
 
 export interface AssetDockActivityItem {

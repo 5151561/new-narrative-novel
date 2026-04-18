@@ -41,6 +41,8 @@ describe('useAssetTraceabilitySummaryQuery', () => {
       canonBackedMentions: 1,
       draftContextMentions: 1,
       unlinkedMentions: 1,
+      mentionsWithMissingSceneTrace: 1,
+      relationsWithoutNarrativeBackingCount: 0,
     })
     expect(hook.result.current.summary?.mentionSummaries).toEqual([
       {
@@ -49,6 +51,9 @@ describe('useAssetTraceabilitySummaryQuery', () => {
         backingKind: 'canon',
         factLabels: ['Courier signal spotted'],
         proposalTitles: ['Force the bargain into a visible stalemate'],
+        patchId: 'patch-1',
+        sceneId: 'scene-midnight-platform',
+        sceneTraceMissing: false,
       },
       {
         mentionId: 'mention-ren-ticket-window',
@@ -56,6 +61,9 @@ describe('useAssetTraceabilitySummaryQuery', () => {
         backingKind: 'draft_context',
         factLabels: [],
         proposalTitles: ['Force the trade-off into one visible exchange'],
+        patchId: undefined,
+        sceneId: 'scene-ticket-window',
+        sceneTraceMissing: false,
       },
       {
         mentionId: 'mention-ren-signals-in-rain',
@@ -63,6 +71,9 @@ describe('useAssetTraceabilitySummaryQuery', () => {
         backingKind: 'unlinked',
         factLabels: [],
         proposalTitles: [],
+        patchId: undefined,
+        sceneId: undefined,
+        sceneTraceMissing: true,
       },
     ])
   })

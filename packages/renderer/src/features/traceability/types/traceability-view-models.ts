@@ -96,6 +96,9 @@ export interface AssetTraceabilityMentionSummaryViewModel {
   backingKind: AssetMentionBackingKind
   factLabels: string[]
   proposalTitles: string[]
+  patchId?: string
+  sceneId?: string
+  sceneTraceMissing: boolean
 }
 
 export interface AssetTraceabilitySummaryViewModel {
@@ -103,5 +106,7 @@ export interface AssetTraceabilitySummaryViewModel {
   canonBackedMentions: number
   draftContextMentions: number
   unlinkedMentions: number
+  mentionsWithMissingSceneTrace: number
+  relationsWithoutNarrativeBackingCount: number
   mentionSummaries: AssetTraceabilityMentionSummaryViewModel[]
 }

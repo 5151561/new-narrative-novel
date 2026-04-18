@@ -18,13 +18,31 @@ const summary: AssetDockSummaryViewModel = {
       label: 'Missing profile section',
       detail: 'Implications',
     },
+    {
+      id: 'mentions-without-canon-backing',
+      label: 'Mentions without canon backing',
+      detail: '2 mentions still rely on draft context or remain unlinked.',
+    },
+    {
+      id: 'mentions-with-missing-scene-trace',
+      label: 'Mentions with missing scene trace',
+      detail: '1 mention is still missing stable scene trace metadata.',
+    },
+    {
+      id: 'relations-without-narrative-backing',
+      label: 'Relations present but no narrative backing',
+      detail: '1 relation does not yet appear in the current narrative backing.',
+    },
   ],
   warningCount: 1,
   missingFieldCount: 1,
   relationCount: 3,
   mentionCount: 3,
   isOrphan: false,
-}
+  mentionsWithoutCanonBackingCount: 2,
+  mentionsWithMissingSceneTraceCount: 1,
+  relationsWithoutNarrativeBackingCount: 1,
+} as AssetDockSummaryViewModel
 
 const activity: AssetDockActivityItem[] = [
   {
@@ -58,7 +76,47 @@ describe('AssetBottomDock', () => {
     expect(activitySection).not.toBeNull()
     expect(within(problemsSection!).getByText('Warning')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Missing profile section')).toBeInTheDocument()
+    expect(within(problemsSection!).getByText('Mentions without canon backing')).toBeInTheDocument()
+    expect(within(problemsSection!).getByText('Mentions with missing scene trace')).toBeInTheDocument()
+    expect(within(problemsSection!).getByText('Relations present but no narrative backing')).toBeInTheDocument()
+    expect(within(problemsSection!).getByText('Without canon backing')).toBeInTheDocument()
+    expect(within(problemsSection!).getByText('Missing scene trace')).toBeInTheDocument()
+    expect(within(problemsSection!).getByText('Narrative backing gaps')).toBeInTheDocument()
     expect(within(activitySection!).getByText('Switched to Mentions')).toBeInTheDocument()
     expect(within(activitySection!).getByText('Focused Ren Voss')).toBeInTheDocument()
+  })
+
+  it('keeps stable dock problems visible while showing trace loading state without fake trace counts', () => {
+    render(
+      <I18nProvider>
+        <AssetBottomDock
+          summary={{
+            ...summary,
+            problemItems: summary.problemItems.slice(0, 2),
+            mentionsWithoutCanonBackingCount: undefined,
+            mentionsWithMissingSceneTraceCount: undefined,
+            relationsWithoutNarrativeBackingCount: undefined,
+            traceabilityStatus: {
+              state: 'loading',
+              title: 'Loading traceability',
+              message: 'Trace-derived dock judgments will appear once scene sources finish loading.',
+            },
+          }}
+          activity={activity}
+        />
+      </I18nProvider>,
+    )
+
+    const problemsSection = screen.getByRole('heading', { name: 'Problems' }).closest('section')
+
+    expect(problemsSection).not.toBeNull()
+    expect(within(problemsSection!).getByText('Loading traceability')).toBeInTheDocument()
+    expect(within(problemsSection!).getByText('Trace-derived dock judgments will appear once scene sources finish loading.')).toBeInTheDocument()
+    expect(within(problemsSection!).getByText('Warning')).toBeInTheDocument()
+    expect(within(problemsSection!).getByText('Missing profile section')).toBeInTheDocument()
+    expect(within(problemsSection!).queryByText('Without canon backing')).not.toBeInTheDocument()
+    expect(within(problemsSection!).queryByText('Missing scene trace')).not.toBeInTheDocument()
+    expect(within(problemsSection!).queryByText('Narrative backing gaps')).not.toBeInTheDocument()
+    expect(within(problemsSection!).queryByText('Mentions without canon backing')).not.toBeInTheDocument()
   })
 })

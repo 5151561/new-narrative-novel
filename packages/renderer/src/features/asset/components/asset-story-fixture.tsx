@@ -13,7 +13,7 @@ function text(locale: Locale, values: { en: string; 'zh-CN': string }) {
   return values[locale]
 }
 
-function baseAssetIdForVariant(variant: AssetStoryVariant) {
+export function getAssetStoryVariantAssetId(variant: AssetStoryVariant) {
   switch (variant) {
     case 'location':
       return 'asset-midnight-platform'
@@ -224,17 +224,17 @@ function applyWarningsHeavyVariant(
 }
 
 export function getAssetStorySearch(variant: Exclude<AssetStoryVariant, 'orphan' | 'warnings-heavy'>, view: AssetKnowledgeView) {
-  return `?scope=asset&id=${baseAssetIdForVariant(variant)}&lens=knowledge&view=${view}`
+  return `?scope=asset&id=${getAssetStoryVariantAssetId(variant)}&lens=knowledge&view=${view}`
 }
 
 export function getAssetStoryVariantSearch(variant: AssetStoryVariant, view: AssetKnowledgeView) {
-  return `?scope=asset&id=${baseAssetIdForVariant(variant)}&lens=knowledge&view=${view}`
+  return `?scope=asset&id=${getAssetStoryVariantAssetId(variant)}&lens=knowledge&view=${view}`
 }
 
 export function useAssetStoryWorkspace(variant: AssetStoryVariant, activeView: AssetKnowledgeView = 'profile') {
   const { locale } = useI18n()
   const { workspace } = useAssetKnowledgeWorkspaceQuery({
-    assetId: baseAssetIdForVariant(variant),
+    assetId: getAssetStoryVariantAssetId(variant),
     activeView,
   })
 

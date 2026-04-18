@@ -1,4 +1,5 @@
 import { FactList } from '@/components/ui/FactList'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { PaneHeader } from '@/components/ui/PaneHeader'
 import { SectionCard } from '@/components/ui/SectionCard'
 import { useI18n } from '@/app/i18n'
@@ -12,6 +13,7 @@ interface AssetInspectorPaneProps {
 
 export function AssetInspectorPane({ title, inspector }: AssetInspectorPaneProps) {
   const { locale } = useI18n()
+  const traceabilityReady = !inspector.traceabilityStatus
 
   return (
     <section className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -53,8 +55,32 @@ export function AssetInspectorPane({ title, inspector }: AssetInspectorPaneProps
                 label: locale === 'zh-CN' ? '缺失字段' : 'Missing fields',
                 value: `${inspector.missingFields.length}`,
               },
+              ...(traceabilityReady
+                ? [
+                    {
+                      id: 'canon-backed',
+                      label: locale === 'zh-CN' ? 'Canon-backed mentions' : 'Canon-backed mentions',
+                      value: `${inspector.canonBackedMentionCount ?? 0}`,
+                    },
+                    {
+                      id: 'draft-context',
+                      label: locale === 'zh-CN' ? 'Draft-context mentions' : 'Draft-context mentions',
+                      value: `${inspector.draftContextMentionCount ?? 0}`,
+                    },
+                    {
+                      id: 'unlinked',
+                      label: locale === 'zh-CN' ? 'Unlinked mentions' : 'Unlinked mentions',
+                      value: `${inspector.unlinkedMentionCount ?? 0}`,
+                    },
+                  ]
+                : []),
             ]}
           />
+          {inspector.traceabilityStatus ? (
+            <div className="mt-4">
+              <EmptyState title={inspector.traceabilityStatus.title} message={inspector.traceabilityStatus.message} className="min-h-0" />
+            </div>
+          ) : null}
           <div className="mt-4 space-y-3">
             {(inspector.warnings.length > 0 ? inspector.warnings : inspector.notes).map((item, index) => (
               <div key={`${item}-${index}`} className="rounded-md border border-line-soft bg-surface-2 p-3">

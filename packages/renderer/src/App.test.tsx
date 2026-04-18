@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { resetMockChapterDb } from '@/features/chapter/api/mock-chapter-db'
+import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 
 const originalNavigatorLanguage = window.navigator.language
 
@@ -20,22 +21,53 @@ async function renderFreshApp(search = '') {
   vi.doMock('@/features/scene/containers/SceneInspectorContainer', () => ({
     SceneInspectorContainer: ({ sceneId }: { sceneId: string }) => {
       const { useState } = require('react') as typeof import('react')
-      const [activeTab, setActiveTab] = useState<'context' | 'versions' | 'runtime'>('context')
+      const { replaceRoute } = useWorkbenchRouteState()
+      const [activeTab, setActiveTab] = useState<'context' | 'versions' | 'traceability' | 'runtime'>(
+        () =>
+          (window.localStorage.getItem('scene-inspector-tab') as 'context' | 'versions' | 'traceability' | 'runtime' | null) ??
+          'context',
+      )
+
+      const selectTab = (tab: 'context' | 'versions' | 'traceability' | 'runtime') => {
+        window.localStorage.setItem('scene-inspector-tab', tab)
+        setActiveTab(tab)
+      }
 
       return (
         <div data-testid="scene-inspector">
           <div>{sceneId}</div>
-          <button type="button" onClick={() => setActiveTab('context')}>
+          <button type="button" onClick={() => selectTab('context')}>
             Context
           </button>
-          <button type="button" onClick={() => setActiveTab('versions')}>
+          <button type="button" onClick={() => selectTab('versions')}>
             Versions
           </button>
-          <button type="button" onClick={() => setActiveTab('runtime')}>
+          <button type="button" onClick={() => selectTab('traceability')}>
+            Traceability
+          </button>
+          <button type="button" onClick={() => selectTab('runtime')}>
             Runtime
           </button>
           {activeTab === 'context' ? <div>Accepted Facts</div> : null}
           {activeTab === 'versions' ? <div>Version Checkpoints</div> : null}
+          {activeTab === 'traceability' ? (
+            <div>
+              <div>Traceability Links</div>
+              <button
+                type="button"
+                onClick={() =>
+                  replaceRoute({
+                    scope: 'asset',
+                    assetId: 'asset-ren-voss',
+                    lens: 'knowledge',
+                    view: 'profile',
+                  })
+                }
+              >
+                Ren Voss
+              </button>
+            </div>
+          ) : null}
           {activeTab === 'runtime' ? <div>Runtime Profile</div> : null}
         </div>
       )
@@ -594,5 +626,44 @@ describe('App scene workbench', () => {
     })
 
     expect(await screen.findAllByText('Mei Arden')).not.toHaveLength(0)
+  })
+
+  it('supports scene orchestrate -> asset -> back while restoring the scene scope, lens, tab, and traceability selection', async () => {
+    const user = userEvent.setup()
+
+    await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Traceability' }))
+
+    expect(await screen.findByText('Traceability Links')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Ren Voss' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('asset')
+      expect(params.get('id')).toBe('asset-ren-voss')
+      expect(params.get('lens')).toBe('knowledge')
+      expect(params.get('view')).toBe('profile')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Asset knowledge' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Profile' })).toHaveAttribute('aria-pressed', 'true')
+
+    window.history.back()
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('scene')
+      expect(params.get('id')).toBe('scene-midnight-platform')
+      expect(params.get('lens')).toBe('orchestrate')
+      expect(params.get('tab')).toBe('execution')
+    })
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    expect(screen.getByText('Traceability Links')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ren Voss' })).toBeInTheDocument()
   })
 })

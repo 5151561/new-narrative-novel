@@ -110,6 +110,8 @@ describe('traceability mappers', () => {
     const summary = buildAssetTraceabilitySummaryViewModel({
       assetId: 'asset-ren-voss',
       mentions: renWorkspace.assets.find((asset) => asset.id === 'asset-ren-voss')?.mentions ?? [],
+      relationTargetAssetIds:
+        renWorkspace.assets.find((asset) => asset.id === 'asset-ren-voss')?.relations.map((relation) => relation.targetAssetId) ?? [],
       sceneTraceBySceneId: traceBySceneId,
       getMentionTitle: (mention) => mention.targetLabel.en,
     })
@@ -118,6 +120,8 @@ describe('traceability mappers', () => {
       canonBackedMentions: 1,
       draftContextMentions: 1,
       unlinkedMentions: 1,
+      mentionsWithMissingSceneTrace: 1,
+      relationsWithoutNarrativeBackingCount: 0,
     })
     expect(summary.mentionSummaries).toEqual([
       {
@@ -126,6 +130,9 @@ describe('traceability mappers', () => {
         backingKind: 'canon',
         factLabels: ['Courier signal spotted'],
         proposalTitles: ['Force the bargain into a visible stalemate'],
+        patchId: 'patch-1',
+        sceneId: 'scene-midnight-platform',
+        sceneTraceMissing: false,
       },
       {
         mentionId: 'mention-ren-ticket-window',
@@ -133,6 +140,9 @@ describe('traceability mappers', () => {
         backingKind: 'draft_context',
         factLabels: [],
         proposalTitles: ['Force the trade-off into one visible exchange'],
+        patchId: undefined,
+        sceneId: 'scene-ticket-window',
+        sceneTraceMissing: false,
       },
       {
         mentionId: 'mention-ren-signals-in-rain',
@@ -140,6 +150,9 @@ describe('traceability mappers', () => {
         backingKind: 'unlinked',
         factLabels: [],
         proposalTitles: [],
+        patchId: undefined,
+        sceneId: undefined,
+        sceneTraceMissing: true,
       },
     ])
   })
@@ -161,6 +174,7 @@ describe('traceability mappers', () => {
           },
         },
       ],
+      relationTargetAssetIds: ['asset-1'],
       sceneTraceBySceneId: {
         'scene-1': {
           sceneId: 'scene-1',
@@ -213,6 +227,9 @@ describe('traceability mappers', () => {
         backingKind: 'canon',
         factLabels: ['Fact 2'],
         proposalTitles: ['Direct mention proposal', 'Accepted fact proposal'],
+        patchId: 'patch-1',
+        sceneId: 'scene-1',
+        sceneTraceMissing: false,
       },
     ])
   })

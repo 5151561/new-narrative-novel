@@ -40,6 +40,7 @@ export function useAssetTraceabilitySummaryQuery(
     return buildAssetTraceabilitySummaryViewModel({
       assetId,
       mentions: assetWorkspaceQuery.workspace.mentions,
+      relationTargetAssetIds: assetWorkspaceQuery.workspace.relations.map((relation) => relation.targetAssetId),
       sceneTraceBySceneId: sceneSources.traceBySceneId,
       getMentionTitle: (mention) => mention.title,
     })

@@ -47,6 +47,7 @@ type AssetTraceabilityMentionLike = {
 interface BuildAssetTraceabilitySummaryViewModelInput<TMention extends AssetTraceabilityMentionLike> {
   assetId: string
   mentions: TMention[]
+  relationTargetAssetIds: string[]
   sceneTraceBySceneId: Record<string, SceneTraceabilityViewModel | undefined>
   getMentionTitle: (mention: TMention) => string
 }
@@ -455,15 +456,18 @@ export function buildChapterDraftTraceabilityViewModel({
 export function buildAssetTraceabilitySummaryViewModel<TMention extends AssetTraceabilityMentionLike>({
   assetId,
   mentions,
+  relationTargetAssetIds,
   sceneTraceBySceneId,
   getMentionTitle,
 }: BuildAssetTraceabilitySummaryViewModelInput<TMention>): AssetTraceabilitySummaryViewModel {
   const mentionSummaries = mentions.map((mention) => {
     const backingKind = mention.backing?.kind ?? 'unlinked'
-    const sceneTrace = sceneTraceBySceneId[mention.backing?.sceneId ?? mention.sceneId ?? '']
+    const sceneId = mention.backing?.sceneId ?? mention.sceneId
+    const sceneTrace = sceneId ? sceneTraceBySceneId[sceneId] : undefined
     const factLabels = (mention.backing?.acceptedFactIds ?? [])
       .map((factId) => sceneTrace?.acceptedFacts.find((fact) => fact.id === factId)?.label)
       .filter(Boolean) as string[]
+    const sceneTraceMissing = !sceneId || !sceneTrace || sceneTrace.missingLinks.includes('trace')
 
     return {
       mentionId: mention.id,
@@ -471,14 +475,26 @@ export function buildAssetTraceabilitySummaryViewModel<TMention extends AssetTra
       backingKind,
       factLabels,
       proposalTitles: collectProposalTitles(mention.backing, sceneTrace),
+      patchId: mention.backing?.patchId,
+      sceneId,
+      sceneTraceMissing,
     }
   })
+  const narrativeBackedRelationAssetIds = dedupeByKey(
+    Object.values(sceneTraceBySceneId).flatMap((sceneTrace) => sceneTrace?.relatedAssets.map((asset) => asset.assetId) ?? []),
+    (assetId) => assetId,
+  )
+  const relationsWithoutNarrativeBackingCount = relationTargetAssetIds.filter(
+    (assetId) => !narrativeBackedRelationAssetIds.includes(assetId),
+  ).length
 
   return {
     assetId,
     canonBackedMentions: mentionSummaries.filter((mention) => mention.backingKind === 'canon').length,
     draftContextMentions: mentionSummaries.filter((mention) => mention.backingKind === 'draft_context').length,
     unlinkedMentions: mentionSummaries.filter((mention) => mention.backingKind === 'unlinked').length,
+    mentionsWithMissingSceneTrace: mentionSummaries.filter((mention) => mention.sceneTraceMissing).length,
+    relationsWithoutNarrativeBackingCount,
     mentionSummaries,
   }
 }
