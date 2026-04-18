@@ -19,7 +19,11 @@ afterEach(() => {
 function ChapterRouteHarness() {
   const { route } = useWorkbenchRouteState()
 
-  return route.scope === 'chapter' ? <ChapterStructureWorkspace /> : <div>Scene scope placeholder</div>
+  return route.scope === 'chapter' ? (
+    <ChapterStructureWorkspace />
+  ) : (
+    <div data-testid="route-scope">{route.scope}</div>
+  )
 }
 
 describe('ChapterStructureWorkspace', () => {
@@ -212,6 +216,34 @@ describe('ChapterStructureWorkspace', () => {
       expect(params.get('view')).toBe('outliner')
       expect(params.get('sceneId')).toBe('scene-concourse-delay')
     })
+  })
+
+  it('routes to book scope instead of falling through to scene when clicking Book from chapter structure', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=outliner&sceneId=scene-concourse-delay',
+    )
+
+    render(
+      <AppProviders>
+        <ChapterRouteHarness />
+      </AppProviders>,
+    )
+
+    await screen.findByRole('button', { name: /Scene 2 Concourse Delay/i })
+
+    await user.click(screen.getByRole('button', { name: 'Book' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('id')).toBe('book-signal-arc')
+    })
+
+    expect(screen.getByTestId('route-scope')).toHaveTextContent('book')
   })
 
   it('patches the chapter route with the first scene before opening scene scope when no scene is selected', async () => {

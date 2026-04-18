@@ -31,7 +31,7 @@ afterEach(() => {
 function ChapterRouteHarness() {
   const { route } = useWorkbenchRouteState()
 
-  return route.scope === 'chapter' ? <ChapterDraftWorkspace /> : <div>Scene scope placeholder</div>
+  return route.scope === 'chapter' ? <ChapterDraftWorkspace /> : <div data-testid="route-scope">{route.scope}</div>
 }
 
 describe('ChapterDraftWorkspace', () => {
@@ -135,6 +135,34 @@ describe('ChapterDraftWorkspace', () => {
 
     const restoredConcourseButtons = await screen.findAllByRole('button', { name: /Scene 2 Concourse Delay Draft handoff ready/i })
     expect(restoredConcourseButtons.some((button) => button.getAttribute('aria-current') === 'true')).toBe(true)
+  })
+
+  it('routes to book scope instead of falling through to scene when clicking Book from chapter draft', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=draft&view=assembly&sceneId=scene-concourse-delay',
+    )
+
+    render(
+      <AppProviders>
+        <ChapterRouteHarness />
+      </AppProviders>,
+    )
+
+    await screen.findAllByRole('button', { name: /Scene 2 Concourse Delay Draft handoff ready/i })
+
+    await user.click(screen.getByRole('button', { name: 'Book' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('id')).toBe('book-signal-arc')
+    })
+
+    expect(screen.getByTestId('route-scope')).toHaveTextContent('book')
   })
 
   it('keeps trace header signals visible with missing fallback counts while chapter traceability is still incomplete', async () => {

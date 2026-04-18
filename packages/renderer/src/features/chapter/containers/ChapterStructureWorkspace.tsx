@@ -149,11 +149,17 @@ export function ChapterStructureWorkspace() {
         if (scope === 'chapter') {
           return
         }
+        if (scope === 'book') {
+          replaceRoute({ scope: 'book' })
+          return
+        }
         if (scope === 'asset') {
           replaceRoute({ scope: 'asset' })
           return
         }
-        openSceneFromChapter(route.sceneId ?? workspace?.scenes[0]?.id, 'orchestrate')
+        if (scope === 'scene') {
+          openSceneFromChapter(route.sceneId ?? workspace?.scenes[0]?.id, 'orchestrate')
+        }
       }}
       activeLens="structure"
       onSelectLens={(lens) => {

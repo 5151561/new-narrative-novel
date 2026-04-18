@@ -185,11 +185,17 @@ export function ChapterDraftWorkspace() {
         if (scope === 'chapter') {
           return
         }
+        if (scope === 'book') {
+          replaceRoute({ scope: 'book' })
+          return
+        }
         if (scope === 'asset') {
           replaceRoute({ scope: 'asset' })
           return
         }
-        openSceneFromChapter(route.sceneId ?? workspace?.selectedSceneId ?? workspace?.scenes[0]?.sceneId, 'draft')
+        if (scope === 'scene') {
+          openSceneFromChapter(route.sceneId ?? workspace?.selectedSceneId ?? workspace?.scenes[0]?.sceneId, 'draft')
+        }
       }}
       onSelectLens={(lens) => {
         if (lens !== route.lens) {

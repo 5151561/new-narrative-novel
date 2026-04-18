@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,6 +6,7 @@ import { resetMockChapterDb } from '@/features/chapter/api/mock-chapter-db'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 
 const originalNavigatorLanguage = window.navigator.language
+let latestReplaceRoute: ReturnType<typeof useWorkbenchRouteState>['replaceRoute'] | null = null
 
 function setSceneBridge(bridge: Record<string, unknown> | undefined) {
   if (bridge) {
@@ -80,11 +81,32 @@ async function renderFreshApp(search = '') {
     import('./app/providers'),
   ])
 
+  function RouteControl() {
+    const { replaceRoute } = useWorkbenchRouteState()
+
+    latestReplaceRoute = replaceRoute
+    return null
+  }
+
   return render(
     <AppProviders>
+      <RouteControl />
       <App />
     </AppProviders>,
   )
+}
+
+function restoreDormantScope(scope: 'scene' | 'chapter' | 'asset' | 'book') {
+  act(() => {
+    latestReplaceRoute?.({ scope })
+  })
+}
+
+function pushExternalRoute(search: string) {
+  act(() => {
+    window.history.pushState({}, '', `/workbench${search}`)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  })
 }
 
 function setNavigatorLanguage(language: string) {
@@ -99,6 +121,7 @@ describe('App scene workbench', () => {
     vi.clearAllMocks()
     vi.unmock('@tanstack/react-query')
     setSceneBridge(undefined)
+    latestReplaceRoute = null
     window.localStorage.clear()
     setNavigatorLanguage(originalNavigatorLanguage)
     resetMockChapterDb()
@@ -628,6 +651,39 @@ describe('App scene workbench', () => {
     expect(await screen.findAllByText('Mei Arden')).not.toHaveLength(0)
   })
 
+  it('enters book scope when clicking Book from the asset rail and can restore the asset snapshot afterward', async () => {
+    const user = userEvent.setup()
+
+    await renderFreshApp('?scope=asset&id=asset-ren-voss&lens=knowledge&view=mentions')
+
+    expect(await screen.findByRole('heading', { name: 'Asset knowledge' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mentions' })).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(screen.getByRole('button', { name: 'Book' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('id')).toBe('book-signal-arc')
+      expect(params.get('view')).toBe('sequence')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Book workbench' })).toBeInTheDocument()
+
+    restoreDormantScope('asset')
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('asset')
+      expect(params.get('id')).toBe('asset-ren-voss')
+      expect(params.get('lens')).toBe('knowledge')
+      expect(params.get('view')).toBe('mentions')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Asset knowledge' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mentions' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('supports scene orchestrate -> asset -> back while restoring the scene scope, lens, tab, and traceability selection', async () => {
     const user = userEvent.setup()
 
@@ -665,5 +721,129 @@ describe('App scene workbench', () => {
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
     expect(screen.getByText('Traceability Links')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Ren Voss' })).toBeInTheDocument()
+  })
+
+  it('enters the book workbench from a direct deep link and restores the selected chapter with the active view after refresh', async () => {
+    const firstRender = await renderFreshApp(
+      '?scope=book&id=book-signal-arc&lens=structure&view=signals&selectedChapterId=chapter-open-water-signals',
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Book workbench' })).toBeInTheDocument()
+    expect(screen.getByText('Book / Structure / Signals')).toBeInTheDocument()
+    expect(new URLSearchParams(window.location.search).get('selectedChapterId')).toBe('chapter-open-water-signals')
+
+    const refreshSearch = window.location.search
+    firstRender.unmount()
+
+    await renderFreshApp(refreshSearch)
+
+    expect(await screen.findByRole('heading', { name: 'Book workbench' })).toBeInTheDocument()
+    expect(screen.getByText('Book / Structure / Signals')).toBeInTheDocument()
+    expect(new URLSearchParams(window.location.search).get('selectedChapterId')).toBe('chapter-open-water-signals')
+  })
+
+  it('supports scene -> book -> scene without losing the dormant scene snapshot', async () => {
+    const user = userEvent.setup()
+
+    await renderFreshApp(
+      '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution&beatId=beat-bargain&proposalId=proposal-2',
+    )
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    expect(screen.getByText('Filtered to beat-bargain')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Book' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('id')).toBe('book-signal-arc')
+      expect(params.get('view')).toBe('sequence')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Book workbench' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Scene' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('scene')
+      expect(params.get('id')).toBe('scene-midnight-platform')
+      expect(params.get('lens')).toBe('orchestrate')
+      expect(params.get('tab')).toBe('execution')
+      expect(params.get('beatId')).toBe('beat-bargain')
+      expect(params.get('proposalId')).toBe('proposal-2')
+    })
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    expect(screen.getByText('Filtered to beat-bargain')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Let Mei name the cost in private terms' }).closest('section'),
+    ).toHaveClass('border-line-strong')
+  })
+
+  it('keeps chapter and asset dormant snapshots intact while book is added as a fourth scope', async () => {
+    await renderFreshApp(
+      '?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=assembly&sceneId=scene-concourse-delay',
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Chapter workbench' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Assembly' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /Scene 2 Concourse Delay/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Book' })).toBeInTheDocument()
+
+    pushExternalRoute('?scope=book&id=book-signal-arc&lens=structure&view=signals&selectedChapterId=chapter-open-water-signals')
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('selectedChapterId')).toBe('chapter-open-water-signals')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Book workbench' })).toBeInTheDocument()
+
+    restoreDormantScope('chapter')
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('chapter')
+      expect(params.get('id')).toBe('chapter-signals-in-rain')
+      expect(params.get('lens')).toBe('structure')
+      expect(params.get('view')).toBe('assembly')
+      expect(params.get('sceneId')).toBe('scene-concourse-delay')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Chapter workbench' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Assembly' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /Scene 2 Concourse Delay/i })).toHaveAttribute('aria-pressed', 'true')
+
+    pushExternalRoute('?scope=asset&id=asset-ren-voss&lens=knowledge&view=mentions')
+
+    expect(await screen.findByRole('heading', { name: 'Asset knowledge' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Mentions' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Book' })).toBeInTheDocument()
+
+    pushExternalRoute('?scope=book&id=book-signal-arc&lens=structure&view=sequence')
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('id')).toBe('book-signal-arc')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Book workbench' })).toBeInTheDocument()
+
+    restoreDormantScope('asset')
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('asset')
+      expect(params.get('id')).toBe('asset-ren-voss')
+      expect(params.get('lens')).toBe('knowledge')
+      expect(params.get('view')).toBe('mentions')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Asset knowledge' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mentions' })).toHaveAttribute('aria-pressed', 'true')
   })
 })
