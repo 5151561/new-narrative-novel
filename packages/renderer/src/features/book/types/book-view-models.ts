@@ -55,6 +55,15 @@ export interface BookStructureInspectorViewModel {
   riskHighlights: BookStructureRiskSummaryViewModel[]
 }
 
+export interface BookStructureDockSummaryViewModel {
+  selectedChapter: BookStructureChapterViewModel | null
+  unresolvedCount: number
+  missingDraftCount: number
+  missingTraceSceneCount: number
+  warningsCount: number
+  problemItems: BookStructureRiskSummaryViewModel[]
+}
+
 export interface BookStructureWorkspaceViewModel {
   bookId: string
   title: string
@@ -64,6 +73,7 @@ export interface BookStructureWorkspaceViewModel {
   selectedChapter: BookStructureChapterViewModel | null
   totals: BookStructureTotalsViewModel
   inspector: BookStructureInspectorViewModel
+  dockSummary: BookStructureDockSummaryViewModel
   viewsMeta?: {
     availableViews: BookStructureView[]
   }

@@ -298,6 +298,13 @@ export function buildBookStructureWorkspaceViewModel({
     chapters.find((chapter) => chapter.chapterId === selectedChapterId)?.chapterId ?? chapters[0]?.chapterId ?? null
   const selectedChapter = chapters.find((chapter) => chapter.chapterId === resolvedSelectedChapterId) ?? null
   const totals = buildBookStructureTotalsViewModel(chapters)
+  const riskHighlights = buildBookRiskHighlights(
+    chapters,
+    chapterRecordsById,
+    locale,
+    sceneProseBySceneId,
+    traceRollupsBySceneId,
+  )
 
   return {
     bookId: record.bookId,
@@ -310,13 +317,15 @@ export function buildBookStructureWorkspaceViewModel({
     inspector: {
       selectedChapter,
       overview: totals,
-      riskHighlights: buildBookRiskHighlights(
-        chapters,
-        chapterRecordsById,
-        locale,
-        sceneProseBySceneId,
-        traceRollupsBySceneId,
-      ),
+      riskHighlights,
+    },
+    dockSummary: {
+      selectedChapter,
+      unresolvedCount: totals.unresolvedCount,
+      missingDraftCount: totals.missingDraftCount,
+      missingTraceSceneCount: totals.missingTraceSceneCount,
+      warningsCount: totals.warningsCount,
+      problemItems: riskHighlights,
     },
     viewsMeta: record.viewsMeta,
   }
