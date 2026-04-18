@@ -25,6 +25,7 @@ export function AssetModeRail({
             { scope: 'scene' as const, label: dictionary.common.scene },
             { scope: 'chapter' as const, label: dictionary.common.chapter },
             { scope: 'asset' as const, label: dictionary.common.asset },
+            { scope: 'book' as const, label: dictionary.common.book },
           ]).map((item) => (
             <button
               key={item.scope}

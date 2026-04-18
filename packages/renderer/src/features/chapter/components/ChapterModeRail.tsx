@@ -39,6 +39,14 @@ export function ChapterModeRail({ activeLens, onSelectScope, onSelectLens }: Cha
           >
             {dictionary.common.asset}
           </button>
+          <button
+            type="button"
+            aria-pressed="false"
+            onClick={() => onSelectScope('book')}
+            className="rounded-md border border-transparent px-2 py-2 text-sm text-text-muted hover:border-line-soft hover:bg-surface-2"
+          >
+            {dictionary.common.book}
+          </button>
         </div>
       </div>
       {(['structure', 'draft'] as const).map((lens) => (

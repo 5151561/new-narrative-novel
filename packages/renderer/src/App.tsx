@@ -14,6 +14,7 @@ import { AssetWorkbench } from '@/features/asset/containers/AssetWorkbench'
 import { getMockChapterRecordById } from '@/features/chapter/api/mock-chapter-db'
 import { readLocalizedChapterText } from '@/features/chapter/api/chapter-records'
 import { ChapterWorkbench } from '@/features/chapter/containers/ChapterWorkbench'
+import { BookWorkbench } from '@/features/book/containers/BookWorkbench'
 import { sceneClient } from '@/features/scene/api/scene-client'
 import { SceneDockContainer } from '@/features/scene/containers/SceneDockContainer'
 import { SceneInspectorContainer } from '@/features/scene/containers/SceneInspectorContainer'
@@ -180,6 +181,7 @@ function ModeRail({
             { scope: 'scene' as const, label: dictionary.common.scene },
             { scope: 'chapter' as const, label: dictionary.common.chapter },
             { scope: 'asset' as const, label: dictionary.common.asset },
+            { scope: 'book' as const, label: dictionary.common.book },
           ]).map((item) => (
             <button
               key={item.scope}
@@ -366,6 +368,10 @@ export default function App() {
 
   if (route.scope === 'asset') {
     return <AssetWorkbench />
+  }
+
+  if (route.scope === 'book') {
+    return <BookWorkbench />
   }
 
   return <ChapterWorkbench />
