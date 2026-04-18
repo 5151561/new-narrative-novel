@@ -1,9 +1,11 @@
 import { useCallback, useSyncExternalStore } from 'react'
 
+import { DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID } from '@/features/book/api/book-manuscript-checkpoints'
 import type {
   AssetKnowledgeView,
   AssetLens,
   AssetRouteState,
+  BookDraftView,
   BookLens,
   BookRouteState,
   BookStructureView,
@@ -55,6 +57,8 @@ const CANONICAL_ROUTE_KEYS = [
   'proposalId',
   'modal',
   'view',
+  'draftView',
+  'checkpointId',
   'sceneId',
   'selectedChapterId',
 ] as const
@@ -77,6 +81,7 @@ const VALID_ASSET_VIEWS = new Set<AssetKnowledgeView>(['profile', 'mentions', 'r
 const VALID_ASSET_LENSES = new Set<AssetLens>(['knowledge'])
 const VALID_BOOK_VIEWS = new Set<BookStructureView>(['sequence', 'outliner', 'signals'])
 const VALID_BOOK_LENSES = new Set<BookLens>(['structure', 'draft'])
+const VALID_BOOK_DRAFT_VIEWS = new Set<BookDraftView>(['read', 'compare'])
 
 let lastRouteSearch = ''
 let lastRouteSnapshot: WorkbenchSearchState | undefined
@@ -158,6 +163,14 @@ function readBookViewParam(value: string | null) {
   return isBookStructureView(value) ? value : undefined
 }
 
+function isBookDraftView(value: string | null): value is BookDraftView {
+  return value !== null && VALID_BOOK_DRAFT_VIEWS.has(value as BookDraftView)
+}
+
+function readBookDraftViewParam(value: string | null) {
+  return isBookDraftView(value) ? value : undefined
+}
+
 function normalizeSceneRoute(route: Partial<SceneRouteState>): SceneRouteState {
   return {
     scope: 'scene',
@@ -190,11 +203,22 @@ function normalizeAssetRoute(route: Partial<AssetRouteState>): AssetRouteState {
 }
 
 function normalizeBookRoute(route: Partial<BookRouteState>): BookRouteState {
+  const lens = route.lens && VALID_BOOK_LENSES.has(route.lens) ? route.lens : 'structure'
+  const draftView =
+    route.draftView && VALID_BOOK_DRAFT_VIEWS.has(route.draftView)
+      ? route.draftView
+      : lens === 'draft'
+        ? 'read'
+        : undefined
+  const checkpointId = route.checkpointId?.trim() || undefined
+
   return {
     scope: 'book',
     bookId: route.bookId ?? DEFAULT_BOOK_ID,
-    lens: route.lens && VALID_BOOK_LENSES.has(route.lens) ? route.lens : 'structure',
+    lens,
     view: route.view && VALID_BOOK_VIEWS.has(route.view) ? route.view : 'sequence',
+    draftView,
+    checkpointId: draftView === 'compare' ? checkpointId ?? DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID : checkpointId,
     selectedChapterId: route.selectedChapterId,
   }
 }
@@ -240,11 +264,14 @@ function readAssetSnapshot(params: URLSearchParams) {
 function readBookSnapshot(params: URLSearchParams) {
   const activeLens = readBookLensParam(params.get('lens'))
   const activeView = readBookViewParam(params.get('view'))
+  const activeDraftView = readBookDraftViewParam(params.get('draftView'))
 
   return normalizeBookRoute({
     bookId: readTextParam(params, 'id'),
     lens: activeLens,
     view: activeView,
+    draftView: activeDraftView,
+    checkpointId: readTextParam(params, 'checkpointId'),
     selectedChapterId: readTextParam(params, 'selectedChapterId'),
   })
 }
@@ -339,6 +366,12 @@ function buildWorkbenchSearch(
     params.set('id', state.book.bookId)
     params.set('lens', state.book.lens)
     params.set('view', state.book.view)
+    if (state.book.draftView) {
+      params.set('draftView', state.book.draftView)
+    }
+    if (state.book.checkpointId) {
+      params.set('checkpointId', state.book.checkpointId)
+    }
     if (state.book.selectedChapterId) {
       params.set('selectedChapterId', state.book.selectedChapterId)
     }

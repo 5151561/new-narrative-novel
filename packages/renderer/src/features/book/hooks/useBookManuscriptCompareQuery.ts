@@ -1,0 +1,114 @@
+import { useMemo } from 'react'
+
+import { useQuery } from '@tanstack/react-query'
+
+import { useI18n } from '@/app/i18n'
+
+import { DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID } from '../api/book-manuscript-checkpoints'
+import { bookClient, type BookClient } from '../api/book-client'
+import {
+  buildCurrentManuscriptSnapshotFromBookDraft,
+  compareBookManuscriptSnapshots,
+  normalizeBookManuscriptCheckpoint,
+} from '../lib/book-manuscript-compare-mappers'
+import type { BookDraftWorkspaceViewModel } from '../types/book-draft-view-models'
+import type {
+  BookManuscriptCheckpointSummaryViewModel,
+  BookManuscriptCheckpointViewModel,
+  BookManuscriptCompareWorkspaceViewModel,
+} from '../types/book-compare-view-models'
+import { bookQueryKeys } from './book-query-keys'
+
+interface UseBookManuscriptCompareQueryInput {
+  bookId: string
+  currentDraftWorkspace: BookDraftWorkspaceViewModel | null | undefined
+  checkpointId?: string | null
+}
+
+interface UseBookManuscriptCompareQueryDeps {
+  bookClient?: Pick<BookClient, 'getBookManuscriptCheckpoints' | 'getBookManuscriptCheckpoint'>
+}
+
+export interface UseBookManuscriptCompareQueryResult {
+  compareWorkspace: BookManuscriptCompareWorkspaceViewModel | null | undefined
+  checkpoints: BookManuscriptCheckpointSummaryViewModel[] | undefined
+  selectedCheckpoint: BookManuscriptCheckpointViewModel | null | undefined
+  isLoading: boolean
+  error: Error | null
+}
+
+export function useBookManuscriptCompareQuery(
+  { bookId, currentDraftWorkspace, checkpointId }: UseBookManuscriptCompareQueryInput,
+  { bookClient: customBookClient = bookClient }: UseBookManuscriptCompareQueryDeps = {},
+): UseBookManuscriptCompareQueryResult {
+  const { locale } = useI18n()
+  const effectiveCheckpointId = checkpointId ?? DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID
+
+  const checkpointsQuery = useQuery({
+    queryKey: bookQueryKeys.checkpoints(bookId, locale),
+    queryFn: () => customBookClient.getBookManuscriptCheckpoints({ bookId }),
+  })
+
+  const selectedCheckpointQuery = useQuery({
+    queryKey: bookQueryKeys.checkpoint(bookId, effectiveCheckpointId, locale),
+    queryFn: () => customBookClient.getBookManuscriptCheckpoint({ bookId, checkpointId: effectiveCheckpointId }),
+  })
+
+  const checkpoints = useMemo(
+    () =>
+      checkpointsQuery.data?.map((record) => {
+        const normalized = normalizeBookManuscriptCheckpoint(record, locale)
+        return {
+          checkpointId: normalized.checkpointId,
+          bookId: normalized.bookId,
+          title: normalized.title,
+          summary: normalized.summary,
+        } satisfies BookManuscriptCheckpointSummaryViewModel
+      }),
+    [checkpointsQuery.data, locale],
+  )
+
+  const selectedCheckpoint = useMemo(
+    () =>
+      selectedCheckpointQuery.data === undefined
+        ? undefined
+        : selectedCheckpointQuery.data === null
+          ? null
+          : normalizeBookManuscriptCheckpoint(selectedCheckpointQuery.data, locale),
+    [locale, selectedCheckpointQuery.data],
+  )
+
+  const compareWorkspace = useMemo(() => {
+    if (currentDraftWorkspace === undefined || selectedCheckpoint === undefined) {
+      return undefined
+    }
+
+    if (currentDraftWorkspace === null || selectedCheckpoint === null) {
+      return null
+    }
+
+    return compareBookManuscriptSnapshots({
+      current: buildCurrentManuscriptSnapshotFromBookDraft(currentDraftWorkspace),
+      checkpoint: selectedCheckpoint,
+      selectedChapterId: currentDraftWorkspace.selectedChapterId,
+    })
+  }, [currentDraftWorkspace, selectedCheckpoint])
+
+  const missingCheckpointError =
+    !selectedCheckpointQuery.isLoading && selectedCheckpointQuery.data === null
+      ? new Error(`Book manuscript checkpoint "${effectiveCheckpointId}" could not be found for "${bookId}".`)
+      : null
+
+  const error =
+    (checkpointsQuery.error instanceof Error ? checkpointsQuery.error : null) ??
+    (selectedCheckpointQuery.error instanceof Error ? selectedCheckpointQuery.error : null) ??
+    missingCheckpointError
+
+  return {
+    compareWorkspace,
+    checkpoints,
+    selectedCheckpoint,
+    isLoading: currentDraftWorkspace === undefined || checkpointsQuery.isLoading || selectedCheckpointQuery.isLoading,
+    error,
+  }
+}

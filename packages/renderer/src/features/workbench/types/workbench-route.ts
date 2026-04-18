@@ -10,6 +10,7 @@ export type SceneRouteModal = 'export'
 export type ChapterStructureView = 'sequence' | 'outliner' | 'assembly'
 export type AssetKnowledgeView = 'profile' | 'mentions' | 'relations'
 export type BookStructureView = 'sequence' | 'outliner' | 'signals'
+export type BookDraftView = 'read' | 'compare'
 
 export interface SceneRouteState {
   scope: 'scene'
@@ -41,6 +42,8 @@ export interface BookRouteState {
   bookId: string
   lens: BookLens
   view: BookStructureView
+  draftView?: BookDraftView
+  checkpointId?: string
   selectedChapterId?: string
 }
 

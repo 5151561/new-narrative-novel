@@ -2,6 +2,8 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
+import { DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID } from '@/features/book/api/book-manuscript-checkpoints'
+
 import {
   type AssetRouteState,
   type BookRouteState,
@@ -9,7 +11,7 @@ import {
   type SceneRouteState,
   type WorkbenchRouteState,
 } from '../types/workbench-route'
-import { useWorkbenchRouteState } from './useWorkbenchRouteState'
+import { readWorkbenchRouteState, useWorkbenchRouteState } from './useWorkbenchRouteState'
 
 function RouteHarness() {
   const { route, replaceRoute, patchBookRoute, patchChapterRoute, patchSceneRoute } = useWorkbenchRouteState()
@@ -122,11 +124,38 @@ function RouteHarness() {
           patchBookRoute({
             bookId: 'book-signal-arc',
             lens: 'draft',
+            draftView: 'read',
             selectedChapterId: 'chapter-open-water-signals',
           } satisfies Partial<BookRouteState>)
         }
       >
         Book Draft
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchBookRoute({
+            bookId: 'book-signal-arc',
+            lens: 'draft',
+            draftView: 'compare',
+            checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+            selectedChapterId: 'chapter-open-water-signals',
+          } satisfies Partial<BookRouteState>)
+        }
+      >
+        Book Compare
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchBookRoute({
+            lens: 'draft',
+            draftView: 'compare',
+            checkpointId: undefined,
+          } satisfies Partial<BookRouteState>)
+        }
+      >
+        Book Compare Default Checkpoint
       </button>
       <button
         type="button"
@@ -411,7 +440,7 @@ describe('useWorkbenchRouteState', () => {
     window.history.replaceState(
       {},
       '',
-      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&selectedChapterId=chapter-open-water-signals&tab=prose&proposalId=proposal-2',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=read&selectedChapterId=chapter-open-water-signals&tab=prose&proposalId=proposal-2',
     )
 
     render(<RouteHarness />)
@@ -421,6 +450,7 @@ describe('useWorkbenchRouteState', () => {
       bookId: 'book-signal-arc',
       lens: 'draft',
       view: 'signals',
+      draftView: 'read',
       selectedChapterId: 'chapter-open-water-signals',
     })
   })
@@ -443,6 +473,7 @@ describe('useWorkbenchRouteState', () => {
       bookId: 'book-signal-arc',
       lens: 'draft',
       view: 'signals',
+      draftView: 'read',
       selectedChapterId: 'chapter-open-water-signals',
     })
 
@@ -451,6 +482,7 @@ describe('useWorkbenchRouteState', () => {
     expect(params.get('id')).toBe('book-signal-arc')
     expect(params.get('lens')).toBe('draft')
     expect(params.get('view')).toBe('signals')
+    expect(params.get('draftView')).toBe('read')
     expect(params.get('selectedChapterId')).toBe('chapter-open-water-signals')
 
     await user.click(screen.getByRole('button', { name: 'Book Structure' }))
@@ -460,13 +492,112 @@ describe('useWorkbenchRouteState', () => {
       bookId: 'book-signal-arc',
       lens: 'structure',
       view: 'signals',
+      draftView: 'read',
       selectedChapterId: 'chapter-open-water-signals',
     })
 
     params = new URLSearchParams(window.location.search)
     expect(params.get('lens')).toBe('structure')
     expect(params.get('view')).toBe('signals')
+    expect(params.get('draftView')).toBe('read')
     expect(params.get('selectedChapterId')).toBe('chapter-open-water-signals')
+  })
+
+  it('writes and restores book compare draftView with checkpointId while preserving dormant structure view', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=structure&view=outliner&selectedChapterId=chapter-signals-in-rain',
+    )
+
+    render(<RouteHarness />)
+
+    await user.click(screen.getByRole('button', { name: 'Book Compare' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'draft',
+      view: 'outliner',
+      draftView: 'compare',
+      checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+
+    let params = new URLSearchParams(window.location.search)
+    expect(params.get('draftView')).toBe('compare')
+    expect(params.get('checkpointId')).toBe(DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID)
+    expect(params.get('view')).toBe('outliner')
+
+    await user.click(screen.getByRole('button', { name: 'Book Structure' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'structure',
+      view: 'outliner',
+      draftView: 'compare',
+      checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+
+    params = new URLSearchParams(window.location.search)
+    expect(params.get('lens')).toBe('structure')
+    expect(params.get('draftView')).toBe('compare')
+    expect(params.get('checkpointId')).toBe(DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID)
+  })
+
+  it('falls back missing draftView to read and missing compare checkpointId to the default checkpoint id', () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals',
+    )
+
+    render(<RouteHarness />)
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'draft',
+      view: 'signals',
+      draftView: 'read',
+    })
+
+    expect(
+      readWorkbenchRouteState(
+        '?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=compare',
+      ),
+    ).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'draft',
+      view: 'signals',
+      draftView: 'compare',
+      checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+    })
+  })
+
+  it('keeps dormant draftView and checkpointId from breaking book structure mode', () => {
+    window.history.replaceState(
+      {},
+      '',
+      `/workbench?scope=book&id=book-signal-arc&lens=structure&view=signals&draftView=compare&checkpointId=${DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID}&selectedChapterId=chapter-signals-in-rain`,
+    )
+
+    render(<RouteHarness />)
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'structure',
+      view: 'signals',
+      draftView: 'compare',
+      checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+      selectedChapterId: 'chapter-signals-in-rain',
+    })
   })
 
   it('preserves the dormant book snapshot when switching away and restores it after returning', async () => {
@@ -561,7 +692,7 @@ describe('useWorkbenchRouteState', () => {
     await user.click(screen.getByRole('button', { name: 'Chapter Assembly' }))
     await user.click(screen.getByRole('button', { name: 'Asset Relations' }))
     await user.click(screen.getByRole('button', { name: 'Book Signals' }))
-    await user.click(screen.getByRole('button', { name: 'Book Draft' }))
+    await user.click(screen.getByRole('button', { name: 'Book Compare' }))
     await user.click(screen.getByRole('button', { name: 'Book Structure' }))
 
     await user.click(screen.getByRole('button', { name: 'Open Scene' }))
@@ -588,6 +719,17 @@ describe('useWorkbenchRouteState', () => {
       assetId: 'asset-ren-voss',
       lens: 'knowledge',
       view: 'relations',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Open Book' }))
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'structure',
+      view: 'signals',
+      draftView: 'compare',
+      checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+      selectedChapterId: 'chapter-open-water-signals',
     })
   })
 })
