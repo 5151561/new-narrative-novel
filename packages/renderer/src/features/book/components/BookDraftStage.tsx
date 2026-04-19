@@ -37,6 +37,7 @@ interface BookDraftStageProps {
   reviewInbox?: BookReviewInboxViewModel | null
   reviewError?: Error | null
   reviewDecisionError?: Error | null
+  reviewFixActionError?: Error | null
   checkpoints: BookManuscriptCheckpointSummaryViewModel[]
   selectedCheckpointId: string
   onSelectDraftView: (draftView: BookDraftView) => void
@@ -57,6 +58,21 @@ interface BookDraftStageProps {
   }) => void
   onClearReviewDecision?: (issueId: string) => void
   isReviewDecisionSaving?: boolean
+  onStartReviewFix?: (input: {
+    issueId: string
+    issueSignature: string
+    handoff: ReviewSourceHandoffViewModel
+    note?: string
+  }) => void
+  onSetReviewFixStatus?: (input: {
+    issueId: string
+    issueSignature: string
+    status: 'checked' | 'blocked'
+    handoff: ReviewSourceHandoffViewModel
+    note?: string
+  }) => void
+  onClearReviewFix?: (issueId: string) => void
+  isReviewFixActionSaving?: boolean
   onOpenReviewSource: (handoff: ReviewSourceHandoffViewModel) => void
 }
 
@@ -77,6 +93,7 @@ export function BookDraftStage({
   reviewInbox = null,
   reviewError = null,
   reviewDecisionError = null,
+  reviewFixActionError = null,
   checkpoints,
   selectedCheckpointId,
   onSelectDraftView,
@@ -92,6 +109,10 @@ export function BookDraftStage({
   onSetReviewDecision = () => undefined,
   onClearReviewDecision = () => undefined,
   isReviewDecisionSaving = false,
+  onStartReviewFix,
+  onSetReviewFixStatus,
+  onClearReviewFix,
+  isReviewFixActionSaving = false,
   onOpenReviewSource,
 }: BookDraftStageProps) {
   const { locale } = useI18n()
@@ -165,12 +186,17 @@ export function BookDraftStage({
           inbox={reviewInbox}
           errorMessage={reviewError?.message ?? null}
           decisionErrorMessage={reviewDecisionError?.message ?? null}
+          fixActionErrorMessage={reviewFixActionError?.message ?? null}
           onSelectFilter={onSelectReviewFilter}
           onSelectStatusFilter={onSelectReviewStatusFilter}
           onSelectIssue={onSelectReviewIssue}
           onSetDecision={onSetReviewDecision}
           onClearDecision={onClearReviewDecision}
           isDecisionSaving={isReviewDecisionSaving}
+          onStartFix={onStartReviewFix}
+          onSetFixStatus={onSetReviewFixStatus}
+          onClearFix={onClearReviewFix}
+          isFixActionSaving={isReviewFixActionSaving}
           onOpenReviewSource={onOpenReviewSource}
         />
       ) : (

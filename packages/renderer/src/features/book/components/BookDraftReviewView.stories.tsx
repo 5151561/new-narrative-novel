@@ -18,7 +18,14 @@ interface BookDraftReviewViewStoryProps {
     note?: string
     stale?: boolean
   }>
+  fixActionStates?: Array<{
+    issueId: string
+    status: 'started' | 'checked' | 'blocked'
+    note?: string
+    stale?: boolean
+  }>
   decisionErrorMessage?: string | null
+  fixActionErrorMessage?: string | null
 }
 
 function StoryComponent({
@@ -28,7 +35,9 @@ function StoryComponent({
   reviewStatusFilter = 'open',
   includeReviewSeeds = true,
   decisionStates = [],
+  fixActionStates = [],
   decisionErrorMessage = null,
+  fixActionErrorMessage = null,
 }: BookDraftReviewViewStoryProps) {
   const { locale } = useI18n()
   const reviewData = buildBookDraftReviewStoryData(locale, {
@@ -38,17 +47,22 @@ function StoryComponent({
     reviewStatusFilter,
     includeReviewSeeds,
     decisionStates,
+    fixActionStates,
   })
 
   return (
     <BookDraftReviewView
       inbox={reviewData.reviewInbox}
       decisionErrorMessage={decisionErrorMessage}
+      fixActionErrorMessage={fixActionErrorMessage}
       onSelectFilter={() => undefined}
       onSelectStatusFilter={() => undefined}
       onSelectIssue={() => undefined}
       onSetDecision={() => undefined}
       onClearDecision={() => undefined}
+      onStartFix={() => undefined}
+      onSetFixStatus={() => undefined}
+      onClearFix={() => undefined}
       onOpenReviewSource={() => undefined}
     />
   )
@@ -162,10 +176,33 @@ export const StaleDecision: Story = {
   },
 }
 
+export const SourceFixStarted: Story = {
+  args: {
+    reviewFilter: 'compare-deltas',
+    reviewStatusFilter: 'open',
+    selectedChapterId: 'chapter-open-water-signals',
+    fixActionStates: [
+      {
+        issueId: 'compare-delta-chapter-open-water-signals-scene-warehouse-bridge',
+        status: 'started',
+        note: 'Source fix started from compare review.',
+      },
+    ],
+  },
+}
+
 export const DecisionErrorPartialInbox: Story = {
   args: {
     reviewFilter: 'all',
     reviewStatusFilter: 'open',
     decisionErrorMessage: 'Review decisions could not be loaded.',
+  },
+}
+
+export const FixActionErrorPartialInbox: Story = {
+  args: {
+    reviewFilter: 'all',
+    reviewStatusFilter: 'open',
+    fixActionErrorMessage: 'Review fix actions could not be loaded.',
   },
 }

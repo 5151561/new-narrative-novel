@@ -6,6 +6,7 @@ import type { BookWorkbenchActivityItem } from '@/features/book/hooks/useBookWor
 import type { BookReviewFilter, BookReviewStatusFilter } from '@/features/workbench/types/workbench-route'
 import { getBookReviewSeeds } from '@/features/review/api/book-review-seeds'
 import type { ReviewIssueDecisionRecord } from '@/features/review/api/review-decision-records'
+import type { ReviewIssueFixActionRecord } from '@/features/review/api/review-fix-action-records'
 import { buildBookReviewInboxViewModel } from '@/features/review/lib/book-review-inbox-mappers'
 import type { BookReviewInboxViewModel } from '@/features/review/types/review-view-models'
 
@@ -602,6 +603,12 @@ export function buildBookDraftReviewStoryData(
       note?: string
       stale?: boolean
     }>
+    fixActionStates?: Array<{
+      issueId: string
+      status: 'started' | 'checked' | 'blocked'
+      note?: string
+      stale?: boolean
+    }>
   },
 ): {
   workspace: BookDraftWorkspaceViewModel
@@ -661,6 +668,34 @@ export function buildBookDraftReviewStoryData(
         } satisfies ReviewIssueDecisionRecord
       })
       .filter((record): record is ReviewIssueDecisionRecord => record !== null) ?? []
+  const fixActions: ReviewIssueFixActionRecord[] =
+    options?.fixActionStates
+      ?.map((fixActionState) => {
+        const issue =
+          baseReviewInbox.issues.find((item) => item.id === fixActionState.issueId) ??
+          baseReviewInbox.selectedIssue ??
+          baseReviewInbox.issues[0]
+        const handoff = issue?.primaryFixHandoff
+        if (!issue || !handoff) {
+          return null
+        }
+
+        return {
+          id: `story-fix-action-${issue.id}`,
+          bookId: exportData.workspace.bookId,
+          issueId: issue.id,
+          issueSignature: fixActionState.stale ? 'story-stale-fix-signature' : issue.issueSignature,
+          sourceHandoffId: handoff.id,
+          sourceHandoffLabel: handoff.label,
+          targetScope: handoff.target.scope,
+          status: fixActionState.status,
+          note: fixActionState.note,
+          startedAtLabel: 'Story source fix started',
+          updatedAtLabel: 'Story source fix updated',
+          updatedByLabel: 'Story reviewer',
+        } satisfies ReviewIssueFixActionRecord
+      })
+      .filter((record): record is ReviewIssueFixActionRecord => record !== null) ?? []
   const reviewInbox = buildBookReviewInboxViewModel({
     bookId: exportData.workspace.bookId,
     currentDraftWorkspace: exportData.workspace,
@@ -672,6 +707,7 @@ export function buildBookDraftReviewStoryData(
     reviewStatusFilter: options?.reviewStatusFilter ?? 'open',
     reviewIssueId: options?.reviewIssueId,
     decisionRecords,
+    fixActions,
   })
 
   return {

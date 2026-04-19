@@ -29,6 +29,10 @@ const issue: ReviewIssueViewModel = {
     status: 'open',
     isStale: false,
   },
+  fixAction: {
+    status: 'not_started',
+    isStale: false,
+  },
   handoffs: [
     {
       id: 'compare-delta-book',
@@ -55,6 +59,19 @@ const issue: ReviewIssueViewModel = {
       },
     },
   ],
+  primaryFixHandoff: {
+    id: 'compare-delta-book',
+    label: 'Open compare review',
+    target: {
+      scope: 'book',
+      lens: 'draft',
+      view: 'sequence',
+      draftView: 'compare',
+      checkpointId: 'checkpoint-1',
+      selectedChapterId: 'chapter-1',
+      reviewIssueId: 'compare-delta-scene-1',
+    },
+  },
 }
 
 describe('ReviewIssueDetail', () => {
@@ -121,5 +138,27 @@ describe('ReviewIssueDetail', () => {
     await user.click(screen.getByRole('button', { name: 'Reopen' }))
 
     expect(onClearDecision).toHaveBeenCalledWith(issue.id)
+  })
+
+  it('renders source fix controls between decision controls and handoff actions with the primary target', () => {
+    render(
+      <AppProviders>
+        <ReviewIssueDetail
+          issue={issue}
+          onOpenHandoff={vi.fn()}
+          onSetDecision={vi.fn()}
+          onClearDecision={vi.fn()}
+          onStartFix={vi.fn()}
+          onSetFixStatus={vi.fn()}
+          onClearFix={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByRole('button', { name: 'Mark reviewed' })).toBeInTheDocument()
+    expect(screen.getByText('Primary fix target')).toBeInTheDocument()
+    expect(screen.getByText('Open compare review · book')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start source fix' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open compare review' })).toBeInTheDocument()
   })
 })

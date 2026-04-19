@@ -22,6 +22,18 @@ function StoryComponent() {
         status: 'reviewed',
       },
     ],
+    fixActionStates: [
+      {
+        issueId: 'branch-warning-scene-warehouse-bridge',
+        status: 'started',
+        note: 'Review branch source before closing.',
+      },
+      {
+        issueId: 'branch-blocker-scene-dawn-slip',
+        status: 'blocked',
+        note: 'Missing source proposal is still blocking the branch.',
+      },
+    ],
   })
 
   return (

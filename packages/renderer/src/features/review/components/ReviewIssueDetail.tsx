@@ -4,6 +4,7 @@ import { FactList } from '@/components/ui/FactList'
 import { useI18n } from '@/app/i18n'
 import type { ReviewIssueSeverity, ReviewIssueViewModel, ReviewSourceHandoffViewModel } from '@/features/review/types/review-view-models'
 import { ReviewDecisionControls } from './ReviewDecisionControls'
+import { ReviewSourceFixControls } from './ReviewSourceFixControls'
 
 interface ReviewIssueDetailProps {
   issue: ReviewIssueViewModel | null
@@ -11,9 +12,14 @@ interface ReviewIssueDetailProps {
   isDecisionSaving?: boolean
   onSetDecision?: ReviewDecisionControlsProps['onSetDecision']
   onClearDecision?: ReviewDecisionControlsProps['onClearDecision']
+  isFixActionSaving?: boolean
+  onStartFix?: ReviewSourceFixControlsProps['onStartFix']
+  onSetFixStatus?: ReviewSourceFixControlsProps['onSetFixStatus']
+  onClearFix?: ReviewSourceFixControlsProps['onClearFix']
 }
 
 type ReviewDecisionControlsProps = Parameters<typeof ReviewDecisionControls>[0]
+type ReviewSourceFixControlsProps = Parameters<typeof ReviewSourceFixControls>[0]
 
 function getSeverityBadge(severity: ReviewIssueSeverity) {
   if (severity === 'blocker') {
@@ -32,6 +38,10 @@ export function ReviewIssueDetail({
   isDecisionSaving = false,
   onSetDecision,
   onClearDecision,
+  isFixActionSaving = false,
+  onStartFix,
+  onSetFixStatus,
+  onClearFix,
 }: ReviewIssueDetailProps) {
   const { locale } = useI18n()
 
@@ -88,6 +98,16 @@ export function ReviewIssueDetail({
           isSaving={isDecisionSaving}
           onSetDecision={onSetDecision}
           onClearDecision={onClearDecision}
+        />
+      ) : null}
+
+      {onStartFix && onSetFixStatus && onClearFix ? (
+        <ReviewSourceFixControls
+          issue={issue}
+          isSaving={isFixActionSaving}
+          onStartFix={onStartFix}
+          onSetFixStatus={onSetFixStatus}
+          onClearFix={onClearFix}
         />
       ) : null}
 

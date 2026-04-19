@@ -453,6 +453,19 @@ function buildBranchWorkspace(): BookExperimentBranchWorkspaceViewModel {
 }
 
 function buildReviewInbox(): BookReviewInboxViewModel {
+  const handoff = {
+    id: 'compare-delta::book-compare',
+    label: 'Open compare review',
+    target: {
+      scope: 'book' as const,
+      lens: 'draft' as const,
+      view: 'signals' as const,
+      draftView: 'compare' as const,
+      checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      selectedChapterId: 'chapter-open-water-signals',
+      reviewIssueId: 'compare-delta-chapter-open-water-signals-scene-warehouse-bridge',
+    },
+  }
   const issue: ReviewIssueViewModel = {
     id: 'compare-delta-chapter-open-water-signals-scene-warehouse-bridge',
     severity: 'warning',
@@ -475,21 +488,12 @@ function buildReviewInbox(): BookReviewInboxViewModel {
       status: 'open',
       isStale: false,
     },
-    handoffs: [
-      {
-        id: 'compare-delta::book-compare',
-        label: 'Open compare review',
-        target: {
-          scope: 'book',
-          lens: 'draft',
-          view: 'signals',
-          draftView: 'compare',
-          checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
-          selectedChapterId: 'chapter-open-water-signals',
-          reviewIssueId: 'compare-delta-chapter-open-water-signals-scene-warehouse-bridge',
-        },
-      },
-    ],
+    fixAction: {
+      status: 'not_started',
+      isStale: false,
+    },
+    handoffs: [handoff],
+    primaryFixHandoff: handoff,
   }
 
   return {
@@ -522,6 +526,10 @@ function buildReviewInbox(): BookReviewInboxViewModel {
       deferred: 0,
       dismissed: 0,
       stale: 0,
+      fixStarted: 0,
+      fixChecked: 0,
+      fixBlocked: 0,
+      fixStale: 0,
     },
     visibleOpenCount: 1,
     selectedChapterIssueCount: 1,
@@ -671,7 +679,7 @@ describe('BookDraftStage', () => {
     expect(screen.getByText('Branch preview')).toBeInTheDocument()
   })
 
-  it('renders BookDraftReviewView in review view', () => {
+  it('renders BookDraftReviewView without source fix controls when fix handlers are not wired', () => {
     render(
       <AppProviders>
         <BookDraftStage
@@ -704,6 +712,57 @@ describe('BookDraftStage', () => {
 
     expect(screen.getByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Review' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: 'Start source fix' })).not.toBeInTheDocument()
+  })
+
+  it('renders source fix controls in review view when explicit fix handlers are wired', async () => {
+    const user = userEvent.setup()
+    const onStartReviewFix = vi.fn()
+
+    render(
+      <AppProviders>
+        <BookDraftStage
+          draftView="review"
+          workspace={buildWorkspace()}
+          compare={buildCompare()}
+          exportPreview={buildExportWorkspace()}
+          branchWorkspace={buildBranchWorkspace()}
+          branches={branches}
+          selectedBranchId="branch-book-signal-arc-quiet-ending"
+          branchBaseline="current"
+          exportProfiles={exportProfiles}
+          selectedExportProfileId="export-review-packet"
+          checkpoints={checkpoints}
+          selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          reviewInbox={buildReviewInbox()}
+          onSelectDraftView={vi.fn()}
+          onSelectChapter={vi.fn()}
+          onOpenChapter={vi.fn()}
+          onSelectCheckpoint={vi.fn()}
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
+          onSelectExportProfile={vi.fn()}
+          onSelectReviewFilter={vi.fn()}
+          onSelectReviewIssue={vi.fn()}
+          onStartReviewFix={onStartReviewFix}
+          onSetReviewFixStatus={vi.fn()}
+          onClearReviewFix={vi.fn()}
+          onOpenReviewSource={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Primary fix target')).toBeInTheDocument()
+    expect(screen.getByText('Open compare review · book')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Start source fix' }))
+
+    expect(onStartReviewFix).toHaveBeenCalledWith({
+      issueId: 'compare-delta-chapter-open-water-signals-scene-warehouse-bridge',
+      issueSignature: 'compare-delta-chapter-open-water-signals-scene-warehouse-bridge::signature',
+      handoff: buildReviewInbox().selectedIssue!.primaryFixHandoff,
+      note: undefined,
+    })
   })
 
   it('passes the specific branch error through the branch stage path', () => {

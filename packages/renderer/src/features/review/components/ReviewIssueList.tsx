@@ -29,9 +29,27 @@ function getGroupLabel(locale: 'en' | 'zh-CN', key: keyof ReviewIssueGroupsViewM
   return key === 'blockers' ? 'Blockers' : key === 'warnings' ? 'Warnings' : 'Info'
 }
 
+function getFixActionBadge(status: ReviewIssueViewModel['fixAction']['status']) {
+  if (status === 'started') {
+    return { tone: 'accent' as const, label: 'Fix started' }
+  }
+  if (status === 'checked') {
+    return { tone: 'success' as const, label: 'Checked' }
+  }
+  if (status === 'blocked') {
+    return { tone: 'danger' as const, label: 'Blocked' }
+  }
+  if (status === 'stale') {
+    return { tone: 'warn' as const, label: 'Fix stale' }
+  }
+
+  return null
+}
+
 function renderIssueRow(issue: ReviewIssueViewModel, selectedIssueId: string | null, onSelectIssue: (issueId: string) => void) {
   const active = issue.id === selectedIssueId
   const severity = getSeverityBadge(issue.severity)
+  const fixActionBadge = getFixActionBadge(issue.fixAction.status)
   const decisionLabel =
     issue.decision.status === 'reviewed'
       ? 'Reviewed'
@@ -60,6 +78,7 @@ function renderIssueRow(issue: ReviewIssueViewModel, selectedIssueId: string | n
               <Badge tone={severity.tone}>{severity.label}</Badge>
               <Badge tone="neutral">{issue.sourceLabel}</Badge>
               {decisionLabel ? <Badge tone={issue.decision.status === 'stale' ? 'danger' : 'accent'}>{decisionLabel}</Badge> : null}
+              {fixActionBadge ? <Badge tone={fixActionBadge.tone}>{fixActionBadge.label}</Badge> : null}
               {issue.decision.note ? <Badge tone="neutral">Decision note</Badge> : null}
             </div>
             <div>

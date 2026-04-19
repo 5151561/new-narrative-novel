@@ -8,6 +8,20 @@ import type { BookReviewInboxViewModel, ReviewIssueViewModel, ReviewSourceHandof
 import { BookDraftReviewView } from './BookDraftReviewView'
 
 function createIssue(id: string, overrides: Partial<ReviewIssueViewModel> = {}): ReviewIssueViewModel {
+  const handoff = {
+    id: `${id}-handoff`,
+    label: 'Open compare review',
+    target: {
+      scope: 'book' as const,
+      lens: 'draft' as const,
+      view: 'sequence' as const,
+      draftView: 'compare' as const,
+      checkpointId: 'checkpoint-1',
+      selectedChapterId: 'chapter-1',
+      reviewIssueId: id,
+    },
+  }
+
   return {
     id,
     severity: 'warning',
@@ -30,21 +44,12 @@ function createIssue(id: string, overrides: Partial<ReviewIssueViewModel> = {}):
       status: 'open',
       isStale: false,
     },
-    handoffs: [
-      {
-        id: `${id}-handoff`,
-        label: 'Open compare review',
-        target: {
-          scope: 'book',
-          lens: 'draft',
-          view: 'sequence',
-          draftView: 'compare',
-          checkpointId: 'checkpoint-1',
-          selectedChapterId: 'chapter-1',
-          reviewIssueId: id,
-        },
-      },
-    ],
+    fixAction: {
+      status: 'not_started',
+      isStale: false,
+    },
+    handoffs: [handoff],
+    primaryFixHandoff: handoff,
     ...overrides,
   }
 }
@@ -104,6 +109,10 @@ function createInbox(): BookReviewInboxViewModel {
       deferred: 0,
       dismissed: 0,
       stale: 0,
+      fixStarted: 0,
+      fixChecked: 0,
+      fixBlocked: 0,
+      fixStale: 0,
     },
     visibleOpenCount: 3,
     selectedChapterIssueCount: 3,
@@ -275,5 +284,66 @@ describe('BookDraftReviewView', () => {
       status: 'reviewed',
       note: undefined,
     })
+  })
+
+  it('keeps filters, status filters, and source fix controls visible and forwards start fix actions', async () => {
+    const user = userEvent.setup()
+    const inbox = createInbox()
+    const onStartFix = vi.fn()
+
+    render(
+      <AppProviders>
+        <BookDraftReviewView
+          inbox={inbox}
+          onSelectFilter={vi.fn()}
+          onSelectStatusFilter={vi.fn()}
+          onSelectIssue={vi.fn()}
+          onSetDecision={vi.fn()}
+          onClearDecision={vi.fn()}
+          onStartFix={onStartFix}
+          onSetFixStatus={vi.fn()}
+          onClearFix={vi.fn()}
+          onOpenReviewSource={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getAllByRole('button', { name: 'All 3' }).length).toBe(2)
+    expect(screen.getByRole('button', { name: 'Open 3' })).toBeInTheDocument()
+    expect(screen.getByText('Primary fix target')).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Source fix note'), 'Open source and compare.')
+    await user.click(screen.getByRole('button', { name: 'Start source fix' }))
+
+    expect(onStartFix).toHaveBeenCalledWith({
+      issueId: 'compare-warning',
+      issueSignature: 'compare-warning::signature',
+      handoff: inbox.selectedIssue!.primaryFixHandoff,
+      note: 'Open source and compare.',
+    })
+  })
+
+  it('shows a partial fix action warning while keeping the inbox visible', () => {
+    render(
+      <AppProviders>
+        <BookDraftReviewView
+          inbox={createInbox()}
+          fixActionErrorMessage='Review fix actions could not be loaded.'
+          onSelectFilter={vi.fn()}
+          onSelectStatusFilter={vi.fn()}
+          onSelectIssue={vi.fn()}
+          onSetDecision={vi.fn()}
+          onClearDecision={vi.fn()}
+          onStartFix={vi.fn()}
+          onSetFixStatus={vi.fn()}
+          onClearFix={vi.fn()}
+          onOpenReviewSource={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Review fix actions unavailable')).toBeInTheDocument()
+    expect(screen.getByText('Review fix actions could not be loaded.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Blockers' })).toBeInTheDocument()
   })
 })

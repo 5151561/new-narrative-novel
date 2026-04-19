@@ -7,6 +7,20 @@ import type { BookReviewInboxViewModel, ReviewIssueViewModel } from '@/features/
 import { ReviewIssueList } from './ReviewIssueList'
 
 function createIssue(id: string, overrides: Partial<ReviewIssueViewModel> = {}): ReviewIssueViewModel {
+  const handoff = {
+    id: `${id}-handoff`,
+    label: 'Open compare review',
+    target: {
+      scope: 'book' as const,
+      lens: 'draft' as const,
+      view: 'sequence' as const,
+      draftView: 'compare' as const,
+      checkpointId: 'checkpoint-1',
+      selectedChapterId: 'chapter-1',
+      reviewIssueId: id,
+    },
+  }
+
   return {
     id,
     severity: 'warning',
@@ -29,21 +43,12 @@ function createIssue(id: string, overrides: Partial<ReviewIssueViewModel> = {}):
       status: 'open',
       isStale: false,
     },
-    handoffs: [
-      {
-        id: `${id}-handoff`,
-        label: 'Open compare review',
-        target: {
-          scope: 'book',
-          lens: 'draft',
-          view: 'sequence',
-          draftView: 'compare',
-          checkpointId: 'checkpoint-1',
-          selectedChapterId: 'chapter-1',
-          reviewIssueId: id,
-        },
-      },
-    ],
+    fixAction: {
+      status: 'not_started',
+      isStale: false,
+    },
+    handoffs: [handoff],
+    primaryFixHandoff: handoff,
     ...overrides,
   }
 }
@@ -148,5 +153,85 @@ describe('ReviewIssueList', () => {
     expect(screen.getByText('Reviewed')).toBeInTheDocument()
     expect(screen.getByText('Decision note')).toBeInTheDocument()
     expect(screen.getByText('Decision stale')).toBeInTheDocument()
+  })
+
+  it('shows fix started, checked, blocked, and stale badges without changing selected highlight', () => {
+    render(
+      <AppProviders>
+        <ReviewIssueList
+          groupedIssues={{
+            blockers: [
+              createIssue('blocked-fix', {
+                title: 'Blocked source fix',
+                severity: 'blocker',
+                fixAction: {
+                  status: 'blocked',
+                  sourceHandoffId: 'blocked-fix-handoff',
+                  sourceHandoffLabel: 'Open compare review',
+                  targetScope: 'book',
+                  updatedAtLabel: '2026-04-19 18:00',
+                  updatedByLabel: 'Editor',
+                  isStale: false,
+                },
+              }),
+            ],
+            warnings: [
+              createIssue('started-fix', {
+                title: 'Started source fix',
+                fixAction: {
+                  status: 'started',
+                  sourceHandoffId: 'started-fix-handoff',
+                  sourceHandoffLabel: 'Open compare review',
+                  targetScope: 'book',
+                  updatedAtLabel: '2026-04-19 18:10',
+                  updatedByLabel: 'Editor',
+                  isStale: false,
+                },
+              }),
+              createIssue('checked-fix', {
+                title: 'Checked source fix',
+                decision: {
+                  status: 'reviewed',
+                  isStale: false,
+                },
+                fixAction: {
+                  status: 'checked',
+                  sourceHandoffId: 'checked-fix-handoff',
+                  sourceHandoffLabel: 'Open compare review',
+                  targetScope: 'book',
+                  updatedAtLabel: '2026-04-19 18:20',
+                  updatedByLabel: 'Editor',
+                  isStale: false,
+                },
+              }),
+            ],
+            info: [
+              createIssue('stale-fix', {
+                title: 'Stale source fix',
+                severity: 'info',
+                fixAction: {
+                  status: 'stale',
+                  sourceHandoffId: 'stale-fix-handoff',
+                  sourceHandoffLabel: 'Open compare review',
+                  targetScope: 'book',
+                  updatedAtLabel: '2026-04-19 18:30',
+                  updatedByLabel: 'Editor',
+                  isStale: true,
+                },
+              }),
+            ],
+          }}
+          selectedIssueId="checked-fix"
+          onSelectIssue={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Fix started')).toBeInTheDocument()
+    expect(screen.getByText('Checked')).toBeInTheDocument()
+    expect(screen.getByText('Blocked')).toBeInTheDocument()
+    expect(screen.getByText('Fix stale')).toBeInTheDocument()
+    expect(screen.getByText('Reviewed')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Checked source fix/i })).toHaveAttribute('aria-pressed', 'true')
   })
 })

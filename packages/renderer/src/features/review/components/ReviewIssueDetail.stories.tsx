@@ -6,18 +6,38 @@ import { buildBookDraftReviewStoryData } from '@/features/book/components/book-d
 
 import { ReviewIssueDetail } from './ReviewIssueDetail'
 
-function StoryComponent() {
+const REVIEW_ISSUE_ID = 'compare-delta-chapter-open-water-signals-scene-warehouse-bridge'
+
+interface StoryComponentProps {
+  reviewed?: boolean
+  fixStarted?: boolean
+}
+
+function StoryComponent({ reviewed = false, fixStarted = false }: StoryComponentProps) {
   const { locale } = useI18n()
   const { reviewInbox } = buildBookDraftReviewStoryData(locale, {
-    reviewFilter: 'scene-proposals',
+    reviewFilter: 'compare-deltas',
+    reviewStatusFilter: reviewed ? 'reviewed' : 'open',
     selectedChapterId: 'chapter-open-water-signals',
-    decisionStates: [
-      {
-        issueId: 'scene-proposal-seed-scene-5',
-        status: 'reviewed',
-        note: 'Proposal reviewed in this pass.',
-      },
-    ],
+    reviewIssueId: REVIEW_ISSUE_ID,
+    decisionStates: reviewed
+      ? [
+          {
+            issueId: REVIEW_ISSUE_ID,
+            status: 'reviewed',
+            note: 'Proposal reviewed in this pass.',
+          },
+        ]
+      : [],
+    fixActionStates: fixStarted
+      ? [
+          {
+            issueId: REVIEW_ISSUE_ID,
+            status: 'started',
+            note: 'Follow the source proposal before marking this reviewed.',
+          },
+        ]
+      : [],
   })
 
   return (
@@ -26,6 +46,9 @@ function StoryComponent() {
       onOpenHandoff={() => undefined}
       onSetDecision={() => undefined}
       onClearDecision={() => undefined}
+      onStartFix={() => undefined}
+      onSetFixStatus={() => undefined}
+      onClearFix={() => undefined}
     />
   )
 }
@@ -34,9 +57,9 @@ const meta = {
   title: 'Business/ReviewIssueDetail',
   component: StoryComponent,
   parameters: { layout: 'padded' },
-  render: () => (
+  render: (args) => (
     <BookStoryShell frameClassName="max-w-3xl rounded-md border border-line-soft bg-surface-1 p-4">
-      <StoryComponent />
+      <StoryComponent {...args} />
     </BookStoryShell>
   ),
 } satisfies Meta<typeof StoryComponent>
@@ -45,6 +68,26 @@ export default meta
 
 type Story = StoryObj<typeof meta>
 
-export const ReviewSceneProposal: Story = {}
+export const ReviewCompareDelta: Story = {
+  render: () => (
+    <BookStoryShell frameClassName="max-w-3xl rounded-md border border-line-soft bg-surface-1 p-4">
+      <StoryComponent />
+    </BookStoryShell>
+  ),
+}
 
-export const ReviewedSceneProposal: Story = {}
+export const ReviewedCompareDelta: Story = {
+  render: () => (
+    <BookStoryShell frameClassName="max-w-3xl rounded-md border border-line-soft bg-surface-1 p-4">
+      <StoryComponent reviewed />
+    </BookStoryShell>
+  ),
+}
+
+export const DecisionReviewedAndFixStarted: Story = {
+  render: () => (
+    <BookStoryShell frameClassName="max-w-3xl rounded-md border border-line-soft bg-surface-1 p-4">
+      <StoryComponent reviewed fixStarted />
+    </BookStoryShell>
+  ),
+}

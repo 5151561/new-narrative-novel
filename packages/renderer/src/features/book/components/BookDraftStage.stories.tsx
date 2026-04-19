@@ -73,6 +73,9 @@ function StoryComponent({
       onSelectExportProfile={() => undefined}
       onSelectReviewFilter={() => undefined}
       onSelectReviewIssue={() => undefined}
+      onStartReviewFix={() => undefined}
+      onSetReviewFixStatus={() => undefined}
+      onClearReviewFix={() => undefined}
       onOpenReviewSource={() => undefined}
     />
   )

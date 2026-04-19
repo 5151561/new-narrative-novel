@@ -13,6 +13,7 @@ interface BookDraftReviewViewProps {
   inbox: BookReviewInboxViewModel | null
   errorMessage?: string | null
   decisionErrorMessage?: string | null
+  fixActionErrorMessage?: string | null
   onSelectFilter: (filter: BookReviewInboxViewModel['activeFilter']) => void
   onSelectStatusFilter: (statusFilter: BookReviewInboxViewModel['activeStatusFilter']) => void
   onSelectIssue: (issueId: string) => void
@@ -24,6 +25,21 @@ interface BookDraftReviewViewProps {
   }) => void
   onClearDecision: (issueId: string) => void
   isDecisionSaving?: boolean
+  onStartFix?: (input: {
+    issueId: string
+    issueSignature: string
+    handoff: ReviewSourceHandoffViewModel
+    note?: string
+  }) => void
+  onSetFixStatus?: (input: {
+    issueId: string
+    issueSignature: string
+    status: 'checked' | 'blocked'
+    handoff: ReviewSourceHandoffViewModel
+    note?: string
+  }) => void
+  onClearFix?: (issueId: string) => void
+  isFixActionSaving?: boolean
   onOpenReviewSource: (handoff: ReviewSourceHandoffViewModel) => void
 }
 
@@ -31,12 +47,17 @@ export function BookDraftReviewView({
   inbox,
   errorMessage = null,
   decisionErrorMessage = null,
+  fixActionErrorMessage = null,
   onSelectFilter,
   onSelectStatusFilter,
   onSelectIssue,
   onSetDecision,
   onClearDecision,
   isDecisionSaving = false,
+  onStartFix,
+  onSetFixStatus,
+  onClearFix,
+  isFixActionSaving = false,
   onOpenReviewSource,
 }: BookDraftReviewViewProps) {
   const { locale } = useI18n()
@@ -87,6 +108,15 @@ export function BookDraftReviewView({
                 {locale === 'zh-CN' ? 'Review decisions unavailable' : 'Review decisions unavailable'}
               </p>
               <p className="mt-2 text-sm leading-6 text-text-main">{decisionErrorMessage}</p>
+            </section>
+          ) : null}
+
+          {inbox && fixActionErrorMessage ? (
+            <section className="rounded-md border border-[rgba(156,122,58,0.28)] bg-[rgba(156,122,58,0.08)] p-4">
+              <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
+                {locale === 'zh-CN' ? 'Review fix actions unavailable' : 'Review fix actions unavailable'}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-text-main">{fixActionErrorMessage}</p>
             </section>
           ) : null}
 
@@ -148,6 +178,10 @@ export function BookDraftReviewView({
                 isDecisionSaving={isDecisionSaving}
                 onSetDecision={onSetDecision}
                 onClearDecision={onClearDecision}
+                isFixActionSaving={isFixActionSaving}
+                onStartFix={onStartFix}
+                onSetFixStatus={onSetFixStatus}
+                onClearFix={onClearFix}
                 onOpenHandoff={onOpenReviewSource}
               />
             </div>
