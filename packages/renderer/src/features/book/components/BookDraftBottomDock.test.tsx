@@ -261,6 +261,13 @@ describe('BookDraftBottomDock', () => {
         detail: 'Export packet is blocked',
         tone: 'neutral',
       },
+      {
+        id: 'review-decision-3',
+        kind: 'review-decision',
+        title: 'Deferred issue Export packet is blocked',
+        detail: 'Carry this into the next review pass.',
+        tone: 'neutral',
+      },
     ]
 
     render(
@@ -285,6 +292,9 @@ describe('BookDraftBottomDock', () => {
             missingDraftCount: 2,
             exportBlockerCount: 1,
             branchBlockerCount: 1,
+            openCount: 4,
+            actionedCount: 3,
+            staleCount: 1,
             blockers: [{ chapterId: 'review:blocker-1', title: 'Open Water Signals', detail: 'Export packet is blocked by one missing scene draft.' }],
             traceGaps: [{ chapterId: 'review:trace-gap-1', title: 'Open Water Signals', detail: 'Dawn Slip still lacks trace coverage.' }],
             missingDrafts: [{ chapterId: 'review:missing-draft-1', title: 'Signals in Rain', detail: 'Departure Bell still has no current draft prose.' }],
@@ -300,8 +310,12 @@ describe('BookDraftBottomDock', () => {
     expect(screen.getAllByText('Missing drafts').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Export blockers').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Branch blockers').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Open').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Actioned').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Decision stale').length).toBeGreaterThan(0)
     expect(screen.getByText('Entered Review')).toBeInTheDocument()
     expect(screen.getByText('Selected review issue Export packet is blocked')).toBeInTheDocument()
     expect(screen.getByText('Opened issue source Open export readiness')).toBeInTheDocument()
+    expect(screen.getByText('Deferred issue Export packet is blocked')).toBeInTheDocument()
   })
 })

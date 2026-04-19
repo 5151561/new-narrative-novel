@@ -24,6 +24,11 @@ const issue: ReviewIssueViewModel = {
   sourceLabel: 'Compare checkpoint',
   sourceExcerpt: 'Checkpoint river excerpt.',
   tags: ['Compare delta', 'Warnings +1'],
+  issueSignature: 'compare-delta-scene-1::signature',
+  decision: {
+    status: 'open',
+    isStale: false,
+  },
   handoffs: [
     {
       id: 'compare-delta-book',
@@ -82,5 +87,39 @@ describe('ReviewIssueDetail', () => {
 
     expect(onOpenHandoff).toHaveBeenNthCalledWith(1, issue.handoffs[0])
     expect(onOpenHandoff).toHaveBeenNthCalledWith(2, issue.handoffs[1])
+  })
+
+  it('renders decision controls and forwards review actions without hiding handoffs', async () => {
+    const user = userEvent.setup()
+    const onSetDecision = vi.fn()
+    const onClearDecision = vi.fn()
+
+    render(
+      <AppProviders>
+        <ReviewIssueDetail
+          issue={{
+            ...issue,
+            decision: {
+              status: 'deferred',
+              note: 'Carry this to the next pass.',
+              updatedAtLabel: '2026-04-19 18:00',
+              updatedByLabel: 'Editor',
+              isStale: false,
+            },
+          }}
+          onOpenHandoff={vi.fn()}
+          onSetDecision={onSetDecision}
+          onClearDecision={onClearDecision}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByRole('button', { name: 'Open compare review' })).toBeInTheDocument()
+    expect(screen.getByText('Deferred')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Carry this to the next pass.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Reopen' }))
+
+    expect(onClearDecision).toHaveBeenCalledWith(issue.id)
   })
 })

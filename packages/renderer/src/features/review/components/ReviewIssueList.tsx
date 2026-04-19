@@ -32,6 +32,16 @@ function getGroupLabel(locale: 'en' | 'zh-CN', key: keyof ReviewIssueGroupsViewM
 function renderIssueRow(issue: ReviewIssueViewModel, selectedIssueId: string | null, onSelectIssue: (issueId: string) => void) {
   const active = issue.id === selectedIssueId
   const severity = getSeverityBadge(issue.severity)
+  const decisionLabel =
+    issue.decision.status === 'reviewed'
+      ? 'Reviewed'
+      : issue.decision.status === 'deferred'
+        ? 'Deferred'
+        : issue.decision.status === 'dismissed'
+          ? 'Dismissed'
+          : issue.decision.status === 'stale'
+            ? 'Decision stale'
+            : null
 
   return (
     <article key={issue.id} className="rounded-md border border-line-soft bg-surface-1">
@@ -49,6 +59,8 @@ function renderIssueRow(issue: ReviewIssueViewModel, selectedIssueId: string | n
             <div className="flex flex-wrap gap-2">
               <Badge tone={severity.tone}>{severity.label}</Badge>
               <Badge tone="neutral">{issue.sourceLabel}</Badge>
+              {decisionLabel ? <Badge tone={issue.decision.status === 'stale' ? 'danger' : 'accent'}>{decisionLabel}</Badge> : null}
+              {issue.decision.note ? <Badge tone="neutral">Decision note</Badge> : null}
             </div>
             <div>
               <p className="text-sm font-medium text-text-main">{issue.title}</p>

@@ -3,11 +3,17 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { FactList } from '@/components/ui/FactList'
 import { useI18n } from '@/app/i18n'
 import type { ReviewIssueSeverity, ReviewIssueViewModel, ReviewSourceHandoffViewModel } from '@/features/review/types/review-view-models'
+import { ReviewDecisionControls } from './ReviewDecisionControls'
 
 interface ReviewIssueDetailProps {
   issue: ReviewIssueViewModel | null
   onOpenHandoff: (handoff: ReviewSourceHandoffViewModel) => void
+  isDecisionSaving?: boolean
+  onSetDecision?: ReviewDecisionControlsProps['onSetDecision']
+  onClearDecision?: ReviewDecisionControlsProps['onClearDecision']
 }
+
+type ReviewDecisionControlsProps = Parameters<typeof ReviewDecisionControls>[0]
 
 function getSeverityBadge(severity: ReviewIssueSeverity) {
   if (severity === 'blocker') {
@@ -20,7 +26,13 @@ function getSeverityBadge(severity: ReviewIssueSeverity) {
   return { tone: 'neutral' as const, label: 'Info' }
 }
 
-export function ReviewIssueDetail({ issue, onOpenHandoff }: ReviewIssueDetailProps) {
+export function ReviewIssueDetail({
+  issue,
+  onOpenHandoff,
+  isDecisionSaving = false,
+  onSetDecision,
+  onClearDecision,
+}: ReviewIssueDetailProps) {
   const { locale } = useI18n()
 
   if (!issue) {
@@ -69,6 +81,15 @@ export function ReviewIssueDetail({ issue, onOpenHandoff }: ReviewIssueDetailPro
         </p>
         <p className="whitespace-pre-wrap text-sm leading-6 text-text-main">{issue.sourceExcerpt ?? '—'}</p>
       </div>
+
+      {onSetDecision && onClearDecision ? (
+        <ReviewDecisionControls
+          issue={issue}
+          isSaving={isDecisionSaving}
+          onSetDecision={onSetDecision}
+          onClearDecision={onClearDecision}
+        />
+      ) : null}
 
       {relatedFacts.length > 0 ? <FactList items={relatedFacts} /> : null}
 

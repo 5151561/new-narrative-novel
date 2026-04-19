@@ -35,6 +35,13 @@ interface BookDraftWorkspaceStoryProps {
   branchBaseline?: 'current' | 'checkpoint'
   exportProfileId?: string
   reviewFilter?: 'all' | 'blockers' | 'trace-gaps' | 'missing-drafts' | 'compare-deltas' | 'export-readiness' | 'branch-readiness' | 'scene-proposals'
+  reviewStatusFilter?: 'open' | 'reviewed' | 'deferred' | 'dismissed' | 'all'
+  decisionStates?: Array<{
+    issueId: string
+    status: 'reviewed' | 'deferred' | 'dismissed'
+    note?: string
+    stale?: boolean
+  }>
   draftView?: 'read' | 'compare' | 'export' | 'branch' | 'review'
   exportState?: 'ready' | 'error'
 }
@@ -78,6 +85,8 @@ function WorkspacePreview({
   branchBaseline = 'current',
   exportProfileId,
   reviewFilter = 'all',
+  reviewStatusFilter = 'open',
+  decisionStates = [],
   draftView = 'read',
   exportState = 'ready',
 }: BookDraftWorkspaceStoryProps) {
@@ -94,6 +103,8 @@ function WorkspacePreview({
     branchId,
     branchBaseline,
     reviewFilter,
+    reviewStatusFilter,
+    decisionStates,
     includeReviewSeeds: !(draftView === 'review' && reviewFilter === 'scene-proposals' && variant === 'quiet-book'),
   })
   const exportError = draftView === 'export' && exportState === 'error' ? buildBookDraftExportBaselineError() : null
@@ -160,8 +171,6 @@ function WorkspacePreview({
           exportError={exportError}
           reviewInbox={draftView === 'review' ? reviewData.reviewInbox : null}
           reviewError={null}
-          selectedReviewFilter={reviewFilter}
-          selectedReviewIssueId={reviewData.reviewInbox.selectedIssueId}
           checkpoints={compareData.checkpoints}
           selectedCheckpointId={compareData.selectedCheckpoint.checkpointId}
           onSelectDraftView={() => undefined}
@@ -172,7 +181,10 @@ function WorkspacePreview({
           onSelectBranchBaseline={() => undefined}
           onSelectExportProfile={() => undefined}
           onSelectReviewFilter={() => undefined}
+          onSelectReviewStatusFilter={() => undefined}
           onSelectReviewIssue={() => undefined}
+          onSetReviewDecision={() => undefined}
+          onClearReviewDecision={() => undefined}
           onOpenReviewSource={() => undefined}
         />
       }
@@ -390,5 +402,20 @@ export const ReviewEmptyFilter: Story = {
     reviewFilter: 'scene-proposals',
     variant: 'quiet-book',
     selectedChapterId: 'chapter-open-water-signals',
+  },
+}
+
+export const ReviewDeferredDecision: Story = {
+  args: {
+    draftView: 'review',
+    reviewFilter: 'export-readiness',
+    reviewStatusFilter: 'deferred',
+    decisionStates: [
+      {
+        issueId: 'export-blocker-scene-dawn-slip',
+        status: 'deferred',
+        note: 'Carry this into the next pass.',
+      },
+    ],
   },
 }

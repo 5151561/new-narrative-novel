@@ -3,8 +3,9 @@ import { useMemo } from 'react'
 import { useI18n, type Locale } from '@/app/i18n'
 import type { BookDraftBranchProblems } from '@/features/book/components/BookDraftBottomDock'
 import type { BookWorkbenchActivityItem } from '@/features/book/hooks/useBookWorkbenchActivity'
-import type { BookReviewFilter } from '@/features/workbench/types/workbench-route'
+import type { BookReviewFilter, BookReviewStatusFilter } from '@/features/workbench/types/workbench-route'
 import { getBookReviewSeeds } from '@/features/review/api/book-review-seeds'
+import type { ReviewIssueDecisionRecord } from '@/features/review/api/review-decision-records'
 import { buildBookReviewInboxViewModel } from '@/features/review/lib/book-review-inbox-mappers'
 import type { BookReviewInboxViewModel } from '@/features/review/types/review-view-models'
 
@@ -592,8 +593,15 @@ export function buildBookDraftReviewStoryData(
     branchId?: string
     branchBaseline?: 'current' | 'checkpoint'
     reviewFilter?: BookReviewFilter
+    reviewStatusFilter?: BookReviewStatusFilter
     reviewIssueId?: string
     includeReviewSeeds?: boolean
+    decisionStates?: Array<{
+      issueId: string
+      status: 'reviewed' | 'deferred' | 'dismissed'
+      note?: string
+      stale?: boolean
+    }>
   },
 ): {
   workspace: BookDraftWorkspaceViewModel
@@ -620,7 +628,7 @@ export function buildBookDraftReviewStoryData(
     branchId: options?.branchId,
     branchBaseline: options?.branchBaseline,
   })
-  const reviewInbox = buildBookReviewInboxViewModel({
+  const baseReviewInbox = buildBookReviewInboxViewModel({
     bookId: exportData.workspace.bookId,
     currentDraftWorkspace: exportData.workspace,
     compareWorkspace: compareData.compare,
@@ -629,6 +637,41 @@ export function buildBookDraftReviewStoryData(
     reviewSeeds: options?.includeReviewSeeds === false ? [] : getBookReviewSeeds(exportData.workspace.bookId),
     reviewFilter: options?.reviewFilter ?? 'all',
     reviewIssueId: options?.reviewIssueId,
+  })
+  const decisionRecords: ReviewIssueDecisionRecord[] =
+    options?.decisionStates
+      ?.map((decisionState) => {
+        const issue =
+          baseReviewInbox.issues.find((item) => item.id === decisionState.issueId) ??
+          baseReviewInbox.selectedIssue ??
+          baseReviewInbox.issues[0]
+        if (!issue) {
+          return null
+        }
+
+        return {
+          id: `story-decision-${issue.id}`,
+          bookId: exportData.workspace.bookId,
+          issueId: issue.id,
+          issueSignature: decisionState.stale ? 'story-stale-signature' : issue.issueSignature,
+          status: decisionState.status,
+          note: decisionState.note,
+          updatedAtLabel: 'Story review decision',
+          updatedByLabel: 'Story reviewer',
+        } satisfies ReviewIssueDecisionRecord
+      })
+      .filter((record): record is ReviewIssueDecisionRecord => record !== null) ?? []
+  const reviewInbox = buildBookReviewInboxViewModel({
+    bookId: exportData.workspace.bookId,
+    currentDraftWorkspace: exportData.workspace,
+    compareWorkspace: compareData.compare,
+    exportWorkspace: exportData.exportWorkspace,
+    branchWorkspace: branchData.branchWorkspace,
+    reviewSeeds: options?.includeReviewSeeds === false ? [] : getBookReviewSeeds(exportData.workspace.bookId),
+    reviewFilter: options?.reviewFilter ?? 'all',
+    reviewStatusFilter: options?.reviewStatusFilter ?? 'open',
+    reviewIssueId: options?.reviewIssueId,
+    decisionRecords,
   })
 
   return {
@@ -721,11 +764,14 @@ export function buildBookDraftReviewProblemsStoryData(
     missingDraftCount: missingDrafts.length,
     exportBlockerCount: exportBlockers.length,
     branchBlockerCount: branchBlockers.length,
+    openCount: reviewInbox.counts.open,
+    actionedCount: reviewInbox.counts.reviewed + reviewInbox.counts.deferred + reviewInbox.counts.dismissed,
     blockers: toItems(blockers),
     traceGaps: toItems(traceGaps),
     missingDrafts: toItems(missingDrafts),
     exportBlockers: toItems(exportBlockers),
     branchBlockers: toItems(branchBlockers),
+    staleCount: reviewInbox.counts.stale,
   }
 }
 

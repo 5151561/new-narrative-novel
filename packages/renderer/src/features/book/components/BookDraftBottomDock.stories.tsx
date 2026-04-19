@@ -27,6 +27,13 @@ interface BookDraftBottomDockStoryProps {
   branchBaseline?: 'current' | 'checkpoint'
   exportProfileId?: string
   reviewFilter?: 'all' | 'blockers' | 'trace-gaps' | 'missing-drafts' | 'compare-deltas' | 'export-readiness' | 'branch-readiness' | 'scene-proposals'
+  reviewStatusFilter?: 'open' | 'reviewed' | 'deferred' | 'dismissed' | 'all'
+  decisionStates?: Array<{
+    issueId: string
+    status: 'reviewed' | 'deferred' | 'dismissed'
+    note?: string
+    stale?: boolean
+  }>
   draftView?: 'read' | 'compare' | 'export' | 'branch' | 'review'
 }
 
@@ -69,6 +76,8 @@ function StoryComponent({
   branchBaseline = 'current',
   exportProfileId,
   reviewFilter = 'all',
+  reviewStatusFilter = 'open',
+  decisionStates = [],
   draftView = 'read',
 }: BookDraftBottomDockStoryProps) {
   const { locale } = useI18n()
@@ -84,6 +93,8 @@ function StoryComponent({
     branchBaseline,
     exportProfileId,
     reviewFilter,
+    reviewStatusFilter,
+    decisionStates,
   })
   const reviewIssue = reviewData.reviewInbox.selectedIssue
 
@@ -233,5 +244,21 @@ export const ReviewBranchReadiness: Story = {
     draftView: 'review',
     reviewFilter: 'branch-readiness',
     selectedChapterId: 'chapter-open-water-signals',
+  },
+}
+
+export const ReviewDeferredDecision: Story = {
+  args: {
+    draftView: 'review',
+    reviewFilter: 'export-readiness',
+    reviewStatusFilter: 'deferred',
+    selectedChapterId: 'chapter-open-water-signals',
+    decisionStates: [
+      {
+        issueId: 'export-blocker-scene-dawn-slip',
+        status: 'deferred',
+        note: 'Carry this into the next pass.',
+      },
+    ],
   },
 }

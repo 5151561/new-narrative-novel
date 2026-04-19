@@ -409,6 +409,30 @@ export function BookDraftInspectorPane({
                           value: reviewSelectedIssue.sourceLabel,
                         },
                         {
+                          id: 'review-decision-status',
+                          label: locale === 'zh-CN' ? 'Decision status' : 'Decision status',
+                          value:
+                            reviewSelectedIssue.decision.status === 'reviewed'
+                              ? locale === 'zh-CN'
+                                ? 'Reviewed'
+                                : 'Reviewed'
+                              : reviewSelectedIssue.decision.status === 'deferred'
+                                ? locale === 'zh-CN'
+                                  ? 'Deferred'
+                                  : 'Deferred'
+                                : reviewSelectedIssue.decision.status === 'dismissed'
+                                  ? locale === 'zh-CN'
+                                    ? 'Dismissed'
+                                    : 'Dismissed'
+                                  : reviewSelectedIssue.decision.status === 'stale'
+                                    ? locale === 'zh-CN'
+                                      ? 'Decision stale'
+                                      : 'Decision stale'
+                                    : locale === 'zh-CN'
+                                      ? 'Open'
+                                      : 'Open',
+                        },
+                        {
                           id: 'review-anchor',
                           label: locale === 'zh-CN' ? '章节 / 场景' : 'Chapter / Scene',
                           value: [reviewSelectedIssue.chapterTitle, reviewSelectedIssue.sceneTitle].filter(Boolean).join(' / ') || '—',
@@ -418,8 +442,23 @@ export function BookDraftInspectorPane({
                           label: locale === 'zh-CN' ? '建议动作' : 'Recommendation',
                           value: reviewSelectedIssue.recommendation,
                         },
+                        {
+                          id: 'review-decision-note',
+                          label: locale === 'zh-CN' ? 'Decision note' : 'Decision note',
+                          value: reviewSelectedIssue.decision.note ?? '—',
+                        },
                       ]}
                     />
+                    {reviewSelectedIssue.decision.isStale ? (
+                      <div className="rounded-md border border-[rgba(162,78,69,0.24)] bg-[rgba(162,78,69,0.08)] p-3">
+                        <p className="text-sm font-medium text-text-main">{locale === 'zh-CN' ? 'Decision stale' : 'Decision stale'}</p>
+                        <p className="mt-2 text-sm leading-6 text-text-muted">
+                          {locale === 'zh-CN'
+                            ? '源内容已变化，这条审阅决策需要重新确认。'
+                            : 'The source content changed, so this review decision needs another pass.'}
+                        </p>
+                      </div>
+                    ) : null}
                   </>
                 ) : (
                   <EmptyState

@@ -6,6 +6,7 @@ import { useI18n } from '@/app/i18n'
 import type { BookDraftView, BookReviewFilter, BookStructureView } from '@/features/workbench/types/workbench-route'
 
 import {
+  rememberBookWorkbenchReviewDecision,
   rememberBookWorkbenchReviewSourceOpen,
   resetRememberedBookWorkbenchHandoffs,
   useBookWorkbenchActivity,
@@ -787,6 +788,114 @@ describe('useBookWorkbenchActivity', () => {
           kind: 'review-source',
           title: '打开问题来源 Open export readiness',
           detail: 'Export packet is blocked',
+        }),
+      ]),
+    )
+  })
+
+  it('records review decision activity and re-localizes the remembered entry', () => {
+    const initialProps: ActivityHookProps = {
+      activeView: 'sequence',
+      activeDraftView: 'review',
+      selectedReviewFilter: 'export-readiness',
+      selectedReviewIssue: {
+        id: 'export-blocker-open-water-signals',
+        title: 'Export packet is blocked',
+        sourceLabel: 'Export readiness',
+        chapterTitle: 'Open Water Signals',
+        sceneTitle: 'Dawn Slip',
+      },
+      selectedChapter: {
+        id: 'chapter-open-water-signals',
+        title: 'Open Water Signals',
+        summary: 'Warehouse pressure should stay legible as the exit opens.',
+      },
+    }
+
+    const { result, rerender } = renderHook(
+      ({ activeDraftView = 'review', selectedReviewFilter = 'export-readiness', selectedReviewIssue, selectedChapter }: ActivityHookProps) => {
+        const activity = useBookWorkbenchActivity({
+          bookId: 'book-signal-arc',
+          activeLens: 'draft',
+          activeView: 'sequence',
+          activeDraftView,
+          selectedReviewFilter,
+          selectedReviewIssue,
+          selectedCheckpoint: null,
+          selectedChapter,
+          maxItems: 8,
+        })
+        const { setLocale, locale } = useI18n()
+
+        return { activity, setLocale, locale }
+      },
+      {
+        initialProps,
+        wrapper: AppProviders,
+      },
+    )
+
+    act(() => {
+      rememberBookWorkbenchReviewDecision({
+        id: 'review-decision-book-signal-arc-deferred',
+        bookId: 'book-signal-arc',
+        issueTitle: 'Export packet is blocked',
+        status: 'deferred',
+        note: 'Carry this into the next review pass.',
+      })
+    })
+
+    rerender({
+      ...initialProps,
+      selectedReviewIssue: {
+        id: 'export-blocker-open-water-signals',
+        title: 'Export packet is blocked',
+        sourceLabel: 'Export readiness',
+        chapterTitle: 'Open Water Signals',
+        sceneTitle: 'Dawn Slip',
+      },
+      selectedChapter: {
+        id: 'chapter-open-water-signals',
+        title: 'Open Water Signals',
+        summary: 'Warehouse pressure should stay legible as the exit opens.',
+      },
+    })
+
+    expect(result.current.activity).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'review-decision',
+          title: 'Deferred issue Export packet is blocked',
+          detail: 'Carry this into the next review pass.',
+        }),
+      ]),
+    )
+
+    act(() => {
+      result.current.setLocale('zh-CN')
+    })
+
+    rerender({
+      ...initialProps,
+      selectedReviewIssue: {
+        id: 'export-blocker-open-water-signals',
+        title: '导出包仍被阻塞',
+        sourceLabel: '导出准备度',
+        chapterTitle: '开阔水域信号',
+        sceneTitle: '黎明滑移',
+      },
+      selectedChapter: {
+        id: 'chapter-open-water-signals',
+        title: '开阔水域信号',
+        summary: '货仓压力要一直撑到出口真正打开。',
+      },
+    })
+
+    expect(result.current.activity).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'review-decision',
+          title: '暂缓问题 Export packet is blocked',
         }),
       ]),
     )

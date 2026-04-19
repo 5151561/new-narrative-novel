@@ -1,4 +1,4 @@
-import type { BookBranchBaseline, BookDraftView, BookReviewFilter } from '@/features/workbench/types/workbench-route'
+import type { BookBranchBaseline, BookDraftView, BookReviewFilter, BookReviewStatusFilter } from '@/features/workbench/types/workbench-route'
 
 import { useI18n } from '@/app/i18n'
 import type { BookReviewInboxViewModel, ReviewSourceHandoffViewModel } from '@/features/review/types/review-view-models'
@@ -36,8 +36,7 @@ interface BookDraftStageProps {
   exportError?: Error | null
   reviewInbox?: BookReviewInboxViewModel | null
   reviewError?: Error | null
-  selectedReviewFilter: BookReviewFilter
-  selectedReviewIssueId?: string | null
+  reviewDecisionError?: Error | null
   checkpoints: BookManuscriptCheckpointSummaryViewModel[]
   selectedCheckpointId: string
   onSelectDraftView: (draftView: BookDraftView) => void
@@ -48,7 +47,16 @@ interface BookDraftStageProps {
   onSelectBranchBaseline: (baseline: BookBranchBaseline) => void
   onSelectExportProfile: (exportProfileId: string) => void
   onSelectReviewFilter: (filter: BookReviewFilter) => void
+  onSelectReviewStatusFilter?: (statusFilter: BookReviewStatusFilter) => void
   onSelectReviewIssue: (issueId: string) => void
+  onSetReviewDecision?: (input: {
+    issueId: string
+    issueSignature: string
+    status: 'reviewed' | 'deferred' | 'dismissed'
+    note?: string
+  }) => void
+  onClearReviewDecision?: (issueId: string) => void
+  isReviewDecisionSaving?: boolean
   onOpenReviewSource: (handoff: ReviewSourceHandoffViewModel) => void
 }
 
@@ -68,8 +76,7 @@ export function BookDraftStage({
   exportError = null,
   reviewInbox = null,
   reviewError = null,
-  selectedReviewFilter,
-  selectedReviewIssueId,
+  reviewDecisionError = null,
   checkpoints,
   selectedCheckpointId,
   onSelectDraftView,
@@ -80,7 +87,11 @@ export function BookDraftStage({
   onSelectBranchBaseline,
   onSelectExportProfile,
   onSelectReviewFilter,
+  onSelectReviewStatusFilter = () => undefined,
   onSelectReviewIssue,
+  onSetReviewDecision = () => undefined,
+  onClearReviewDecision = () => undefined,
+  isReviewDecisionSaving = false,
   onOpenReviewSource,
 }: BookDraftStageProps) {
   const { locale } = useI18n()
@@ -153,8 +164,13 @@ export function BookDraftStage({
         <BookDraftReviewView
           inbox={reviewInbox}
           errorMessage={reviewError?.message ?? null}
+          decisionErrorMessage={reviewDecisionError?.message ?? null}
           onSelectFilter={onSelectReviewFilter}
+          onSelectStatusFilter={onSelectReviewStatusFilter}
           onSelectIssue={onSelectReviewIssue}
+          onSetDecision={onSetReviewDecision}
+          onClearDecision={onClearReviewDecision}
+          isDecisionSaving={isReviewDecisionSaving}
           onOpenReviewSource={onOpenReviewSource}
         />
       ) : (

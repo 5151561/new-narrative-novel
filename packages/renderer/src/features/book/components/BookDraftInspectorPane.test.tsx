@@ -29,6 +29,11 @@ function createReviewIssue(overrides: Partial<ReviewIssueViewModel> = {}): Revie
     sourceLabel: 'Export readiness',
     sourceExcerpt: 'Review Packet still excludes Dawn Slip because the current manuscript is incomplete.',
     tags: ['Export readiness', 'Missing draft'],
+    issueSignature: 'export-blocker-open-water-signals::signature',
+    decision: {
+      status: 'open',
+      isStale: false,
+    },
     handoffs: [
       {
         id: 'review-source-export',
@@ -68,6 +73,7 @@ function createReviewInbox(): BookReviewInboxViewModel {
     selectedIssueId: selectedIssue.id,
     selectedIssue,
     activeFilter: 'export-readiness',
+    activeStatusFilter: 'open',
     issues: [selectedIssue],
     filteredIssues: [selectedIssue],
     groupedIssues: {
@@ -86,7 +92,13 @@ function createReviewInbox(): BookReviewInboxViewModel {
       exportReadiness: 2,
       branchReadiness: 1,
       sceneProposals: 0,
+      open: 1,
+      reviewed: 0,
+      deferred: 0,
+      dismissed: 0,
+      stale: 0,
     },
+    visibleOpenCount: 1,
     selectedChapterIssueCount: 3,
     annotationsByChapterId: {
       'chapter-open-water-signals': [selectedIssue],
@@ -441,6 +453,37 @@ describe('BookDraftInspectorPane', () => {
     expect(screen.getByText('Recommended source action')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Inspector source action Open export readiness' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Inspector source action Open chapter draft' })).toBeInTheDocument()
+  })
+
+  it('shows review decision status, note, stale warning, and next action in review mode', () => {
+    render(
+      <AppProviders>
+        <BookDraftInspectorPane
+          bookTitle="Signal Arc"
+          inspector={inspector}
+          activeDraftView="review"
+          reviewInbox={{
+            ...createReviewInbox(),
+            selectedIssue: createReviewIssue({
+              decision: {
+                status: 'deferred',
+                note: 'Carry this after export baseline is clean.',
+                updatedAtLabel: '2026-04-19 18:20',
+                updatedByLabel: 'Editor',
+                isStale: true,
+              },
+            }),
+          }}
+          onOpenReviewSource={() => undefined}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Decision status')).toBeInTheDocument()
+    expect(screen.getByText('Deferred')).toBeInTheDocument()
+    expect(screen.getByText('Carry this after export baseline is clean.')).toBeInTheDocument()
+    expect(screen.getByText('Decision stale')).toBeInTheDocument()
+    expect(screen.getByText('Recommendation')).toBeInTheDocument()
   })
 
   it.each([

@@ -11,6 +11,17 @@ function StoryComponent() {
   const { reviewInbox } = buildBookDraftReviewStoryData(locale, {
     reviewFilter: 'branch-readiness',
     selectedChapterId: 'chapter-open-water-signals',
+    decisionStates: [
+      {
+        issueId: 'branch-warning-scene-warehouse-bridge',
+        status: 'deferred',
+        note: 'Hold for the next pass.',
+      },
+      {
+        issueId: 'branch-blocker-scene-dawn-slip',
+        status: 'reviewed',
+      },
+    ],
   })
 
   return (

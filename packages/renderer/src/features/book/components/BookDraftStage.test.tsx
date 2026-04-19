@@ -470,6 +470,11 @@ function buildReviewInbox(): BookReviewInboxViewModel {
     sourceLabel: 'Compare: PR11 Baseline',
     sourceExcerpt: 'Current excerpt',
     tags: ['Compare delta', 'changed'],
+    issueSignature: 'compare-delta-chapter-open-water-signals-scene-warehouse-bridge::signature',
+    decision: {
+      status: 'open',
+      isStale: false,
+    },
     handoffs: [
       {
         id: 'compare-delta::book-compare',
@@ -493,6 +498,7 @@ function buildReviewInbox(): BookReviewInboxViewModel {
     selectedIssueId: issue.id,
     selectedIssue: issue,
     activeFilter: 'all',
+    activeStatusFilter: 'open',
     issues: [issue],
     filteredIssues: [issue],
     groupedIssues: {
@@ -511,7 +517,13 @@ function buildReviewInbox(): BookReviewInboxViewModel {
       exportReadiness: 0,
       branchReadiness: 0,
       sceneProposals: 0,
+      open: 1,
+      reviewed: 0,
+      deferred: 0,
+      dismissed: 0,
+      stale: 0,
     },
+    visibleOpenCount: 1,
     selectedChapterIssueCount: 1,
     annotationsByChapterId: {},
   }
@@ -535,8 +547,6 @@ describe('BookDraftStage', () => {
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
           reviewInbox={null}
-          selectedReviewFilter="all"
-          selectedReviewIssueId={null}
           onSelectDraftView={vi.fn()}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -571,8 +581,6 @@ describe('BookDraftStage', () => {
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
           reviewInbox={null}
-          selectedReviewFilter="all"
-          selectedReviewIssueId={null}
           onSelectDraftView={vi.fn()}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -608,8 +616,6 @@ describe('BookDraftStage', () => {
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
           reviewInbox={null}
-          selectedReviewFilter="all"
-          selectedReviewIssueId={null}
           onSelectDraftView={vi.fn()}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -646,8 +652,6 @@ describe('BookDraftStage', () => {
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
           reviewInbox={null}
-          selectedReviewFilter="all"
-          selectedReviewIssueId={null}
           onSelectDraftView={vi.fn()}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -684,8 +688,6 @@ describe('BookDraftStage', () => {
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
           reviewInbox={buildReviewInbox()}
-          selectedReviewFilter="all"
-          selectedReviewIssueId="compare-delta-chapter-open-water-signals-scene-warehouse-bridge"
           onSelectDraftView={vi.fn()}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -722,8 +724,6 @@ describe('BookDraftStage', () => {
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
           reviewInbox={null}
-          selectedReviewFilter="all"
-          selectedReviewIssueId={null}
           onSelectDraftView={vi.fn()}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -762,8 +762,6 @@ describe('BookDraftStage', () => {
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
           reviewInbox={null}
-          selectedReviewFilter="all"
-          selectedReviewIssueId={null}
           onSelectDraftView={onSelectDraftView}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -803,8 +801,6 @@ describe('BookDraftStage', () => {
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
           reviewInbox={null}
-          selectedReviewFilter="all"
-          selectedReviewIssueId={null}
           onSelectDraftView={onSelectDraftView}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -844,8 +840,6 @@ describe('BookDraftStage', () => {
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
           reviewInbox={null}
-          selectedReviewFilter="all"
-          selectedReviewIssueId={null}
           onSelectDraftView={onSelectDraftView}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -885,8 +879,6 @@ describe('BookDraftStage', () => {
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
           reviewInbox={buildReviewInbox()}
-          selectedReviewFilter="all"
-          selectedReviewIssueId="compare-delta-chapter-open-water-signals-scene-warehouse-bridge"
           onSelectDraftView={onSelectDraftView}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}

@@ -24,6 +24,11 @@ function createIssue(id: string, overrides: Partial<ReviewIssueViewModel> = {}):
     sourceLabel: 'Compare checkpoint',
     sourceExcerpt: 'Current excerpt',
     tags: ['Compare delta'],
+    issueSignature: `${id}::signature`,
+    decision: {
+      status: 'open',
+      isStale: false,
+    },
     handoffs: [
       {
         id: `${id}-handoff`,
@@ -103,5 +108,45 @@ describe('ReviewIssueList', () => {
     expect(screen.getAllByText(/Chapter One \/ Scene One/).length).toBeGreaterThan(0)
     expect(screen.getAllByText('Compare delta').length).toBeGreaterThan(0)
     expect(screen.getByText('Queued revision remains')).toBeInTheDocument()
+  })
+
+  it('shows decision status badges, stale state, and note indicators on issue rows', () => {
+    render(
+      <AppProviders>
+        <ReviewIssueList
+          groupedIssues={{
+            blockers: [],
+            warnings: [
+              createIssue('warning-1', {
+                title: 'Reviewed warning',
+                decision: {
+                  status: 'reviewed',
+                  note: 'Handled in this pass.',
+                  updatedAtLabel: '2026-04-19 18:10',
+                  updatedByLabel: 'Editor',
+                  isStale: false,
+                },
+              }),
+              createIssue('warning-2', {
+                title: 'Stale warning',
+                decision: {
+                  status: 'stale',
+                  updatedAtLabel: '2026-04-19 18:20',
+                  updatedByLabel: 'Editor',
+                  isStale: true,
+                },
+              }),
+            ],
+            info: [],
+          }}
+          selectedIssueId="warning-1"
+          onSelectIssue={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Reviewed')).toBeInTheDocument()
+    expect(screen.getByText('Decision note')).toBeInTheDocument()
+    expect(screen.getByText('Decision stale')).toBeInTheDocument()
   })
 })

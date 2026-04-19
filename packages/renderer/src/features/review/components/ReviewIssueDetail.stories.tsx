@@ -11,9 +11,23 @@ function StoryComponent() {
   const { reviewInbox } = buildBookDraftReviewStoryData(locale, {
     reviewFilter: 'scene-proposals',
     selectedChapterId: 'chapter-open-water-signals',
+    decisionStates: [
+      {
+        issueId: 'scene-proposal-seed-scene-5',
+        status: 'reviewed',
+        note: 'Proposal reviewed in this pass.',
+      },
+    ],
   })
 
-  return <ReviewIssueDetail issue={reviewInbox.selectedIssue} onOpenHandoff={() => undefined} />
+  return (
+    <ReviewIssueDetail
+      issue={reviewInbox.selectedIssue}
+      onOpenHandoff={() => undefined}
+      onSetDecision={() => undefined}
+      onClearDecision={() => undefined}
+    />
+  )
 }
 
 const meta = {
@@ -32,3 +46,5 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const ReviewSceneProposal: Story = {}
+
+export const ReviewedSceneProposal: Story = {}

@@ -4,10 +4,12 @@ import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
-import type { BookDraftView, BookReviewFilter } from '@/features/workbench/types/workbench-route'
+import type { BookDraftView, BookReviewFilter, BookReviewStatusFilter } from '@/features/workbench/types/workbench-route'
 
 import { getLocaleName, getWorkbenchLensLabel, useI18n } from '@/app/i18n'
+import { useClearReviewIssueDecisionMutation } from '@/features/review/hooks/useClearReviewIssueDecisionMutation'
 import { useBookReviewInboxQuery } from '@/features/review/hooks/useBookReviewInboxQuery'
+import { useSetReviewIssueDecisionMutation } from '@/features/review/hooks/useSetReviewIssueDecisionMutation'
 import type { ReviewSourceHandoffViewModel } from '@/features/review/types/review-view-models'
 import { BookDraftBinderPane } from '../components/BookDraftBinderPane'
 import { BookDraftInspectorPane } from '../components/BookDraftInspectorPane'
@@ -17,12 +19,17 @@ import { useBookDraftWorkspaceQuery } from '../hooks/useBookDraftWorkspaceQuery'
 import { useBookExperimentBranchQuery } from '../hooks/useBookExperimentBranchQuery'
 import { useBookExportPreviewQuery } from '../hooks/useBookExportPreviewQuery'
 import { useBookManuscriptCompareQuery } from '../hooks/useBookManuscriptCompareQuery'
-import { rememberBookWorkbenchHandoff, rememberBookWorkbenchReviewSourceOpen } from '../hooks/useBookWorkbenchActivity'
+import {
+  rememberBookWorkbenchHandoff,
+  rememberBookWorkbenchReviewDecision,
+  rememberBookWorkbenchReviewSourceOpen,
+} from '../hooks/useBookWorkbenchActivity'
 import { BookDraftDockContainer } from './BookDraftDockContainer'
 import { DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID } from '../api/book-manuscript-checkpoints'
 import { DEFAULT_BOOK_EXPORT_PROFILE_ID } from '../api/book-export-profiles'
 
 let rememberedBookDraftHandoffSequence = 0
+let rememberedBookReviewDecisionSequence = 0
 const DEFAULT_BOOK_EXPERIMENT_BRANCH_ID = 'branch-book-signal-arc-quiet-ending'
 
 function LanguageToggle() {
@@ -121,6 +128,7 @@ export function BookDraftWorkspace() {
   const effectiveBranchId = route.branchId ?? DEFAULT_BOOK_EXPERIMENT_BRANCH_ID
   const effectiveBranchBaseline = route.branchBaseline ?? 'current'
   const selectedReviewFilter = route.reviewFilter ?? 'all'
+  const selectedReviewStatusFilter = route.reviewStatusFilter ?? 'open'
   const selectedReviewIssueId = route.reviewIssueId ?? null
   const {
     compareWorkspace,
@@ -168,6 +176,7 @@ export function BookDraftWorkspace() {
     inbox: reviewInbox,
     isLoading: isReviewLoading,
     error: reviewError,
+    decisionError: reviewDecisionError,
   } = useBookReviewInboxQuery({
     bookId: route.bookId,
     currentDraftWorkspace: workspace,
@@ -181,7 +190,14 @@ export function BookDraftWorkspace() {
     branchStatus: isBranchLoading ? 'loading' : 'ready',
     branchError,
     reviewFilter: selectedReviewFilter,
+    reviewStatusFilter: selectedReviewStatusFilter,
     reviewIssueId: selectedReviewIssueId ?? undefined,
+  })
+  const setReviewIssueDecisionMutation = useSetReviewIssueDecisionMutation({
+    bookId: route.bookId,
+  })
+  const clearReviewIssueDecisionMutation = useClearReviewIssueDecisionMutation({
+    bookId: route.bookId,
   })
 
   useEffect(() => {
@@ -206,16 +222,18 @@ export function BookDraftWorkspace() {
         ? reviewInbox.selectedIssue.chapterId
         : undefined
     const reviewFilterChanged = route.reviewFilter !== reviewInbox.activeFilter
+    const reviewStatusFilterChanged = route.reviewStatusFilter !== reviewInbox.activeStatusFilter
     const reviewIssueChanged = route.reviewIssueId !== nextReviewIssueId
     const selectedChapterChanged = !!nextSelectedChapterId && route.selectedChapterId !== nextSelectedChapterId
 
-    if (!reviewFilterChanged && !reviewIssueChanged && !selectedChapterChanged) {
+    if (!reviewFilterChanged && !reviewStatusFilterChanged && !reviewIssueChanged && !selectedChapterChanged) {
       return
     }
 
     patchBookRoute(
       {
         reviewFilter: reviewInbox.activeFilter,
+        reviewStatusFilter: reviewInbox.activeStatusFilter,
         reviewIssueId: nextReviewIssueId,
         selectedChapterId: nextSelectedChapterId ?? route.selectedChapterId,
       },
@@ -227,6 +245,7 @@ export function BookDraftWorkspace() {
     patchBookRoute,
     reviewInbox,
     route.reviewFilter,
+    route.reviewStatusFilter,
     route.reviewIssueId,
     route.selectedChapterId,
     workspace,
@@ -382,6 +401,15 @@ export function BookDraftWorkspace() {
     },
     [patchBookRoute],
   )
+  const onSelectReviewStatusFilter = useCallback(
+    (reviewStatusFilter: BookReviewStatusFilter) => {
+      patchBookRoute({
+        draftView: 'review',
+        reviewStatusFilter,
+      })
+    },
+    [patchBookRoute],
+  )
   const onSelectReviewIssue = useCallback(
     (reviewIssueId: string) => {
       const issue = reviewInbox?.issues.find((item) => item.id === reviewIssueId)
@@ -397,6 +425,58 @@ export function BookDraftWorkspace() {
       })
     },
     [patchBookRoute, reviewInbox, route.selectedChapterId, workspace],
+  )
+  const onSetReviewDecision = useCallback(
+    (input: {
+      issueId: string
+      issueSignature: string
+      status: 'reviewed' | 'deferred' | 'dismissed'
+      note?: string
+    }) => {
+      const issue = reviewInbox?.issues.find((item) => item.id === input.issueId)
+      const issueTitle = issue?.title
+
+      void setReviewIssueDecisionMutation
+        .mutateAsync(input)
+        .then(() => {
+          if (!issueTitle) {
+            return
+          }
+
+          rememberBookWorkbenchReviewDecision({
+            id: `review-decision-${route.bookId}-${rememberedBookReviewDecisionSequence++}`,
+            bookId: route.bookId,
+            issueTitle,
+            status: input.status,
+            note: input.note,
+          })
+        })
+        .catch(() => undefined)
+    },
+    [reviewInbox, route.bookId, setReviewIssueDecisionMutation],
+  )
+  const onClearReviewDecision = useCallback(
+    (issueId: string) => {
+      const issue = reviewInbox?.issues.find((item) => item.id === issueId)
+      const issueTitle = issue?.title
+
+      void clearReviewIssueDecisionMutation
+        .mutateAsync({ issueId })
+        .then(() => {
+          if (!issueTitle) {
+            return
+          }
+
+          rememberBookWorkbenchReviewDecision({
+            id: `review-decision-${route.bookId}-${rememberedBookReviewDecisionSequence++}`,
+            bookId: route.bookId,
+            issueTitle,
+            status: 'reopened',
+          })
+        })
+        .catch(() => undefined)
+    },
+    [clearReviewIssueDecisionMutation, reviewInbox, route.bookId],
   )
   const onOpenReviewSource = useCallback(
     (handoff: ReviewSourceHandoffViewModel) => {
@@ -576,8 +656,7 @@ export function BookDraftWorkspace() {
           exportError={effectiveExportError}
           reviewInbox={reviewInbox ?? null}
           reviewError={reviewError}
-          selectedReviewFilter={selectedReviewFilter}
-          selectedReviewIssueId={selectedReviewIssueId}
+          reviewDecisionError={reviewDecisionError}
           checkpoints={checkpoints ?? []}
           selectedCheckpointId={selectedCheckpoint?.checkpointId ?? effectiveCheckpointId}
           onSelectDraftView={onSelectDraftView}
@@ -588,7 +667,11 @@ export function BookDraftWorkspace() {
           onSelectBranchBaseline={onSelectBranchBaseline}
           onSelectExportProfile={onSelectExportProfile}
           onSelectReviewFilter={onSelectReviewFilter}
+          onSelectReviewStatusFilter={onSelectReviewStatusFilter}
           onSelectReviewIssue={onSelectReviewIssue}
+          onSetReviewDecision={onSetReviewDecision}
+          onClearReviewDecision={onClearReviewDecision}
+          isReviewDecisionSaving={setReviewIssueDecisionMutation.isPending || clearReviewIssueDecisionMutation.isPending}
           onOpenReviewSource={onOpenReviewSource}
         />
       }

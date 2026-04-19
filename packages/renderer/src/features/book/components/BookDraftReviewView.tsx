@@ -4,6 +4,7 @@ import { PaneHeader } from '@/components/ui/PaneHeader'
 
 import { useI18n } from '@/app/i18n'
 import { BookReviewFilterBar } from '@/features/review/components/BookReviewFilterBar'
+import { BookReviewStatusFilterBar } from '@/features/review/components/BookReviewStatusFilterBar'
 import { ReviewIssueDetail } from '@/features/review/components/ReviewIssueDetail'
 import { ReviewIssueList } from '@/features/review/components/ReviewIssueList'
 import type { BookReviewInboxViewModel, ReviewSourceHandoffViewModel } from '@/features/review/types/review-view-models'
@@ -11,16 +12,31 @@ import type { BookReviewInboxViewModel, ReviewSourceHandoffViewModel } from '@/f
 interface BookDraftReviewViewProps {
   inbox: BookReviewInboxViewModel | null
   errorMessage?: string | null
+  decisionErrorMessage?: string | null
   onSelectFilter: (filter: BookReviewInboxViewModel['activeFilter']) => void
+  onSelectStatusFilter: (statusFilter: BookReviewInboxViewModel['activeStatusFilter']) => void
   onSelectIssue: (issueId: string) => void
+  onSetDecision: (input: {
+    issueId: string
+    issueSignature: string
+    status: 'reviewed' | 'deferred' | 'dismissed'
+    note?: string
+  }) => void
+  onClearDecision: (issueId: string) => void
+  isDecisionSaving?: boolean
   onOpenReviewSource: (handoff: ReviewSourceHandoffViewModel) => void
 }
 
 export function BookDraftReviewView({
   inbox,
   errorMessage = null,
+  decisionErrorMessage = null,
   onSelectFilter,
+  onSelectStatusFilter,
   onSelectIssue,
+  onSetDecision,
+  onClearDecision,
+  isDecisionSaving = false,
   onOpenReviewSource,
 }: BookDraftReviewViewProps) {
   const { locale } = useI18n()
@@ -43,6 +59,7 @@ export function BookDraftReviewView({
               <Badge tone={inbox.counts.warnings > 0 ? 'warn' : 'neutral'}>
                 {locale === 'zh-CN' ? `警告 ${inbox.counts.warnings}` : `Warnings ${inbox.counts.warnings}`}
               </Badge>
+              <Badge tone="neutral">{locale === 'zh-CN' ? `Open ${inbox.visibleOpenCount}` : `Open ${inbox.visibleOpenCount}`}</Badge>
               <Badge tone="neutral">
                 {locale === 'zh-CN'
                   ? `当前章节问题 ${inbox.selectedChapterIssueCount}`
@@ -64,12 +81,28 @@ export function BookDraftReviewView({
             </section>
           ) : null}
 
+          {inbox && decisionErrorMessage ? (
+            <section className="rounded-md border border-[rgba(156,122,58,0.28)] bg-[rgba(156,122,58,0.08)] p-4">
+              <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
+                {locale === 'zh-CN' ? 'Review decisions unavailable' : 'Review decisions unavailable'}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-text-main">{decisionErrorMessage}</p>
+            </section>
+          ) : null}
+
           {inbox ? (
-            <BookReviewFilterBar
-              activeFilter={inbox.activeFilter}
-              counts={inbox.counts}
-              onSelectFilter={onSelectFilter}
-            />
+            <div className="space-y-3">
+              <BookReviewFilterBar
+                activeFilter={inbox.activeFilter}
+                counts={inbox.counts}
+                onSelectFilter={onSelectFilter}
+              />
+              <BookReviewStatusFilterBar
+                activeStatusFilter={inbox.activeStatusFilter}
+                counts={inbox.counts}
+                onSelectStatusFilter={onSelectStatusFilter}
+              />
+            </div>
           ) : null}
 
           {!inbox ? (
@@ -110,7 +143,13 @@ export function BookDraftReviewView({
                   onSelectIssue={onSelectIssue}
                 />
               </section>
-              <ReviewIssueDetail issue={inbox.selectedIssue} onOpenHandoff={onOpenReviewSource} />
+              <ReviewIssueDetail
+                issue={inbox.selectedIssue}
+                isDecisionSaving={isDecisionSaving}
+                onSetDecision={onSetDecision}
+                onClearDecision={onClearDecision}
+                onOpenHandoff={onOpenReviewSource}
+              />
             </div>
           )}
         </div>

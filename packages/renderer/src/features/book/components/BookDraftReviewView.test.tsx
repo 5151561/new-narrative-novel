@@ -25,6 +25,11 @@ function createIssue(id: string, overrides: Partial<ReviewIssueViewModel> = {}):
     sourceLabel: 'Compare checkpoint',
     sourceExcerpt: `Excerpt ${id}`,
     tags: ['Compare delta'],
+    issueSignature: `${id}::signature`,
+    decision: {
+      status: 'open',
+      isStale: false,
+    },
     handoffs: [
       {
         id: `${id}-handoff`,
@@ -75,6 +80,7 @@ function createInbox(): BookReviewInboxViewModel {
     selectedIssueId: warning.id,
     selectedIssue: warning,
     activeFilter: 'all',
+    activeStatusFilter: 'open',
     issues: [blocker, warning, info],
     filteredIssues: [blocker, warning, info],
     groupedIssues: {
@@ -93,7 +99,13 @@ function createInbox(): BookReviewInboxViewModel {
       exportReadiness: 1,
       branchReadiness: 0,
       sceneProposals: 0,
+      open: 3,
+      reviewed: 0,
+      deferred: 0,
+      dismissed: 0,
+      stale: 0,
     },
+    visibleOpenCount: 3,
     selectedChapterIssueCount: 3,
     annotationsByChapterId: {
       'chapter-1': [info],
@@ -105,11 +117,20 @@ describe('BookDraftReviewView', () => {
   it('renders the filter bar, issue groups, and selected issue highlight', () => {
     render(
       <AppProviders>
-        <BookDraftReviewView inbox={createInbox()} onSelectFilter={vi.fn()} onSelectIssue={vi.fn()} onOpenReviewSource={vi.fn()} />
+        <BookDraftReviewView
+          inbox={createInbox()}
+          onSelectFilter={vi.fn()}
+          onSelectStatusFilter={vi.fn()}
+          onSelectIssue={vi.fn()}
+          onSetDecision={vi.fn()}
+          onClearDecision={vi.fn()}
+          onOpenReviewSource={vi.fn()}
+        />
       </AppProviders>,
     )
 
-    expect(screen.getByRole('button', { name: 'All 3' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'All 3' }).length).toBe(2)
+    expect(screen.getByRole('button', { name: 'Open 3' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Blockers' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Warnings' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Info' })).toBeInTheDocument()
@@ -122,7 +143,15 @@ describe('BookDraftReviewView', () => {
 
     render(
       <AppProviders>
-        <BookDraftReviewView inbox={createInbox()} onSelectFilter={vi.fn()} onSelectIssue={onSelectIssue} onOpenReviewSource={vi.fn()} />
+        <BookDraftReviewView
+          inbox={createInbox()}
+          onSelectFilter={vi.fn()}
+          onSelectStatusFilter={vi.fn()}
+          onSelectIssue={onSelectIssue}
+          onSetDecision={vi.fn()}
+          onClearDecision={vi.fn()}
+          onOpenReviewSource={vi.fn()}
+        />
       </AppProviders>,
     )
 
@@ -139,7 +168,15 @@ describe('BookDraftReviewView', () => {
 
     render(
       <AppProviders>
-        <BookDraftReviewView inbox={inbox} onSelectFilter={vi.fn()} onSelectIssue={vi.fn()} onOpenReviewSource={onOpenReviewSource} />
+        <BookDraftReviewView
+          inbox={inbox}
+          onSelectFilter={vi.fn()}
+          onSelectStatusFilter={vi.fn()}
+          onSelectIssue={vi.fn()}
+          onSetDecision={vi.fn()}
+          onClearDecision={vi.fn()}
+          onOpenReviewSource={onOpenReviewSource}
+        />
       </AppProviders>,
     )
 
@@ -167,7 +204,15 @@ describe('BookDraftReviewView', () => {
 
     render(
       <AppProviders>
-        <BookDraftReviewView inbox={emptyInbox} onSelectFilter={vi.fn()} onSelectIssue={vi.fn()} onOpenReviewSource={vi.fn()} />
+        <BookDraftReviewView
+          inbox={emptyInbox}
+          onSelectFilter={vi.fn()}
+          onSelectStatusFilter={vi.fn()}
+          onSelectIssue={vi.fn()}
+          onSetDecision={vi.fn()}
+          onClearDecision={vi.fn()}
+          onOpenReviewSource={vi.fn()}
+        />
       </AppProviders>,
     )
 
@@ -183,15 +228,52 @@ describe('BookDraftReviewView', () => {
         <BookDraftReviewView
           inbox={createInbox()}
           errorMessage='Book manuscript checkpoint "checkpoint-missing" could not be found for "book-signal-arc".'
+          decisionErrorMessage='Review decisions could not be loaded.'
           onSelectFilter={vi.fn()}
+          onSelectStatusFilter={vi.fn()}
           onSelectIssue={vi.fn()}
+          onSetDecision={vi.fn()}
+          onClearDecision={vi.fn()}
           onOpenReviewSource={vi.fn()}
         />
       </AppProviders>,
     )
 
     expect(screen.getByText('Review sources unavailable')).toBeInTheDocument()
+    expect(screen.getByText('Review decisions unavailable')).toBeInTheDocument()
+    expect(screen.getByText('Review decisions could not be loaded.')).toBeInTheDocument()
     expect(screen.getByText('Book manuscript checkpoint "checkpoint-missing" could not be found for "book-signal-arc".')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Blockers' })).toBeInTheDocument()
+  })
+
+  it('forwards review status filter and decision actions', async () => {
+    const user = userEvent.setup()
+    const onSelectStatusFilter = vi.fn()
+    const onSetDecision = vi.fn()
+
+    render(
+      <AppProviders>
+        <BookDraftReviewView
+          inbox={createInbox()}
+          onSelectFilter={vi.fn()}
+          onSelectStatusFilter={onSelectStatusFilter}
+          onSelectIssue={vi.fn()}
+          onSetDecision={onSetDecision}
+          onClearDecision={vi.fn()}
+          onOpenReviewSource={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Deferred 0' }))
+    await user.click(screen.getByRole('button', { name: 'Mark reviewed' }))
+
+    expect(onSelectStatusFilter).toHaveBeenCalledWith('deferred')
+    expect(onSetDecision).toHaveBeenCalledWith({
+      issueId: 'compare-warning',
+      issueSignature: 'compare-warning::signature',
+      status: 'reviewed',
+      note: undefined,
+    })
   })
 })

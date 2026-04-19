@@ -45,6 +45,9 @@ export interface BookDraftReviewProblems {
   missingDraftCount: number
   exportBlockerCount: number
   branchBlockerCount: number
+  openCount: number
+  actionedCount: number
+  staleCount: number
   blockers: BookDraftDockSummaryItem[]
   traceGaps: BookDraftDockSummaryItem[]
   missingDrafts: BookDraftDockSummaryItem[]
@@ -122,7 +125,7 @@ function getActivityMeta(locale: 'en' | 'zh-CN', item: BookWorkbenchActivityItem
     return locale === 'zh-CN' ? '导出配置' : 'Profile'
   }
 
-  if (item.kind === 'review-filter' || item.kind === 'review-issue' || item.kind === 'review-source') {
+  if (item.kind === 'review-filter' || item.kind === 'review-issue' || item.kind === 'review-decision' || item.kind === 'review-source') {
     return locale === 'zh-CN' ? '审阅' : 'Review'
   }
 
@@ -177,6 +180,9 @@ export function BookDraftBottomDock({
               { id: 'review-missing-drafts', label: locale === 'zh-CN' ? '缺稿' : 'Missing drafts', value: `${reviewProblems.missingDraftCount}` },
               { id: 'review-export-blockers', label: locale === 'zh-CN' ? '导出阻塞' : 'Export blockers', value: `${reviewProblems.exportBlockerCount}` },
               { id: 'review-branch-blockers', label: locale === 'zh-CN' ? '实验稿阻塞' : 'Branch blockers', value: `${reviewProblems.branchBlockerCount}` },
+              { id: 'review-open', label: locale === 'zh-CN' ? 'Open' : 'Open', value: `${reviewProblems.openCount}` },
+              { id: 'review-actioned', label: locale === 'zh-CN' ? 'Actioned' : 'Actioned', value: `${reviewProblems.actionedCount}` },
+              { id: 'review-stale', label: locale === 'zh-CN' ? 'Decision stale' : 'Decision stale', value: `${reviewProblems.staleCount}` },
             ]
         : [
             { id: 'missing-draft-count', label: locale === 'zh-CN' ? '缺稿章节' : 'Missing draft chapters', value: `${summary.missingDraftChapterCount}` },

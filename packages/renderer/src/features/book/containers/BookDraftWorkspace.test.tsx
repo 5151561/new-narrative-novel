@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
+import { resetMockReviewDecisionDb } from '@/features/review/api/mock-review-decision-db'
+import { reviewClient } from '@/features/review/api/review-client'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 
 import * as bookExperimentBranchQueryModule from '../hooks/useBookExperimentBranchQuery'
@@ -19,6 +21,7 @@ describe('BookDraftWorkspace', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     resetRememberedBookWorkbenchHandoffs()
+    resetMockReviewDecisionDb()
   })
 
   it('keeps binder reader inspector and dock aligned to route.selectedChapterId and roundtrips through chapter draft', async () => {
@@ -526,6 +529,94 @@ describe('BookDraftWorkspace', () => {
       expect(params.get('reviewFilter')).toBe('blockers')
       expect(params.get('view')).toBe('signals')
     })
+  })
+
+  it('moves review issues between open and deferred queues and records review decision activity', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=all&reviewStatusFilter=open&reviewIssueId=compare-delta-chapter-2-scene-3&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+    expect(screen.getByDisplayValue('')).toBeInTheDocument()
+    const deferredIssueId = new URLSearchParams(window.location.search).get('reviewIssueId')
+
+    await user.click(screen.getByRole('button', { name: 'Defer' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('reviewStatusFilter')).toBe('open')
+      expect(params.get('reviewIssueId')).not.toBe('compare-delta-chapter-2-scene-3')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Deferred 1' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('reviewStatusFilter')).toBe('deferred')
+      expect(params.get('reviewIssueId')).toBe(deferredIssueId)
+    })
+
+    expect(screen.getAllByText('Deferred').length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: 'Reopen' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('No issues in this filter')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /^Open \d+$/ }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('reviewStatusFilter')).toBe('open')
+      expect(params.get('reviewIssueId')).toBe(deferredIssueId)
+    })
+
+    const bottomDock = screen.getByLabelText('Book draft bottom dock')
+    expect(within(bottomDock).getByText(/Deferred issue/)).toBeInTheDocument()
+    expect(within(bottomDock).getByText(/Reopened issue/)).toBeInTheDocument()
+  })
+
+  it('does not record review decision activity when deferring fails', async () => {
+    const user = userEvent.setup()
+    const setReviewIssueDecisionSpy = vi.spyOn(reviewClient, 'setReviewIssueDecision').mockRejectedValueOnce(new Error('Decision failed'))
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=all&reviewStatusFilter=open&reviewIssueId=compare-delta-chapter-2-scene-3&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Defer' }))
+
+    await waitFor(() => {
+      expect(setReviewIssueDecisionSpy).toHaveBeenCalledTimes(1)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Defer' })).toBeInTheDocument()
+    })
+
+    const bottomDock = screen.getByLabelText('Book draft bottom dock')
+    expect(within(bottomDock).queryByText(/Deferred issue/)).not.toBeInTheDocument()
   })
 
   it('derives review problems for the bottom dock from the runtime review inbox', async () => {

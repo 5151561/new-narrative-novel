@@ -56,6 +56,14 @@ export interface BookWorkbenchReviewSourceEvent {
   sourceActionLabel: string
 }
 
+export interface BookWorkbenchReviewDecisionEvent {
+  id: string
+  bookId: string
+  issueTitle: string
+  status: 'reviewed' | 'deferred' | 'dismissed' | 'reopened'
+  note?: string
+}
+
 export type BookWorkbenchActivityKind =
   | 'lens'
   | 'view'
@@ -68,6 +76,7 @@ export type BookWorkbenchActivityKind =
   | 'export-profile'
   | 'review-filter'
   | 'review-issue'
+  | 'review-decision'
   | 'review-source'
 
 interface BookWorkbenchActivityEntry {
@@ -94,6 +103,10 @@ interface BookWorkbenchActivityEntry {
     | 'selected-export-profile'
     | 'selected-review-filter'
     | 'selected-review-issue'
+    | 'marked-reviewed'
+    | 'deferred-issue'
+    | 'dismissed-issue'
+    | 'reopened-issue'
     | 'opened-review-source'
   lens?: BookLens
   view?: BookStructureView
@@ -114,6 +127,7 @@ interface BookWorkbenchActivityEntry {
   reviewIssueSourceLabel?: string
   reviewIssueChapterTitle?: string
   reviewIssueSceneTitle?: string
+  reviewDecisionNote?: string
   reviewSourceActionLabel?: string
 }
 
@@ -143,6 +157,7 @@ interface UseBookWorkbenchActivityOptions {
 
 const rememberedBookHandoffsByBookId = new Map<string, BookWorkbenchActivityEntry[]>()
 const rememberedBookReviewSourceByBookId = new Map<string, BookWorkbenchActivityEntry[]>()
+const rememberedBookReviewDecisionByBookId = new Map<string, BookWorkbenchActivityEntry[]>()
 
 function buildHandoffActivityEntry(event: BookWorkbenchHandoffEvent): BookWorkbenchActivityEntry {
   return {
@@ -181,9 +196,36 @@ export function rememberBookWorkbenchReviewSourceOpen(event: BookWorkbenchReview
   rememberedBookReviewSourceByBookId.set(event.bookId, [nextEntry, ...dedupedEntries].slice(0, maxItems))
 }
 
+function buildReviewDecisionActivityEntry(event: BookWorkbenchReviewDecisionEvent): BookWorkbenchActivityEntry {
+  return {
+    id: event.id,
+    kind: 'review-decision',
+    tone: event.status === 'reviewed' ? 'accent' : 'neutral',
+    action:
+      event.status === 'reviewed'
+        ? 'marked-reviewed'
+        : event.status === 'deferred'
+          ? 'deferred-issue'
+          : event.status === 'dismissed'
+            ? 'dismissed-issue'
+            : 'reopened-issue',
+    reviewIssueTitle: event.issueTitle,
+    reviewDecisionNote: event.note,
+  }
+}
+
+export function rememberBookWorkbenchReviewDecision(event: BookWorkbenchReviewDecisionEvent, maxItems = 6) {
+  const nextEntry = buildReviewDecisionActivityEntry(event)
+  const currentEntries = rememberedBookReviewDecisionByBookId.get(event.bookId) ?? []
+  const dedupedEntries = currentEntries.filter((entry) => entry.id !== nextEntry.id)
+
+  rememberedBookReviewDecisionByBookId.set(event.bookId, [nextEntry, ...dedupedEntries].slice(0, maxItems))
+}
+
 export function resetRememberedBookWorkbenchHandoffs() {
   rememberedBookHandoffsByBookId.clear()
   rememberedBookReviewSourceByBookId.clear()
+  rememberedBookReviewDecisionByBookId.clear()
 }
 
 function getViewLabel(locale: 'en' | 'zh-CN', view: BookStructureView) {
@@ -447,6 +489,37 @@ function localizeActivityEntry(
     }
   }
 
+  if (entry.kind === 'review-decision') {
+    const verb =
+      entry.action === 'marked-reviewed'
+        ? locale === 'zh-CN'
+          ? '标记已阅'
+          : 'Marked reviewed'
+        : entry.action === 'deferred-issue'
+          ? locale === 'zh-CN'
+            ? '暂缓问题'
+            : 'Deferred issue'
+          : entry.action === 'dismissed-issue'
+            ? locale === 'zh-CN'
+              ? '本轮忽略'
+              : 'Dismissed issue'
+            : locale === 'zh-CN'
+              ? '重新打开问题'
+              : 'Reopened issue'
+
+    return {
+      id: entry.id,
+      kind: entry.kind,
+      tone: entry.tone,
+      title: `${verb} ${entry.reviewIssueTitle ?? ''}`.trim(),
+      detail:
+        entry.reviewDecisionNote ??
+        (locale === 'zh-CN'
+          ? 'Review 决策保持会话级活动记录，不接管 issue 真源。'
+          : 'Review decisions stay session-local in activity without becoming the source of truth.'),
+    }
+  }
+
   if (entry.kind === 'review-source') {
     return {
       id: entry.id,
@@ -500,6 +573,7 @@ export function useBookWorkbenchActivity({
   const lastChapterIdRef = useRef<string | null>(null)
   const seenHandoffIdsRef = useRef<Set<string>>(new Set())
   const seenReviewSourceIdsRef = useRef<Set<string>>(new Set())
+  const seenReviewDecisionIdsRef = useRef<Set<string>>(new Set())
   const sequenceRef = useRef(0)
 
   useEffect(() => {
@@ -527,6 +601,7 @@ export function useBookWorkbenchActivity({
       lastChapterIdRef.current = null
       seenHandoffIdsRef.current = new Set()
       seenReviewSourceIdsRef.current = new Set()
+      seenReviewDecisionIdsRef.current = new Set()
       sequenceRef.current = 0
 
       if (localeChanged) {
@@ -755,6 +830,16 @@ export function useBookWorkbenchActivity({
 
       nextEntries.unshift(reviewSourceEntry)
       seenReviewSourceIdsRef.current.add(reviewSourceEntry.id)
+    }
+
+    const rememberedReviewDecisionEntries = rememberedBookReviewDecisionByBookId.get(bookId) ?? []
+    for (const reviewDecisionEntry of [...rememberedReviewDecisionEntries].reverse()) {
+      if (seenReviewDecisionIdsRef.current.has(reviewDecisionEntry.id)) {
+        continue
+      }
+
+      nextEntries.unshift(reviewDecisionEntry)
+      seenReviewDecisionIdsRef.current.add(reviewDecisionEntry.id)
     }
 
     if (nextEntries.length === 0) {

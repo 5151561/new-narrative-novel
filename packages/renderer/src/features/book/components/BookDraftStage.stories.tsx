@@ -62,8 +62,6 @@ function StoryComponent({
       selectedExportProfileId={exportData.selectedExportProfile.exportProfileId}
       reviewInbox={draftView === 'review' ? reviewData.reviewInbox : null}
       reviewError={null}
-      selectedReviewFilter={reviewFilter}
-      selectedReviewIssueId={reviewData.reviewInbox.selectedIssueId}
       checkpoints={compareData.checkpoints}
       selectedCheckpointId={compareData.selectedCheckpoint.checkpointId}
       onSelectDraftView={() => undefined}
