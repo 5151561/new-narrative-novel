@@ -168,6 +168,21 @@ function RouteHarness() {
           patchBookRoute({
             bookId: 'book-signal-arc',
             lens: 'draft',
+            draftView: 'review',
+            reviewFilter: 'blockers',
+            reviewIssueId: 'issue-export-blocker',
+            selectedChapterId: 'chapter-open-water-signals',
+          } satisfies Partial<BookRouteState>)
+        }
+      >
+        Book Review
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchBookRoute({
+            bookId: 'book-signal-arc',
+            lens: 'draft',
             draftView: 'branch',
             branchId: DEFAULT_BOOK_EXPERIMENT_BRANCH_ID,
             branchBaseline: 'current',
@@ -549,6 +564,27 @@ describe('useWorkbenchRouteState', () => {
     })
   })
 
+  it('reads review draft links with reviewFilter and reviewIssueId while preserving dormant structure view', () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=trace-gaps&reviewIssueId=issue-trace-gap&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(<RouteHarness />)
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'draft',
+      view: 'signals',
+      draftView: 'review',
+      reviewFilter: 'trace-gaps',
+      reviewIssueId: 'issue-trace-gap',
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+  })
+
   it('reads branch draft links with branchId and current baseline while retaining structure view state', () => {
     window.history.replaceState(
       {},
@@ -731,6 +767,57 @@ describe('useWorkbenchRouteState', () => {
     expect(params.get('checkpointId')).toBe(DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID)
   })
 
+  it('writes and restores book review draftView with reviewFilter and reviewIssueId while preserving the dormant structure view', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=structure&view=outliner&selectedChapterId=chapter-signals-in-rain',
+    )
+
+    render(<RouteHarness />)
+
+    await user.click(screen.getByRole('button', { name: 'Book Review' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'draft',
+      view: 'outliner',
+      draftView: 'review',
+      reviewFilter: 'blockers',
+      reviewIssueId: 'issue-export-blocker',
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+
+    let params = new URLSearchParams(window.location.search)
+    expect(params.get('draftView')).toBe('review')
+    expect(params.get('reviewFilter')).toBe('blockers')
+    expect(params.get('reviewIssueId')).toBe('issue-export-blocker')
+    expect(params.get('view')).toBe('outliner')
+
+    await user.click(screen.getByRole('button', { name: 'Book Structure' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'structure',
+      view: 'outliner',
+      draftView: 'review',
+      reviewFilter: 'blockers',
+      reviewIssueId: 'issue-export-blocker',
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+
+    params = new URLSearchParams(window.location.search)
+    expect(params.get('lens')).toBe('structure')
+    expect(params.get('view')).toBe('outliner')
+    expect(params.get('draftView')).toBe('review')
+    expect(params.get('reviewFilter')).toBe('blockers')
+    expect(params.get('reviewIssueId')).toBe('issue-export-blocker')
+  })
+
   it('writes and restores book branch draftView with current baseline while keeping structure view stable', async () => {
     const user = userEvent.setup()
 
@@ -837,6 +924,44 @@ describe('useWorkbenchRouteState', () => {
     expect(params.get('branchId')).toBe('branch-book-signal-arc-high-pressure')
     expect(params.get('branchBaseline')).toBe('checkpoint')
     expect(params.get('checkpointId')).toBe(DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID)
+  })
+
+  it('keeps dormant checkpoint export and branch state intact when switching into review draftView', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      `/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=branch&branchId=${DEFAULT_BOOK_EXPERIMENT_BRANCH_ID}&branchBaseline=checkpoint&checkpointId=${DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID}&exportProfileId=${DEFAULT_BOOK_EXPORT_PROFILE_ID}&selectedChapterId=chapter-signals-in-rain`,
+    )
+
+    render(<RouteHarness />)
+
+    await user.click(screen.getByRole('button', { name: 'Book Review' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'draft',
+      view: 'signals',
+      draftView: 'review',
+      reviewFilter: 'blockers',
+      reviewIssueId: 'issue-export-blocker',
+      branchId: DEFAULT_BOOK_EXPERIMENT_BRANCH_ID,
+      branchBaseline: 'checkpoint',
+      checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+      exportProfileId: DEFAULT_BOOK_EXPORT_PROFILE_ID,
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+
+    const params = new URLSearchParams(window.location.search)
+    expect(params.get('draftView')).toBe('review')
+    expect(params.get('reviewFilter')).toBe('blockers')
+    expect(params.get('reviewIssueId')).toBe('issue-export-blocker')
+    expect(params.get('branchId')).toBe(DEFAULT_BOOK_EXPERIMENT_BRANCH_ID)
+    expect(params.get('branchBaseline')).toBe('checkpoint')
+    expect(params.get('checkpointId')).toBe(DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID)
+    expect(params.get('exportProfileId')).toBe(DEFAULT_BOOK_EXPORT_PROFILE_ID)
   })
 
   it('falls back missing draftView to read and missing compare checkpointId to the default checkpoint id', () => {
@@ -975,6 +1100,22 @@ describe('useWorkbenchRouteState', () => {
     })
   })
 
+  it('falls back reviewFilter to all when the review draftView deep link omits it', () => {
+    expect(
+      readWorkbenchRouteState(
+        '?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewIssueId=issue-trace-gap',
+      ),
+    ).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'draft',
+      view: 'signals',
+      draftView: 'review',
+      reviewFilter: 'all',
+      reviewIssueId: 'issue-trace-gap',
+    })
+  })
+
   it('preserves the dormant book snapshot when switching away and restores it after returning', async () => {
     const user = userEvent.setup()
 
@@ -1067,7 +1208,7 @@ describe('useWorkbenchRouteState', () => {
     await user.click(screen.getByRole('button', { name: 'Chapter Assembly' }))
     await user.click(screen.getByRole('button', { name: 'Asset Relations' }))
     await user.click(screen.getByRole('button', { name: 'Book Signals' }))
-    await user.click(screen.getByRole('button', { name: 'Book Branch Checkpoint' }))
+    await user.click(screen.getByRole('button', { name: 'Book Review' }))
     await user.click(screen.getByRole('button', { name: 'Book Structure' }))
 
     await user.click(screen.getByRole('button', { name: 'Open Scene' }))
@@ -1102,10 +1243,9 @@ describe('useWorkbenchRouteState', () => {
       bookId: 'book-signal-arc',
       lens: 'structure',
       view: 'signals',
-      draftView: 'branch',
-      branchId: 'branch-book-signal-arc-high-pressure',
-      branchBaseline: 'checkpoint',
-      checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+      draftView: 'review',
+      reviewFilter: 'blockers',
+      reviewIssueId: 'issue-export-blocker',
       selectedChapterId: 'chapter-open-water-signals',
     })
   })

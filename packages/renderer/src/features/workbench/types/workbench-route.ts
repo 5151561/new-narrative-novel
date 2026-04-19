@@ -10,8 +10,17 @@ export type SceneRouteModal = 'export'
 export type ChapterStructureView = 'sequence' | 'outliner' | 'assembly'
 export type AssetKnowledgeView = 'profile' | 'mentions' | 'relations'
 export type BookStructureView = 'sequence' | 'outliner' | 'signals'
-export type BookDraftView = 'read' | 'compare' | 'export' | 'branch'
+export type BookDraftView = 'read' | 'compare' | 'export' | 'branch' | 'review'
 export type BookBranchBaseline = 'current' | 'checkpoint'
+export type BookReviewFilter =
+  | 'all'
+  | 'blockers'
+  | 'trace-gaps'
+  | 'missing-drafts'
+  | 'compare-deltas'
+  | 'export-readiness'
+  | 'branch-readiness'
+  | 'scene-proposals'
 
 export interface SceneRouteState {
   scope: 'scene'
@@ -48,6 +57,8 @@ export interface BookRouteState {
   branchBaseline?: BookBranchBaseline
   checkpointId?: string
   exportProfileId?: string
+  reviewFilter?: BookReviewFilter
+  reviewIssueId?: string
   selectedChapterId?: string
 }
 
