@@ -46,7 +46,7 @@ export function AssetBottomDock({ summary, activity }: AssetBottomDockProps) {
                   ? [
                       {
                         id: 'without-canon-backing',
-                        label: locale === 'zh-CN' ? '无 canon 支撑' : 'Without canon backing',
+                        label: locale === 'zh-CN' ? '无正典支撑' : 'Without canon backing',
                         value: `${summary.mentionsWithoutCanonBackingCount ?? 0}`,
                       },
                       {

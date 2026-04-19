@@ -64,7 +64,7 @@ export function ProposalCard({
         </div>
         <p className="mt-3 text-sm leading-6 text-text-main">{proposal.summary}</p>
         {proposal.detail ? <p className="mt-2 text-sm leading-6 text-text-muted">{proposal.detail}</p> : null}
-        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <div className="mt-4 grid gap-3 xl:grid-cols-2">
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.05em] text-text-soft">{locale === 'zh-CN' ? '受影响状态' : 'Affected state'}</p>
             {proposal.affects.map((affected) => (

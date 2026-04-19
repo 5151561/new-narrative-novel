@@ -23,6 +23,19 @@ function getBackingTone(backingKind: NonNullable<AssetMentionViewModel['traceDet
   return 'neutral' as const
 }
 
+function getBackingLabel(
+  locale: 'en' | 'zh-CN',
+  backingKind: NonNullable<AssetMentionViewModel['traceDetail']>['backingKind'],
+) {
+  if (backingKind === 'canon') {
+    return locale === 'zh-CN' ? '正典支撑' : 'Canon-backed'
+  }
+  if (backingKind === 'draft_context') {
+    return locale === 'zh-CN' ? '草稿上下文' : 'Draft-context'
+  }
+  return locale === 'zh-CN' ? '未关联' : 'Unlinked'
+}
+
 export function AssetMentionsView({ mentions, onOpenScene, onOpenChapter }: AssetMentionsViewProps) {
   const { dictionary, locale } = useI18n()
 
@@ -64,11 +77,7 @@ export function AssetMentionsView({ mentions, onOpenScene, onOpenChapter }: Asse
                 {mention.targetScope === 'scene' ? dictionary.common.scene : dictionary.common.chapter}
               </Badge>
               <Badge tone={getBackingTone(backingKind)}>
-                {backingKind === 'canon'
-                  ? 'Canon-backed'
-                  : backingKind === 'draft_context'
-                    ? 'Draft-context'
-                    : 'Unlinked'}
+                {getBackingLabel(locale, backingKind)}
               </Badge>
             </>
           }
@@ -84,17 +93,17 @@ export function AssetMentionsView({ mentions, onOpenScene, onOpenChapter }: Asse
                   items={[
                     {
                       id: `${mention.id}-facts`,
-                      label: locale === 'zh-CN' ? 'Accepted facts' : 'Accepted facts',
+                      label: locale === 'zh-CN' ? '已采纳事实' : 'Accepted facts',
                       value: traceFacts,
                     },
                     {
                       id: `${mention.id}-proposals`,
-                      label: locale === 'zh-CN' ? 'Source proposals' : 'Source proposals',
+                      label: locale === 'zh-CN' ? '来源提案' : 'Source proposals',
                       value: traceProposals,
                     },
                     {
                       id: `${mention.id}-patch`,
-                      label: locale === 'zh-CN' ? 'Source patch' : 'Source patch',
+                      label: locale === 'zh-CN' ? '来源补丁' : 'Source patch',
                       value: traceDetail.patchId ?? (locale === 'zh-CN' ? '暂无' : 'None'),
                     },
                     {
@@ -109,7 +118,7 @@ export function AssetMentionsView({ mentions, onOpenScene, onOpenChapter }: Asse
               ) : null}
             </div>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-line-soft pt-3">
             {mention.handoffActions.map((action) => (
               <button
                 key={action.id}
@@ -122,7 +131,7 @@ export function AssetMentionsView({ mentions, onOpenScene, onOpenChapter }: Asse
 
                   onOpenChapter(action.targetId, action.lens)
                 }}
-                className="rounded-md border border-line-soft px-3 py-2 text-sm text-text-main hover:bg-surface-2"
+                className="rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-2 hover:text-text-main"
               >
                 {action.label}
               </button>

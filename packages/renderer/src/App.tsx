@@ -205,6 +205,7 @@ function ModeRail({
           type="button"
           aria-pressed={activeLens === item.lens}
           onClick={() => onSelectLens(item.lens, item.tab)}
+          title={item.detail}
           className={`rounded-md border px-2 py-3 text-left ${
             activeLens === item.lens
               ? 'border-line-strong bg-surface-1 text-text-main'
@@ -212,7 +213,6 @@ function ModeRail({
           }`}
         >
           <span className="block text-sm font-medium">{item.label}</span>
-          {item.detail ? <span className="mt-1 block text-[11px] leading-4 text-text-soft">{item.detail}</span> : null}
         </button>
       ))}
     </div>

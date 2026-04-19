@@ -90,7 +90,7 @@ export function ProposalReviewStack({
               {locale === 'zh-CN' ? '重置筛选' : 'Reset Filters'}
             </button>
           </Toolbar>
-          <div className="grid gap-3 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto] lg:items-end">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <label className="space-y-1">
               <span className="text-xs uppercase tracking-[0.05em] text-text-soft">{locale === 'zh-CN' ? '状态' : 'Status'}</span>
               <select
@@ -155,15 +155,15 @@ export function ProposalReviewStack({
                 ))}
               </select>
             </label>
-            <div className="text-sm text-text-muted">
-              {hasActiveReviewFilters
-                ? locale === 'zh-CN'
-                  ? '评审筛选已启用'
-                  : 'Review filters active'
-                : locale === 'zh-CN'
-                  ? '评审筛选未启用'
-                  : 'Review filters idle'}
-            </div>
+          </div>
+          <div className="text-sm text-text-muted">
+            {hasActiveReviewFilters
+              ? locale === 'zh-CN'
+                ? '评审筛选已启用'
+                : 'Review filters active'
+              : locale === 'zh-CN'
+                ? '评审筛选未启用'
+                : 'Review filters idle'}
           </div>
         </div>
       </div>

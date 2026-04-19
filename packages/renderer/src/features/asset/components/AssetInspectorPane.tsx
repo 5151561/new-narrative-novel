@@ -59,17 +59,17 @@ export function AssetInspectorPane({ title, inspector }: AssetInspectorPaneProps
                 ? [
                     {
                       id: 'canon-backed',
-                      label: locale === 'zh-CN' ? 'Canon-backed mentions' : 'Canon-backed mentions',
+                      label: locale === 'zh-CN' ? '正典支撑提及' : 'Canon-backed mentions',
                       value: `${inspector.canonBackedMentionCount ?? 0}`,
                     },
                     {
                       id: 'draft-context',
-                      label: locale === 'zh-CN' ? 'Draft-context mentions' : 'Draft-context mentions',
+                      label: locale === 'zh-CN' ? '草稿上下文提及' : 'Draft-context mentions',
                       value: `${inspector.draftContextMentionCount ?? 0}`,
                     },
                     {
                       id: 'unlinked',
-                      label: locale === 'zh-CN' ? 'Unlinked mentions' : 'Unlinked mentions',
+                      label: locale === 'zh-CN' ? '未关联提及' : 'Unlinked mentions',
                       value: `${inspector.unlinkedMentionCount ?? 0}`,
                     },
                   ]

@@ -25,7 +25,7 @@ export function WorkbenchShell({
   const { dictionary } = useI18n()
 
   return (
-    <div className="grid min-h-screen grid-rows-[72px_minmax(0,1fr)_196px] bg-app text-text-main">
+    <div className="grid min-h-screen grid-rows-[minmax(72px,auto)_minmax(0,1fr)_196px] bg-app text-text-main">
       <header className="border-b border-line-soft bg-surface-1/90 px-5 py-3 backdrop-blur">
         {topBar}
       </header>

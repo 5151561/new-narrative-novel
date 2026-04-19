@@ -63,7 +63,7 @@ export function SceneExecutionTab({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <SceneObjectiveStrip objective={objective} onOpenSetup={onOpenSetup} />
-      <div className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)] overflow-hidden">
+      <div className="grid min-h-0 flex-1 grid-cols-[220px_minmax(0,1fr)] overflow-hidden xl:grid-cols-[240px_minmax(0,1fr)]">
         <BeatRail beats={beats} selectedBeatId={selectedBeatId} onSelectBeat={onSelectBeat} />
         <ProposalReviewStack
           proposals={proposals}

@@ -47,6 +47,7 @@ export function AssetModeRail({
         type="button"
         aria-pressed={activeLens === 'knowledge'}
         onClick={() => onSelectLens('knowledge')}
+        title={dictionary.app.modeRailDetails.knowledge}
         className={`rounded-md border px-2 py-3 text-left ${
           activeLens === 'knowledge'
             ? 'border-line-strong bg-surface-1 text-text-main'
@@ -54,7 +55,6 @@ export function AssetModeRail({
         }`}
       >
         <span className="block text-sm font-medium">{getAssetLensLabel(locale, 'knowledge')}</span>
-        <span className="mt-1 block text-[11px] leading-4 text-text-soft">{dictionary.app.modeRailDetails.knowledge}</span>
       </button>
     </div>
   )

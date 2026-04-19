@@ -72,7 +72,7 @@ function BookDraftTopBar({
   const { locale } = useI18n()
 
   return (
-    <div className="flex h-full flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0 space-y-1">
         <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
           {locale === 'zh-CN' ? '叙事工作台' : 'Narrative workbench'}
@@ -86,6 +86,7 @@ function BookDraftTopBar({
           {bookTitle ?? (locale === 'zh-CN' ? '书籍' : 'Book')} / {getWorkbenchLensLabel(locale, 'draft')}
           {selectedChapterTitle ? ` / ${selectedChapterTitle}` : ''}
         </p>
+        {summary ? <p className="max-w-[60ch] text-sm leading-6 text-text-muted">{summary}</p> : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <LanguageToggle />
@@ -98,7 +99,6 @@ function BookDraftTopBar({
           </Badge>
         ) : null}
       </div>
-      {summary ? <p className="w-full text-sm leading-6 text-text-muted">{summary}</p> : null}
     </div>
   )
 }
