@@ -71,6 +71,31 @@ export function BookDraftInspectorPane({
     return status === 'active' ? 'Active' : status === 'review' ? 'In Review' : 'Archived'
   }
 
+  const getFixActionBadge = (status: NonNullable<typeof reviewSelectedIssue>['fixAction']['status']) => {
+    if (status === 'checked') {
+      return { tone: 'success' as const, label: locale === 'zh-CN' ? 'Checked' : 'Checked' }
+    }
+    if (status === 'blocked') {
+      return { tone: 'danger' as const, label: locale === 'zh-CN' ? 'Blocked' : 'Blocked' }
+    }
+    if (status === 'stale') {
+      return { tone: 'warn' as const, label: locale === 'zh-CN' ? 'Fix stale' : 'Fix stale' }
+    }
+    if (status === 'started') {
+      return { tone: 'accent' as const, label: locale === 'zh-CN' ? 'Fix started' : 'Fix started' }
+    }
+
+    return { tone: 'neutral' as const, label: locale === 'zh-CN' ? 'Not started' : 'Not started' }
+  }
+
+  const getFixTargetLabel = () => {
+    if (!reviewSelectedIssue?.primaryFixHandoff) {
+      return locale === 'zh-CN' ? 'No recommended source target' : 'No recommended source target'
+    }
+
+    return `${reviewSelectedIssue.primaryFixHandoff.label} · ${reviewSelectedIssue.primaryFixHandoff.target.scope}`
+  }
+
   const formatSignedValue = (value: number) => `${value > 0 ? '+' : ''}${value}`
 
   return (
@@ -459,6 +484,54 @@ export function BookDraftInspectorPane({
                         </p>
                       </div>
                     ) : null}
+                    <section className="rounded-md border border-line-soft bg-surface-1 p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium text-text-main">
+                          {locale === 'zh-CN' ? 'Selected issue fix action' : 'Selected issue fix action'}
+                        </p>
+                        <Badge tone={getFixActionBadge(reviewSelectedIssue.fixAction.status).tone}>
+                          {getFixActionBadge(reviewSelectedIssue.fixAction.status).label}
+                        </Badge>
+                      </div>
+                      <div className="mt-3">
+                        <FactList
+                          items={[
+                            {
+                              id: 'review-fix-status',
+                              label: locale === 'zh-CN' ? 'Fix status' : 'Fix status',
+                              value: getFixActionBadge(reviewSelectedIssue.fixAction.status).label,
+                            },
+                            {
+                              id: 'review-fix-primary-target',
+                              label: locale === 'zh-CN' ? 'Primary source fix target' : 'Primary source fix target',
+                              value: reviewSelectedIssue.fixAction.sourceHandoffLabel
+                                ? `${reviewSelectedIssue.fixAction.sourceHandoffLabel} · ${reviewSelectedIssue.fixAction.targetScope ?? reviewSelectedIssue.primaryFixHandoff?.target.scope ?? '—'}`
+                                : getFixTargetLabel(),
+                            },
+                            {
+                              id: 'review-fix-note',
+                              label: locale === 'zh-CN' ? 'Fix note' : 'Fix note',
+                              value: reviewSelectedIssue.fixAction.note ?? '—',
+                            },
+                            {
+                              id: 'review-fix-next-action',
+                              label: locale === 'zh-CN' ? 'Next recommended source action' : 'Next recommended source action',
+                              value: reviewSelectedIssue.primaryFixHandoff?.label ?? reviewSelectedIssue.recommendation,
+                            },
+                          ]}
+                        />
+                      </div>
+                      {reviewSelectedIssue.fixAction.isStale || reviewSelectedIssue.fixAction.status === 'stale' ? (
+                        <div className="mt-3 rounded-md border border-[rgba(156,122,58,0.28)] bg-[rgba(156,122,58,0.08)] p-3">
+                          <p className="text-sm font-medium text-text-main">{locale === 'zh-CN' ? 'Fix stale' : 'Fix stale'}</p>
+                          <p className="mt-2 text-sm leading-6 text-text-muted">
+                            {locale === 'zh-CN'
+                              ? 'This source fix is stale because the review issue changed after the fix action was recorded.'
+                              : 'This source fix is stale because the review issue changed after the fix action was recorded.'}
+                          </p>
+                        </div>
+                      ) : null}
+                    </section>
                   </>
                 ) : (
                   <EmptyState
@@ -498,7 +571,7 @@ export function BookDraftInspectorPane({
                         : 'No source handoff guidance is visible right now.')}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="space-y-2">
                   {reviewSelectedIssue?.handoffs.map((handoff) => (
                     <button
                       key={handoff.id}
@@ -507,9 +580,10 @@ export function BookDraftInspectorPane({
                         locale === 'zh-CN' ? `检查器来源动作 ${handoff.label}` : `Inspector source action ${handoff.label}`
                       }
                       onClick={() => onOpenReviewSource?.(handoff)}
-                      className="rounded-md border border-line-soft bg-surface-1 px-3 py-2 text-sm text-text-main hover:bg-surface-2"
+                      className="w-full rounded-md border border-line-soft bg-surface-1 px-3 py-2 text-left hover:bg-surface-2"
                     >
-                      {handoff.label}
+                      <p className="text-sm text-text-main">{handoff.label}</p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.05em] text-text-soft">{handoff.target.scope}</p>
                     </button>
                   ))}
                 </div>

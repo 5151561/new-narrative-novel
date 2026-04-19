@@ -1,10 +1,15 @@
+import { useRef } from 'react'
+
+import { useQueryClient } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
 import { resetMockReviewDecisionDb } from '@/features/review/api/mock-review-decision-db'
+import { resetMockReviewFixActionDb } from '@/features/review/api/mock-review-fix-action-db'
 import { reviewClient } from '@/features/review/api/review-client'
+import { reviewQueryKeys } from '@/features/review/hooks/review-query-keys'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 
 import * as bookExperimentBranchQueryModule from '../hooks/useBookExperimentBranchQuery'
@@ -13,6 +18,14 @@ import { BookDraftWorkspace } from './BookDraftWorkspace'
 
 function BookRouteHarness() {
   const { route } = useWorkbenchRouteState()
+  const queryClient = useQueryClient()
+  const resetReviewCacheRef = useRef(false)
+
+  if (!resetReviewCacheRef.current && route.scope === 'book') {
+    queryClient.removeQueries({ queryKey: reviewQueryKeys.decisions(route.bookId) })
+    queryClient.removeQueries({ queryKey: reviewQueryKeys.fixActions(route.bookId) })
+    resetReviewCacheRef.current = true
+  }
 
   return route.scope === 'book' ? <BookDraftWorkspace /> : <div>Non-book scope</div>
 }
@@ -22,6 +35,7 @@ describe('BookDraftWorkspace', () => {
     vi.restoreAllMocks()
     resetRememberedBookWorkbenchHandoffs()
     resetMockReviewDecisionDb()
+    resetMockReviewFixActionDb()
   })
 
   it('keeps binder reader inspector and dock aligned to route.selectedChapterId and roundtrips through chapter draft', async () => {
@@ -547,7 +561,7 @@ describe('BookDraftWorkspace', () => {
     )
 
     expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
-    expect(screen.getByDisplayValue('')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Decision note' })).toHaveDisplayValue('')
     const deferredIssueId = new URLSearchParams(window.location.search).get('reviewIssueId')
 
     await user.click(screen.getByRole('button', { name: 'Defer' }))
@@ -741,6 +755,196 @@ describe('BookDraftWorkspace', () => {
     })
 
     expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+  })
+
+  it('starts a source fix before opening the target source and keeps checked status independent from review decision', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=scene-proposals&reviewStatusFilter=open&reviewIssueId=scene-proposal-seed-scene-5&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+    expect(screen.getAllByText('Not started').length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: 'Start source fix' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('scene')
+      expect(params.get('id')).toBe('scene-5')
+      expect(params.get('lens')).toBe('orchestrate')
+      expect(params.get('tab')).toBe('execution')
+    })
+
+    window.history.back()
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('draftView')).toBe('review')
+      expect(params.get('reviewIssueId')).toBe('scene-proposal-seed-scene-5')
+    })
+
+    let detail = screen.getByRole('heading', { name: 'Scene proposal needs review' }).closest('section')
+    expect(detail).not.toBeNull()
+    await waitFor(() => {
+      expect(within(detail!).getAllByText('Fix started').length).toBeGreaterThan(0)
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Mark source checked' }))
+
+    await waitFor(() => {
+      detail = screen.getByRole('heading', { name: 'Scene proposal needs review' }).closest('section')
+      expect(detail).not.toBeNull()
+      expect(within(detail!).getAllByText('Checked').length).toBeGreaterThan(0)
+    })
+    expect(within(detail!).getByText('Open')).toBeInTheDocument()
+
+    const bottomDock = screen.getByLabelText('Book draft bottom dock')
+    expect(within(bottomDock).getByText(/Started source fix/)).toBeInTheDocument()
+    expect(within(bottomDock).getByText(/Marked source checked/)).toBeInTheDocument()
+  })
+
+  it('marks a source fix blocked with a note and mirrors it in row detail and inspector without changing decision', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=scene-proposals&reviewStatusFilter=open&reviewIssueId=scene-proposal-seed-scene-5&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+
+    await user.type(screen.getByRole('textbox', { name: 'Source fix note' }), 'Blocked until proposal ownership is resolved.')
+    await user.click(screen.getByRole('button', { name: 'Start source fix' }))
+
+    await waitFor(() => {
+      expect(new URLSearchParams(window.location.search).get('scope')).toBe('scene')
+    })
+
+    window.history.back()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Mark blocked' })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Mark blocked' }))
+
+    let detail = screen.getByRole('heading', { name: 'Scene proposal needs review' }).closest('section')
+    expect(detail).not.toBeNull()
+    await waitFor(() => {
+      detail = screen.getByRole('heading', { name: 'Scene proposal needs review' }).closest('section')
+      expect(detail).not.toBeNull()
+      expect(within(detail!).getAllByText('Blocked').length).toBeGreaterThan(0)
+    })
+    const reviewQueue = screen.getByText('Review queue').closest('section')
+    expect(reviewQueue).not.toBeNull()
+    expect(within(reviewQueue!).getByRole('button', { name: /Fix note: Blocked until proposal ownership is resolved/i })).toBeInTheDocument()
+
+    expect(within(detail!).getByRole('textbox', { name: 'Source fix note' })).toHaveValue(
+      'Blocked until proposal ownership is resolved.',
+    )
+
+    const inspector = screen.getByRole('heading', { name: 'Selected review issue' }).closest('section')
+    expect(inspector).not.toBeNull()
+    expect(within(inspector!).getByText('Blocked until proposal ownership is resolved.')).toBeInTheDocument()
+    expect(within(detail!).getByText('Open')).toBeInTheDocument()
+    expect(within(inspector!).getByText('Selected issue fix action')).toBeInTheDocument()
+  })
+
+  it('clears a source fix action without clearing the review decision state', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=scene-proposals&reviewStatusFilter=open&reviewIssueId=scene-proposal-seed-scene-5&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Start source fix' }))
+
+    await waitFor(() => {
+      expect(new URLSearchParams(window.location.search).get('scope')).toBe('scene')
+    })
+
+    window.history.back()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Clear fix action' })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Clear fix action' }))
+
+    const detail = screen.getByRole('heading', { name: 'Scene proposal needs review' }).closest('section')
+    expect(detail).not.toBeNull()
+    await waitFor(() => {
+      expect(within(detail!).getAllByText('Not started').length).toBeGreaterThan(0)
+    })
+    expect(within(detail!).getByText('Open')).toBeInTheDocument()
+
+    const bottomDock = screen.getByLabelText('Book draft bottom dock')
+    expect(within(bottomDock).getByText(/Cleared source fix action/)).toBeInTheDocument()
+  })
+
+  it('does not open a review source target when starting the source fix action fails', async () => {
+    const user = userEvent.setup()
+    const setReviewIssueFixActionSpy = vi
+      .spyOn(reviewClient, 'setReviewIssueFixAction')
+      .mockRejectedValueOnce(new Error('Fix action failed'))
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=scene-proposals&reviewStatusFilter=open&reviewIssueId=scene-proposal-seed-scene-5&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Start source fix' }))
+
+    await waitFor(() => {
+      expect(setReviewIssueFixActionSpy).toHaveBeenCalledTimes(1)
+    })
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('draftView')).toBe('review')
+      expect(params.get('reviewIssueId')).toBe('scene-proposal-seed-scene-5')
+    })
+    const detail = screen.getByRole('heading', { name: 'Scene proposal needs review' }).closest('section')
+    expect(detail).not.toBeNull()
+    expect(within(detail!).queryByText('Fix started')).not.toBeInTheDocument()
   })
 
   it('keeps the dormant structure view through review roundtrips back to read and into review again', async () => {

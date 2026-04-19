@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { useI18n, type Locale } from '@/app/i18n'
 import type { BookDraftBranchProblems } from '@/features/book/components/BookDraftBottomDock'
 import type { BookWorkbenchActivityItem } from '@/features/book/hooks/useBookWorkbenchActivity'
+import { buildReviewProblems } from '@/features/book/containers/BookDraftDockContainer'
 import type { BookReviewFilter, BookReviewStatusFilter } from '@/features/workbench/types/workbench-route'
 import { getBookReviewSeeds } from '@/features/review/api/book-review-seeds'
 import type { ReviewIssueDecisionRecord } from '@/features/review/api/review-decision-records'
@@ -779,37 +780,7 @@ export function buildBookDraftBranchProblemsStoryData(
   }
 }
 
-export function buildBookDraftReviewProblemsStoryData(
-  reviewInbox: BookReviewInboxViewModel,
-) {
-  const blockers = reviewInbox.issues.filter((issue) => issue.severity === 'blocker')
-  const traceGaps = reviewInbox.issues.filter((issue) => issue.kind === 'trace_gap')
-  const missingDrafts = reviewInbox.issues.filter((issue) => issue.kind === 'missing_draft')
-  const exportBlockers = reviewInbox.issues.filter((issue) => issue.source === 'export' && issue.severity === 'blocker')
-  const branchBlockers = reviewInbox.issues.filter((issue) => issue.source === 'branch' && issue.severity === 'blocker')
-  const toItems = (issues: typeof blockers) =>
-    issues.map((issue) => ({
-      chapterId: `${issue.chapterId ?? 'review'}:${issue.id}`,
-      title: issue.chapterTitle ?? reviewInbox.title,
-      detail: issue.detail,
-    }))
-
-  return {
-    blockerCount: blockers.length,
-    traceGapCount: traceGaps.length,
-    missingDraftCount: missingDrafts.length,
-    exportBlockerCount: exportBlockers.length,
-    branchBlockerCount: branchBlockers.length,
-    openCount: reviewInbox.counts.open,
-    actionedCount: reviewInbox.counts.reviewed + reviewInbox.counts.deferred + reviewInbox.counts.dismissed,
-    blockers: toItems(blockers),
-    traceGaps: toItems(traceGaps),
-    missingDrafts: toItems(missingDrafts),
-    exportBlockers: toItems(exportBlockers),
-    branchBlockers: toItems(branchBlockers),
-    staleCount: reviewInbox.counts.stale,
-  }
-}
+export const buildBookDraftReviewProblemsStoryData = buildReviewProblems
 
 function getReviewFilterLabel(locale: Locale, filter: BookReviewFilter) {
   if (locale === 'zh-CN') {

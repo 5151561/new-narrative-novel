@@ -64,6 +64,15 @@ export interface BookWorkbenchReviewDecisionEvent {
   note?: string
 }
 
+export interface BookWorkbenchReviewFixActionEvent {
+  id: string
+  bookId: string
+  issueTitle: string
+  action: 'started' | 'checked' | 'blocked' | 'cleared'
+  sourceActionLabel?: string
+  note?: string
+}
+
 export type BookWorkbenchActivityKind =
   | 'lens'
   | 'view'
@@ -77,6 +86,7 @@ export type BookWorkbenchActivityKind =
   | 'review-filter'
   | 'review-issue'
   | 'review-decision'
+  | 'review-fix-action'
   | 'review-source'
 
 interface BookWorkbenchActivityEntry {
@@ -107,6 +117,10 @@ interface BookWorkbenchActivityEntry {
     | 'deferred-issue'
     | 'dismissed-issue'
     | 'reopened-issue'
+    | 'started-source-fix'
+    | 'marked-source-checked'
+    | 'marked-source-blocked'
+    | 'cleared-source-fix-action'
     | 'opened-review-source'
   lens?: BookLens
   view?: BookStructureView
@@ -128,6 +142,7 @@ interface BookWorkbenchActivityEntry {
   reviewIssueChapterTitle?: string
   reviewIssueSceneTitle?: string
   reviewDecisionNote?: string
+  reviewFixActionNote?: string
   reviewSourceActionLabel?: string
 }
 
@@ -158,6 +173,7 @@ interface UseBookWorkbenchActivityOptions {
 const rememberedBookHandoffsByBookId = new Map<string, BookWorkbenchActivityEntry[]>()
 const rememberedBookReviewSourceByBookId = new Map<string, BookWorkbenchActivityEntry[]>()
 const rememberedBookReviewDecisionByBookId = new Map<string, BookWorkbenchActivityEntry[]>()
+const rememberedBookReviewFixActionByBookId = new Map<string, BookWorkbenchActivityEntry[]>()
 
 function buildHandoffActivityEntry(event: BookWorkbenchHandoffEvent): BookWorkbenchActivityEntry {
   return {
@@ -222,10 +238,38 @@ export function rememberBookWorkbenchReviewDecision(event: BookWorkbenchReviewDe
   rememberedBookReviewDecisionByBookId.set(event.bookId, [nextEntry, ...dedupedEntries].slice(0, maxItems))
 }
 
+function buildReviewFixActionActivityEntry(event: BookWorkbenchReviewFixActionEvent): BookWorkbenchActivityEntry {
+  return {
+    id: event.id,
+    kind: 'review-fix-action',
+    tone: event.action === 'started' || event.action === 'checked' ? 'accent' : 'neutral',
+    action:
+      event.action === 'started'
+        ? 'started-source-fix'
+        : event.action === 'checked'
+          ? 'marked-source-checked'
+          : event.action === 'blocked'
+            ? 'marked-source-blocked'
+            : 'cleared-source-fix-action',
+    reviewIssueTitle: event.issueTitle,
+    reviewSourceActionLabel: event.sourceActionLabel,
+    reviewFixActionNote: event.note,
+  }
+}
+
+export function rememberBookWorkbenchReviewFixAction(event: BookWorkbenchReviewFixActionEvent, maxItems = 6) {
+  const nextEntry = buildReviewFixActionActivityEntry(event)
+  const currentEntries = rememberedBookReviewFixActionByBookId.get(event.bookId) ?? []
+  const dedupedEntries = currentEntries.filter((entry) => entry.id !== nextEntry.id)
+
+  rememberedBookReviewFixActionByBookId.set(event.bookId, [nextEntry, ...dedupedEntries].slice(0, maxItems))
+}
+
 export function resetRememberedBookWorkbenchHandoffs() {
   rememberedBookHandoffsByBookId.clear()
   rememberedBookReviewSourceByBookId.clear()
   rememberedBookReviewDecisionByBookId.clear()
+  rememberedBookReviewFixActionByBookId.clear()
 }
 
 function getViewLabel(locale: 'en' | 'zh-CN', view: BookStructureView) {
@@ -520,6 +564,40 @@ function localizeActivityEntry(
     }
   }
 
+  if (entry.kind === 'review-fix-action') {
+    const verb =
+      entry.action === 'started-source-fix'
+        ? locale === 'zh-CN'
+          ? '开始来源修复'
+          : 'Started source fix'
+        : entry.action === 'marked-source-checked'
+          ? locale === 'zh-CN'
+            ? '标记来源已检查'
+            : 'Marked source checked'
+          : entry.action === 'marked-source-blocked'
+            ? locale === 'zh-CN'
+              ? '标记来源阻塞'
+              : 'Marked source blocked'
+            : locale === 'zh-CN'
+              ? '清除来源修复动作'
+              : 'Cleared source fix action'
+    const sourceDetail = entry.reviewSourceActionLabel
+      ? locale === 'zh-CN'
+        ? `来源动作：${entry.reviewSourceActionLabel}`
+        : `Source action: ${entry.reviewSourceActionLabel}`
+      : locale === 'zh-CN'
+        ? '来源修复动作保持独立，不修改 review decision。'
+        : 'Source fix action remains independent from the review decision.'
+
+    return {
+      id: entry.id,
+      kind: entry.kind,
+      tone: entry.tone,
+      title: `${verb} ${entry.reviewIssueTitle ?? ''}`.trim(),
+      detail: entry.reviewFixActionNote ?? sourceDetail,
+    }
+  }
+
   if (entry.kind === 'review-source') {
     return {
       id: entry.id,
@@ -574,6 +652,7 @@ export function useBookWorkbenchActivity({
   const seenHandoffIdsRef = useRef<Set<string>>(new Set())
   const seenReviewSourceIdsRef = useRef<Set<string>>(new Set())
   const seenReviewDecisionIdsRef = useRef<Set<string>>(new Set())
+  const seenReviewFixActionIdsRef = useRef<Set<string>>(new Set())
   const sequenceRef = useRef(0)
 
   useEffect(() => {
@@ -602,6 +681,7 @@ export function useBookWorkbenchActivity({
       seenHandoffIdsRef.current = new Set()
       seenReviewSourceIdsRef.current = new Set()
       seenReviewDecisionIdsRef.current = new Set()
+      seenReviewFixActionIdsRef.current = new Set()
       sequenceRef.current = 0
 
       if (localeChanged) {
@@ -840,6 +920,16 @@ export function useBookWorkbenchActivity({
 
       nextEntries.unshift(reviewDecisionEntry)
       seenReviewDecisionIdsRef.current.add(reviewDecisionEntry.id)
+    }
+
+    const rememberedReviewFixActionEntries = rememberedBookReviewFixActionByBookId.get(bookId) ?? []
+    for (const reviewFixActionEntry of [...rememberedReviewFixActionEntries].reverse()) {
+      if (seenReviewFixActionIdsRef.current.has(reviewFixActionEntry.id)) {
+        continue
+      }
+
+      nextEntries.unshift(reviewFixActionEntry)
+      seenReviewFixActionIdsRef.current.add(reviewFixActionEntry.id)
     }
 
     if (nextEntries.length === 0) {

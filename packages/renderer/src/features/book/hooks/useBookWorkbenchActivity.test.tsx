@@ -7,6 +7,7 @@ import type { BookDraftView, BookReviewFilter, BookStructureView } from '@/featu
 
 import {
   rememberBookWorkbenchReviewDecision,
+  rememberBookWorkbenchReviewFixAction,
   rememberBookWorkbenchReviewSourceOpen,
   resetRememberedBookWorkbenchHandoffs,
   useBookWorkbenchActivity,
@@ -898,6 +899,105 @@ describe('useBookWorkbenchActivity', () => {
           title: '暂缓问题 Export packet is blocked',
         }),
       ]),
+    )
+  })
+
+  it('records source fix started checked blocked and cleared activity copy', () => {
+    const initialProps: ActivityHookProps = {
+      activeView: 'sequence',
+      activeDraftView: 'review',
+      selectedReviewFilter: 'scene-proposals',
+      selectedReviewIssue: {
+        id: 'scene-proposal-seed-scene-5',
+        title: 'Scene proposal needs review',
+        sourceLabel: 'Scene proposal',
+        chapterTitle: 'Chapter Two',
+        sceneTitle: 'Scene Five',
+      },
+      selectedChapter: {
+        id: 'chapter-open-water-signals',
+        title: 'Open Water Signals',
+        summary: 'Warehouse pressure should stay legible as the exit opens.',
+      },
+    }
+
+    const { result, rerender } = renderHook(
+      ({ activeDraftView = 'review', selectedReviewFilter = 'scene-proposals', selectedReviewIssue, selectedChapter }: ActivityHookProps) =>
+        useBookWorkbenchActivity({
+          bookId: 'book-signal-arc',
+          activeLens: 'draft',
+          activeView: 'sequence',
+          activeDraftView,
+          selectedReviewFilter,
+          selectedReviewIssue,
+          selectedCheckpoint: null,
+          selectedChapter,
+          maxItems: 10,
+        }),
+      {
+        initialProps,
+        wrapper: AppProviders,
+      },
+    )
+
+    act(() => {
+      rememberBookWorkbenchReviewFixAction({
+        id: 'review-fix-started',
+        bookId: 'book-signal-arc',
+        issueTitle: 'Scene proposal needs review',
+        action: 'started',
+        sourceActionLabel: 'Open scene proposal',
+      })
+      rememberBookWorkbenchReviewFixAction({
+        id: 'review-fix-checked',
+        bookId: 'book-signal-arc',
+        issueTitle: 'Scene proposal needs review',
+        action: 'checked',
+        sourceActionLabel: 'Open scene proposal',
+      })
+      rememberBookWorkbenchReviewFixAction({
+        id: 'review-fix-blocked',
+        bookId: 'book-signal-arc',
+        issueTitle: 'Scene proposal needs review',
+        action: 'blocked',
+        sourceActionLabel: 'Open scene proposal',
+        note: 'Proposal owner has not confirmed the source.',
+      })
+      rememberBookWorkbenchReviewFixAction({
+        id: 'review-fix-cleared',
+        bookId: 'book-signal-arc',
+        issueTitle: 'Scene proposal needs review',
+        action: 'cleared',
+        sourceActionLabel: 'Open scene proposal',
+      })
+    })
+
+    rerender({
+      ...initialProps,
+      selectedReviewIssue: {
+        id: 'scene-proposal-seed-scene-5',
+        title: 'Scene proposal needs review',
+        sourceLabel: 'Scene proposal',
+        chapterTitle: 'Chapter Two',
+        sceneTitle: 'Scene Five',
+      },
+      selectedChapter: {
+        id: 'chapter-open-water-signals',
+        title: 'Open Water Signals',
+        summary: 'Warehouse pressure should stay legible as the exit opens.',
+      },
+    })
+
+    expect(result.current.map((item) => item.title)).toEqual(
+      expect.arrayContaining([
+        'Started source fix Scene proposal needs review',
+        'Marked source checked Scene proposal needs review',
+        'Marked source blocked Scene proposal needs review',
+        'Cleared source fix action Scene proposal needs review',
+      ]),
+    )
+    expect(result.current.find((item) => item.title.includes('Marked source blocked'))?.detail).toBe(
+      'Proposal owner has not confirmed the source.',
     )
   })
 })

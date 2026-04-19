@@ -191,6 +191,36 @@ export const SourceFixStarted: Story = {
   },
 }
 
+export const SourceFixBlocked: Story = {
+  args: {
+    reviewFilter: 'trace-gaps',
+    reviewStatusFilter: 'open',
+    selectedChapterId: 'chapter-open-water-signals',
+    fixActionStates: [
+      {
+        issueId: 'compare-trace-gap-chapter-open-water-signals-scene-warehouse-bridge',
+        status: 'blocked',
+        note: 'Blocked until compare ownership is resolved.',
+      },
+    ],
+  },
+}
+
+export const SourceFixChecked: Story = {
+  args: {
+    reviewFilter: 'trace-gaps',
+    reviewStatusFilter: 'open',
+    selectedChapterId: 'chapter-open-water-signals',
+    fixActionStates: [
+      {
+        issueId: 'compare-trace-gap-chapter-open-water-signals-scene-warehouse-bridge',
+        status: 'checked',
+        note: 'Source checked; review decision remains open.',
+      },
+    ],
+  },
+}
+
 export const DecisionErrorPartialInbox: Story = {
   args: {
     reviewFilter: 'all',

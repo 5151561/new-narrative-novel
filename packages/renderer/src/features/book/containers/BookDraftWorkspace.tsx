@@ -8,8 +8,10 @@ import type { BookDraftView, BookReviewFilter, BookReviewStatusFilter } from '@/
 
 import { getLocaleName, getWorkbenchLensLabel, useI18n } from '@/app/i18n'
 import { useClearReviewIssueDecisionMutation } from '@/features/review/hooks/useClearReviewIssueDecisionMutation'
+import { useClearReviewIssueFixActionMutation } from '@/features/review/hooks/useClearReviewIssueFixActionMutation'
 import { useBookReviewInboxQuery } from '@/features/review/hooks/useBookReviewInboxQuery'
 import { useSetReviewIssueDecisionMutation } from '@/features/review/hooks/useSetReviewIssueDecisionMutation'
+import { useSetReviewIssueFixActionMutation } from '@/features/review/hooks/useSetReviewIssueFixActionMutation'
 import type { ReviewSourceHandoffViewModel } from '@/features/review/types/review-view-models'
 import { BookDraftBinderPane } from '../components/BookDraftBinderPane'
 import { BookDraftInspectorPane } from '../components/BookDraftInspectorPane'
@@ -22,6 +24,7 @@ import { useBookManuscriptCompareQuery } from '../hooks/useBookManuscriptCompare
 import {
   rememberBookWorkbenchHandoff,
   rememberBookWorkbenchReviewDecision,
+  rememberBookWorkbenchReviewFixAction,
   rememberBookWorkbenchReviewSourceOpen,
 } from '../hooks/useBookWorkbenchActivity'
 import { BookDraftDockContainer } from './BookDraftDockContainer'
@@ -30,6 +33,7 @@ import { DEFAULT_BOOK_EXPORT_PROFILE_ID } from '../api/book-export-profiles'
 
 let rememberedBookDraftHandoffSequence = 0
 let rememberedBookReviewDecisionSequence = 0
+let rememberedBookReviewFixActionSequence = 0
 const DEFAULT_BOOK_EXPERIMENT_BRANCH_ID = 'branch-book-signal-arc-quiet-ending'
 
 function LanguageToggle() {
@@ -177,6 +181,7 @@ export function BookDraftWorkspace() {
     isLoading: isReviewLoading,
     error: reviewError,
     decisionError: reviewDecisionError,
+    fixActionError: reviewFixActionError,
   } = useBookReviewInboxQuery({
     bookId: route.bookId,
     currentDraftWorkspace: workspace,
@@ -197,6 +202,12 @@ export function BookDraftWorkspace() {
     bookId: route.bookId,
   })
   const clearReviewIssueDecisionMutation = useClearReviewIssueDecisionMutation({
+    bookId: route.bookId,
+  })
+  const setReviewIssueFixActionMutation = useSetReviewIssueFixActionMutation({
+    bookId: route.bookId,
+  })
+  const clearReviewIssueFixActionMutation = useClearReviewIssueFixActionMutation({
     bookId: route.bookId,
   })
 
@@ -539,6 +550,104 @@ export function BookDraftWorkspace() {
     },
     [replaceRoute, reviewInbox, route.bookId, route.selectedChapterId, route.view],
   )
+  const onStartReviewFix = useCallback(
+    (input: {
+      issueId: string
+      issueSignature: string
+      handoff: ReviewSourceHandoffViewModel
+      note?: string
+    }) => {
+      const issue = reviewInbox?.issues.find((item) => item.id === input.issueId)
+
+      void setReviewIssueFixActionMutation
+        .mutateAsync({
+          issueId: input.issueId,
+          issueSignature: input.issueSignature,
+          sourceHandoffId: input.handoff.id,
+          sourceHandoffLabel: input.handoff.label,
+          targetScope: input.handoff.target.scope,
+          status: 'started',
+          note: input.note,
+        })
+        .then(() => {
+          if (issue?.title) {
+            rememberBookWorkbenchReviewFixAction({
+              id: `review-fix-action-${route.bookId}-${rememberedBookReviewFixActionSequence++}`,
+              bookId: route.bookId,
+              issueTitle: issue.title,
+              action: 'started',
+              sourceActionLabel: input.handoff.label,
+              note: input.note,
+            })
+          }
+
+          onOpenReviewSource(input.handoff)
+        })
+        .catch(() => undefined)
+    },
+    [onOpenReviewSource, reviewInbox, route.bookId, setReviewIssueFixActionMutation],
+  )
+  const onSetReviewFixStatus = useCallback(
+    (input: {
+      issueId: string
+      issueSignature: string
+      status: 'checked' | 'blocked'
+      handoff: ReviewSourceHandoffViewModel
+      note?: string
+    }) => {
+      const issue = reviewInbox?.issues.find((item) => item.id === input.issueId)
+
+      void setReviewIssueFixActionMutation
+        .mutateAsync({
+          issueId: input.issueId,
+          issueSignature: input.issueSignature,
+          sourceHandoffId: input.handoff.id,
+          sourceHandoffLabel: input.handoff.label,
+          targetScope: input.handoff.target.scope,
+          status: input.status,
+          note: input.note,
+        })
+        .then(() => {
+          if (!issue?.title) {
+            return
+          }
+
+          rememberBookWorkbenchReviewFixAction({
+            id: `review-fix-action-${route.bookId}-${rememberedBookReviewFixActionSequence++}`,
+            bookId: route.bookId,
+            issueTitle: issue.title,
+            action: input.status,
+            sourceActionLabel: input.handoff.label,
+            note: input.note,
+          })
+        })
+        .catch(() => undefined)
+    },
+    [reviewInbox, route.bookId, setReviewIssueFixActionMutation],
+  )
+  const onClearReviewFix = useCallback(
+    (issueId: string) => {
+      const issue = reviewInbox?.issues.find((item) => item.id === issueId)
+
+      void clearReviewIssueFixActionMutation
+        .mutateAsync({ issueId })
+        .then(() => {
+          if (!issue?.title) {
+            return
+          }
+
+          rememberBookWorkbenchReviewFixAction({
+            id: `review-fix-action-${route.bookId}-${rememberedBookReviewFixActionSequence++}`,
+            bookId: route.bookId,
+            issueTitle: issue.title,
+            action: 'cleared',
+            sourceActionLabel: issue.primaryFixHandoff?.label,
+          })
+        })
+        .catch(() => undefined)
+    },
+    [clearReviewIssueFixActionMutation, reviewInbox, route.bookId],
+  )
 
   const modeRail = (
     <BookModeRail
@@ -657,6 +766,7 @@ export function BookDraftWorkspace() {
           reviewInbox={reviewInbox ?? null}
           reviewError={reviewError}
           reviewDecisionError={reviewDecisionError}
+          reviewFixActionError={reviewFixActionError}
           checkpoints={checkpoints ?? []}
           selectedCheckpointId={selectedCheckpoint?.checkpointId ?? effectiveCheckpointId}
           onSelectDraftView={onSelectDraftView}
@@ -672,6 +782,10 @@ export function BookDraftWorkspace() {
           onSetReviewDecision={onSetReviewDecision}
           onClearReviewDecision={onClearReviewDecision}
           isReviewDecisionSaving={setReviewIssueDecisionMutation.isPending || clearReviewIssueDecisionMutation.isPending}
+          onStartReviewFix={onStartReviewFix}
+          onSetReviewFixStatus={onSetReviewFixStatus}
+          onClearReviewFix={onClearReviewFix}
+          isReviewFixActionSaving={setReviewIssueFixActionMutation.isPending || clearReviewIssueFixActionMutation.isPending}
           onOpenReviewSource={onOpenReviewSource}
         />
       }

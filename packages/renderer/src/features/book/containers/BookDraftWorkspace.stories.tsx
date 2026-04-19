@@ -42,6 +42,12 @@ interface BookDraftWorkspaceStoryProps {
     note?: string
     stale?: boolean
   }>
+  fixActionStates?: Array<{
+    issueId: string
+    status: 'started' | 'checked' | 'blocked'
+    note?: string
+    stale?: boolean
+  }>
   draftView?: 'read' | 'compare' | 'export' | 'branch' | 'review'
   exportState?: 'ready' | 'error'
 }
@@ -87,6 +93,7 @@ function WorkspacePreview({
   reviewFilter = 'all',
   reviewStatusFilter = 'open',
   decisionStates = [],
+  fixActionStates = [],
   draftView = 'read',
   exportState = 'ready',
 }: BookDraftWorkspaceStoryProps) {
@@ -105,6 +112,7 @@ function WorkspacePreview({
     reviewFilter,
     reviewStatusFilter,
     decisionStates,
+    fixActionStates,
     includeReviewSeeds: !(draftView === 'review' && reviewFilter === 'scene-proposals' && variant === 'quiet-book'),
   })
   const exportError = draftView === 'export' && exportState === 'error' ? buildBookDraftExportBaselineError() : null
@@ -185,6 +193,9 @@ function WorkspacePreview({
           onSelectReviewIssue={() => undefined}
           onSetReviewDecision={() => undefined}
           onClearReviewDecision={() => undefined}
+          onStartReviewFix={() => undefined}
+          onSetReviewFixStatus={() => undefined}
+          onClearReviewFix={() => undefined}
           onOpenReviewSource={() => undefined}
         />
       }
@@ -393,6 +404,59 @@ export const ReviewTraceGaps: Story = {
     draftView: 'review',
     reviewFilter: 'trace-gaps',
     selectedChapterId: 'chapter-open-water-signals',
+  },
+}
+
+export const ReviewSourceFixStartReady: Story = {
+  args: {
+    draftView: 'review',
+    reviewFilter: 'trace-gaps',
+    selectedChapterId: 'chapter-open-water-signals',
+  },
+}
+
+export const ReviewSourceFixStarted: Story = {
+  args: {
+    draftView: 'review',
+    reviewFilter: 'trace-gaps',
+    selectedChapterId: 'chapter-open-water-signals',
+    fixActionStates: [
+      {
+        issueId: 'compare-trace-gap-chapter-open-water-signals-scene-warehouse-bridge',
+        status: 'started',
+        note: 'Source fix started from compare review.',
+      },
+    ],
+  },
+}
+
+export const ReviewSourceFixBlocked: Story = {
+  args: {
+    draftView: 'review',
+    reviewFilter: 'trace-gaps',
+    selectedChapterId: 'chapter-open-water-signals',
+    fixActionStates: [
+      {
+        issueId: 'compare-trace-gap-chapter-open-water-signals-scene-warehouse-bridge',
+        status: 'blocked',
+        note: 'Blocked until compare ownership is resolved.',
+      },
+    ],
+  },
+}
+
+export const ReviewSourceFixChecked: Story = {
+  args: {
+    draftView: 'review',
+    reviewFilter: 'trace-gaps',
+    selectedChapterId: 'chapter-open-water-signals',
+    fixActionStates: [
+      {
+        issueId: 'compare-trace-gap-chapter-open-water-signals-scene-warehouse-bridge',
+        status: 'checked',
+        note: 'Source checked; review decision remains open.',
+      },
+    ],
   },
 }
 

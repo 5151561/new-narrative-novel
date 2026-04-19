@@ -50,6 +50,8 @@ function renderIssueRow(issue: ReviewIssueViewModel, selectedIssueId: string | n
   const active = issue.id === selectedIssueId
   const severity = getSeverityBadge(issue.severity)
   const fixActionBadge = getFixActionBadge(issue.fixAction.status)
+  const fixActionNote =
+    issue.fixAction.status !== 'not_started' && issue.fixAction.note?.trim() ? issue.fixAction.note.trim() : null
   const decisionLabel =
     issue.decision.status === 'reviewed'
       ? 'Reviewed'
@@ -86,6 +88,11 @@ function renderIssueRow(issue: ReviewIssueViewModel, selectedIssueId: string | n
               <p className="mt-1 text-sm leading-6 text-text-muted">
                 {[issue.chapterTitle, issue.sceneTitle].filter(Boolean).join(' / ') || '—'}
               </p>
+              {fixActionNote ? (
+                <p className="mt-1 max-w-[42rem] truncate text-xs leading-5 text-text-muted" title={fixActionNote}>
+                  Fix note: {fixActionNote}
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="flex flex-wrap justify-end gap-2">

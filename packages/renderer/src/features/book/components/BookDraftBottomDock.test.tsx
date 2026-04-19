@@ -3,8 +3,97 @@ import { describe, expect, it } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
 import type { BookWorkbenchActivityItem } from '@/features/book/hooks/useBookWorkbenchActivity'
+import type { BookReviewInboxViewModel, ReviewIssueViewModel } from '@/features/review/types/review-view-models'
 
+import { buildReviewProblems } from '../containers/BookDraftDockContainer'
 import { BookDraftBottomDock } from './BookDraftBottomDock'
+
+function createReviewIssue(id: string, overrides: Partial<ReviewIssueViewModel> = {}): ReviewIssueViewModel {
+  const handoff = {
+    id: `${id}-handoff`,
+    label: 'Open compare review',
+    target: {
+      scope: 'book' as const,
+      lens: 'draft' as const,
+      view: 'sequence' as const,
+      draftView: 'compare' as const,
+      selectedChapterId: 'chapter-open-water-signals',
+      reviewIssueId: id,
+    },
+  }
+
+  return {
+    id,
+    severity: 'warning',
+    source: 'compare',
+    kind: 'compare_delta',
+    title: `Issue ${id}`,
+    detail: 'Issue detail',
+    recommendation: 'Open compare review.',
+    chapterId: 'chapter-open-water-signals',
+    chapterTitle: 'Open Water Signals',
+    chapterOrder: 2,
+    sceneId: 'scene-warehouse-bridge',
+    sceneTitle: 'Warehouse Bridge',
+    sceneOrder: 3,
+    sourceLabel: 'Compare checkpoint',
+    tags: ['Compare delta'],
+    issueSignature: `${id}::signature`,
+    decision: {
+      status: 'open',
+      isStale: false,
+    },
+    fixAction: {
+      status: 'not_started',
+      isStale: false,
+    },
+    handoffs: [handoff],
+    primaryFixHandoff: handoff,
+    ...overrides,
+  }
+}
+
+function createReviewInbox(issues: ReviewIssueViewModel[]): BookReviewInboxViewModel {
+  return {
+    bookId: 'book-signal-arc',
+    title: 'Signal Arc',
+    selectedIssueId: issues[0]?.id ?? null,
+    selectedIssue: issues[0] ?? null,
+    activeFilter: 'all',
+    activeStatusFilter: 'open',
+    issues,
+    filteredIssues: issues,
+    groupedIssues: {
+      blockers: issues.filter((issue) => issue.severity === 'blocker'),
+      warnings: issues.filter((issue) => issue.severity === 'warning'),
+      info: issues.filter((issue) => issue.severity === 'info'),
+    },
+    counts: {
+      total: issues.length,
+      blockers: issues.filter((issue) => issue.severity === 'blocker').length,
+      warnings: issues.filter((issue) => issue.severity === 'warning').length,
+      info: issues.filter((issue) => issue.severity === 'info').length,
+      traceGaps: issues.filter((issue) => issue.kind === 'trace_gap').length,
+      missingDrafts: issues.filter((issue) => issue.kind === 'missing_draft').length,
+      compareDeltas: issues.filter((issue) => issue.kind === 'compare_delta').length,
+      exportReadiness: issues.filter((issue) => issue.source === 'export').length,
+      branchReadiness: issues.filter((issue) => issue.source === 'branch').length,
+      sceneProposals: issues.filter((issue) => issue.source === 'scene-proposal').length,
+      open: issues.filter((issue) => issue.decision.status === 'open' || issue.decision.status === 'stale').length,
+      reviewed: issues.filter((issue) => issue.decision.status === 'reviewed').length,
+      deferred: issues.filter((issue) => issue.decision.status === 'deferred').length,
+      dismissed: issues.filter((issue) => issue.decision.status === 'dismissed').length,
+      stale: issues.filter((issue) => issue.decision.status === 'stale').length,
+      fixStarted: issues.filter((issue) => issue.fixAction.status === 'started').length,
+      fixChecked: issues.filter((issue) => issue.fixAction.status === 'checked').length,
+      fixBlocked: issues.filter((issue) => issue.fixAction.status === 'blocked').length,
+      fixStale: issues.filter((issue) => issue.fixAction.status === 'stale').length,
+    },
+    visibleOpenCount: issues.filter((issue) => issue.decision.status === 'open' || issue.decision.status === 'stale').length,
+    selectedChapterIssueCount: issues.length,
+    annotationsByChapterId: {},
+  }
+}
 
 describe('BookDraftBottomDock', () => {
   it('shows compare-mode problems and activity', () => {
@@ -295,6 +384,10 @@ describe('BookDraftBottomDock', () => {
             openCount: 4,
             actionedCount: 3,
             staleCount: 1,
+            openWithoutFixStartedCount: 2,
+            blockedFixCount: 1,
+            staleFixCount: 1,
+            checkedStillOpenCount: 1,
             blockers: [{ chapterId: 'review:blocker-1', title: 'Open Water Signals', detail: 'Export packet is blocked by one missing scene draft.' }],
             traceGaps: [{ chapterId: 'review:trace-gap-1', title: 'Open Water Signals', detail: 'Dawn Slip still lacks trace coverage.' }],
             missingDrafts: [{ chapterId: 'review:missing-draft-1', title: 'Signals in Rain', detail: 'Departure Bell still has no current draft prose.' }],
@@ -313,9 +406,52 @@ describe('BookDraftBottomDock', () => {
     expect(screen.getAllByText('Open').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Actioned').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Decision stale').length).toBeGreaterThan(0)
+    expect(screen.getByText('Open without fix started')).toBeInTheDocument()
+    expect(screen.getByText('Blocked source fixes')).toBeInTheDocument()
+    expect(screen.getByText('Stale source fixes')).toBeInTheDocument()
+    expect(screen.getByText('Checked but still open')).toBeInTheDocument()
     expect(screen.getByText('Entered Review')).toBeInTheDocument()
     expect(screen.getByText('Selected review issue Export packet is blocked')).toBeInTheDocument()
     expect(screen.getByText('Opened issue source Open export readiness')).toBeInTheDocument()
     expect(screen.getByText('Deferred issue Export packet is blocked')).toBeInTheDocument()
+  })
+
+  it('counts stale decisions as open for source fix problem summaries', () => {
+    const reviewProblems = buildReviewProblems(
+      createReviewInbox([
+        createReviewIssue('stale-not-started', {
+          decision: {
+            status: 'stale',
+            isStale: true,
+          },
+        }),
+        createReviewIssue('stale-checked', {
+          decision: {
+            status: 'stale',
+            isStale: true,
+          },
+          fixAction: {
+            status: 'checked',
+            sourceHandoffId: 'stale-checked-handoff',
+            sourceHandoffLabel: 'Open compare review',
+            targetScope: 'book',
+            isStale: false,
+          },
+        }),
+        createReviewIssue('reviewed-not-started', {
+          decision: {
+            status: 'reviewed',
+            isStale: false,
+          },
+        }),
+      ]),
+    )
+
+    expect(reviewProblems).toMatchObject({
+      openCount: 2,
+      staleCount: 2,
+      openWithoutFixStartedCount: 1,
+      checkedStillOpenCount: 1,
+    })
   })
 })

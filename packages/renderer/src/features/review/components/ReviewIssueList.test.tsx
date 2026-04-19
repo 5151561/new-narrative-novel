@@ -234,4 +234,47 @@ describe('ReviewIssueList', () => {
     expect(screen.getByText('Reviewed')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Checked source fix/i })).toHaveAttribute('aria-pressed', 'true')
   })
+
+  it('shows source fix notes on rows after a fix action has started', () => {
+    render(
+      <AppProviders>
+        <ReviewIssueList
+          groupedIssues={{
+            blockers: [
+              createIssue('blocked-fix-note', {
+                title: 'Blocked source fix note',
+                severity: 'blocker',
+                fixAction: {
+                  status: 'blocked',
+                  sourceHandoffId: 'blocked-fix-note-handoff',
+                  sourceHandoffLabel: 'Open compare review',
+                  targetScope: 'book',
+                  note: 'Blocked until source ownership is resolved.',
+                  updatedAtLabel: '2026-04-19 18:00',
+                  updatedByLabel: 'Editor',
+                  isStale: false,
+                },
+              }),
+            ],
+            warnings: [
+              createIssue('not-started-note', {
+                title: 'Not started source fix note',
+                fixAction: {
+                  status: 'not_started',
+                  note: 'This should not render on the row.',
+                  isStale: false,
+                },
+              }),
+            ],
+            info: [],
+          }}
+          selectedIssueId="blocked-fix-note"
+          onSelectIssue={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByRole('button', { name: /Fix note: Blocked until source ownership is resolved/i })).toBeInTheDocument()
+    expect(screen.queryByText(/This should not render on the row/)).not.toBeInTheDocument()
+  })
 })

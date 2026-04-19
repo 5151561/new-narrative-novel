@@ -48,6 +48,10 @@ export interface BookDraftReviewProblems {
   openCount: number
   actionedCount: number
   staleCount: number
+  openWithoutFixStartedCount: number
+  blockedFixCount: number
+  staleFixCount: number
+  checkedStillOpenCount: number
   blockers: BookDraftDockSummaryItem[]
   traceGaps: BookDraftDockSummaryItem[]
   missingDrafts: BookDraftDockSummaryItem[]
@@ -125,7 +129,13 @@ function getActivityMeta(locale: 'en' | 'zh-CN', item: BookWorkbenchActivityItem
     return locale === 'zh-CN' ? '导出配置' : 'Profile'
   }
 
-  if (item.kind === 'review-filter' || item.kind === 'review-issue' || item.kind === 'review-decision' || item.kind === 'review-source') {
+  if (
+    item.kind === 'review-filter' ||
+    item.kind === 'review-issue' ||
+    item.kind === 'review-decision' ||
+    item.kind === 'review-fix-action' ||
+    item.kind === 'review-source'
+  ) {
     return locale === 'zh-CN' ? '审阅' : 'Review'
   }
 
@@ -183,6 +193,26 @@ export function BookDraftBottomDock({
               { id: 'review-open', label: locale === 'zh-CN' ? 'Open' : 'Open', value: `${reviewProblems.openCount}` },
               { id: 'review-actioned', label: locale === 'zh-CN' ? 'Actioned' : 'Actioned', value: `${reviewProblems.actionedCount}` },
               { id: 'review-stale', label: locale === 'zh-CN' ? 'Decision stale' : 'Decision stale', value: `${reviewProblems.staleCount}` },
+              {
+                id: 'review-open-without-fix',
+                label: locale === 'zh-CN' ? 'Open without fix started' : 'Open without fix started',
+                value: `${reviewProblems.openWithoutFixStartedCount}`,
+              },
+              {
+                id: 'review-blocked-source-fixes',
+                label: locale === 'zh-CN' ? 'Blocked source fixes' : 'Blocked source fixes',
+                value: `${reviewProblems.blockedFixCount}`,
+              },
+              {
+                id: 'review-stale-source-fixes',
+                label: locale === 'zh-CN' ? 'Stale source fixes' : 'Stale source fixes',
+                value: `${reviewProblems.staleFixCount}`,
+              },
+              {
+                id: 'review-checked-still-open',
+                label: locale === 'zh-CN' ? 'Checked but still open' : 'Checked but still open',
+                value: `${reviewProblems.checkedStillOpenCount}`,
+              },
             ]
         : [
             { id: 'missing-draft-count', label: locale === 'zh-CN' ? '缺稿章节' : 'Missing draft chapters', value: `${summary.missingDraftChapterCount}` },

@@ -118,7 +118,7 @@ function buildBranchProblems(
   }
 }
 
-function buildReviewProblems(reviewInbox: BookReviewInboxViewModel | null): BookDraftReviewProblems | null {
+export function buildReviewProblems(reviewInbox: BookReviewInboxViewModel | null): BookDraftReviewProblems | null {
   if (!reviewInbox) {
     return null
   }
@@ -128,6 +128,9 @@ function buildReviewProblems(reviewInbox: BookReviewInboxViewModel | null): Book
   const missingDrafts = reviewInbox.issues.filter((issue) => issue.kind === 'missing_draft')
   const exportBlockers = reviewInbox.issues.filter((issue) => issue.source === 'export' && issue.severity === 'blocker')
   const branchBlockers = reviewInbox.issues.filter((issue) => issue.source === 'branch' && issue.severity === 'blocker')
+  const openIssues = reviewInbox.issues.filter(
+    (issue) => issue.decision.status === 'open' || issue.decision.status === 'stale',
+  )
   const toItems = (issues: typeof blockers) =>
     issues.map((issue) => ({
       chapterId: `${issue.chapterId ?? 'review'}:${issue.id}`,
@@ -144,6 +147,10 @@ function buildReviewProblems(reviewInbox: BookReviewInboxViewModel | null): Book
     openCount: reviewInbox.counts.open,
     actionedCount: reviewInbox.counts.reviewed + reviewInbox.counts.deferred + reviewInbox.counts.dismissed,
     staleCount: reviewInbox.counts.stale,
+    openWithoutFixStartedCount: openIssues.filter((issue) => issue.fixAction.status === 'not_started').length,
+    blockedFixCount: reviewInbox.issues.filter((issue) => issue.fixAction.status === 'blocked').length,
+    staleFixCount: reviewInbox.issues.filter((issue) => issue.fixAction.status === 'stale').length,
+    checkedStillOpenCount: openIssues.filter((issue) => issue.fixAction.status === 'checked').length,
     blockers: toItems(blockers),
     traceGaps: toItems(traceGaps),
     missingDrafts: toItems(missingDrafts),

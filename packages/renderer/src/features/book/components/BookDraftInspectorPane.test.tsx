@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 
 import { APP_LOCALE_STORAGE_KEY } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
@@ -34,6 +35,10 @@ function createReviewIssue(overrides: Partial<ReviewIssueViewModel> = {}): Revie
       status: 'open',
       isStale: false,
     },
+    fixAction: {
+      status: 'not_started',
+      isStale: false,
+    },
     handoffs: [
       {
         id: 'review-source-export',
@@ -60,6 +65,19 @@ function createReviewIssue(overrides: Partial<ReviewIssueViewModel> = {}): Revie
         },
       },
     ],
+    primaryFixHandoff: {
+      id: 'review-source-export',
+      label: 'Open export readiness',
+      target: {
+        scope: 'book',
+        lens: 'draft',
+        view: 'signals',
+        draftView: 'export',
+        exportProfileId: 'export-review-packet',
+        selectedChapterId: 'chapter-open-water-signals',
+        reviewIssueId: 'export-blocker-open-water-signals',
+      },
+    },
     ...overrides,
   }
 }
@@ -430,7 +448,10 @@ describe('BookDraftInspectorPane', () => {
     ).toBeGreaterThan(0)
   })
 
-  it('shows the review queue summary and source handoff in review mode', () => {
+  it('shows the review queue summary and source handoff in review mode', async () => {
+    const user = userEvent.setup()
+    const onOpenReviewSource = vi.fn()
+
     render(
       <AppProviders>
         <BookDraftInspectorPane
@@ -438,7 +459,7 @@ describe('BookDraftInspectorPane', () => {
           inspector={inspector}
           activeDraftView="review"
           reviewInbox={createReviewInbox()}
-          onOpenReviewSource={() => undefined}
+          onOpenReviewSource={onOpenReviewSource}
         />
       </AppProviders>,
     )
@@ -453,6 +474,13 @@ describe('BookDraftInspectorPane', () => {
     expect(screen.getByText('Recommended source action')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Inspector source action Open export readiness' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Inspector source action Open chapter draft' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start source fix' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Mark source checked' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Clear fix action' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Inspector source action Open export readiness' }))
+
+    expect(onOpenReviewSource).toHaveBeenCalledWith(createReviewInbox().selectedIssue?.handoffs[0])
   })
 
   it('shows review decision status, note, stale warning, and next action in review mode', () => {
@@ -484,6 +512,42 @@ describe('BookDraftInspectorPane', () => {
     expect(screen.getByText('Carry this after export baseline is clean.')).toBeInTheDocument()
     expect(screen.getByText('Decision stale')).toBeInTheDocument()
     expect(screen.getByText('Recommendation')).toBeInTheDocument()
+  })
+
+  it('shows fix status primary target stale warning note and next source action in review mode', () => {
+    render(
+      <AppProviders>
+        <BookDraftInspectorPane
+          bookTitle="Signal Arc"
+          inspector={inspector}
+          activeDraftView="review"
+          reviewInbox={{
+            ...createReviewInbox(),
+            selectedIssue: createReviewIssue({
+              fixAction: {
+                status: 'stale',
+                sourceHandoffId: 'review-source-export',
+                sourceHandoffLabel: 'Open export readiness',
+                targetScope: 'book',
+                note: 'Recheck export readiness after draft coverage changes.',
+                startedAtLabel: 'Started yesterday',
+                updatedAtLabel: 'Updated today',
+                updatedByLabel: 'Editor',
+                isStale: true,
+              },
+            }),
+          }}
+          onOpenReviewSource={() => undefined}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Selected issue fix action')).toBeInTheDocument()
+    expect(screen.getAllByText('Fix stale').length).toBeGreaterThan(0)
+    expect(screen.getByText('Open export readiness · book')).toBeInTheDocument()
+    expect(screen.getByText('This source fix is stale because the review issue changed after the fix action was recorded.')).toBeInTheDocument()
+    expect(screen.getByText('Recheck export readiness after draft coverage changes.')).toBeInTheDocument()
+    expect(screen.getByText('Next recommended source action')).toBeInTheDocument()
   })
 
   it.each([
