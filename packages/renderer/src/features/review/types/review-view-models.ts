@@ -4,6 +4,7 @@ import type {
   BookBranchBaseline,
   BookDraftView,
   BookReviewFilter,
+  BookReviewStatusFilter,
   BookStructureView,
   ChapterStructureView,
 } from '@/features/workbench/types/workbench-route'
@@ -68,6 +69,15 @@ export interface ReviewSourceHandoffViewModel {
 }
 
 export type ReviewOptionalSourceStatus = 'idle' | 'loading' | 'ready'
+export type ReviewDecisionStatus = 'open' | 'reviewed' | 'deferred' | 'dismissed' | 'stale'
+
+export interface ReviewIssueDecisionViewModel {
+  status: ReviewDecisionStatus
+  note?: string
+  updatedAtLabel?: string
+  updatedByLabel?: string
+  isStale: boolean
+}
 
 export interface ReviewIssueViewModel {
   id: string
@@ -89,6 +99,8 @@ export interface ReviewIssueViewModel {
   sourceExcerpt?: string
   tags: string[]
   handoffs: ReviewSourceHandoffViewModel[]
+  issueSignature: string
+  decision: ReviewIssueDecisionViewModel
 }
 
 export interface ReviewIssueGroupsViewModel {
@@ -108,6 +120,11 @@ export interface BookReviewInboxCountsViewModel {
   exportReadiness: number
   branchReadiness: number
   sceneProposals: number
+  open: number
+  reviewed: number
+  deferred: number
+  dismissed: number
+  stale: number
 }
 
 export interface BookReviewInboxViewModel {
@@ -116,10 +133,12 @@ export interface BookReviewInboxViewModel {
   selectedIssueId: string | null
   selectedIssue: ReviewIssueViewModel | null
   activeFilter: BookReviewFilter
+  activeStatusFilter: BookReviewStatusFilter
   issues: ReviewIssueViewModel[]
   filteredIssues: ReviewIssueViewModel[]
   groupedIssues: ReviewIssueGroupsViewModel
   counts: BookReviewInboxCountsViewModel
+  visibleOpenCount: number
   selectedChapterIssueCount: number
   annotationsByChapterId: Record<string, ReviewIssueViewModel[]>
 }

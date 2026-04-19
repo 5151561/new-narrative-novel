@@ -497,6 +497,64 @@ function buildInbox(reviewFilter: 'all' | 'blockers' | 'branch-readiness' | 'sce
   })
 }
 
+function createDecisionSignature(issue: {
+  id: string
+  kind: string
+  source: string
+  chapterId?: string
+  sceneId?: string
+  assetId?: string
+  title: string
+  detail: string
+  sourceExcerpt?: string
+}) {
+  return [
+    issue.id,
+    issue.kind,
+    issue.source,
+    issue.chapterId ?? '',
+    issue.sceneId ?? '',
+    issue.assetId ?? '',
+    issue.title,
+    issue.detail,
+    issue.sourceExcerpt ?? '',
+  ].join('::')
+}
+
+function buildInboxWithDecisions({
+  reviewFilter = 'all',
+  reviewStatusFilter = 'all',
+  reviewIssueId,
+  decisionRecords = [],
+}: {
+  reviewFilter?: 'all' | 'blockers' | 'branch-readiness' | 'scene-proposals'
+  reviewStatusFilter?: 'open' | 'reviewed' | 'deferred' | 'dismissed' | 'all'
+  reviewIssueId?: string
+  decisionRecords?: Array<{
+    id: string
+    bookId: string
+    issueId: string
+    issueSignature: string
+    status: 'reviewed' | 'deferred' | 'dismissed'
+    note?: string
+    updatedAtLabel: string
+    updatedByLabel: string
+  }>
+}) {
+  return buildBookReviewInboxViewModel({
+    bookId: 'book-signal-arc',
+    currentDraftWorkspace: createCurrentDraftWorkspace(),
+    compareWorkspace: createCompareWorkspace(),
+    exportWorkspace: createExportWorkspace(),
+    branchWorkspace: createBranchWorkspace(),
+    reviewSeeds: getBookReviewSeeds('book-signal-arc'),
+    reviewFilter,
+    reviewStatusFilter,
+    reviewIssueId,
+    decisionRecords,
+  } as any)
+}
+
 describe('buildBookReviewInboxViewModel', () => {
   it('maps a current draft missing scene into a missing_draft blocker', () => {
     const issue = buildInbox().issues.find((item) => item.id === 'draft-missing-chapter-1-scene-1')
@@ -507,6 +565,23 @@ describe('buildBookReviewInboxViewModel', () => {
       source: 'manuscript',
       chapterId: 'chapter-1',
       sceneId: 'scene-1',
+    })
+    expect((issue as any)?.issueSignature).toBe(
+      createDecisionSignature(issue as {
+        id: string
+        kind: string
+        source: string
+        chapterId?: string
+        sceneId?: string
+        assetId?: string
+        title: string
+        detail: string
+        sourceExcerpt?: string
+      }),
+    )
+    expect((issue as any)?.decision).toMatchObject({
+      status: 'open',
+      isStale: false,
     })
   })
 
@@ -673,6 +748,237 @@ describe('buildBookReviewInboxViewModel', () => {
     const inbox = buildInbox('blockers', 'missing-issue')
 
     expect(inbox.selectedIssue).toBe(inbox.filteredIssues[0] ?? null)
+  })
+
+  it('applies reviewed, deferred, and dismissed decisions as overlay statuses', () => {
+    const baseInbox = buildInbox()
+    const reviewedIssue = baseInbox.issues.find((item) => item.id === 'compare-delta-chapter-2-scene-3')
+    const deferredIssue = baseInbox.issues.find((item) => item.id === 'draft-missing-chapter-1-scene-1')
+    const dismissedIssue = baseInbox.issues.find((item) => item.id === 'trace-gap-chapter-1-scene-2')
+
+    const inbox = buildInboxWithDecisions({
+      decisionRecords: [
+        {
+          id: 'decision-reviewed',
+          bookId: 'book-signal-arc',
+          issueId: reviewedIssue!.id,
+          issueSignature: createDecisionSignature(reviewedIssue!),
+          status: 'reviewed',
+          note: 'Reviewed in this pass.',
+          updatedAtLabel: '2026-04-19 16:00',
+          updatedByLabel: 'Editor',
+        },
+        {
+          id: 'decision-deferred',
+          bookId: 'book-signal-arc',
+          issueId: deferredIssue!.id,
+          issueSignature: createDecisionSignature(deferredIssue!),
+          status: 'deferred',
+          updatedAtLabel: '2026-04-19 16:10',
+          updatedByLabel: 'Editor',
+        },
+        {
+          id: 'decision-dismissed',
+          bookId: 'book-signal-arc',
+          issueId: dismissedIssue!.id,
+          issueSignature: createDecisionSignature(dismissedIssue!),
+          status: 'dismissed',
+          updatedAtLabel: '2026-04-19 16:20',
+          updatedByLabel: 'Editor',
+        },
+      ],
+    })
+
+    expect((inbox.issues.find((item) => item.id === reviewedIssue!.id) as any)?.decision).toMatchObject({
+      status: 'reviewed',
+      note: 'Reviewed in this pass.',
+      isStale: false,
+    })
+    expect((inbox.issues.find((item) => item.id === deferredIssue!.id) as any)?.decision).toMatchObject({
+      status: 'deferred',
+      isStale: false,
+    })
+    expect((inbox.issues.find((item) => item.id === dismissedIssue!.id) as any)?.decision).toMatchObject({
+      status: 'dismissed',
+      isStale: false,
+    })
+  })
+
+  it('marks mismatched decision signatures as stale and keeps them visible in the open queue', () => {
+    const baseInbox = buildInbox()
+    const issue = baseInbox.issues.find((item) => item.id === 'compare-delta-chapter-2-scene-3')
+
+    const inbox = buildInboxWithDecisions({
+      reviewStatusFilter: 'open',
+      decisionRecords: [
+        {
+          id: 'decision-stale',
+          bookId: 'book-signal-arc',
+          issueId: issue!.id,
+          issueSignature: 'stale-signature',
+          status: 'reviewed',
+          updatedAtLabel: '2026-04-19 16:30',
+          updatedByLabel: 'Editor',
+        },
+      ],
+    })
+
+    expect((inbox.issues.find((item) => item.id === issue!.id) as any)?.decision).toMatchObject({
+      status: 'stale',
+      isStale: true,
+    })
+    expect(inbox.filteredIssues.some((item) => item.id === issue!.id)).toBe(true)
+  })
+
+  it('keeps stale issues in the all queue and excludes them from reviewed deferred and dismissed filters', () => {
+    const baseInbox = buildInbox()
+    const issue = baseInbox.issues.find((item) => item.id === 'compare-delta-chapter-2-scene-3')
+    const decisionRecord = {
+      id: 'decision-stale',
+      bookId: 'book-signal-arc',
+      issueId: issue!.id,
+      issueSignature: 'stale-signature',
+      status: 'reviewed' as const,
+      updatedAtLabel: '2026-04-19 16:30',
+      updatedByLabel: 'Editor',
+    }
+
+    expect(
+      buildInboxWithDecisions({
+        reviewStatusFilter: 'all',
+        decisionRecords: [decisionRecord],
+      }).filteredIssues.some((item) => item.id === issue!.id),
+    ).toBe(true)
+
+    expect(
+      buildInboxWithDecisions({
+        reviewStatusFilter: 'reviewed',
+        decisionRecords: [decisionRecord],
+      }).filteredIssues.some((item) => item.id === issue!.id),
+    ).toBe(false)
+
+    expect(
+      buildInboxWithDecisions({
+        reviewStatusFilter: 'deferred',
+        decisionRecords: [decisionRecord],
+      }).filteredIssues.some((item) => item.id === issue!.id),
+    ).toBe(false)
+
+    expect(
+      buildInboxWithDecisions({
+        reviewStatusFilter: 'dismissed',
+        decisionRecords: [decisionRecord],
+      }).filteredIssues.some((item) => item.id === issue!.id),
+    ).toBe(false)
+  })
+
+  it('combines reviewFilter and reviewStatusFilter when producing the visible queue', () => {
+    const baseInbox = buildInbox()
+    const branchIssue = baseInbox.issues.find((item) => item.id === 'branch-warning-scene-4')
+
+    const inbox = buildInboxWithDecisions({
+      reviewFilter: 'branch-readiness',
+      reviewStatusFilter: 'reviewed',
+      decisionRecords: [
+        {
+          id: 'decision-branch-reviewed',
+          bookId: 'book-signal-arc',
+          issueId: branchIssue!.id,
+          issueSignature: createDecisionSignature(branchIssue!),
+          status: 'reviewed',
+          updatedAtLabel: '2026-04-19 16:40',
+          updatedByLabel: 'Editor',
+        },
+      ],
+    })
+
+    expect(inbox.filteredIssues.map((item) => item.id)).toEqual([branchIssue!.id])
+    expect((inbox as any).activeStatusFilter).toBe('reviewed')
+  })
+
+  it('tracks open and actioned counts after decisions are applied', () => {
+    const baseInbox = buildInbox()
+    const reviewedIssue = baseInbox.issues.find((item) => item.id === 'compare-delta-chapter-2-scene-3')
+    const deferredIssue = baseInbox.issues.find((item) => item.id === 'draft-missing-chapter-1-scene-1')
+    const dismissedIssue = baseInbox.issues.find((item) => item.id === 'trace-gap-chapter-1-scene-2')
+    const staleIssue = baseInbox.issues.find((item) => item.id === 'branch-warning-scene-4')
+
+    const inbox = buildInboxWithDecisions({
+      decisionRecords: [
+        {
+          id: 'decision-reviewed',
+          bookId: 'book-signal-arc',
+          issueId: reviewedIssue!.id,
+          issueSignature: createDecisionSignature(reviewedIssue!),
+          status: 'reviewed',
+          updatedAtLabel: '2026-04-19 16:00',
+          updatedByLabel: 'Editor',
+        },
+        {
+          id: 'decision-deferred',
+          bookId: 'book-signal-arc',
+          issueId: deferredIssue!.id,
+          issueSignature: createDecisionSignature(deferredIssue!),
+          status: 'deferred',
+          updatedAtLabel: '2026-04-19 16:10',
+          updatedByLabel: 'Editor',
+        },
+        {
+          id: 'decision-dismissed',
+          bookId: 'book-signal-arc',
+          issueId: dismissedIssue!.id,
+          issueSignature: createDecisionSignature(dismissedIssue!),
+          status: 'dismissed',
+          updatedAtLabel: '2026-04-19 16:20',
+          updatedByLabel: 'Editor',
+        },
+        {
+          id: 'decision-stale',
+          bookId: 'book-signal-arc',
+          issueId: staleIssue!.id,
+          issueSignature: 'stale-signature',
+          status: 'reviewed',
+          updatedAtLabel: '2026-04-19 16:30',
+          updatedByLabel: 'Editor',
+        },
+      ],
+    })
+
+    expect((inbox.counts as any).reviewed).toBe(1)
+    expect((inbox.counts as any).deferred).toBe(1)
+    expect((inbox.counts as any).dismissed).toBe(1)
+    expect((inbox.counts as any).stale).toBe(1)
+    expect((inbox.counts as any).open).toBe(inbox.issues.length - 3)
+    expect((inbox as any).visibleOpenCount).toBe(
+      inbox.filteredIssues.filter((item) => {
+        const status = (item as any).decision?.status
+        return status === 'open' || status === 'stale'
+      }).length,
+    )
+  })
+
+  it('falls back to the first visible status-filtered issue when the requested issue is filtered away', () => {
+    const baseInbox = buildInbox()
+    const reviewedIssue = baseInbox.issues.find((item) => item.id === 'compare-delta-chapter-2-scene-3')
+
+    const inbox = buildInboxWithDecisions({
+      reviewStatusFilter: 'reviewed',
+      reviewIssueId: 'draft-missing-chapter-1-scene-1',
+      decisionRecords: [
+        {
+          id: 'decision-reviewed',
+          bookId: 'book-signal-arc',
+          issueId: reviewedIssue!.id,
+          issueSignature: createDecisionSignature(reviewedIssue!),
+          status: 'reviewed',
+          updatedAtLabel: '2026-04-19 16:00',
+          updatedByLabel: 'Editor',
+        },
+      ],
+    })
+
+    expect(inbox.selectedIssue?.id).toBe(reviewedIssue!.id)
+    expect((inbox as any).activeStatusFilter).toBe('reviewed')
   })
 
   it('sorts issues deterministically by severity source chapter scene and id', () => {

@@ -4,11 +4,13 @@ import type { BookExperimentBranchWorkspaceViewModel } from '@/features/book/typ
 import type { BookManuscriptCompareWorkspaceViewModel } from '@/features/book/types/book-compare-view-models'
 import type { BookDraftWorkspaceViewModel } from '@/features/book/types/book-draft-view-models'
 import type { BookExportPreviewWorkspaceViewModel } from '@/features/book/types/book-export-view-models'
-import type { BookReviewFilter } from '@/features/workbench/types/workbench-route'
+import type { BookReviewFilter, BookReviewStatusFilter } from '@/features/workbench/types/workbench-route'
 
 import { getBookReviewSeeds } from '../api/book-review-seeds'
 import { buildBookReviewInboxViewModel } from '../lib/book-review-inbox-mappers'
+import { useBookReviewDecisionsQuery } from './useBookReviewDecisionsQuery'
 import type { BookReviewInboxViewModel, ReviewOptionalSourceStatus } from '../types/review-view-models'
+import type { ReviewClient } from '../api/review-client'
 
 interface UseBookReviewInboxQueryInput {
   bookId: string
@@ -23,13 +25,19 @@ interface UseBookReviewInboxQueryInput {
   branchStatus?: ReviewOptionalSourceStatus
   branchError?: Error | null
   reviewFilter?: BookReviewFilter
+  reviewStatusFilter?: BookReviewStatusFilter
   reviewIssueId?: string
+}
+
+interface UseBookReviewInboxQueryDeps {
+  reviewClient?: Pick<ReviewClient, 'getBookReviewDecisions'>
 }
 
 export interface UseBookReviewInboxQueryResult {
   inbox: BookReviewInboxViewModel | null | undefined
   isLoading: boolean
   error: Error | null
+  decisionError: Error | null
   isEmpty: boolean
 }
 
@@ -46,19 +54,30 @@ export function useBookReviewInboxQuery({
   branchStatus = branchWorkspace === undefined ? 'idle' : 'ready',
   branchError = null,
   reviewFilter = 'all',
+  reviewStatusFilter = 'open',
   reviewIssueId,
-}: UseBookReviewInboxQueryInput): UseBookReviewInboxQueryResult {
+}: UseBookReviewInboxQueryInput, { reviewClient }: UseBookReviewInboxQueryDeps = {}): UseBookReviewInboxQueryResult {
   const reviewSeeds = useMemo(() => getBookReviewSeeds(bookId), [bookId])
+  const reviewDecisionsQuery = useBookReviewDecisionsQuery(
+    {
+      bookId,
+      enabled: currentDraftWorkspace !== undefined && currentDraftWorkspace !== null,
+    },
+    { reviewClient },
+  )
+  const decisionError =
+    currentDraftWorkspace === null ? null : reviewDecisionsQuery.error instanceof Error ? reviewDecisionsQuery.error : null
+  const effectiveDecisionRecords = decisionError ? [] : reviewDecisionsQuery.data ?? []
   const optionalSourcesLoading =
     compareStatus === 'loading' || exportStatus === 'loading' || branchStatus === 'loading'
 
   const inbox = useMemo(() => {
-    if (currentDraftWorkspace === undefined || optionalSourcesLoading) {
-      return undefined
-    }
-
     if (currentDraftWorkspace === null) {
       return null
+    }
+
+    if (currentDraftWorkspace === undefined || optionalSourcesLoading || reviewDecisionsQuery.isLoading) {
+      return undefined
     }
 
     return buildBookReviewInboxViewModel({
@@ -69,7 +88,9 @@ export function useBookReviewInboxQuery({
       branchWorkspace: branchStatus === 'ready' && branchError === null ? (branchWorkspace ?? null) : undefined,
       reviewSeeds,
       reviewFilter,
+      reviewStatusFilter,
       reviewIssueId,
+      decisionRecords: effectiveDecisionRecords,
     })
   }, [
     bookId,
@@ -85,11 +106,17 @@ export function useBookReviewInboxQuery({
     optionalSourcesLoading,
     branchError,
     reviewFilter,
+    reviewStatusFilter,
     reviewIssueId,
     reviewSeeds,
+    effectiveDecisionRecords,
+    reviewDecisionsQuery.isLoading,
   ])
 
-  const isLoading = currentDraftWorkspace === undefined || optionalSourcesLoading
+  const isLoading =
+    currentDraftWorkspace === null
+      ? false
+      : currentDraftWorkspace === undefined || optionalSourcesLoading || reviewDecisionsQuery.isLoading
   const error = compareError ?? exportError ?? branchError
   const isEmpty = !isLoading && error === null && inbox !== undefined && inbox !== null && inbox.filteredIssues.length === 0
 
@@ -97,6 +124,7 @@ export function useBookReviewInboxQuery({
     inbox,
     isLoading,
     error,
+    decisionError,
     isEmpty,
   }
 }

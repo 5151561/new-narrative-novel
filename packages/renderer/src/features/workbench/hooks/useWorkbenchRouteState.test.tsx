@@ -170,12 +170,77 @@ function RouteHarness() {
             lens: 'draft',
             draftView: 'review',
             reviewFilter: 'blockers',
+            reviewStatusFilter: 'open',
             reviewIssueId: 'issue-export-blocker',
             selectedChapterId: 'chapter-open-water-signals',
           } satisfies Partial<BookRouteState>)
         }
       >
         Book Review
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchBookRoute({
+            bookId: 'book-signal-arc',
+            lens: 'draft',
+            draftView: 'review',
+            reviewFilter: 'all',
+            reviewStatusFilter: 'reviewed',
+            reviewIssueId: 'issue-reviewed',
+            selectedChapterId: 'chapter-open-water-signals',
+          } satisfies Partial<BookRouteState>)
+        }
+      >
+        Book Review Reviewed
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchBookRoute({
+            bookId: 'book-signal-arc',
+            lens: 'draft',
+            draftView: 'review',
+            reviewFilter: 'all',
+            reviewStatusFilter: 'deferred',
+            reviewIssueId: 'issue-deferred',
+            selectedChapterId: 'chapter-open-water-signals',
+          } satisfies Partial<BookRouteState>)
+        }
+      >
+        Book Review Deferred
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchBookRoute({
+            bookId: 'book-signal-arc',
+            lens: 'draft',
+            draftView: 'review',
+            reviewFilter: 'all',
+            reviewStatusFilter: 'dismissed',
+            reviewIssueId: 'issue-dismissed',
+            selectedChapterId: 'chapter-open-water-signals',
+          } satisfies Partial<BookRouteState>)
+        }
+      >
+        Book Review Dismissed
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchBookRoute({
+            bookId: 'book-signal-arc',
+            lens: 'draft',
+            draftView: 'review',
+            reviewFilter: 'all',
+            reviewStatusFilter: 'all',
+            reviewIssueId: 'issue-all',
+            selectedChapterId: 'chapter-open-water-signals',
+          } satisfies Partial<BookRouteState>)
+        }
+      >
+        Book Review All
       </button>
       <button
         type="button"
@@ -568,7 +633,7 @@ describe('useWorkbenchRouteState', () => {
     window.history.replaceState(
       {},
       '',
-      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=trace-gaps&reviewIssueId=issue-trace-gap&selectedChapterId=chapter-open-water-signals',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=trace-gaps&reviewStatusFilter=reviewed&reviewIssueId=issue-trace-gap&selectedChapterId=chapter-open-water-signals',
     )
 
     render(<RouteHarness />)
@@ -580,9 +645,31 @@ describe('useWorkbenchRouteState', () => {
       view: 'signals',
       draftView: 'review',
       reviewFilter: 'trace-gaps',
+      reviewStatusFilter: 'reviewed',
       reviewIssueId: 'issue-trace-gap',
       selectedChapterId: 'chapter-open-water-signals',
     })
+  })
+
+  it('reads all review status filters from deep links', () => {
+    const filters = ['open', 'reviewed', 'deferred', 'dismissed', 'all'] as const
+
+    for (const reviewStatusFilter of filters) {
+      expect(
+        readWorkbenchRouteState(
+          `?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=all&reviewStatusFilter=${reviewStatusFilter}&reviewIssueId=issue-${reviewStatusFilter}`,
+        ),
+      ).toMatchObject({
+        scope: 'book',
+        bookId: 'book-signal-arc',
+        lens: 'draft',
+        view: 'signals',
+        draftView: 'review',
+        reviewFilter: 'all',
+        reviewStatusFilter,
+        reviewIssueId: `issue-${reviewStatusFilter}`,
+      })
+    }
   })
 
   it('reads branch draft links with branchId and current baseline while retaining structure view state', () => {
@@ -787,6 +874,7 @@ describe('useWorkbenchRouteState', () => {
       view: 'outliner',
       draftView: 'review',
       reviewFilter: 'blockers',
+      reviewStatusFilter: 'open',
       reviewIssueId: 'issue-export-blocker',
       selectedChapterId: 'chapter-open-water-signals',
     })
@@ -794,6 +882,7 @@ describe('useWorkbenchRouteState', () => {
     let params = new URLSearchParams(window.location.search)
     expect(params.get('draftView')).toBe('review')
     expect(params.get('reviewFilter')).toBe('blockers')
+    expect(params.get('reviewStatusFilter')).toBe('open')
     expect(params.get('reviewIssueId')).toBe('issue-export-blocker')
     expect(params.get('view')).toBe('outliner')
 
@@ -806,6 +895,7 @@ describe('useWorkbenchRouteState', () => {
       view: 'outliner',
       draftView: 'review',
       reviewFilter: 'blockers',
+      reviewStatusFilter: 'open',
       reviewIssueId: 'issue-export-blocker',
       selectedChapterId: 'chapter-open-water-signals',
     })
@@ -815,7 +905,45 @@ describe('useWorkbenchRouteState', () => {
     expect(params.get('view')).toBe('outliner')
     expect(params.get('draftView')).toBe('review')
     expect(params.get('reviewFilter')).toBe('blockers')
+    expect(params.get('reviewStatusFilter')).toBe('open')
     expect(params.get('reviewIssueId')).toBe('issue-export-blocker')
+  })
+
+  it('writes review status filters through patchBookRoute while preserving the dormant structure view', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=structure&view=signals&selectedChapterId=chapter-signals-in-rain',
+    )
+
+    render(<RouteHarness />)
+
+    const cases = [
+      { button: 'Book Review', reviewStatusFilter: 'open', reviewIssueId: 'issue-export-blocker' },
+      { button: 'Book Review Reviewed', reviewStatusFilter: 'reviewed', reviewIssueId: 'issue-reviewed' },
+      { button: 'Book Review Deferred', reviewStatusFilter: 'deferred', reviewIssueId: 'issue-deferred' },
+      { button: 'Book Review Dismissed', reviewStatusFilter: 'dismissed', reviewIssueId: 'issue-dismissed' },
+      { button: 'Book Review All', reviewStatusFilter: 'all', reviewIssueId: 'issue-all' },
+    ] as const
+
+    for (const testCase of cases) {
+      await user.click(screen.getByRole('button', { name: testCase.button }))
+
+      expect(readRoute()).toMatchObject({
+        scope: 'book',
+        bookId: 'book-signal-arc',
+        lens: 'draft',
+        view: 'signals',
+        draftView: 'review',
+        reviewStatusFilter: testCase.reviewStatusFilter,
+        reviewIssueId: testCase.reviewIssueId,
+      })
+
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('reviewStatusFilter')).toBe(testCase.reviewStatusFilter)
+    }
   })
 
   it('writes and restores book branch draftView with current baseline while keeping structure view stable', async () => {
@@ -946,6 +1074,7 @@ describe('useWorkbenchRouteState', () => {
       view: 'signals',
       draftView: 'review',
       reviewFilter: 'blockers',
+      reviewStatusFilter: 'open',
       reviewIssueId: 'issue-export-blocker',
       branchId: DEFAULT_BOOK_EXPERIMENT_BRANCH_ID,
       branchBaseline: 'checkpoint',
@@ -957,6 +1086,7 @@ describe('useWorkbenchRouteState', () => {
     const params = new URLSearchParams(window.location.search)
     expect(params.get('draftView')).toBe('review')
     expect(params.get('reviewFilter')).toBe('blockers')
+    expect(params.get('reviewStatusFilter')).toBe('open')
     expect(params.get('reviewIssueId')).toBe('issue-export-blocker')
     expect(params.get('branchId')).toBe(DEFAULT_BOOK_EXPERIMENT_BRANCH_ID)
     expect(params.get('branchBaseline')).toBe('checkpoint')
@@ -1112,7 +1242,30 @@ describe('useWorkbenchRouteState', () => {
       view: 'signals',
       draftView: 'review',
       reviewFilter: 'all',
+      reviewStatusFilter: 'open',
       reviewIssueId: 'issue-trace-gap',
+    })
+  })
+
+  it('preserves dormant reviewStatusFilter when draftView is not review', () => {
+    window.history.replaceState(
+      {},
+      '',
+      `/workbench?scope=book&id=book-signal-arc&lens=structure&view=signals&draftView=export&checkpointId=${DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID}&exportProfileId=${DEFAULT_BOOK_EXPORT_PROFILE_ID}&reviewStatusFilter=dismissed&selectedChapterId=chapter-signals-in-rain`,
+    )
+
+    render(<RouteHarness />)
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'structure',
+      view: 'signals',
+      draftView: 'export',
+      checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+      exportProfileId: DEFAULT_BOOK_EXPORT_PROFILE_ID,
+      reviewStatusFilter: 'dismissed',
+      selectedChapterId: 'chapter-signals-in-rain',
     })
   })
 
@@ -1245,6 +1398,7 @@ describe('useWorkbenchRouteState', () => {
       view: 'signals',
       draftView: 'review',
       reviewFilter: 'blockers',
+      reviewStatusFilter: 'open',
       reviewIssueId: 'issue-export-blocker',
       selectedChapterId: 'chapter-open-water-signals',
     })

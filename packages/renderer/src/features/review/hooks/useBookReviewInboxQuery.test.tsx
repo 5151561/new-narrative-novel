@@ -1,10 +1,14 @@
-import { renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { renderHook, waitFor } from '@testing-library/react'
+import type { PropsWithChildren } from 'react'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { BookExperimentBranchWorkspaceViewModel } from '@/features/book/types/book-branch-view-models'
 import type { BookManuscriptCompareWorkspaceViewModel } from '@/features/book/types/book-compare-view-models'
 import type { BookDraftWorkspaceViewModel } from '@/features/book/types/book-draft-view-models'
 import type { BookExportPreviewWorkspaceViewModel } from '@/features/book/types/book-export-view-models'
+import type { ReviewIssueDecisionRecord } from '../api/review-decision-records'
+import { reviewQueryKeys } from './review-query-keys'
 
 import { useBookReviewInboxQuery } from './useBookReviewInboxQuery'
 
@@ -383,21 +387,99 @@ function createBranchWorkspace(): BookExperimentBranchWorkspaceViewModel {
   }
 }
 
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  })
+}
+
+function createWrapper(queryClient = createQueryClient()) {
+  return function Wrapper({ children }: PropsWithChildren) {
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  }
+}
+
+function createReviewClient(decisions: ReviewIssueDecisionRecord[] = [], error?: Error) {
+  return {
+    getBookReviewDecisions: vi.fn(async () => {
+      if (error) {
+        throw error
+      }
+
+      return structuredClone(decisions)
+    }),
+  }
+}
+
+function createDecisionSignature(issue: {
+  id: string
+  kind: string
+  source: string
+  chapterId?: string
+  sceneId?: string
+  assetId?: string
+  title: string
+  detail: string
+  sourceExcerpt?: string
+}) {
+  return [
+    issue.id,
+    issue.kind,
+    issue.source,
+    issue.chapterId ?? '',
+    issue.sceneId ?? '',
+    issue.assetId ?? '',
+    issue.title,
+    issue.detail,
+    issue.sourceExcerpt ?? '',
+  ].join('::')
+}
+
+function renderReviewInboxHook(
+  input: Parameters<typeof useBookReviewInboxQuery>[0],
+  reviewClient = createReviewClient(),
+) {
+  return renderHook(() => useBookReviewInboxQuery(input, { reviewClient }), {
+    wrapper: createWrapper(),
+  })
+}
+
+function buildHookIssueForDecision() {
+  return {
+    id: 'compare-delta-chapter-2-scene-3',
+    issueSignature: createDecisionSignature({
+      id: 'compare-delta-chapter-2-scene-3',
+      kind: 'compare_delta',
+      source: 'compare',
+      chapterId: 'chapter-2',
+      sceneId: 'scene-3',
+      title: 'Compare delta needs review',
+      detail: 'Scene Three changed against the selected checkpoint.',
+      sourceExcerpt: 'Changed scene',
+    }),
+  }
+}
+
 describe('useBookReviewInboxQuery', () => {
-  it('combines current compare export and branch workspaces into a review inbox', () => {
-    const { result } = renderHook(() =>
-      useBookReviewInboxQuery({
-        bookId: 'book-signal-arc',
-        currentDraftWorkspace: createCurrentDraftWorkspace(),
-        compareWorkspace: createCompareWorkspace(),
-        compareStatus: 'ready',
-        exportWorkspace: createExportWorkspace(),
-        exportStatus: 'ready',
-        branchWorkspace: createBranchWorkspace(),
-        branchStatus: 'ready',
-        reviewFilter: 'all',
-      }),
-    )
+  it('combines current compare export and branch workspaces into a review inbox', async () => {
+    const { result } = renderReviewInboxHook({
+      bookId: 'book-signal-arc',
+      currentDraftWorkspace: createCurrentDraftWorkspace(),
+      compareWorkspace: createCompareWorkspace(),
+      compareStatus: 'ready',
+      exportWorkspace: createExportWorkspace(),
+      exportStatus: 'ready',
+      branchWorkspace: createBranchWorkspace(),
+      branchStatus: 'ready',
+      reviewFilter: 'all',
+    })
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
 
     expect(result.current.inbox?.issues.some((issue) => issue.source === 'manuscript')).toBe(true)
     expect(result.current.inbox?.issues.some((issue) => issue.source === 'compare')).toBe(true)
@@ -411,34 +493,112 @@ describe('useBookReviewInboxQuery', () => {
   })
 
   it('returns loading with undefined inbox while current draft workspace is still loading', () => {
-    const { result } = renderHook(() =>
-      useBookReviewInboxQuery({
-        bookId: 'book-signal-arc',
-        currentDraftWorkspace: undefined,
-        compareStatus: 'idle',
-        exportStatus: 'idle',
-        branchStatus: 'idle',
-        reviewFilter: 'all',
-      }),
-    )
+    const { result } = renderReviewInboxHook({
+      bookId: 'book-signal-arc',
+      currentDraftWorkspace: undefined,
+      compareStatus: 'idle',
+      exportStatus: 'idle',
+      branchStatus: 'idle',
+      reviewFilter: 'all',
+    })
 
     expect(result.current.isLoading).toBe(true)
     expect(result.current.inbox).toBeUndefined()
     expect(result.current.isEmpty).toBe(false)
   })
 
-  it('still returns current and compare issues when export and branch sources are idle', () => {
-    const { result } = renderHook(() =>
-      useBookReviewInboxQuery({
-        bookId: 'book-signal-arc',
-        currentDraftWorkspace: createCurrentDraftWorkspace(),
-        compareWorkspace: createCompareWorkspace(),
-        compareStatus: 'ready',
-        exportStatus: 'idle',
-        branchStatus: 'idle',
-        reviewFilter: 'all',
-      }),
+  it('returns a loaded null inbox immediately when the current draft workspace resolved to null', async () => {
+    const { result } = renderReviewInboxHook({
+      bookId: 'book-signal-arc',
+      currentDraftWorkspace: null,
+      compareStatus: 'idle',
+      exportStatus: 'idle',
+      branchStatus: 'idle',
+      reviewFilter: 'all',
+    })
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.inbox).toBeNull()
+    expect(result.current.error).toBeNull()
+    expect(result.current.decisionError).toBeNull()
+  })
+
+  it('keeps the null inbox contract even when optional sources are still marked loading', async () => {
+    const { result } = renderReviewInboxHook({
+      bookId: 'book-signal-arc',
+      currentDraftWorkspace: null,
+      compareStatus: 'loading',
+      exportStatus: 'idle',
+      branchStatus: 'idle',
+      reviewFilter: 'all',
+    })
+
+    await waitFor(() => {
+      expect(result.current.inbox).toBeNull()
+    })
+
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('clears stale decisionError when the hook rerenders into a null inbox state', async () => {
+    const reviewError = new Error('Decision failed')
+    const { result, rerender } = renderHook(
+      (props: { currentDraftWorkspace: BookDraftWorkspaceViewModel | null }) =>
+        useBookReviewInboxQuery(
+          {
+            bookId: 'book-signal-arc',
+            currentDraftWorkspace: props.currentDraftWorkspace,
+            compareWorkspace: createCompareWorkspace(),
+            compareStatus: 'ready',
+            exportWorkspace: createExportWorkspace(),
+            exportStatus: 'ready',
+            branchWorkspace: createBranchWorkspace(),
+            branchStatus: 'ready',
+            reviewFilter: 'all',
+          },
+          { reviewClient: createReviewClient([], reviewError) },
+        ),
+      {
+        wrapper: createWrapper(),
+        initialProps: {
+          currentDraftWorkspace: createCurrentDraftWorkspace(),
+        },
+      },
     )
+
+    await waitFor(() => {
+      expect(result.current.decisionError?.message).toBe('Decision failed')
+    })
+
+    rerender({
+      currentDraftWorkspace: null,
+    })
+
+    await waitFor(() => {
+      expect(result.current.inbox).toBeNull()
+    })
+
+    expect(result.current.decisionError).toBeNull()
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('still returns current and compare issues when export and branch sources are idle', async () => {
+    const { result } = renderReviewInboxHook({
+      bookId: 'book-signal-arc',
+      currentDraftWorkspace: createCurrentDraftWorkspace(),
+      compareWorkspace: createCompareWorkspace(),
+      compareStatus: 'ready',
+      exportStatus: 'idle',
+      branchStatus: 'idle',
+      reviewFilter: 'all',
+    })
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
 
     expect(result.current.isLoading).toBe(false)
     expect(result.current.inbox?.issues.some((issue) => issue.source === 'manuscript')).toBe(true)
@@ -448,35 +608,35 @@ describe('useBookReviewInboxQuery', () => {
   })
 
   it('keeps loading with undefined inbox while an optional source is still loading', () => {
-    const { result } = renderHook(() =>
-      useBookReviewInboxQuery({
-        bookId: 'book-signal-arc',
-        currentDraftWorkspace: createCurrentDraftWorkspace(),
-        compareStatus: 'loading',
-        exportStatus: 'idle',
-        branchStatus: 'idle',
-        reviewFilter: 'all',
-      }),
-    )
+    const { result } = renderReviewInboxHook({
+      bookId: 'book-signal-arc',
+      currentDraftWorkspace: createCurrentDraftWorkspace(),
+      compareStatus: 'loading',
+      exportStatus: 'idle',
+      branchStatus: 'idle',
+      reviewFilter: 'all',
+    })
 
     expect(result.current.isLoading).toBe(true)
     expect(result.current.inbox).toBeUndefined()
     expect(result.current.isEmpty).toBe(false)
   })
 
-  it('surfaces upstream optional-source errors while still returning a partial inbox from available sources', () => {
-    const { result } = renderHook(() =>
-      useBookReviewInboxQuery({
-        bookId: 'book-signal-arc',
-        currentDraftWorkspace: createCurrentDraftWorkspace(),
-        compareError: new Error('Compare failed'),
-        exportWorkspace: createExportWorkspace(),
-        exportStatus: 'ready',
-        branchWorkspace: createBranchWorkspace(),
-        branchStatus: 'ready',
-        reviewFilter: 'all',
-      }),
-    )
+  it('surfaces upstream optional-source errors while still returning a partial inbox from available sources', async () => {
+    const { result } = renderReviewInboxHook({
+      bookId: 'book-signal-arc',
+      currentDraftWorkspace: createCurrentDraftWorkspace(),
+      compareError: new Error('Compare failed'),
+      exportWorkspace: createExportWorkspace(),
+      exportStatus: 'ready',
+      branchWorkspace: createBranchWorkspace(),
+      branchStatus: 'ready',
+      reviewFilter: 'all',
+    })
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
 
     expect(result.current.isLoading).toBe(false)
     expect(result.current.error?.message).toBe('Compare failed')
@@ -486,26 +646,28 @@ describe('useBookReviewInboxQuery', () => {
     expect(result.current.inbox?.issues.some((issue) => issue.source === 'branch')).toBe(true)
   })
 
-  it('syncs selectedIssue with reviewIssueId when the issue exists in the filtered result', () => {
-    const { result } = renderHook(() =>
-      useBookReviewInboxQuery({
-        bookId: 'book-signal-arc',
-        currentDraftWorkspace: createCurrentDraftWorkspace(),
-        compareWorkspace: createCompareWorkspace(),
-        compareStatus: 'ready',
-        exportWorkspace: createExportWorkspace(),
-        exportStatus: 'ready',
-        branchWorkspace: createBranchWorkspace(),
-        branchStatus: 'ready',
-        reviewFilter: 'all',
-        reviewIssueId: 'compare-delta-chapter-2-scene-3',
-      }),
-    )
+  it('syncs selectedIssue with reviewIssueId when the issue exists in the filtered result', async () => {
+    const { result } = renderReviewInboxHook({
+      bookId: 'book-signal-arc',
+      currentDraftWorkspace: createCurrentDraftWorkspace(),
+      compareWorkspace: createCompareWorkspace(),
+      compareStatus: 'ready',
+      exportWorkspace: createExportWorkspace(),
+      exportStatus: 'ready',
+      branchWorkspace: createBranchWorkspace(),
+      branchStatus: 'ready',
+      reviewFilter: 'all',
+      reviewIssueId: 'compare-delta-chapter-2-scene-3',
+    })
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
 
     expect(result.current.inbox?.selectedIssue?.id).toBe('compare-delta-chapter-2-scene-3')
   })
 
-  it('falls back selectedIssue when the filter change removes the requested issue', () => {
+  it('falls back selectedIssue when the filter change removes the requested issue', async () => {
     const { result, rerender } = renderHook(
       (props: {
         reviewFilter: 'all' | 'blockers'
@@ -522,8 +684,9 @@ describe('useBookReviewInboxQuery', () => {
           branchStatus: 'ready',
           reviewFilter: props.reviewFilter,
           reviewIssueId: props.reviewIssueId,
-        }),
+        }, { reviewClient: createReviewClient() }),
       {
+        wrapper: createWrapper(),
         initialProps: {
           reviewFilter: 'all',
           reviewIssueId: 'compare-delta-chapter-2-scene-3',
@@ -531,6 +694,9 @@ describe('useBookReviewInboxQuery', () => {
       },
     )
 
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
     expect(result.current.inbox?.selectedIssue?.id).toBe('compare-delta-chapter-2-scene-3')
 
     rerender({
@@ -538,24 +704,29 @@ describe('useBookReviewInboxQuery', () => {
       reviewIssueId: 'compare-delta-chapter-2-scene-3',
     })
 
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
     expect(result.current.inbox?.selectedIssue?.severity).toBe('blocker')
     expect(result.current.inbox?.selectedIssue?.id).toBe(result.current.inbox?.filteredIssues[0]?.id)
   })
 
-  it('keeps the selected issue detail handoffs available for review detail rendering', () => {
-    const { result } = renderHook(() =>
-      useBookReviewInboxQuery({
-        bookId: 'book-signal-arc',
-        currentDraftWorkspace: createCurrentDraftWorkspace(),
-        compareWorkspace: createCompareWorkspace(),
-        compareStatus: 'ready',
-        exportWorkspace: createExportWorkspace(),
-        exportStatus: 'ready',
-        branchWorkspace: createBranchWorkspace(),
-        branchStatus: 'ready',
-        reviewFilter: 'scene-proposals',
-      }),
-    )
+  it('keeps the selected issue detail handoffs available for review detail rendering', async () => {
+    const { result } = renderReviewInboxHook({
+      bookId: 'book-signal-arc',
+      currentDraftWorkspace: createCurrentDraftWorkspace(),
+      compareWorkspace: createCompareWorkspace(),
+      compareStatus: 'ready',
+      exportWorkspace: createExportWorkspace(),
+      exportStatus: 'ready',
+      branchWorkspace: createBranchWorkspace(),
+      branchStatus: 'ready',
+      reviewFilter: 'scene-proposals',
+    })
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
 
     expect(result.current.inbox?.selectedIssue?.handoffs[0]).toMatchObject({
       label: 'Open scene proposal',
@@ -568,7 +739,7 @@ describe('useBookReviewInboxQuery', () => {
     })
   })
 
-  it('keeps selectedChapterIssueCount aligned with the active filter', () => {
+  it('keeps selectedChapterIssueCount aligned with the active filter', async () => {
     const { result, rerender } = renderHook(
       (props: { reviewFilter: 'all' | 'scene-proposals' }) =>
         useBookReviewInboxQuery({
@@ -581,20 +752,130 @@ describe('useBookReviewInboxQuery', () => {
           branchWorkspace: createBranchWorkspace(),
           branchStatus: 'ready',
           reviewFilter: props.reviewFilter,
-        }),
+        }, { reviewClient: createReviewClient() }),
       {
+        wrapper: createWrapper(),
         initialProps: {
           reviewFilter: 'all',
         },
       },
     )
 
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
     expect(result.current.inbox?.selectedChapterIssueCount).toBeGreaterThan(0)
 
     rerender({
       reviewFilter: 'scene-proposals',
     })
 
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
     expect(result.current.inbox?.selectedChapterIssueCount).toBe(0)
+  })
+
+  it('surfaces decision query errors while keeping the inbox available with open-state issues', async () => {
+    const { result } = renderReviewInboxHook(
+      {
+        bookId: 'book-signal-arc',
+        currentDraftWorkspace: createCurrentDraftWorkspace(),
+        compareWorkspace: createCompareWorkspace(),
+        compareStatus: 'ready',
+        exportWorkspace: createExportWorkspace(),
+        exportStatus: 'ready',
+        branchWorkspace: createBranchWorkspace(),
+        branchStatus: 'ready',
+        reviewFilter: 'all',
+      },
+      createReviewClient([], new Error('Decision failed')),
+    )
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.error).toBeNull()
+    expect(result.current.decisionError?.message).toBe('Decision failed')
+    expect(result.current.inbox?.issues.every((issue) => issue.decision.status === 'open')).toBe(true)
+  })
+
+  it('ignores cached decision overlays when the decision query errors and falls back to open-state issues', async () => {
+    const reviewedIssue = buildHookIssueForDecision()
+    const queryClient = createQueryClient()
+    queryClient.setQueryData(reviewQueryKeys.decisions('book-signal-arc'), [
+      {
+        id: 'decision-reviewed',
+        bookId: 'book-signal-arc',
+        issueId: reviewedIssue.id,
+        issueSignature: reviewedIssue.issueSignature,
+        status: 'reviewed',
+        updatedAtLabel: '2026-04-19 17:20',
+        updatedByLabel: 'Editor',
+      },
+    ])
+
+    const { result } = renderHook(
+      () =>
+        useBookReviewInboxQuery(
+          {
+            bookId: 'book-signal-arc',
+            currentDraftWorkspace: createCurrentDraftWorkspace(),
+            compareWorkspace: createCompareWorkspace(),
+            compareStatus: 'ready',
+            exportWorkspace: createExportWorkspace(),
+            exportStatus: 'ready',
+            branchWorkspace: createBranchWorkspace(),
+            branchStatus: 'ready',
+            reviewFilter: 'all',
+          },
+          { reviewClient: createReviewClient([], new Error('Decision failed')) },
+        ),
+      { wrapper: createWrapper(queryClient) },
+    )
+
+    await waitFor(() => {
+      expect(result.current.decisionError?.message).toBe('Decision failed')
+    })
+
+    expect(result.current.inbox?.issues.find((issue) => issue.id === reviewedIssue.id)?.decision.status).toBe('open')
+  })
+
+  it('filters the visible queue with reviewStatusFilter after decision overlay is applied', async () => {
+    const reviewedIssue = buildHookIssueForDecision()
+
+    const { result } = renderReviewInboxHook(
+      {
+        bookId: 'book-signal-arc',
+        currentDraftWorkspace: createCurrentDraftWorkspace(),
+        compareWorkspace: createCompareWorkspace(),
+        compareStatus: 'ready',
+        exportWorkspace: createExportWorkspace(),
+        exportStatus: 'ready',
+        branchWorkspace: createBranchWorkspace(),
+        branchStatus: 'ready',
+        reviewFilter: 'all',
+        reviewStatusFilter: 'reviewed',
+      },
+      createReviewClient([
+        {
+          id: 'decision-reviewed',
+          bookId: 'book-signal-arc',
+          issueId: reviewedIssue.id,
+          issueSignature: reviewedIssue.issueSignature,
+          status: 'reviewed',
+          updatedAtLabel: '2026-04-19 17:20',
+          updatedByLabel: 'Editor',
+        },
+      ]),
+    )
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.inbox?.activeStatusFilter).toBe('reviewed')
+    expect(result.current.inbox?.filteredIssues.map((issue) => issue.id)).toEqual([reviewedIssue.id])
   })
 })

@@ -10,6 +10,7 @@ import type {
   BookDraftView,
   BookLens,
   BookReviewFilter,
+  BookReviewStatusFilter,
   BookRouteState,
   BookStructureView,
   ChapterLens,
@@ -67,6 +68,7 @@ const CANONICAL_ROUTE_KEYS = [
   'checkpointId',
   'exportProfileId',
   'reviewFilter',
+  'reviewStatusFilter',
   'reviewIssueId',
   'sceneId',
   'selectedChapterId',
@@ -101,6 +103,13 @@ const VALID_BOOK_REVIEW_FILTERS = new Set<BookReviewFilter>([
   'export-readiness',
   'branch-readiness',
   'scene-proposals',
+])
+const VALID_BOOK_REVIEW_STATUS_FILTERS = new Set<BookReviewStatusFilter>([
+  'open',
+  'reviewed',
+  'deferred',
+  'dismissed',
+  'all',
 ])
 
 let lastRouteSearch = ''
@@ -207,6 +216,14 @@ function readBookReviewFilterParam(value: string | null) {
   return isBookReviewFilter(value) ? value : undefined
 }
 
+function isBookReviewStatusFilter(value: string | null): value is BookReviewStatusFilter {
+  return value !== null && VALID_BOOK_REVIEW_STATUS_FILTERS.has(value as BookReviewStatusFilter)
+}
+
+function readBookReviewStatusFilterParam(value: string | null) {
+  return isBookReviewStatusFilter(value) ? value : undefined
+}
+
 function normalizeSceneRoute(route: Partial<SceneRouteState>): SceneRouteState {
   return {
     scope: 'scene',
@@ -257,6 +274,12 @@ function normalizeBookRoute(route: Partial<BookRouteState>): BookRouteState {
       : draftView === 'review'
         ? 'all'
         : undefined
+  const reviewStatusFilter =
+    route.reviewStatusFilter && VALID_BOOK_REVIEW_STATUS_FILTERS.has(route.reviewStatusFilter)
+      ? route.reviewStatusFilter
+      : draftView === 'review'
+        ? 'open'
+        : undefined
   const reviewIssueId = route.reviewIssueId?.trim() || undefined
 
   return {
@@ -273,6 +296,7 @@ function normalizeBookRoute(route: Partial<BookRouteState>): BookRouteState {
         : checkpointId,
     exportProfileId: draftView === 'export' ? exportProfileId ?? DEFAULT_BOOK_EXPORT_PROFILE_ID : exportProfileId,
     reviewFilter,
+    reviewStatusFilter,
     reviewIssueId,
     selectedChapterId: route.selectedChapterId,
   }
@@ -322,6 +346,7 @@ function readBookSnapshot(params: URLSearchParams) {
   const activeDraftView = readBookDraftViewParam(params.get('draftView'))
   const activeBranchBaseline = readBookBranchBaselineParam(params.get('branchBaseline'))
   const activeReviewFilter = readBookReviewFilterParam(params.get('reviewFilter'))
+  const activeReviewStatusFilter = readBookReviewStatusFilterParam(params.get('reviewStatusFilter'))
 
   return normalizeBookRoute({
     bookId: readTextParam(params, 'id'),
@@ -333,6 +358,7 @@ function readBookSnapshot(params: URLSearchParams) {
     checkpointId: readTextParam(params, 'checkpointId'),
     exportProfileId: readTextParam(params, 'exportProfileId'),
     reviewFilter: activeReviewFilter,
+    reviewStatusFilter: activeReviewStatusFilter,
     reviewIssueId: readTextParam(params, 'reviewIssueId'),
     selectedChapterId: readTextParam(params, 'selectedChapterId'),
   })
@@ -445,6 +471,9 @@ function buildWorkbenchSearch(
     }
     if (state.book.reviewFilter) {
       params.set('reviewFilter', state.book.reviewFilter)
+    }
+    if (state.book.reviewStatusFilter) {
+      params.set('reviewStatusFilter', state.book.reviewStatusFilter)
     }
     if (state.book.reviewIssueId) {
       params.set('reviewIssueId', state.book.reviewIssueId)

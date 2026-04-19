@@ -2,12 +2,14 @@ import type { BookExperimentBranchWorkspaceViewModel } from '@/features/book/typ
 import type { BookManuscriptCompareSceneViewModel, BookManuscriptCompareWorkspaceViewModel } from '@/features/book/types/book-compare-view-models'
 import type { BookDraftChapterViewModel, BookDraftSceneSectionViewModel, BookDraftWorkspaceViewModel } from '@/features/book/types/book-draft-view-models'
 import type { BookExportPreviewWorkspaceViewModel } from '@/features/book/types/book-export-view-models'
-import type { BookReviewFilter } from '@/features/workbench/types/workbench-route'
+import type { BookReviewFilter, BookReviewStatusFilter } from '@/features/workbench/types/workbench-route'
 
 import type { BookReviewSeedRecord } from '../api/book-review-seeds'
+import type { ReviewIssueDecisionRecord } from '../api/review-decision-records'
 import type {
   BookReviewInboxCountsViewModel,
   BookReviewInboxViewModel,
+  ReviewIssueDecisionViewModel,
   ReviewIssueGroupsViewModel,
   ReviewIssueViewModel,
   ReviewSourceHandoffViewModel,
@@ -21,8 +23,12 @@ interface BuildBookReviewInboxViewModelInput {
   branchWorkspace?: BookExperimentBranchWorkspaceViewModel | null
   reviewSeeds?: BookReviewSeedRecord[]
   reviewFilter?: BookReviewFilter
+  reviewStatusFilter?: BookReviewStatusFilter
   reviewIssueId?: string
+  decisionRecords?: ReviewIssueDecisionRecord[]
 }
+
+type ReviewIssueBase = Omit<ReviewIssueViewModel, 'issueSignature' | 'decision'>
 
 const SEVERITY_RANK = {
   blocker: 0,
@@ -42,6 +48,38 @@ const SOURCE_RANK = {
 
 function createHandoff(id: string, label: string, target: ReviewSourceHandoffViewModel['target']): ReviewSourceHandoffViewModel {
   return { id, label, target }
+}
+
+function createOpenDecision(): ReviewIssueDecisionViewModel {
+  return {
+    status: 'open',
+    isStale: false,
+  }
+}
+
+export function createReviewIssueSignature(issue: Pick<
+  ReviewIssueBase,
+  'id' | 'kind' | 'source' | 'chapterId' | 'sceneId' | 'assetId' | 'title' | 'detail' | 'sourceExcerpt'
+>) {
+  return [
+    issue.id,
+    issue.kind,
+    issue.source,
+    issue.chapterId ?? '',
+    issue.sceneId ?? '',
+    issue.assetId ?? '',
+    issue.title,
+    issue.detail,
+    issue.sourceExcerpt ?? '',
+  ].join('::')
+}
+
+function hydrateReviewIssue(issue: ReviewIssueBase): ReviewIssueViewModel {
+  return {
+    ...issue,
+    issueSignature: createReviewIssueSignature(issue),
+    decision: createOpenDecision(),
+  }
 }
 
 function sortReviewIssues(left: ReviewIssueViewModel, right: ReviewIssueViewModel) {
@@ -86,6 +124,59 @@ function filterReviewIssues(issues: ReviewIssueViewModel[], reviewFilter: BookRe
   return issues.filter((issue) => issue.source === 'scene-proposal')
 }
 
+export function filterReviewIssuesByStatus(issues: ReviewIssueViewModel[], statusFilter: BookReviewStatusFilter) {
+  if (statusFilter === 'all') {
+    return issues
+  }
+
+  if (statusFilter === 'open') {
+    return issues.filter((issue) => issue.decision.status === 'open' || issue.decision.status === 'stale')
+  }
+
+  return issues.filter((issue) => issue.decision.status === statusFilter)
+}
+
+export function applyReviewDecisionsToIssues({
+  issues,
+  decisions,
+}: {
+  issues: ReviewIssueViewModel[]
+  decisions: ReviewIssueDecisionRecord[]
+}): ReviewIssueViewModel[] {
+  const decisionsByIssueId = new Map(decisions.map((record) => [record.issueId, record]))
+
+  return issues.map((issue) => {
+    const decisionRecord = decisionsByIssueId.get(issue.id)
+    if (!decisionRecord) {
+      return issue
+    }
+
+    if (decisionRecord.issueSignature !== issue.issueSignature) {
+      return {
+        ...issue,
+        decision: {
+          status: 'stale',
+          note: decisionRecord.note,
+          updatedAtLabel: decisionRecord.updatedAtLabel,
+          updatedByLabel: decisionRecord.updatedByLabel,
+          isStale: true,
+        },
+      }
+    }
+
+    return {
+      ...issue,
+      decision: {
+        status: decisionRecord.status,
+        note: decisionRecord.note,
+        updatedAtLabel: decisionRecord.updatedAtLabel,
+        updatedByLabel: decisionRecord.updatedByLabel,
+        isStale: false,
+      },
+    }
+  })
+}
+
 function buildIssueGroups(issues: ReviewIssueViewModel[]): ReviewIssueGroupsViewModel {
   return {
     blockers: issues.filter((issue) => issue.severity === 'blocker'),
@@ -106,6 +197,11 @@ function buildCounts(issues: ReviewIssueViewModel[]): BookReviewInboxCountsViewM
     exportReadiness: issues.filter((issue) => issue.source === 'export').length,
     branchReadiness: issues.filter((issue) => issue.source === 'branch').length,
     sceneProposals: issues.filter((issue) => issue.source === 'scene-proposal').length,
+    open: issues.filter((issue) => issue.decision.status === 'open' || issue.decision.status === 'stale').length,
+    reviewed: issues.filter((issue) => issue.decision.status === 'reviewed').length,
+    deferred: issues.filter((issue) => issue.decision.status === 'deferred').length,
+    dismissed: issues.filter((issue) => issue.decision.status === 'dismissed').length,
+    stale: issues.filter((issue) => issue.decision.status === 'stale').length,
   }
 }
 
@@ -146,10 +242,10 @@ function createCurrentDraftIssue(
   chapter: BookDraftChapterViewModel,
   section: BookDraftSceneSectionViewModel,
   overrides: Pick<
-    ReviewIssueViewModel,
+    ReviewIssueBase,
     'severity' | 'source' | 'kind' | 'title' | 'detail' | 'recommendation' | 'sourceLabel' | 'tags'
   >,
-): ReviewIssueViewModel {
+): ReviewIssueBase {
   return {
     id: issueId,
     chapterId: chapter.chapterId,
@@ -164,8 +260,8 @@ function createCurrentDraftIssue(
   }
 }
 
-function buildDraftIssues(currentDraftWorkspace: BookDraftWorkspaceViewModel): ReviewIssueViewModel[] {
-  const issues: ReviewIssueViewModel[] = []
+function buildDraftIssues(currentDraftWorkspace: BookDraftWorkspaceViewModel): ReviewIssueBase[] {
+  const issues: ReviewIssueBase[] = []
 
   for (const chapter of currentDraftWorkspace.chapters) {
     for (const section of chapter.sections) {
@@ -269,12 +365,12 @@ function createCompareBookHandoff(
   })
 }
 
-function buildCompareIssues(compareWorkspace: BookManuscriptCompareWorkspaceViewModel | null | undefined): ReviewIssueViewModel[] {
+function buildCompareIssues(compareWorkspace: BookManuscriptCompareWorkspaceViewModel | null | undefined): ReviewIssueBase[] {
   if (!compareWorkspace) {
     return []
   }
 
-  const issues: ReviewIssueViewModel[] = []
+  const issues: ReviewIssueBase[] = []
 
   for (const chapter of compareWorkspace.chapters) {
     for (const scene of chapter.scenes) {
@@ -403,7 +499,7 @@ function createExportBookHandoff(
   })
 }
 
-function buildExportIssues(exportWorkspace: BookExportPreviewWorkspaceViewModel | null | undefined): ReviewIssueViewModel[] {
+function buildExportIssues(exportWorkspace: BookExportPreviewWorkspaceViewModel | null | undefined): ReviewIssueBase[] {
   if (!exportWorkspace) {
     return []
   }
@@ -436,7 +532,7 @@ function buildExportIssues(exportWorkspace: BookExportPreviewWorkspaceViewModel 
         createExportBookHandoff(issue.id, exportWorkspace, issue.chapterId),
         ...(issue.chapterId ? [createChapterDraftHandoff(issue.id, issue.chapterId, issue.sceneId)] : []),
       ],
-    } satisfies ReviewIssueViewModel
+    } satisfies ReviewIssueBase
   })
 }
 
@@ -458,12 +554,12 @@ function createBranchBookHandoff(
   })
 }
 
-function buildBranchIssues(branchWorkspace: BookExperimentBranchWorkspaceViewModel | null | undefined): ReviewIssueViewModel[] {
+function buildBranchIssues(branchWorkspace: BookExperimentBranchWorkspaceViewModel | null | undefined): ReviewIssueBase[] {
   if (!branchWorkspace) {
     return []
   }
 
-  const issues: ReviewIssueViewModel[] = branchWorkspace.readiness.issues.map((issue) => {
+  const issues: ReviewIssueBase[] = branchWorkspace.readiness.issues.map((issue) => {
     const chapter = branchWorkspace.chapters.find((item) => item.chapterId === issue.chapterId)
     const scene = chapter?.sceneDeltas.find((item) => item.sceneId === issue.sceneId)
 
@@ -497,7 +593,7 @@ function buildBranchIssues(branchWorkspace: BookExperimentBranchWorkspaceViewMod
         createBranchBookHandoff(issue.id, branchWorkspace, issue.chapterId),
         ...(issue.chapterId ? [createChapterDraftHandoff(issue.id, issue.chapterId, issue.sceneId)] : []),
       ],
-    } satisfies ReviewIssueViewModel
+    } satisfies ReviewIssueBase
   })
 
   const seenIds = new Set(issues.map((issue) => issue.id))
@@ -537,7 +633,7 @@ function buildBranchIssues(branchWorkspace: BookExperimentBranchWorkspaceViewMod
   return issues
 }
 
-function buildSeedIssues(reviewSeeds: BookReviewSeedRecord[]): ReviewIssueViewModel[] {
+function buildSeedIssues(reviewSeeds: BookReviewSeedRecord[]): ReviewIssueBase[] {
   return reviewSeeds.map((seed) => ({
     id: seed.id,
     severity: seed.severity,
@@ -569,17 +665,25 @@ export function buildBookReviewInboxViewModel({
   branchWorkspace,
   reviewSeeds = [],
   reviewFilter = 'all',
+  reviewStatusFilter = 'open',
   reviewIssueId,
+  decisionRecords = [],
 }: BuildBookReviewInboxViewModelInput): BookReviewInboxViewModel {
-  const issues = [
+  const issues = applyReviewDecisionsToIssues({
+    issues: [
     ...buildDraftIssues(currentDraftWorkspace),
     ...buildCompareIssues(compareWorkspace),
     ...buildExportIssues(exportWorkspace),
     ...buildBranchIssues(branchWorkspace),
     ...buildSeedIssues(reviewSeeds),
-  ].sort(sortReviewIssues)
+    ]
+      .map((issue) => hydrateReviewIssue(issue))
+      .sort(sortReviewIssues),
+    decisions: decisionRecords,
+  })
 
-  const filteredIssues = filterReviewIssues(issues, reviewFilter)
+  const reviewFilteredIssues = filterReviewIssues(issues, reviewFilter)
+  const filteredIssues = filterReviewIssuesByStatus(reviewFilteredIssues, reviewStatusFilter)
   const selectedIssue = filteredIssues.find((issue) => issue.id === reviewIssueId) ?? filteredIssues[0] ?? null
   const selectedChapterId = currentDraftWorkspace.selectedChapterId
 
@@ -589,10 +693,12 @@ export function buildBookReviewInboxViewModel({
     selectedIssueId: selectedIssue?.id ?? null,
     selectedIssue,
     activeFilter: reviewFilter,
+    activeStatusFilter: reviewStatusFilter,
     issues,
     filteredIssues,
     groupedIssues: buildIssueGroups(filteredIssues),
     counts: buildCounts(issues),
+    visibleOpenCount: filterReviewIssuesByStatus(reviewFilteredIssues, 'open').length,
     selectedChapterIssueCount: selectedChapterId
       ? filteredIssues.filter((issue) => issue.chapterId === selectedChapterId).length
       : 0,

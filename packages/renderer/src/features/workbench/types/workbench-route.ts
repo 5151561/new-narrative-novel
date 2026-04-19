@@ -21,6 +21,7 @@ export type BookReviewFilter =
   | 'export-readiness'
   | 'branch-readiness'
   | 'scene-proposals'
+export type BookReviewStatusFilter = 'open' | 'reviewed' | 'deferred' | 'dismissed' | 'all'
 
 export interface SceneRouteState {
   scope: 'scene'
@@ -58,6 +59,7 @@ export interface BookRouteState {
   checkpointId?: string
   exportProfileId?: string
   reviewFilter?: BookReviewFilter
+  reviewStatusFilter?: BookReviewStatusFilter
   reviewIssueId?: string
   selectedChapterId?: string
 }
