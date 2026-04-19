@@ -72,4 +72,21 @@ describe('BookOutlinerView', () => {
     await user.click(screen.getByRole('button', { name: 'Open in Structure: Open Water Signals' }))
     expect(onOpenChapter).toHaveBeenNthCalledWith(1, 'chapter-open-water-signals', 'structure')
   })
+
+  it('uses responsive row columns so the chapter summary does not collapse into a vertical strip', () => {
+    render(
+      <I18nProvider>
+        <BookOutlinerView
+          chapters={chapters}
+          selectedChapterId="chapter-signals-in-rain"
+        />
+      </I18nProvider>,
+    )
+
+    const firstRow = screen.getByRole('button', { name: /Beat line 1 Signals in Rain/i }).querySelector('.grid')
+    expect(firstRow).not.toBeNull()
+    expect(firstRow?.className).toContain('md:grid-cols-[88px_minmax(0,1fr)]')
+    expect(firstRow?.className).toContain('xl:grid-cols-[88px_minmax(180px,1.25fr)_minmax(92px,0.75fr)_minmax(92px,0.75fr)_minmax(92px,0.75fr)_minmax(120px,0.85fr)]')
+    expect(firstRow?.className).not.toContain('lg:grid-cols-[96px_minmax(0,1fr)_140px_140px_140px_160px]')
+  })
 })

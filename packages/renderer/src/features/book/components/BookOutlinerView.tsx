@@ -48,14 +48,14 @@ export function BookOutlinerView({
                   onClick={() => onSelectChapter?.(chapter.chapterId)}
                   className="w-full rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
                 >
-                  <span className="grid gap-3 lg:grid-cols-[96px_minmax(0,1fr)_140px_140px_140px_160px]">
+                  <span className="grid items-start gap-x-4 gap-y-3 md:grid-cols-[88px_minmax(0,1fr)] xl:grid-cols-[88px_minmax(180px,1.25fr)_minmax(92px,0.75fr)_minmax(92px,0.75fr)_minmax(92px,0.75fr)_minmax(120px,0.85fr)] 2xl:grid-cols-[96px_minmax(220px,1.2fr)_140px_140px_140px_160px]">
                     <span className="block min-w-0">
                       <span className="block text-[11px] uppercase tracking-[0.08em] text-text-soft">
                         {getBeatLineLabel(locale, chapter.order)}
                       </span>
                       <span className="mt-1 block break-words text-sm font-medium text-text-main">{chapter.title}</span>
                     </span>
-                    <span className="block min-w-0 text-sm leading-6 text-text-muted">{chapter.summary}</span>
+                    <span className="block min-w-0 break-words text-sm leading-6 text-text-muted">{chapter.summary}</span>
                     <span className="block min-w-0">
                       <span className="block text-[11px] uppercase tracking-[0.08em] text-text-soft">
                         {locale === 'zh-CN' ? '结构压力' : 'Structure'}
