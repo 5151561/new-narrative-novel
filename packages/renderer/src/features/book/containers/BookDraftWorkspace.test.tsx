@@ -528,6 +528,30 @@ describe('BookDraftWorkspace', () => {
     })
   })
 
+  it('derives review problems for the bottom dock from the runtime review inbox', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=export-readiness&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+
+    const bottomDock = screen.getByLabelText('Book draft bottom dock')
+
+    expect(within(bottomDock).getAllByText('Export blockers').length).toBeGreaterThan(0)
+    expect(within(bottomDock).getAllByText('Branch blockers').length).toBeGreaterThan(0)
+    expect(within(bottomDock).getAllByText('Missing drafts').length).toBeGreaterThan(0)
+    expect(within(bottomDock).getAllByText('Warehouse Bridge still needs current draft prose.').length).toBeGreaterThan(0)
+    expect(within(bottomDock).getAllByText('Departure Bell still lacks trace readiness for this export profile.').length).toBeGreaterThan(0)
+  })
+
   it('settles stale reviewIssueId onto the effective blocker and aligns selectedChapterId to that issue chapter', async () => {
     window.history.replaceState(
       {},

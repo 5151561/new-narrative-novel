@@ -11,6 +11,7 @@ import {
   buildBookDraftBranchStoryData,
   buildBookDraftCompareStoryData,
   buildBookDraftExportStoryData,
+  buildBookDraftReviewStoryData,
   useLocalizedBookDraftWorkspace,
 } from './book-draft-storybook'
 
@@ -21,7 +22,8 @@ interface BookDraftInspectorPaneStoryProps {
   branchId?: string
   branchBaseline?: 'current' | 'checkpoint'
   exportProfileId?: string
-  draftView?: 'read' | 'compare' | 'export' | 'branch'
+  reviewFilter?: 'all' | 'blockers' | 'trace-gaps' | 'missing-drafts' | 'compare-deltas' | 'export-readiness' | 'branch-readiness' | 'scene-proposals'
+  draftView?: 'read' | 'compare' | 'export' | 'branch' | 'review'
 }
 
 function StoryComponent({
@@ -31,6 +33,7 @@ function StoryComponent({
   branchId,
   branchBaseline = 'current',
   exportProfileId,
+  reviewFilter = 'all',
   draftView = 'read',
 }: BookDraftInspectorPaneStoryProps) {
   const { locale } = useI18n()
@@ -38,6 +41,15 @@ function StoryComponent({
   const compareData = buildBookDraftCompareStoryData(locale, { variant, selectedChapterId, checkpointId })
   const branchData = buildBookDraftBranchStoryData(locale, { variant, selectedChapterId, branchId, branchBaseline, checkpointId })
   const exportData = buildBookDraftExportStoryData(locale, { variant, selectedChapterId, checkpointId, exportProfileId })
+  const reviewData = buildBookDraftReviewStoryData(locale, {
+    variant,
+    selectedChapterId,
+    checkpointId,
+    branchId,
+    branchBaseline,
+    exportProfileId,
+    reviewFilter,
+  })
 
   return (
     <BookDraftInspectorPane
@@ -47,6 +59,8 @@ function StoryComponent({
       compare={draftView === 'compare' ? compareData.compare : null}
       branch={draftView === 'branch' ? branchData.branchWorkspace : null}
       exportPreview={draftView === 'export' ? exportData.exportWorkspace : null}
+      reviewInbox={draftView === 'review' ? reviewData.reviewInbox : null}
+      onOpenReviewSource={() => undefined}
       checkpointMeta={draftView === 'compare' ? compareData.selectedCheckpoint : null}
     />
   )
@@ -138,6 +152,14 @@ export const BranchBlockedMissingDraft: Story = {
     branchId: 'branch-book-signal-arc-high-pressure',
     branchBaseline: 'checkpoint',
     checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+    selectedChapterId: 'chapter-open-water-signals',
+  },
+}
+
+export const ReviewExportReadiness: Story = {
+  args: {
+    draftView: 'review',
+    reviewFilter: 'export-readiness',
     selectedChapterId: 'chapter-open-water-signals',
   },
 }

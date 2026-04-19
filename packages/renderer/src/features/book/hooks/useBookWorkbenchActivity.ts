@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useI18n } from '@/app/i18n'
-import type { BookDraftView, BookLens, BookStructureView } from '@/features/workbench/types/workbench-route'
+import type { BookDraftView, BookLens, BookReviewFilter, BookStructureView } from '@/features/workbench/types/workbench-route'
 
 interface BookWorkbenchActivityChapter {
   id: string
@@ -41,6 +41,21 @@ interface BookWorkbenchBranchBaseline {
   checkpointId?: string
 }
 
+interface BookWorkbenchReviewIssue {
+  id: string
+  title: string
+  sourceLabel: string
+  chapterTitle?: string
+  sceneTitle?: string
+}
+
+export interface BookWorkbenchReviewSourceEvent {
+  id: string
+  bookId: string
+  issueTitle: string
+  sourceActionLabel: string
+}
+
 export type BookWorkbenchActivityKind =
   | 'lens'
   | 'view'
@@ -51,6 +66,9 @@ export type BookWorkbenchActivityKind =
   | 'branch'
   | 'branch-baseline'
   | 'export-profile'
+  | 'review-filter'
+  | 'review-issue'
+  | 'review-source'
 
 interface BookWorkbenchActivityEntry {
   id: string
@@ -70,12 +88,17 @@ interface BookWorkbenchActivityEntry {
     | 'returned-compare'
     | 'selected-checkpoint'
     | 'entered-branch'
+    | 'entered-review'
     | 'selected-branch'
     | 'selected-branch-baseline'
     | 'selected-export-profile'
+    | 'selected-review-filter'
+    | 'selected-review-issue'
+    | 'opened-review-source'
   lens?: BookLens
   view?: BookStructureView
   draftView?: BookDraftView
+  reviewFilter?: BookReviewFilter
   chapterTitle?: string
   chapterSummary?: string
   checkpointTitle?: string
@@ -87,6 +110,11 @@ interface BookWorkbenchActivityEntry {
   branchBaselineCheckpointId?: string
   exportProfileTitle?: string
   exportProfileSummary?: string
+  reviewIssueTitle?: string
+  reviewIssueSourceLabel?: string
+  reviewIssueChapterTitle?: string
+  reviewIssueSceneTitle?: string
+  reviewSourceActionLabel?: string
 }
 
 export interface BookWorkbenchActivityItem {
@@ -102,6 +130,8 @@ interface UseBookWorkbenchActivityOptions {
   activeLens?: BookLens
   activeView: BookStructureView
   activeDraftView?: BookDraftView
+  selectedReviewFilter?: BookReviewFilter
+  selectedReviewIssue?: BookWorkbenchReviewIssue | null
   selectedCheckpoint?: BookWorkbenchCheckpoint | null
   selectedBranch?: BookWorkbenchBranch | null
   selectedBranchBaseline?: BookWorkbenchBranchBaseline | null
@@ -112,6 +142,7 @@ interface UseBookWorkbenchActivityOptions {
 }
 
 const rememberedBookHandoffsByBookId = new Map<string, BookWorkbenchActivityEntry[]>()
+const rememberedBookReviewSourceByBookId = new Map<string, BookWorkbenchActivityEntry[]>()
 
 function buildHandoffActivityEntry(event: BookWorkbenchHandoffEvent): BookWorkbenchActivityEntry {
   return {
@@ -131,8 +162,28 @@ export function rememberBookWorkbenchHandoff(event: BookWorkbenchHandoffEvent, m
   rememberedBookHandoffsByBookId.set(event.bookId, [nextEntry, ...dedupedEntries].slice(0, maxItems))
 }
 
+function buildReviewSourceActivityEntry(event: BookWorkbenchReviewSourceEvent): BookWorkbenchActivityEntry {
+  return {
+    id: event.id,
+    kind: 'review-source',
+    tone: 'neutral',
+    action: 'opened-review-source',
+    reviewIssueTitle: event.issueTitle,
+    reviewSourceActionLabel: event.sourceActionLabel,
+  }
+}
+
+export function rememberBookWorkbenchReviewSourceOpen(event: BookWorkbenchReviewSourceEvent, maxItems = 6) {
+  const nextEntry = buildReviewSourceActivityEntry(event)
+  const currentEntries = rememberedBookReviewSourceByBookId.get(event.bookId) ?? []
+  const dedupedEntries = currentEntries.filter((entry) => entry.id !== nextEntry.id)
+
+  rememberedBookReviewSourceByBookId.set(event.bookId, [nextEntry, ...dedupedEntries].slice(0, maxItems))
+}
+
 export function resetRememberedBookWorkbenchHandoffs() {
   rememberedBookHandoffsByBookId.clear()
+  rememberedBookReviewSourceByBookId.clear()
 }
 
 function getViewLabel(locale: 'en' | 'zh-CN', view: BookStructureView) {
@@ -149,6 +200,42 @@ function getLensLabel(locale: 'en' | 'zh-CN', lens: 'structure' | 'draft') {
   }
 
   return lens === 'structure' ? 'Structure' : 'Draft'
+}
+
+function getReviewFilterLabel(locale: 'en' | 'zh-CN', filter: BookReviewFilter) {
+  if (locale === 'zh-CN') {
+    return filter === 'all'
+      ? '全部'
+      : filter === 'blockers'
+        ? '阻塞项'
+        : filter === 'trace-gaps'
+          ? '溯源缺口'
+          : filter === 'missing-drafts'
+            ? '缺稿'
+            : filter === 'compare-deltas'
+              ? 'Compare 差异'
+              : filter === 'export-readiness'
+                ? '导出准备度'
+                : filter === 'branch-readiness'
+                  ? '实验稿准备度'
+                  : '场景提案'
+  }
+
+  return filter === 'all'
+    ? 'All'
+    : filter === 'blockers'
+      ? 'Blockers'
+      : filter === 'trace-gaps'
+        ? 'Trace gaps'
+        : filter === 'missing-drafts'
+          ? 'Missing drafts'
+          : filter === 'compare-deltas'
+            ? 'Compare deltas'
+            : filter === 'export-readiness'
+              ? 'Export readiness'
+              : filter === 'branch-readiness'
+                ? 'Branch readiness'
+                : 'Scene proposals'
 }
 
 function localizeActivityEntry(
@@ -216,6 +303,8 @@ function localizeActivityEntry(
             ? '进入 Compare'
             : entry.action === 'entered-branch'
               ? '进入实验稿审阅'
+            : entry.action === 'entered-review'
+              ? '进入 Review'
             : entry.action === 'entered-export'
               ? '进入导出预览'
               : entry.action === 'returned-compare'
@@ -225,6 +314,8 @@ function localizeActivityEntry(
             ? 'Entered Compare'
             : entry.action === 'entered-branch'
               ? 'Entered Branch Review'
+            : entry.action === 'entered-review'
+              ? 'Entered Review'
             : entry.action === 'entered-export'
               ? 'Entered Export Preview'
               : entry.action === 'returned-compare'
@@ -236,6 +327,8 @@ function localizeActivityEntry(
             ? 'Compare 面板继续把 checkpoint 与章节焦点交给路由。'
             : entry.draftView === 'branch'
               ? '实验稿审阅继续把 branch 选择与 baseline 都交给路由。'
+            : entry.draftView === 'review'
+              ? 'Review 继续把筛选器与问题选择交给路由。'
             : entry.draftView === 'export'
               ? 'Export 预览继续把 chapter focus 与 export profile 交给路由。'
             : 'Read 面板恢复连续阅读，不接管结构视图。'
@@ -243,6 +336,8 @@ function localizeActivityEntry(
             ? 'Compare keeps checkpoint and chapter focus route-owned.'
             : entry.draftView === 'branch'
               ? 'Branch review keeps branch selection and baseline route-owned.'
+            : entry.draftView === 'review'
+              ? 'Review keeps filter and issue selection route-owned.'
             : entry.draftView === 'export'
               ? 'Export preview keeps chapter focus and profile selection route-owned.'
             : 'Read mode restores the manuscript reader without taking over the dormant structure view.',
@@ -319,6 +414,52 @@ function localizeActivityEntry(
     }
   }
 
+  if (entry.kind === 'review-filter' && entry.reviewFilter) {
+    const filterLabel = getReviewFilterLabel(locale, entry.reviewFilter)
+
+    return {
+      id: entry.id,
+      kind: entry.kind,
+      tone: entry.tone,
+      title:
+        locale === 'zh-CN'
+          ? `选择筛选器 ${filterLabel}`
+          : `Selected review filter ${filterLabel}`,
+      detail:
+        locale === 'zh-CN'
+          ? 'Review 队列继续把当前筛选器保留在 route state 中。'
+          : 'The review queue keeps the active filter in route state.',
+    }
+  }
+
+  if (entry.kind === 'review-issue') {
+    const anchor = [entry.reviewIssueChapterTitle, entry.reviewIssueSceneTitle].filter(Boolean).join(' / ')
+
+    return {
+      id: entry.id,
+      kind: entry.kind,
+      tone: entry.tone,
+      title:
+        locale === 'zh-CN'
+          ? `选择审阅问题 ${entry.reviewIssueTitle ?? ''}`
+          : `Selected review issue ${entry.reviewIssueTitle ?? ''}`,
+      detail: anchor || entry.reviewIssueSourceLabel || '',
+    }
+  }
+
+  if (entry.kind === 'review-source') {
+    return {
+      id: entry.id,
+      kind: entry.kind,
+      tone: entry.tone,
+      title:
+        locale === 'zh-CN'
+          ? `打开问题来源 ${entry.reviewSourceActionLabel ?? ''}`
+          : `Opened issue source ${entry.reviewSourceActionLabel ?? ''}`,
+      detail: entry.reviewIssueTitle ?? '',
+    }
+  }
+
   return {
     id: entry.id,
     kind: entry.kind,
@@ -333,6 +474,8 @@ export function useBookWorkbenchActivity({
   activeLens = 'structure',
   activeView,
   activeDraftView = 'read',
+  selectedReviewFilter = 'all',
+  selectedReviewIssue = null,
   selectedCheckpoint = null,
   selectedBranch = null,
   selectedBranchBaseline = null,
@@ -348,12 +491,15 @@ export function useBookWorkbenchActivity({
   const lastLensRef = useRef<BookLens | null>(null)
   const lastViewRef = useRef<BookStructureView | null>(null)
   const lastDraftViewRef = useRef<BookDraftView | null>(null)
+  const lastReviewFilterRef = useRef<BookReviewFilter | null>(null)
+  const lastReviewIssueIdRef = useRef<string | null>(null)
   const lastCheckpointIdRef = useRef<string | null>(null)
   const lastBranchIdRef = useRef<string | null>(null)
   const lastBranchBaselineIdRef = useRef<string | null>(null)
   const lastExportProfileIdRef = useRef<string | null>(null)
   const lastChapterIdRef = useRef<string | null>(null)
   const seenHandoffIdsRef = useRef<Set<string>>(new Set())
+  const seenReviewSourceIdsRef = useRef<Set<string>>(new Set())
   const sequenceRef = useRef(0)
 
   useEffect(() => {
@@ -372,12 +518,15 @@ export function useBookWorkbenchActivity({
       lastLensRef.current = null
       lastViewRef.current = null
       lastDraftViewRef.current = null
+      lastReviewFilterRef.current = null
+      lastReviewIssueIdRef.current = null
       lastCheckpointIdRef.current = null
       lastBranchIdRef.current = null
       lastBranchBaselineIdRef.current = null
       lastExportProfileIdRef.current = null
       lastChapterIdRef.current = null
       seenHandoffIdsRef.current = new Set()
+      seenReviewSourceIdsRef.current = new Set()
       sequenceRef.current = 0
 
       if (localeChanged) {
@@ -416,6 +565,14 @@ export function useBookWorkbenchActivity({
             action: 'entered-branch',
             draftView: activeDraftView,
           })
+        } else if (activeDraftView === 'review') {
+          nextEntries.push({
+            id: `draft-view-${sequenceRef.current++}`,
+            kind: 'draft-view',
+            tone: 'accent',
+            action: 'entered-review',
+            draftView: activeDraftView,
+          })
         } else if (activeDraftView === 'export') {
           nextEntries.push({
             id: `draft-view-${sequenceRef.current++}`,
@@ -426,7 +583,12 @@ export function useBookWorkbenchActivity({
           })
         } else if (
           activeDraftView === 'read' &&
-          (lastDraftViewRef.current === 'compare' || lastDraftViewRef.current === 'branch' || lastDraftViewRef.current === 'export')
+          (
+            lastDraftViewRef.current === 'compare' ||
+            lastDraftViewRef.current === 'branch' ||
+            lastDraftViewRef.current === 'export' ||
+            lastDraftViewRef.current === 'review'
+          )
         ) {
           nextEntries.push({
             id: `draft-view-${sequenceRef.current++}`,
@@ -437,6 +599,35 @@ export function useBookWorkbenchActivity({
           })
         }
         lastDraftViewRef.current = activeDraftView
+      }
+
+      if (activeDraftView === 'review' && lastReviewFilterRef.current !== selectedReviewFilter) {
+        nextEntries.push({
+          id: `review-filter-${sequenceRef.current++}`,
+          kind: 'review-filter',
+          tone: 'neutral',
+          action: 'selected-review-filter',
+          reviewFilter: selectedReviewFilter,
+        })
+        lastReviewFilterRef.current = selectedReviewFilter
+      }
+
+      const reviewIssueId = selectedReviewIssue?.id ?? null
+      if (activeDraftView === 'review' && selectedReviewIssue && lastReviewIssueIdRef.current !== reviewIssueId) {
+        nextEntries.push({
+          id: `review-issue-${sequenceRef.current++}`,
+          kind: 'review-issue',
+          tone: 'neutral',
+          action: 'selected-review-issue',
+          reviewIssueTitle: selectedReviewIssue.title,
+          reviewIssueSourceLabel: selectedReviewIssue.sourceLabel,
+          reviewIssueChapterTitle: selectedReviewIssue.chapterTitle,
+          reviewIssueSceneTitle: selectedReviewIssue.sceneTitle,
+        })
+        lastReviewIssueIdRef.current = reviewIssueId
+      } else if (activeDraftView !== 'review') {
+        lastReviewIssueIdRef.current = reviewIssueId
+        lastReviewFilterRef.current = selectedReviewFilter
       }
 
       const checkpointId = selectedCheckpoint?.id ?? null
@@ -510,6 +701,8 @@ export function useBookWorkbenchActivity({
     } else {
       lastLensRef.current = activeLens
       lastDraftViewRef.current = activeDraftView
+      lastReviewFilterRef.current = selectedReviewFilter
+      lastReviewIssueIdRef.current = selectedReviewIssue?.id ?? null
       lastCheckpointIdRef.current = selectedCheckpoint?.id ?? null
       lastBranchIdRef.current = selectedBranch?.id ?? null
       lastBranchBaselineIdRef.current = selectedBranchBaseline?.id ?? null
@@ -554,12 +747,37 @@ export function useBookWorkbenchActivity({
       seenHandoffIdsRef.current.add(latestHandoff.id)
     }
 
+    const rememberedReviewSourceEntries = rememberedBookReviewSourceByBookId.get(bookId) ?? []
+    for (const reviewSourceEntry of [...rememberedReviewSourceEntries].reverse()) {
+      if (seenReviewSourceIdsRef.current.has(reviewSourceEntry.id)) {
+        continue
+      }
+
+      nextEntries.unshift(reviewSourceEntry)
+      seenReviewSourceIdsRef.current.add(reviewSourceEntry.id)
+    }
+
     if (nextEntries.length === 0) {
       return
     }
 
     setActivity((current) => (bookChanged ? nextEntries : [...nextEntries, ...current]).slice(0, maxItems))
-  }, [activeDraftView, activeLens, activeView, bookId, latestHandoff, locale, maxItems, selectedBranch, selectedBranchBaseline, selectedChapter, selectedCheckpoint, selectedExportProfile])
+  }, [
+    activeDraftView,
+    activeLens,
+    activeView,
+    bookId,
+    latestHandoff,
+    locale,
+    maxItems,
+    selectedBranch,
+    selectedBranchBaseline,
+    selectedChapter,
+    selectedCheckpoint,
+    selectedExportProfile,
+    selectedReviewFilter,
+    selectedReviewIssue,
+  ])
 
   return useMemo(
     () => activity.map((item) => localizeActivityEntry(item, locale)),

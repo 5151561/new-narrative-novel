@@ -5,6 +5,7 @@ import { PaneHeader } from '@/components/ui/PaneHeader'
 
 import { useI18n } from '@/app/i18n'
 import type { BookDraftView } from '@/features/workbench/types/workbench-route'
+import type { BookReviewInboxViewModel, ReviewIssueSeverity, ReviewSourceHandoffViewModel } from '@/features/review/types/review-view-models'
 
 import { buildCompareReviewAttention } from '../lib/book-draft-compare-presentation'
 import type { BookExperimentBranchWorkspaceViewModel } from '../types/book-branch-view-models'
@@ -20,6 +21,8 @@ interface BookDraftInspectorPaneProps {
   branch?: BookExperimentBranchWorkspaceViewModel | null
   exportPreview?: BookExportPreviewWorkspaceViewModel | null
   exportError?: Error | null
+  reviewInbox?: BookReviewInboxViewModel | null
+  onOpenReviewSource?: (handoff: ReviewSourceHandoffViewModel) => void
   checkpointMeta?: {
     title: string
     createdAtLabel: string
@@ -35,6 +38,8 @@ export function BookDraftInspectorPane({
   branch = null,
   exportPreview = null,
   exportError = null,
+  reviewInbox = null,
+  onOpenReviewSource,
   checkpointMeta = null,
 }: BookDraftInspectorPaneProps) {
   const { locale } = useI18n()
@@ -44,6 +49,19 @@ export function BookDraftInspectorPane({
   const branchSelectedChapter = branch?.selectedChapter ?? null
   const branchBlockers = branch?.readiness.issues.filter((issue) => issue.severity === 'blocker') ?? []
   const branchWarnings = branch?.readiness.issues.filter((issue) => issue.severity === 'warning') ?? []
+  const reviewSelectedIssue = reviewInbox?.selectedIssue ?? null
+
+  const getReviewSeverityBadge = (severity: ReviewIssueSeverity) => {
+    if (severity === 'blocker') {
+      return { tone: 'danger' as const, label: locale === 'zh-CN' ? '阻塞项' : 'Blocker' }
+    }
+
+    if (severity === 'warning') {
+      return { tone: 'warn' as const, label: locale === 'zh-CN' ? '警告' : 'Warning' }
+    }
+
+    return { tone: 'neutral' as const, label: locale === 'zh-CN' ? '信息' : 'Info' }
+  }
 
   const getBranchStatusLabel = (status: NonNullable<BookExperimentBranchWorkspaceViewModel['branch']>['status']) => {
     if (locale === 'zh-CN') {
@@ -362,6 +380,100 @@ export function BookDraftInspectorPane({
                     },
                   ]}
                 />
+              </div>
+            </section>
+          </>
+        ) : null}
+        {activeDraftView === 'review' && reviewInbox ? (
+          <>
+            <section className="rounded-md border border-line-soft bg-surface-2 p-4">
+              <h4 className="text-base text-text-main">{locale === 'zh-CN' ? '选中审阅问题' : 'Selected review issue'}</h4>
+              <div className="mt-3 space-y-3">
+                {reviewSelectedIssue ? (
+                  <>
+                    <div className="rounded-md border border-line-soft bg-surface-1 p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone={getReviewSeverityBadge(reviewSelectedIssue.severity).tone}>
+                          {getReviewSeverityBadge(reviewSelectedIssue.severity).label}
+                        </Badge>
+                        <Badge tone="neutral">{reviewSelectedIssue.sourceLabel}</Badge>
+                      </div>
+                      <p className="mt-3 text-sm font-medium text-text-main">{reviewSelectedIssue.title}</p>
+                      <p className="mt-2 text-sm leading-6 text-text-muted">{reviewSelectedIssue.detail}</p>
+                    </div>
+                    <FactList
+                      items={[
+                        {
+                          id: 'review-source',
+                          label: locale === 'zh-CN' ? '来源' : 'Source',
+                          value: reviewSelectedIssue.sourceLabel,
+                        },
+                        {
+                          id: 'review-anchor',
+                          label: locale === 'zh-CN' ? '章节 / 场景' : 'Chapter / Scene',
+                          value: [reviewSelectedIssue.chapterTitle, reviewSelectedIssue.sceneTitle].filter(Boolean).join(' / ') || '—',
+                        },
+                        {
+                          id: 'review-recommendation',
+                          label: locale === 'zh-CN' ? '建议动作' : 'Recommendation',
+                          value: reviewSelectedIssue.recommendation,
+                        },
+                      ]}
+                    />
+                  </>
+                ) : (
+                  <EmptyState
+                    title={locale === 'zh-CN' ? '还没有选中问题' : 'No issue selected'}
+                    message={
+                      locale === 'zh-CN'
+                        ? '从 Review 队列中选择一个问题后，这里会显示摘要与跳转建议。'
+                        : 'Choose an issue from the review queue to inspect its summary and handoff guidance.'
+                    }
+                  />
+                )}
+              </div>
+            </section>
+            <section className="rounded-md border border-line-soft bg-surface-2 p-4">
+              <h4 className="text-base text-text-main">{locale === 'zh-CN' ? '审阅队列摘要' : 'Review queue summary'}</h4>
+              <div className="mt-3">
+                <FactList
+                  items={[
+                    { id: 'review-blockers', label: locale === 'zh-CN' ? '阻塞项' : 'Blockers', value: `${reviewInbox.counts.blockers}` },
+                    { id: 'review-warnings', label: locale === 'zh-CN' ? '警告' : 'Warnings', value: `${reviewInbox.counts.warnings}` },
+                    { id: 'review-trace-gaps', label: locale === 'zh-CN' ? '溯源缺口' : 'Trace gaps', value: `${reviewInbox.counts.traceGaps}` },
+                    { id: 'review-export-readiness', label: locale === 'zh-CN' ? '导出准备度' : 'Export readiness', value: `${reviewInbox.counts.exportReadiness}` },
+                    { id: 'review-branch-readiness', label: locale === 'zh-CN' ? '实验稿准备度' : 'Branch readiness', value: `${reviewInbox.counts.branchReadiness}` },
+                  ]}
+                />
+              </div>
+            </section>
+            <section className="rounded-md border border-line-soft bg-surface-2 p-4">
+              <h4 className="text-base text-text-main">{locale === 'zh-CN' ? '来源交接' : 'Source handoff'}</h4>
+              <div className="mt-3 space-y-3">
+                <div className="rounded-md border border-line-soft bg-surface-1 p-3">
+                  <p className="text-sm font-medium text-text-main">{locale === 'zh-CN' ? '推荐来源动作' : 'Recommended source action'}</p>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">
+                    {reviewSelectedIssue?.recommendation ??
+                      (locale === 'zh-CN'
+                        ? '当前没有额外来源动作建议。'
+                        : 'No source handoff guidance is visible right now.')}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {reviewSelectedIssue?.handoffs.map((handoff) => (
+                    <button
+                      key={handoff.id}
+                      type="button"
+                      aria-label={
+                        locale === 'zh-CN' ? `检查器来源动作 ${handoff.label}` : `Inspector source action ${handoff.label}`
+                      }
+                      onClick={() => onOpenReviewSource?.(handoff)}
+                      className="rounded-md border border-line-soft bg-surface-1 px-3 py-2 text-sm text-text-main hover:bg-surface-2"
+                    >
+                      {handoff.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </section>
           </>

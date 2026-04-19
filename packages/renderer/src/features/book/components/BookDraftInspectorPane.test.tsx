@@ -3,12 +3,96 @@ import { describe, expect, it } from 'vitest'
 
 import { APP_LOCALE_STORAGE_KEY } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
+import type { BookReviewInboxViewModel, ReviewIssueViewModel } from '@/features/review/types/review-view-models'
 
 import type { BookExperimentBranchWorkspaceViewModel } from '../types/book-branch-view-models'
 import type { BookManuscriptCompareWorkspaceViewModel } from '../types/book-compare-view-models'
 import type { BookDraftInspectorViewModel } from '../types/book-draft-view-models'
 import type { BookExportPreviewWorkspaceViewModel } from '../types/book-export-view-models'
 import { BookDraftInspectorPane } from './BookDraftInspectorPane'
+
+function createReviewIssue(overrides: Partial<ReviewIssueViewModel> = {}): ReviewIssueViewModel {
+  return {
+    id: 'export-blocker-open-water-signals',
+    severity: 'blocker',
+    source: 'export',
+    kind: 'export_blocker',
+    title: 'Export packet is blocked',
+    detail: 'One included scene still needs current draft prose before the packet can ship.',
+    recommendation: 'Open export readiness and resolve the missing chapter draft before the next pass.',
+    chapterId: 'chapter-open-water-signals',
+    chapterTitle: 'Open Water Signals',
+    chapterOrder: 2,
+    sceneId: 'scene-dawn-slip',
+    sceneTitle: 'Dawn Slip',
+    sceneOrder: 3,
+    sourceLabel: 'Export readiness',
+    sourceExcerpt: 'Review Packet still excludes Dawn Slip because the current manuscript is incomplete.',
+    tags: ['Export readiness', 'Missing draft'],
+    handoffs: [
+      {
+        id: 'review-source-export',
+        label: 'Open export readiness',
+        target: {
+          scope: 'book',
+          lens: 'draft',
+          view: 'signals',
+          draftView: 'export',
+          exportProfileId: 'export-review-packet',
+          selectedChapterId: 'chapter-open-water-signals',
+          reviewIssueId: 'export-blocker-open-water-signals',
+        },
+      },
+      {
+        id: 'review-source-chapter',
+        label: 'Open chapter draft',
+        target: {
+          scope: 'chapter',
+          chapterId: 'chapter-open-water-signals',
+          lens: 'draft',
+          view: 'sequence',
+          sceneId: 'scene-dawn-slip',
+        },
+      },
+    ],
+    ...overrides,
+  }
+}
+
+function createReviewInbox(): BookReviewInboxViewModel {
+  const selectedIssue = createReviewIssue()
+
+  return {
+    bookId: 'book-signal-arc',
+    title: 'Signal Arc',
+    selectedIssueId: selectedIssue.id,
+    selectedIssue,
+    activeFilter: 'export-readiness',
+    issues: [selectedIssue],
+    filteredIssues: [selectedIssue],
+    groupedIssues: {
+      blockers: [selectedIssue],
+      warnings: [],
+      info: [],
+    },
+    counts: {
+      total: 6,
+      blockers: 2,
+      warnings: 3,
+      info: 1,
+      traceGaps: 1,
+      missingDrafts: 2,
+      compareDeltas: 1,
+      exportReadiness: 2,
+      branchReadiness: 1,
+      sceneProposals: 0,
+    },
+    selectedChapterIssueCount: 3,
+    annotationsByChapterId: {
+      'chapter-open-water-signals': [selectedIssue],
+    },
+  }
+}
 
 const inspector: BookDraftInspectorViewModel = {
   selectedChapter: {
@@ -311,6 +395,79 @@ const branchWorkspace: BookExperimentBranchWorkspaceViewModel = {
 }
 
 describe('BookDraftInspectorPane', () => {
+  it('shows the selected review issue summary in review mode', () => {
+    render(
+      <AppProviders>
+        <BookDraftInspectorPane
+          bookTitle="Signal Arc"
+          inspector={inspector}
+          activeDraftView="review"
+          reviewInbox={createReviewInbox()}
+          onOpenReviewSource={() => undefined}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Selected review issue')).toBeInTheDocument()
+    expect(screen.getByText('Blocker')).toBeInTheDocument()
+    expect(screen.getByText('Export packet is blocked')).toBeInTheDocument()
+    expect(screen.getAllByText('Export readiness').length).toBeGreaterThan(0)
+    expect(screen.getByText('Open Water Signals / Dawn Slip')).toBeInTheDocument()
+    expect(
+      screen.getAllByText('Open export readiness and resolve the missing chapter draft before the next pass.').length,
+    ).toBeGreaterThan(0)
+  })
+
+  it('shows the review queue summary and source handoff in review mode', () => {
+    render(
+      <AppProviders>
+        <BookDraftInspectorPane
+          bookTitle="Signal Arc"
+          inspector={inspector}
+          activeDraftView="review"
+          reviewInbox={createReviewInbox()}
+          onOpenReviewSource={() => undefined}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Review queue summary')).toBeInTheDocument()
+    expect(screen.getByText('Blockers')).toBeInTheDocument()
+    expect(screen.getByText('Warnings')).toBeInTheDocument()
+    expect(screen.getByText('Trace gaps')).toBeInTheDocument()
+    expect(screen.getAllByText('Export readiness').length).toBeGreaterThan(0)
+    expect(screen.getByText('Branch readiness')).toBeInTheDocument()
+    expect(screen.getByText('Source handoff')).toBeInTheDocument()
+    expect(screen.getByText('Recommended source action')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Inspector source action Open export readiness' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Inspector source action Open chapter draft' })).toBeInTheDocument()
+  })
+
+  it.each([
+    { draftView: 'read' as const },
+    { draftView: 'compare' as const, compare },
+    { draftView: 'export' as const, exportPreview },
+    { draftView: 'branch' as const, branch: branchWorkspace },
+  ])('does not show review-only sections in $draftView mode', ({ draftView, compare, exportPreview, branch }) => {
+    render(
+      <AppProviders>
+        <BookDraftInspectorPane
+          bookTitle="Signal Arc"
+          inspector={inspector}
+          activeDraftView={draftView}
+          compare={compare ?? null}
+          exportPreview={exportPreview ?? null}
+          branch={branch ?? null}
+          reviewInbox={createReviewInbox()}
+          onOpenReviewSource={() => undefined}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.queryByText('Selected review issue')).not.toBeInTheDocument()
+    expect(screen.queryByText('Review queue summary')).not.toBeInTheDocument()
+    expect(screen.queryByText('Source handoff')).not.toBeInTheDocument()
+  })
   it('keeps read-mode content intact when compare mode is inactive', () => {
     render(
       <AppProviders>

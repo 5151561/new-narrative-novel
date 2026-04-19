@@ -3,6 +3,10 @@ import { useMemo } from 'react'
 import { useI18n, type Locale } from '@/app/i18n'
 import type { BookDraftBranchProblems } from '@/features/book/components/BookDraftBottomDock'
 import type { BookWorkbenchActivityItem } from '@/features/book/hooks/useBookWorkbenchActivity'
+import type { BookReviewFilter } from '@/features/workbench/types/workbench-route'
+import { getBookReviewSeeds } from '@/features/review/api/book-review-seeds'
+import { buildBookReviewInboxViewModel } from '@/features/review/lib/book-review-inbox-mappers'
+import type { BookReviewInboxViewModel } from '@/features/review/types/review-view-models'
 
 import {
   DEFAULT_BOOK_EXPORT_PROFILE_ID,
@@ -578,6 +582,64 @@ export function buildBookDraftBranchStoryData(
   }
 }
 
+export function buildBookDraftReviewStoryData(
+  locale: Locale,
+  options?: {
+    variant?: BookStoryVariant
+    selectedChapterId?: string
+    checkpointId?: string
+    exportProfileId?: string
+    branchId?: string
+    branchBaseline?: 'current' | 'checkpoint'
+    reviewFilter?: BookReviewFilter
+    reviewIssueId?: string
+    includeReviewSeeds?: boolean
+  },
+): {
+  workspace: BookDraftWorkspaceViewModel
+  compare: BookManuscriptCompareWorkspaceViewModel
+  exportWorkspace: BookExportPreviewWorkspaceViewModel
+  branchWorkspace: BookExperimentBranchWorkspaceViewModel
+  reviewInbox: BookReviewInboxViewModel
+} {
+  const compareData = buildBookDraftCompareStoryData(locale, {
+    variant: options?.variant,
+    selectedChapterId: options?.selectedChapterId,
+    checkpointId: options?.checkpointId,
+  })
+  const exportData = buildBookDraftExportStoryData(locale, {
+    variant: options?.variant,
+    selectedChapterId: options?.selectedChapterId,
+    checkpointId: options?.checkpointId,
+    exportProfileId: options?.exportProfileId,
+  })
+  const branchData = buildBookDraftBranchStoryData(locale, {
+    variant: options?.variant,
+    selectedChapterId: options?.selectedChapterId,
+    checkpointId: options?.checkpointId,
+    branchId: options?.branchId,
+    branchBaseline: options?.branchBaseline,
+  })
+  const reviewInbox = buildBookReviewInboxViewModel({
+    bookId: exportData.workspace.bookId,
+    currentDraftWorkspace: exportData.workspace,
+    compareWorkspace: compareData.compare,
+    exportWorkspace: exportData.exportWorkspace,
+    branchWorkspace: branchData.branchWorkspace,
+    reviewSeeds: options?.includeReviewSeeds === false ? [] : getBookReviewSeeds(exportData.workspace.bookId),
+    reviewFilter: options?.reviewFilter ?? 'all',
+    reviewIssueId: options?.reviewIssueId,
+  })
+
+  return {
+    workspace: exportData.workspace,
+    compare: compareData.compare,
+    exportWorkspace: exportData.exportWorkspace,
+    branchWorkspace: branchData.branchWorkspace,
+    reviewInbox,
+  }
+}
+
 export function buildBookDraftExportBaselineError() {
   return new Error('Book manuscript checkpoint "checkpoint-missing" could not be found for "book-signal-arc".')
 }
@@ -638,6 +700,71 @@ export function buildBookDraftBranchProblemsStoryData(
   }
 }
 
+export function buildBookDraftReviewProblemsStoryData(
+  reviewInbox: BookReviewInboxViewModel,
+) {
+  const blockers = reviewInbox.issues.filter((issue) => issue.severity === 'blocker')
+  const traceGaps = reviewInbox.issues.filter((issue) => issue.kind === 'trace_gap')
+  const missingDrafts = reviewInbox.issues.filter((issue) => issue.kind === 'missing_draft')
+  const exportBlockers = reviewInbox.issues.filter((issue) => issue.source === 'export' && issue.severity === 'blocker')
+  const branchBlockers = reviewInbox.issues.filter((issue) => issue.source === 'branch' && issue.severity === 'blocker')
+  const toItems = (issues: typeof blockers) =>
+    issues.map((issue) => ({
+      chapterId: `${issue.chapterId ?? 'review'}:${issue.id}`,
+      title: issue.chapterTitle ?? reviewInbox.title,
+      detail: issue.detail,
+    }))
+
+  return {
+    blockerCount: blockers.length,
+    traceGapCount: traceGaps.length,
+    missingDraftCount: missingDrafts.length,
+    exportBlockerCount: exportBlockers.length,
+    branchBlockerCount: branchBlockers.length,
+    blockers: toItems(blockers),
+    traceGaps: toItems(traceGaps),
+    missingDrafts: toItems(missingDrafts),
+    exportBlockers: toItems(exportBlockers),
+    branchBlockers: toItems(branchBlockers),
+  }
+}
+
+function getReviewFilterLabel(locale: Locale, filter: BookReviewFilter) {
+  if (locale === 'zh-CN') {
+    return filter === 'all'
+      ? '全部'
+      : filter === 'blockers'
+        ? '阻塞项'
+        : filter === 'trace-gaps'
+          ? '溯源缺口'
+          : filter === 'missing-drafts'
+            ? '缺稿'
+            : filter === 'compare-deltas'
+              ? 'Compare 差异'
+              : filter === 'export-readiness'
+                ? '导出准备度'
+                : filter === 'branch-readiness'
+                  ? '实验稿准备度'
+                  : '场景提案'
+  }
+
+  return filter === 'all'
+    ? 'All'
+    : filter === 'blockers'
+      ? 'Blockers'
+      : filter === 'trace-gaps'
+        ? 'Trace gaps'
+        : filter === 'missing-drafts'
+          ? 'Missing drafts'
+          : filter === 'compare-deltas'
+            ? 'Compare deltas'
+            : filter === 'export-readiness'
+              ? 'Export readiness'
+              : filter === 'branch-readiness'
+                ? 'Branch readiness'
+                : 'Scene proposals'
+}
+
 export function useLocalizedBookDraftWorkspace(options?: {
   variant?: BookStoryVariant
   selectedChapterId?: string
@@ -659,7 +786,7 @@ export function buildBookDraftStoryActivity(
   workspace: BookDraftWorkspaceViewModel,
   options?: {
     quiet?: boolean
-    draftView?: 'read' | 'compare' | 'export' | 'branch'
+    draftView?: 'read' | 'compare' | 'export' | 'branch' | 'review'
     checkpointTitle?: string
     branchTitle?: string
     branchSummary?: string
@@ -668,6 +795,11 @@ export function buildBookDraftStoryActivity(
     branchBaselineCheckpointId?: string
     exportProfileTitle?: string
     exportProfileSummary?: string
+    reviewFilter?: BookReviewFilter
+    reviewIssueTitle?: string
+    reviewIssueChapterTitle?: string
+    reviewIssueSceneTitle?: string
+    reviewSourceActionLabel?: string
   },
 ): BookWorkbenchActivityItem[] {
   if (options?.quiet) {
@@ -797,6 +929,55 @@ export function buildBookDraftStoryActivity(
         kind: 'chapter',
         title: locale === 'zh-CN' ? `聚焦${workspace.selectedChapter?.title ?? workspace.title}` : `Focused ${workspace.selectedChapter?.title ?? workspace.title}`,
         detail: workspace.selectedChapter?.summary ?? workspace.summary,
+        tone: 'neutral',
+      },
+    ]
+  }
+
+  if (options?.draftView === 'review') {
+    const reviewFilterLabel = getReviewFilterLabel(locale, options.reviewFilter ?? 'all')
+
+    return [
+      {
+        id: 'draft-view-0',
+        kind: 'draft-view',
+        title: locale === 'zh-CN' ? '进入 Review' : 'Entered Review',
+        detail:
+          locale === 'zh-CN'
+            ? 'Review 继续把筛选器与问题选择交给路由。'
+            : 'Review keeps filter and issue selection route-owned.',
+        tone: 'accent',
+      },
+      {
+        id: 'review-filter-1',
+        kind: 'review-filter',
+        title: locale === 'zh-CN' ? `选择筛选器 ${reviewFilterLabel}` : `Selected review filter ${reviewFilterLabel}`,
+        detail:
+          locale === 'zh-CN'
+            ? 'Review 队列继续把当前筛选器保留在 route state 中。'
+            : 'The review queue keeps the active filter in route state.',
+        tone: 'neutral',
+      },
+      {
+        id: 'review-issue-2',
+        kind: 'review-issue',
+        title:
+          locale === 'zh-CN'
+            ? `选择审阅问题 ${options.reviewIssueTitle ?? '导出包仍被阻塞'}`
+            : `Selected review issue ${options.reviewIssueTitle ?? 'Export packet is blocked'}`,
+        detail:
+          [options.reviewIssueChapterTitle, options.reviewIssueSceneTitle].filter(Boolean).join(' / ') ||
+          (locale === 'zh-CN' ? '当前焦点章节' : 'Current chapter focus'),
+        tone: 'neutral',
+      },
+      {
+        id: 'review-source-3',
+        kind: 'review-source',
+        title:
+          locale === 'zh-CN'
+            ? `打开问题来源 ${options.reviewSourceActionLabel ?? '打开导出准备度'}`
+            : `Opened issue source ${options.reviewSourceActionLabel ?? 'Open export readiness'}`,
+        detail: options.reviewIssueTitle ?? (locale === 'zh-CN' ? '导出包仍被阻塞' : 'Export packet is blocked'),
         tone: 'neutral',
       },
     ]

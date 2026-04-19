@@ -11,6 +11,8 @@ import {
   buildBookDraftBranchStoryData,
   buildBookDraftCompareStoryData,
   buildBookDraftExportStoryData,
+  buildBookDraftReviewProblemsStoryData,
+  buildBookDraftReviewStoryData,
   buildBookDraftStoryActivity,
   useLocalizedBookDraftWorkspace,
 } from './book-draft-storybook'
@@ -24,7 +26,8 @@ interface BookDraftBottomDockStoryProps {
   branchId?: string
   branchBaseline?: 'current' | 'checkpoint'
   exportProfileId?: string
-  draftView?: 'read' | 'compare' | 'export' | 'branch'
+  reviewFilter?: 'all' | 'blockers' | 'trace-gaps' | 'missing-drafts' | 'compare-deltas' | 'export-readiness' | 'branch-readiness' | 'scene-proposals'
+  draftView?: 'read' | 'compare' | 'export' | 'branch' | 'review'
 }
 
 function buildExportProblems(exportPreview: BookExportPreviewWorkspaceViewModel | null): BookDraftExportProblems | null {
@@ -65,6 +68,7 @@ function StoryComponent({
   branchId,
   branchBaseline = 'current',
   exportProfileId,
+  reviewFilter = 'all',
   draftView = 'read',
 }: BookDraftBottomDockStoryProps) {
   const { locale } = useI18n()
@@ -72,6 +76,16 @@ function StoryComponent({
   const compareData = buildBookDraftCompareStoryData(locale, { variant, selectedChapterId, checkpointId })
   const branchData = buildBookDraftBranchStoryData(locale, { variant, selectedChapterId, branchId, branchBaseline, checkpointId })
   const exportData = buildBookDraftExportStoryData(locale, { variant, selectedChapterId, checkpointId, exportProfileId })
+  const reviewData = buildBookDraftReviewStoryData(locale, {
+    variant,
+    selectedChapterId,
+    checkpointId,
+    branchId,
+    branchBaseline,
+    exportProfileId,
+    reviewFilter,
+  })
+  const reviewIssue = reviewData.reviewInbox.selectedIssue
 
   return (
     <BookDraftBottomDock
@@ -87,11 +101,17 @@ function StoryComponent({
         branchBaselineCheckpointId: branchData.branchWorkspace.baseline.checkpointId,
         exportProfileTitle: exportData.selectedExportProfile.title,
         exportProfileSummary: exportData.selectedExportProfile.summary,
+        reviewFilter,
+        reviewIssueTitle: reviewIssue?.title,
+        reviewIssueChapterTitle: reviewIssue?.chapterTitle,
+        reviewIssueSceneTitle: reviewIssue?.sceneTitle,
+        reviewSourceActionLabel: reviewIssue?.handoffs[0]?.label,
       })}
       activeDraftView={draftView}
       compareProblems={draftView === 'compare' ? compareData.compareProblems : null}
       branchProblems={draftView === 'branch' ? buildBookDraftBranchProblemsStoryData(locale, branchData.branchWorkspace) : null}
       exportProblems={draftView === 'export' ? buildExportProblems(exportData.exportWorkspace) : null}
+      reviewProblems={draftView === 'review' ? buildBookDraftReviewProblemsStoryData(reviewData.reviewInbox) : null}
     />
   )
 }
@@ -204,6 +224,14 @@ export const BranchBlockedMissingDraft: Story = {
     branchId: 'branch-book-signal-arc-high-pressure',
     branchBaseline: 'checkpoint',
     checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+    selectedChapterId: 'chapter-open-water-signals',
+  },
+}
+
+export const ReviewBranchReadiness: Story = {
+  args: {
+    draftView: 'review',
+    reviewFilter: 'branch-readiness',
     selectedChapterId: 'chapter-open-water-signals',
   },
 }

@@ -1,8 +1,14 @@
 import type { BookDraftView } from '@/features/workbench/types/workbench-route'
+import type { BookReviewInboxViewModel } from '@/features/review/types/review-view-models'
 
 import { useI18n } from '@/app/i18n'
 
-import { BookDraftBottomDock, type BookDraftBranchProblems, type BookDraftExportProblems } from '../components/BookDraftBottomDock'
+import {
+  BookDraftBottomDock,
+  type BookDraftBranchProblems,
+  type BookDraftExportProblems,
+  type BookDraftReviewProblems,
+} from '../components/BookDraftBottomDock'
 import { useBookWorkbenchActivity, type BookWorkbenchHandoffEvent } from '../hooks/useBookWorkbenchActivity'
 import { buildBookDraftCompareProblems } from '../lib/book-draft-compare-presentation'
 import type { BookExperimentBranchWorkspaceViewModel } from '../types/book-branch-view-models'
@@ -16,6 +22,7 @@ interface BookDraftDockContainerProps {
   compare?: BookManuscriptCompareWorkspaceViewModel | null
   branch?: BookExperimentBranchWorkspaceViewModel | null
   exportPreview?: BookExportPreviewWorkspaceViewModel | null
+  reviewInbox?: BookReviewInboxViewModel | null
   exportError?: Error | null
   latestHandoff?: BookWorkbenchHandoffEvent | null
 }
@@ -111,12 +118,44 @@ function buildBranchProblems(
   }
 }
 
+function buildReviewProblems(reviewInbox: BookReviewInboxViewModel | null): BookDraftReviewProblems | null {
+  if (!reviewInbox) {
+    return null
+  }
+
+  const blockers = reviewInbox.issues.filter((issue) => issue.severity === 'blocker')
+  const traceGaps = reviewInbox.issues.filter((issue) => issue.kind === 'trace_gap')
+  const missingDrafts = reviewInbox.issues.filter((issue) => issue.kind === 'missing_draft')
+  const exportBlockers = reviewInbox.issues.filter((issue) => issue.source === 'export' && issue.severity === 'blocker')
+  const branchBlockers = reviewInbox.issues.filter((issue) => issue.source === 'branch' && issue.severity === 'blocker')
+  const toItems = (issues: typeof blockers) =>
+    issues.map((issue) => ({
+      chapterId: `${issue.chapterId ?? 'review'}:${issue.id}`,
+      title: issue.chapterTitle ?? reviewInbox.title,
+      detail: issue.detail,
+    }))
+
+  return {
+    blockerCount: blockers.length,
+    traceGapCount: traceGaps.length,
+    missingDraftCount: missingDrafts.length,
+    exportBlockerCount: exportBlockers.length,
+    branchBlockerCount: branchBlockers.length,
+    blockers: toItems(blockers),
+    traceGaps: toItems(traceGaps),
+    missingDrafts: toItems(missingDrafts),
+    exportBlockers: toItems(exportBlockers),
+    branchBlockers: toItems(branchBlockers),
+  }
+}
+
 export function BookDraftDockContainer({
   workspace,
   activeDraftView,
   compare = null,
   branch = null,
   exportPreview = null,
+  reviewInbox = null,
   exportError = null,
   latestHandoff = null,
 }: BookDraftDockContainerProps) {
@@ -140,6 +179,17 @@ export function BookDraftDockContainer({
     activeLens: 'draft',
     activeView: 'sequence',
     activeDraftView,
+    selectedReviewFilter: activeDraftView === 'review' ? reviewInbox?.activeFilter ?? 'all' : 'all',
+    selectedReviewIssue:
+      activeDraftView === 'review' && reviewInbox?.selectedIssue
+        ? {
+            id: reviewInbox.selectedIssue.id,
+            title: reviewInbox.selectedIssue.title,
+            sourceLabel: reviewInbox.selectedIssue.sourceLabel,
+            chapterTitle: reviewInbox.selectedIssue.chapterTitle,
+            sceneTitle: reviewInbox.selectedIssue.sceneTitle,
+          }
+        : null,
     selectedCheckpoint:
       activeDraftView === 'compare' && compare
         ? {
@@ -185,6 +235,7 @@ export function BookDraftDockContainer({
       compareProblems={buildBookDraftCompareProblems(compare, locale)}
       branchProblems={buildBranchProblems(branch, locale)}
       exportProblems={buildExportProblems(exportPreview)}
+      reviewProblems={buildReviewProblems(reviewInbox)}
       exportError={exportError}
     />
   )

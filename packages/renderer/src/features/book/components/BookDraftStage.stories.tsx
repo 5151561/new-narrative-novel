@@ -8,6 +8,7 @@ import {
   buildBookDraftBranchStoryData,
   buildBookDraftCompareStoryData,
   buildBookDraftExportStoryData,
+  buildBookDraftReviewStoryData,
   useLocalizedBookDraftWorkspace,
 } from './book-draft-storybook'
 
@@ -18,7 +19,8 @@ interface BookDraftStageStoryProps {
   exportProfileId?: string
   branchId?: string
   branchBaseline?: 'current' | 'checkpoint'
-  draftView?: 'read' | 'compare' | 'export' | 'branch'
+  reviewFilter?: 'all' | 'blockers' | 'trace-gaps' | 'missing-drafts' | 'compare-deltas' | 'export-readiness' | 'branch-readiness' | 'scene-proposals'
+  draftView?: 'read' | 'compare' | 'export' | 'branch' | 'review'
 }
 
 function StoryComponent({
@@ -28,6 +30,7 @@ function StoryComponent({
   exportProfileId,
   branchId,
   branchBaseline = 'current',
+  reviewFilter = 'all',
   draftView = 'read',
 }: BookDraftStageStoryProps) {
   const { locale } = useI18n()
@@ -35,6 +38,15 @@ function StoryComponent({
   const compareData = buildBookDraftCompareStoryData(locale, { variant, selectedChapterId, checkpointId })
   const exportData = buildBookDraftExportStoryData(locale, { variant, selectedChapterId, checkpointId, exportProfileId })
   const branchData = buildBookDraftBranchStoryData(locale, { variant, selectedChapterId, checkpointId, branchId, branchBaseline })
+  const reviewData = buildBookDraftReviewStoryData(locale, {
+    variant,
+    selectedChapterId,
+    checkpointId,
+    exportProfileId,
+    branchId,
+    branchBaseline,
+    reviewFilter,
+  })
 
   return (
     <BookDraftStage
@@ -48,6 +60,10 @@ function StoryComponent({
       exportPreview={draftView === 'export' ? exportData.exportWorkspace : null}
       exportProfiles={exportData.exportProfiles}
       selectedExportProfileId={exportData.selectedExportProfile.exportProfileId}
+      reviewInbox={draftView === 'review' ? reviewData.reviewInbox : null}
+      reviewError={null}
+      selectedReviewFilter={reviewFilter}
+      selectedReviewIssueId={reviewData.reviewInbox.selectedIssueId}
       checkpoints={compareData.checkpoints}
       selectedCheckpointId={compareData.selectedCheckpoint.checkpointId}
       onSelectDraftView={() => undefined}
@@ -57,6 +73,9 @@ function StoryComponent({
       onSelectBranch={() => undefined}
       onSelectBranchBaseline={() => undefined}
       onSelectExportProfile={() => undefined}
+      onSelectReviewFilter={() => undefined}
+      onSelectReviewIssue={() => undefined}
+      onOpenReviewSource={() => undefined}
     />
   )
 }
@@ -160,5 +179,13 @@ export const BranchHighPressure: Story = {
     draftView: 'branch',
     branchId: 'branch-book-signal-arc-high-pressure',
     branchBaseline: 'current',
+  },
+}
+
+export const ReviewDefault: Story = {
+  args: {
+    draftView: 'review',
+    reviewFilter: 'all',
+    selectedChapterId: 'chapter-open-water-signals',
   },
 }

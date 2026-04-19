@@ -18,6 +18,8 @@ import {
   buildBookDraftBranchStoryData,
   buildBookDraftCompareStoryData,
   buildBookDraftExportStoryData,
+  buildBookDraftReviewProblemsStoryData,
+  buildBookDraftReviewStoryData,
   buildBookDraftStoryActivity,
   useLocalizedBookDraftWorkspace,
 } from '../components/book-draft-storybook'
@@ -32,7 +34,8 @@ interface BookDraftWorkspaceStoryProps {
   branchId?: string
   branchBaseline?: 'current' | 'checkpoint'
   exportProfileId?: string
-  draftView?: 'read' | 'compare' | 'export' | 'branch'
+  reviewFilter?: 'all' | 'blockers' | 'trace-gaps' | 'missing-drafts' | 'compare-deltas' | 'export-readiness' | 'branch-readiness' | 'scene-proposals'
+  draftView?: 'read' | 'compare' | 'export' | 'branch' | 'review'
   exportState?: 'ready' | 'error'
 }
 
@@ -74,6 +77,7 @@ function WorkspacePreview({
   branchId,
   branchBaseline = 'current',
   exportProfileId,
+  reviewFilter = 'all',
   draftView = 'read',
   exportState = 'ready',
 }: BookDraftWorkspaceStoryProps) {
@@ -82,8 +86,19 @@ function WorkspacePreview({
   const compareData = buildBookDraftCompareStoryData(locale, { variant, selectedChapterId, checkpointId })
   const branchData = buildBookDraftBranchStoryData(locale, { variant, selectedChapterId, branchId, branchBaseline, checkpointId })
   const exportData = buildBookDraftExportStoryData(locale, { variant, selectedChapterId, checkpointId, exportProfileId })
+  const reviewData = buildBookDraftReviewStoryData(locale, {
+    variant,
+    selectedChapterId,
+    checkpointId,
+    exportProfileId,
+    branchId,
+    branchBaseline,
+    reviewFilter,
+    includeReviewSeeds: !(draftView === 'review' && reviewFilter === 'scene-proposals' && variant === 'quiet-book'),
+  })
   const exportError = draftView === 'export' && exportState === 'error' ? buildBookDraftExportBaselineError() : null
   const effectiveExportPreview = exportError ? null : exportData.exportWorkspace
+  const reviewIssue = reviewData.reviewInbox.selectedIssue
   const activity = buildBookDraftStoryActivity(locale, workspace, {
     quiet: variant === 'quiet-book' && draftView === 'read',
     draftView,
@@ -95,6 +110,11 @@ function WorkspacePreview({
     branchBaselineCheckpointId: branchData.branchWorkspace.baseline.checkpointId,
     exportProfileTitle: exportData.selectedExportProfile.title,
     exportProfileSummary: exportData.selectedExportProfile.summary,
+    reviewFilter,
+    reviewIssueTitle: reviewIssue?.title,
+    reviewIssueChapterTitle: reviewIssue?.chapterTitle,
+    reviewIssueSceneTitle: reviewIssue?.sceneTitle,
+    reviewSourceActionLabel: reviewIssue?.handoffs[0]?.label,
   })
 
   return (
@@ -138,6 +158,10 @@ function WorkspacePreview({
           exportProfiles={exportData.exportProfiles}
           selectedExportProfileId={exportData.selectedExportProfile.exportProfileId}
           exportError={exportError}
+          reviewInbox={draftView === 'review' ? reviewData.reviewInbox : null}
+          reviewError={null}
+          selectedReviewFilter={reviewFilter}
+          selectedReviewIssueId={reviewData.reviewInbox.selectedIssueId}
           checkpoints={compareData.checkpoints}
           selectedCheckpointId={compareData.selectedCheckpoint.checkpointId}
           onSelectDraftView={() => undefined}
@@ -147,6 +171,9 @@ function WorkspacePreview({
           onSelectBranch={() => undefined}
           onSelectBranchBaseline={() => undefined}
           onSelectExportProfile={() => undefined}
+          onSelectReviewFilter={() => undefined}
+          onSelectReviewIssue={() => undefined}
+          onOpenReviewSource={() => undefined}
         />
       }
       inspector={
@@ -158,6 +185,8 @@ function WorkspacePreview({
           branch={draftView === 'branch' ? branchData.branchWorkspace : null}
           exportPreview={draftView === 'export' ? effectiveExportPreview : null}
           exportError={exportError}
+          reviewInbox={draftView === 'review' ? reviewData.reviewInbox : null}
+          onOpenReviewSource={() => undefined}
           checkpointMeta={draftView === 'compare' ? compareData.selectedCheckpoint : null}
         />
       }
@@ -169,6 +198,7 @@ function WorkspacePreview({
           compareProblems={draftView === 'compare' ? compareData.compareProblems : null}
           branchProblems={draftView === 'branch' ? buildBookDraftBranchProblemsStoryData(locale, branchData.branchWorkspace) : null}
           exportProblems={draftView === 'export' ? buildExportProblems(effectiveExportPreview) : null}
+          reviewProblems={draftView === 'review' ? buildBookDraftReviewProblemsStoryData(reviewData.reviewInbox) : null}
           exportError={exportError}
         />
       }
@@ -343,5 +373,22 @@ export const ExportBaselineUnavailable: Story = {
     exportState: 'error',
     checkpointId: 'checkpoint-missing',
     exportProfileId: 'export-review-packet',
+  },
+}
+
+export const ReviewTraceGaps: Story = {
+  args: {
+    draftView: 'review',
+    reviewFilter: 'trace-gaps',
+    selectedChapterId: 'chapter-open-water-signals',
+  },
+}
+
+export const ReviewEmptyFilter: Story = {
+  args: {
+    draftView: 'review',
+    reviewFilter: 'scene-proposals',
+    variant: 'quiet-book',
+    selectedChapterId: 'chapter-open-water-signals',
   },
 }

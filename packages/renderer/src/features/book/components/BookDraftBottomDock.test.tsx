@@ -237,4 +237,71 @@ describe('BookDraftBottomDock', () => {
     expect(screen.getByText('Selected branch High Pressure')).toBeInTheDocument()
     expect(screen.getByText('Selected checkpoint baseline')).toBeInTheDocument()
   })
+
+  it('shows review-mode blockers, trace gaps, missing drafts, and review activity', () => {
+    const activity: BookWorkbenchActivityItem[] = [
+      {
+        id: 'draft-view-0',
+        kind: 'draft-view',
+        title: 'Entered Review',
+        detail: 'Review keeps filter and issue selection route-owned.',
+        tone: 'accent',
+      },
+      {
+        id: 'review-issue-1',
+        kind: 'review-issue',
+        title: 'Selected review issue Export packet is blocked',
+        detail: 'Open Water Signals / Dawn Slip',
+        tone: 'neutral',
+      },
+      {
+        id: 'review-source-2',
+        kind: 'review-source',
+        title: 'Opened issue source Open export readiness',
+        detail: 'Export packet is blocked',
+        tone: 'neutral',
+      },
+    ]
+
+    render(
+      <AppProviders>
+        <BookDraftBottomDock
+          summary={{
+            missingDraftChapterCount: 0,
+            missingTraceChapterCount: 0,
+            warningsChapterCount: 0,
+            queuedRevisionChapterCount: 0,
+            highestPressureChapters: [],
+            missingDraftChapters: [],
+            missingTraceChapters: [],
+            warningsChapters: [],
+            queuedRevisionChapters: [],
+          }}
+          activity={activity}
+          activeDraftView="review"
+          reviewProblems={{
+            blockerCount: 2,
+            traceGapCount: 1,
+            missingDraftCount: 2,
+            exportBlockerCount: 1,
+            branchBlockerCount: 1,
+            blockers: [{ chapterId: 'review:blocker-1', title: 'Open Water Signals', detail: 'Export packet is blocked by one missing scene draft.' }],
+            traceGaps: [{ chapterId: 'review:trace-gap-1', title: 'Open Water Signals', detail: 'Dawn Slip still lacks trace coverage.' }],
+            missingDrafts: [{ chapterId: 'review:missing-draft-1', title: 'Signals in Rain', detail: 'Departure Bell still has no current draft prose.' }],
+            exportBlockers: [{ chapterId: 'review:export-1', title: 'Signal Arc', detail: 'Review Packet is still blocked.' }],
+            branchBlockers: [{ chapterId: 'review:branch-1', title: 'Open Water Signals', detail: 'High Pressure branch is still blocked against the checkpoint baseline.' }],
+          }}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getAllByText('Blockers').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Trace gaps').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Missing drafts').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Export blockers').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Branch blockers').length).toBeGreaterThan(0)
+    expect(screen.getByText('Entered Review')).toBeInTheDocument()
+    expect(screen.getByText('Selected review issue Export packet is blocked')).toBeInTheDocument()
+    expect(screen.getByText('Opened issue source Open export readiness')).toBeInTheDocument()
+  })
 })

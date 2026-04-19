@@ -17,7 +17,7 @@ import { useBookDraftWorkspaceQuery } from '../hooks/useBookDraftWorkspaceQuery'
 import { useBookExperimentBranchQuery } from '../hooks/useBookExperimentBranchQuery'
 import { useBookExportPreviewQuery } from '../hooks/useBookExportPreviewQuery'
 import { useBookManuscriptCompareQuery } from '../hooks/useBookManuscriptCompareQuery'
-import { rememberBookWorkbenchHandoff } from '../hooks/useBookWorkbenchActivity'
+import { rememberBookWorkbenchHandoff, rememberBookWorkbenchReviewSourceOpen } from '../hooks/useBookWorkbenchActivity'
 import { BookDraftDockContainer } from './BookDraftDockContainer'
 import { DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID } from '../api/book-manuscript-checkpoints'
 import { DEFAULT_BOOK_EXPORT_PROFILE_ID } from '../api/book-export-profiles'
@@ -400,6 +400,17 @@ export function BookDraftWorkspace() {
   )
   const onOpenReviewSource = useCallback(
     (handoff: ReviewSourceHandoffViewModel) => {
+      const sourceIssue = reviewInbox?.issues.find((issue) => issue.handoffs.some((item) => item.id === handoff.id))
+
+      if (sourceIssue) {
+        rememberBookWorkbenchReviewSourceOpen({
+          id: `review-source-${route.bookId}-${handoff.id}`,
+          bookId: route.bookId,
+          issueTitle: sourceIssue.title,
+          sourceActionLabel: handoff.label,
+        })
+      }
+
       const { target } = handoff
 
       if (target.scope === 'book') {
@@ -446,7 +457,7 @@ export function BookDraftWorkspace() {
         view: target.view,
       })
     },
-    [replaceRoute, route.selectedChapterId, route.view],
+    [replaceRoute, reviewInbox, route.bookId, route.selectedChapterId, route.view],
   )
 
   const modeRail = (
@@ -590,6 +601,8 @@ export function BookDraftWorkspace() {
           branch={branchWorkspace ?? null}
           exportPreview={effectiveExportPreview}
           exportError={effectiveExportError}
+          reviewInbox={reviewInbox ?? null}
+          onOpenReviewSource={onOpenReviewSource}
           checkpointMeta={selectedCheckpoint ?? null}
         />
       }
@@ -600,6 +613,7 @@ export function BookDraftWorkspace() {
           compare={compareWorkspace ?? null}
           branch={branchWorkspace ?? null}
           exportPreview={effectiveExportPreview}
+          reviewInbox={reviewInbox ?? null}
           exportError={effectiveExportError}
         />
       }
