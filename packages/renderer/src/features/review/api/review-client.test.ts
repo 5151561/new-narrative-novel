@@ -6,6 +6,12 @@ import {
   resetMockReviewDecisionDb,
   setMockReviewIssueDecision,
 } from './mock-review-decision-db'
+import {
+  clearMockReviewIssueFixAction,
+  getMockBookReviewFixActions,
+  resetMockReviewFixActionDb,
+  setMockReviewIssueFixAction,
+} from './mock-review-fix-action-db'
 import { createReviewClient } from './review-client'
 
 describe('review decision data layer', () => {
@@ -85,5 +91,129 @@ describe('review decision data layer', () => {
       issueId: 'issue-1',
       note: 'Keep isolated',
     })
+  })
+})
+
+describe('review fix action data layer', () => {
+  it('writes and overwrites review issue fix actions while preserving the first started label', () => {
+    resetMockReviewFixActionDb()
+
+    const initial = setMockReviewIssueFixAction({
+      bookId: 'book-signal-arc',
+      issueId: 'issue-1',
+      issueSignature: 'signature-1',
+      sourceHandoffId: 'handoff-1',
+      sourceHandoffLabel: 'Open chapter draft',
+      targetScope: 'chapter',
+      status: 'started',
+      note: '  Started now  ',
+    })
+
+    const replaced = setMockReviewIssueFixAction({
+      bookId: 'book-signal-arc',
+      issueId: 'issue-1',
+      issueSignature: 'signature-2',
+      sourceHandoffId: 'handoff-2',
+      sourceHandoffLabel: 'Open compare review',
+      targetScope: 'book',
+      status: 'checked',
+      note: '  ',
+    })
+
+    expect(initial.note).toBe('Started now')
+    expect(replaced).toMatchObject({
+      id: 'book-signal-arc::issue-1',
+      issueId: 'issue-1',
+      issueSignature: 'signature-2',
+      sourceHandoffId: 'handoff-2',
+      sourceHandoffLabel: 'Open compare review',
+      targetScope: 'book',
+      status: 'checked',
+      note: undefined,
+      startedAtLabel: initial.startedAtLabel,
+    })
+    expect(getMockBookReviewFixActions('book-signal-arc')).toEqual([replaced])
+  })
+
+  it('clears and resets review issue fix actions without leaking records across tests', () => {
+    resetMockReviewFixActionDb()
+    setMockReviewIssueFixAction({
+      bookId: 'book-signal-arc',
+      issueId: 'issue-1',
+      issueSignature: 'signature-1',
+      sourceHandoffId: 'handoff-1',
+      sourceHandoffLabel: 'Open chapter draft',
+      targetScope: 'chapter',
+      status: 'started',
+    })
+    setMockReviewIssueFixAction({
+      bookId: 'book-signal-arc',
+      issueId: 'issue-2',
+      issueSignature: 'signature-2',
+      sourceHandoffId: 'handoff-2',
+      sourceHandoffLabel: 'Open scene proposal',
+      targetScope: 'scene',
+      status: 'blocked',
+    })
+
+    clearMockReviewIssueFixAction({
+      bookId: 'book-signal-arc',
+      issueId: 'issue-1',
+    })
+    expect(getMockBookReviewFixActions('book-signal-arc').map((record) => record.issueId)).toEqual(['issue-2'])
+
+    resetMockReviewFixActionDb()
+    expect(getMockBookReviewFixActions('book-signal-arc')).toEqual([])
+  })
+
+  it('returns cloned fix action records from the client instead of leaking mutable db references', async () => {
+    resetMockReviewFixActionDb()
+    setMockReviewIssueFixAction({
+      bookId: 'book-signal-arc',
+      issueId: 'issue-1',
+      issueSignature: 'signature-1',
+      sourceHandoffId: 'handoff-1',
+      sourceHandoffLabel: 'Open chapter draft',
+      targetScope: 'chapter',
+      status: 'started',
+      note: 'Keep isolated',
+    })
+
+    const client = createReviewClient()
+    const firstRead = await client.getBookReviewFixActions({ bookId: 'book-signal-arc' })
+    firstRead[0]!.note = 'Mutated locally'
+
+    const secondRead = await client.getBookReviewFixActions({ bookId: 'book-signal-arc' })
+
+    expect(secondRead[0]).toMatchObject({
+      issueId: 'issue-1',
+      note: 'Keep isolated',
+    })
+  })
+
+  it('keeps decision and fix action mock databases isolated from each other', () => {
+    resetMockReviewDecisionDb()
+    resetMockReviewFixActionDb()
+
+    setMockReviewIssueDecision({
+      bookId: 'book-signal-arc',
+      issueId: 'issue-1',
+      issueSignature: 'signature-1',
+      status: 'reviewed',
+    })
+    setMockReviewIssueFixAction({
+      bookId: 'book-signal-arc',
+      issueId: 'issue-1',
+      issueSignature: 'signature-1',
+      sourceHandoffId: 'handoff-1',
+      sourceHandoffLabel: 'Open chapter draft',
+      targetScope: 'chapter',
+      status: 'started',
+    })
+
+    resetMockReviewFixActionDb()
+
+    expect(getMockBookReviewFixActions('book-signal-arc')).toEqual([])
+    expect(getMockBookReviewDecisions('book-signal-arc')).toHaveLength(1)
   })
 })

@@ -8,6 +8,7 @@ import type { BookManuscriptCompareWorkspaceViewModel } from '@/features/book/ty
 import type { BookDraftWorkspaceViewModel } from '@/features/book/types/book-draft-view-models'
 import type { BookExportPreviewWorkspaceViewModel } from '@/features/book/types/book-export-view-models'
 import type { ReviewIssueDecisionRecord } from '../api/review-decision-records'
+import type { ReviewIssueFixActionRecord } from '../api/review-fix-action-records'
 import { reviewQueryKeys } from './review-query-keys'
 
 import { useBookReviewInboxQuery } from './useBookReviewInboxQuery'
@@ -402,14 +403,31 @@ function createWrapper(queryClient = createQueryClient()) {
   }
 }
 
-function createReviewClient(decisions: ReviewIssueDecisionRecord[] = [], error?: Error) {
+function createReviewClient({
+  decisions = [],
+  decisionError,
+  fixActions = [],
+  fixActionError,
+}: {
+  decisions?: ReviewIssueDecisionRecord[]
+  decisionError?: Error
+  fixActions?: ReviewIssueFixActionRecord[]
+  fixActionError?: Error
+} = {}) {
   return {
     getBookReviewDecisions: vi.fn(async () => {
-      if (error) {
-        throw error
+      if (decisionError) {
+        throw decisionError
       }
 
       return structuredClone(decisions)
+    }),
+    getBookReviewFixActions: vi.fn(async () => {
+      if (fixActionError) {
+        throw fixActionError
+      }
+
+      return structuredClone(fixActions)
     }),
   }
 }
@@ -559,7 +577,7 @@ describe('useBookReviewInboxQuery', () => {
             branchStatus: 'ready',
             reviewFilter: 'all',
           },
-          { reviewClient: createReviewClient([], reviewError) },
+          { reviewClient: createReviewClient({ decisionError: reviewError }) },
         ),
       {
         wrapper: createWrapper(),
@@ -789,7 +807,7 @@ describe('useBookReviewInboxQuery', () => {
         branchStatus: 'ready',
         reviewFilter: 'all',
       },
-      createReviewClient([], new Error('Decision failed')),
+      createReviewClient({ decisionError: new Error('Decision failed') }),
     )
 
     await waitFor(() => {
@@ -830,7 +848,7 @@ describe('useBookReviewInboxQuery', () => {
             branchStatus: 'ready',
             reviewFilter: 'all',
           },
-          { reviewClient: createReviewClient([], new Error('Decision failed')) },
+          { reviewClient: createReviewClient({ decisionError: new Error('Decision failed') }) },
         ),
       { wrapper: createWrapper(queryClient) },
     )
@@ -858,17 +876,19 @@ describe('useBookReviewInboxQuery', () => {
         reviewFilter: 'all',
         reviewStatusFilter: 'reviewed',
       },
-      createReviewClient([
-        {
-          id: 'decision-reviewed',
-          bookId: 'book-signal-arc',
-          issueId: reviewedIssue.id,
-          issueSignature: reviewedIssue.issueSignature,
-          status: 'reviewed',
-          updatedAtLabel: '2026-04-19 17:20',
-          updatedByLabel: 'Editor',
-        },
-      ]),
+      createReviewClient({
+        decisions: [
+          {
+            id: 'decision-reviewed',
+            bookId: 'book-signal-arc',
+            issueId: reviewedIssue.id,
+            issueSignature: reviewedIssue.issueSignature,
+            status: 'reviewed',
+            updatedAtLabel: '2026-04-19 17:20',
+            updatedByLabel: 'Editor',
+          },
+        ],
+      }),
     )
 
     await waitFor(() => {
@@ -877,5 +897,78 @@ describe('useBookReviewInboxQuery', () => {
 
     expect(result.current.inbox?.activeStatusFilter).toBe('reviewed')
     expect(result.current.inbox?.filteredIssues.map((issue) => issue.id)).toEqual([reviewedIssue.id])
+  })
+
+  it('merges fix action records into the inbox while keeping decision status filters separate', async () => {
+    const issue = buildHookIssueForDecision()
+
+    const { result } = renderReviewInboxHook(
+      {
+        bookId: 'book-signal-arc',
+        currentDraftWorkspace: createCurrentDraftWorkspace(),
+        compareWorkspace: createCompareWorkspace(),
+        compareStatus: 'ready',
+        exportWorkspace: createExportWorkspace(),
+        exportStatus: 'ready',
+        branchWorkspace: createBranchWorkspace(),
+        branchStatus: 'ready',
+        reviewFilter: 'all',
+      },
+      createReviewClient({
+        fixActions: [
+          {
+            id: 'fix-action-1',
+            bookId: 'book-signal-arc',
+            issueId: issue.id,
+            issueSignature: issue.issueSignature,
+            sourceHandoffId: `${issue.id}::book-compare`,
+            sourceHandoffLabel: 'Open compare review',
+            targetScope: 'book',
+            status: 'checked',
+            startedAtLabel: '2026-04-19 17:30',
+            updatedAtLabel: '2026-04-19 17:35',
+            updatedByLabel: 'Editor',
+          },
+        ],
+      }),
+    )
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.fixActionError).toBeNull()
+    expect(result.current.inbox?.issues.find((item) => item.id === issue.id)?.fixAction).toMatchObject({
+      status: 'checked',
+      sourceHandoffLabel: 'Open compare review',
+      isStale: false,
+    })
+    expect(result.current.inbox?.counts.fixChecked).toBe(1)
+  })
+
+  it('surfaces fix action query errors while keeping the inbox available with empty fix action overlays', async () => {
+    const { result } = renderReviewInboxHook(
+      {
+        bookId: 'book-signal-arc',
+        currentDraftWorkspace: createCurrentDraftWorkspace(),
+        compareWorkspace: createCompareWorkspace(),
+        compareStatus: 'ready',
+        exportWorkspace: createExportWorkspace(),
+        exportStatus: 'ready',
+        branchWorkspace: createBranchWorkspace(),
+        branchStatus: 'ready',
+        reviewFilter: 'all',
+      },
+      createReviewClient({ fixActionError: new Error('Fix actions failed') }),
+    )
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.error).toBeNull()
+    expect(result.current.decisionError).toBeNull()
+    expect(result.current.fixActionError?.message).toBe('Fix actions failed')
+    expect(result.current.inbox?.issues.every((issue) => issue.fixAction.status === 'not_started')).toBe(true)
   })
 })

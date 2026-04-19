@@ -6,10 +6,12 @@ import type { BookReviewFilter, BookReviewStatusFilter } from '@/features/workbe
 
 import type { BookReviewSeedRecord } from '../api/book-review-seeds'
 import type { ReviewIssueDecisionRecord } from '../api/review-decision-records'
+import type { ReviewIssueFixActionRecord } from '../api/review-fix-action-records'
 import type {
   BookReviewInboxCountsViewModel,
   BookReviewInboxViewModel,
   ReviewIssueDecisionViewModel,
+  ReviewIssueFixActionViewModel,
   ReviewIssueGroupsViewModel,
   ReviewIssueViewModel,
   ReviewSourceHandoffViewModel,
@@ -26,9 +28,10 @@ interface BuildBookReviewInboxViewModelInput {
   reviewStatusFilter?: BookReviewStatusFilter
   reviewIssueId?: string
   decisionRecords?: ReviewIssueDecisionRecord[]
+  fixActions?: ReviewIssueFixActionRecord[]
 }
 
-type ReviewIssueBase = Omit<ReviewIssueViewModel, 'issueSignature' | 'decision'>
+type ReviewIssueBase = Omit<ReviewIssueViewModel, 'issueSignature' | 'decision' | 'fixAction' | 'primaryFixHandoff'>
 
 const SEVERITY_RANK = {
   blocker: 0,
@@ -57,6 +60,13 @@ function createOpenDecision(): ReviewIssueDecisionViewModel {
   }
 }
 
+function createNotStartedFixAction(): ReviewIssueFixActionViewModel {
+  return {
+    status: 'not_started',
+    isStale: false,
+  }
+}
+
 export function createReviewIssueSignature(issue: Pick<
   ReviewIssueBase,
   'id' | 'kind' | 'source' | 'chapterId' | 'sceneId' | 'assetId' | 'title' | 'detail' | 'sourceExcerpt'
@@ -74,11 +84,73 @@ export function createReviewIssueSignature(issue: Pick<
   ].join('::')
 }
 
+function findBookDraftHandoff(issue: ReviewIssueViewModel, draftView: 'compare' | 'export' | 'branch') {
+  return issue.handoffs.find((handoff) => handoff.target.scope === 'book' && handoff.target.draftView === draftView)
+}
+
+function findChapterDraftHandoff(issue: ReviewIssueViewModel) {
+  return issue.handoffs.find((handoff) => handoff.target.scope === 'chapter' && handoff.target.lens === 'draft')
+}
+
+function findSceneFixHandoff(issue: ReviewIssueViewModel) {
+  return issue.handoffs.find(
+    (handoff) =>
+      handoff.target.scope === 'scene' && (handoff.target.lens === 'orchestrate' || handoff.target.lens === 'draft'),
+  )
+}
+
+function findSceneOrchestrateHandoff(issue: ReviewIssueViewModel) {
+  return issue.handoffs.find((handoff) => handoff.target.scope === 'scene' && handoff.target.lens === 'orchestrate')
+}
+
+function findAssetKnowledgeHandoff(issue: ReviewIssueViewModel) {
+  return issue.handoffs.find((handoff) => handoff.target.scope === 'asset' && handoff.target.lens === 'knowledge')
+}
+
+export function selectPrimaryReviewFixHandoff(issue: ReviewIssueViewModel): ReviewSourceHandoffViewModel | null {
+  if (issue.source === 'export') {
+    return findBookDraftHandoff(issue, 'export') ?? issue.handoffs[0] ?? null
+  }
+
+  if (issue.source === 'branch') {
+    return findBookDraftHandoff(issue, 'branch') ?? issue.handoffs[0] ?? null
+  }
+
+  if (issue.source === 'compare') {
+    return findBookDraftHandoff(issue, 'compare') ?? issue.handoffs[0] ?? null
+  }
+
+  if (issue.kind === 'missing_draft' || issue.source === 'chapter-draft') {
+    return findChapterDraftHandoff(issue) ?? issue.handoffs[0] ?? null
+  }
+
+  if (issue.source === 'scene-proposal') {
+    return findSceneOrchestrateHandoff(issue) ?? issue.handoffs[0] ?? null
+  }
+
+  if (issue.kind === 'trace_gap') {
+    return findChapterDraftHandoff(issue) ?? findSceneFixHandoff(issue) ?? issue.handoffs[0] ?? null
+  }
+
+  if (issue.assetId) {
+    return findAssetKnowledgeHandoff(issue) ?? issue.handoffs[0] ?? null
+  }
+
+  return issue.handoffs[0] ?? null
+}
+
 function hydrateReviewIssue(issue: ReviewIssueBase): ReviewIssueViewModel {
-  return {
+  const hydratedIssue: ReviewIssueViewModel = {
     ...issue,
     issueSignature: createReviewIssueSignature(issue),
     decision: createOpenDecision(),
+    fixAction: createNotStartedFixAction(),
+    primaryFixHandoff: null,
+  }
+
+  return {
+    ...hydratedIssue,
+    primaryFixHandoff: selectPrimaryReviewFixHandoff(hydratedIssue),
   }
 }
 
@@ -177,6 +249,55 @@ export function applyReviewDecisionsToIssues({
   })
 }
 
+export function applyReviewFixActionsToIssues({
+  issues,
+  fixActions,
+}: {
+  issues: ReviewIssueViewModel[]
+  fixActions: ReviewIssueFixActionRecord[]
+}): ReviewIssueViewModel[] {
+  const fixActionsByIssueId = new Map(fixActions.map((record) => [record.issueId, record]))
+
+  return issues.map((issue) => {
+    const fixActionRecord = fixActionsByIssueId.get(issue.id)
+    if (!fixActionRecord) {
+      return issue
+    }
+
+    if (fixActionRecord.issueSignature !== issue.issueSignature) {
+      return {
+        ...issue,
+        fixAction: {
+          status: 'stale',
+          sourceHandoffId: fixActionRecord.sourceHandoffId,
+          sourceHandoffLabel: fixActionRecord.sourceHandoffLabel,
+          targetScope: fixActionRecord.targetScope,
+          note: fixActionRecord.note,
+          startedAtLabel: fixActionRecord.startedAtLabel,
+          updatedAtLabel: fixActionRecord.updatedAtLabel,
+          updatedByLabel: fixActionRecord.updatedByLabel,
+          isStale: true,
+        },
+      }
+    }
+
+    return {
+      ...issue,
+      fixAction: {
+        status: fixActionRecord.status,
+        sourceHandoffId: fixActionRecord.sourceHandoffId,
+        sourceHandoffLabel: fixActionRecord.sourceHandoffLabel,
+        targetScope: fixActionRecord.targetScope,
+        note: fixActionRecord.note,
+        startedAtLabel: fixActionRecord.startedAtLabel,
+        updatedAtLabel: fixActionRecord.updatedAtLabel,
+        updatedByLabel: fixActionRecord.updatedByLabel,
+        isStale: false,
+      },
+    }
+  })
+}
+
 function buildIssueGroups(issues: ReviewIssueViewModel[]): ReviewIssueGroupsViewModel {
   return {
     blockers: issues.filter((issue) => issue.severity === 'blocker'),
@@ -202,6 +323,10 @@ function buildCounts(issues: ReviewIssueViewModel[]): BookReviewInboxCountsViewM
     deferred: issues.filter((issue) => issue.decision.status === 'deferred').length,
     dismissed: issues.filter((issue) => issue.decision.status === 'dismissed').length,
     stale: issues.filter((issue) => issue.decision.status === 'stale').length,
+    fixStarted: issues.filter((issue) => issue.fixAction.status === 'started').length,
+    fixChecked: issues.filter((issue) => issue.fixAction.status === 'checked').length,
+    fixBlocked: issues.filter((issue) => issue.fixAction.status === 'blocked').length,
+    fixStale: issues.filter((issue) => issue.fixAction.status === 'stale').length,
   }
 }
 
@@ -668,18 +793,24 @@ export function buildBookReviewInboxViewModel({
   reviewStatusFilter = 'open',
   reviewIssueId,
   decisionRecords = [],
+  fixActions = [],
 }: BuildBookReviewInboxViewModelInput): BookReviewInboxViewModel {
-  const issues = applyReviewDecisionsToIssues({
-    issues: [
+  const hydratedIssues = [
     ...buildDraftIssues(currentDraftWorkspace),
     ...buildCompareIssues(compareWorkspace),
     ...buildExportIssues(exportWorkspace),
     ...buildBranchIssues(branchWorkspace),
     ...buildSeedIssues(reviewSeeds),
-    ]
-      .map((issue) => hydrateReviewIssue(issue))
-      .sort(sortReviewIssues),
-    decisions: decisionRecords,
+  ]
+    .map((issue) => hydrateReviewIssue(issue))
+    .sort(sortReviewIssues)
+
+  const issues = applyReviewFixActionsToIssues({
+    issues: applyReviewDecisionsToIssues({
+      issues: hydratedIssues,
+      decisions: decisionRecords,
+    }),
+    fixActions,
   })
 
   const reviewFilteredIssues = filterReviewIssues(issues, reviewFilter)

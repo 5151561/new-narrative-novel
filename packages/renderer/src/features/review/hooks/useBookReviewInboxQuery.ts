@@ -9,6 +9,7 @@ import type { BookReviewFilter, BookReviewStatusFilter } from '@/features/workbe
 import { getBookReviewSeeds } from '../api/book-review-seeds'
 import { buildBookReviewInboxViewModel } from '../lib/book-review-inbox-mappers'
 import { useBookReviewDecisionsQuery } from './useBookReviewDecisionsQuery'
+import { useBookReviewFixActionsQuery } from './useBookReviewFixActionsQuery'
 import type { BookReviewInboxViewModel, ReviewOptionalSourceStatus } from '../types/review-view-models'
 import type { ReviewClient } from '../api/review-client'
 
@@ -30,7 +31,7 @@ interface UseBookReviewInboxQueryInput {
 }
 
 interface UseBookReviewInboxQueryDeps {
-  reviewClient?: Pick<ReviewClient, 'getBookReviewDecisions'>
+  reviewClient?: Pick<ReviewClient, 'getBookReviewDecisions' | 'getBookReviewFixActions'>
 }
 
 export interface UseBookReviewInboxQueryResult {
@@ -38,6 +39,7 @@ export interface UseBookReviewInboxQueryResult {
   isLoading: boolean
   error: Error | null
   decisionError: Error | null
+  fixActionError: Error | null
   isEmpty: boolean
 }
 
@@ -65,9 +67,19 @@ export function useBookReviewInboxQuery({
     },
     { reviewClient },
   )
+  const reviewFixActionsQuery = useBookReviewFixActionsQuery(
+    {
+      bookId,
+      enabled: currentDraftWorkspace !== undefined && currentDraftWorkspace !== null,
+    },
+    { reviewClient },
+  )
   const decisionError =
     currentDraftWorkspace === null ? null : reviewDecisionsQuery.error instanceof Error ? reviewDecisionsQuery.error : null
+  const fixActionError =
+    currentDraftWorkspace === null ? null : reviewFixActionsQuery.error instanceof Error ? reviewFixActionsQuery.error : null
   const effectiveDecisionRecords = decisionError ? [] : reviewDecisionsQuery.data ?? []
+  const effectiveFixActionRecords = fixActionError ? [] : reviewFixActionsQuery.data ?? []
   const optionalSourcesLoading =
     compareStatus === 'loading' || exportStatus === 'loading' || branchStatus === 'loading'
 
@@ -76,7 +88,12 @@ export function useBookReviewInboxQuery({
       return null
     }
 
-    if (currentDraftWorkspace === undefined || optionalSourcesLoading || reviewDecisionsQuery.isLoading) {
+    if (
+      currentDraftWorkspace === undefined ||
+      optionalSourcesLoading ||
+      reviewDecisionsQuery.isLoading ||
+      reviewFixActionsQuery.isLoading
+    ) {
       return undefined
     }
 
@@ -91,6 +108,7 @@ export function useBookReviewInboxQuery({
       reviewStatusFilter,
       reviewIssueId,
       decisionRecords: effectiveDecisionRecords,
+      fixActions: effectiveFixActionRecords,
     })
   }, [
     bookId,
@@ -110,13 +128,18 @@ export function useBookReviewInboxQuery({
     reviewIssueId,
     reviewSeeds,
     effectiveDecisionRecords,
+    effectiveFixActionRecords,
     reviewDecisionsQuery.isLoading,
+    reviewFixActionsQuery.isLoading,
   ])
 
   const isLoading =
     currentDraftWorkspace === null
       ? false
-      : currentDraftWorkspace === undefined || optionalSourcesLoading || reviewDecisionsQuery.isLoading
+      : currentDraftWorkspace === undefined ||
+        optionalSourcesLoading ||
+        reviewDecisionsQuery.isLoading ||
+        reviewFixActionsQuery.isLoading
   const error = compareError ?? exportError ?? branchError
   const isEmpty = !isLoading && error === null && inbox !== undefined && inbox !== null && inbox.filteredIssues.length === 0
 
@@ -125,6 +148,7 @@ export function useBookReviewInboxQuery({
     isLoading,
     error,
     decisionError,
+    fixActionError,
     isEmpty,
   }
 }

@@ -70,10 +70,23 @@ export interface ReviewSourceHandoffViewModel {
 
 export type ReviewOptionalSourceStatus = 'idle' | 'loading' | 'ready'
 export type ReviewDecisionStatus = 'open' | 'reviewed' | 'deferred' | 'dismissed' | 'stale'
+export type ReviewFixActionViewStatus = 'not_started' | 'started' | 'checked' | 'blocked' | 'stale'
 
 export interface ReviewIssueDecisionViewModel {
   status: ReviewDecisionStatus
   note?: string
+  updatedAtLabel?: string
+  updatedByLabel?: string
+  isStale: boolean
+}
+
+export interface ReviewIssueFixActionViewModel {
+  status: ReviewFixActionViewStatus
+  sourceHandoffId?: string
+  sourceHandoffLabel?: string
+  targetScope?: ReviewSourceHandoffTarget['scope']
+  note?: string
+  startedAtLabel?: string
   updatedAtLabel?: string
   updatedByLabel?: string
   isStale: boolean
@@ -101,6 +114,8 @@ export interface ReviewIssueViewModel {
   handoffs: ReviewSourceHandoffViewModel[]
   issueSignature: string
   decision: ReviewIssueDecisionViewModel
+  fixAction: ReviewIssueFixActionViewModel
+  primaryFixHandoff: ReviewSourceHandoffViewModel | null
 }
 
 export interface ReviewIssueGroupsViewModel {
@@ -125,6 +140,10 @@ export interface BookReviewInboxCountsViewModel {
   deferred: number
   dismissed: number
   stale: number
+  fixStarted: number
+  fixChecked: number
+  fixBlocked: number
+  fixStale: number
 }
 
 export interface BookReviewInboxViewModel {

@@ -6,7 +6,7 @@ import type { BookDraftWorkspaceViewModel } from '@/features/book/types/book-dra
 import type { BookExportPreviewWorkspaceViewModel } from '@/features/book/types/book-export-view-models'
 
 import { getBookReviewSeeds } from '../api/book-review-seeds'
-import { buildBookReviewInboxViewModel } from './book-review-inbox-mappers'
+import { buildBookReviewInboxViewModel, selectPrimaryReviewFixHandoff } from './book-review-inbox-mappers'
 
 function createCurrentDraftWorkspace(): BookDraftWorkspaceViewModel {
   const workspace: BookDraftWorkspaceViewModel = {
@@ -555,6 +555,35 @@ function buildInboxWithDecisions({
   } as any)
 }
 
+function buildInboxWithFixActions({
+  fixActions = [],
+}: {
+  fixActions?: Array<{
+    id: string
+    bookId: string
+    issueId: string
+    issueSignature: string
+    sourceHandoffId: string
+    sourceHandoffLabel: string
+    targetScope: 'book' | 'chapter' | 'scene' | 'asset'
+    status: 'started' | 'checked' | 'blocked'
+    note?: string
+    startedAtLabel: string
+    updatedAtLabel: string
+    updatedByLabel: string
+  }>
+}) {
+  return buildBookReviewInboxViewModel({
+    bookId: 'book-signal-arc',
+    currentDraftWorkspace: createCurrentDraftWorkspace(),
+    compareWorkspace: createCompareWorkspace(),
+    exportWorkspace: createExportWorkspace(),
+    branchWorkspace: createBranchWorkspace(),
+    reviewSeeds: getBookReviewSeeds('book-signal-arc'),
+    fixActions,
+  } as any)
+}
+
 describe('buildBookReviewInboxViewModel', () => {
   it('maps a current draft missing scene into a missing_draft blocker', () => {
     const issue = buildInbox().issues.find((item) => item.id === 'draft-missing-chapter-1-scene-1')
@@ -728,6 +757,260 @@ describe('buildBookReviewInboxViewModel', () => {
         view: 'profile',
       },
     })
+  })
+
+  it('adds not-started fix action state and primary fix handoffs to every issue', () => {
+    const inbox = buildInbox()
+    const issue = inbox.issues.find((item) => item.id === 'draft-missing-chapter-1-scene-1')
+
+    expect(issue?.fixAction).toMatchObject({
+      status: 'not_started',
+      isStale: false,
+    })
+    expect(issue?.primaryFixHandoff).toMatchObject({
+      label: 'Open chapter draft',
+      target: {
+        scope: 'chapter',
+        chapterId: 'chapter-1',
+        lens: 'draft',
+      },
+    })
+  })
+
+  it('selects primary fix handoffs for export branch compare missing draft scene proposal asset and fallback issues', () => {
+    const inbox = buildInbox()
+
+    expect(inbox.issues.find((item) => item.id === 'export-blocker-scene-1')?.primaryFixHandoff).toMatchObject({
+      target: {
+        scope: 'book',
+        draftView: 'export',
+      },
+    })
+    expect(inbox.issues.find((item) => item.id === 'branch-warning-scene-4')?.primaryFixHandoff).toMatchObject({
+      target: {
+        scope: 'book',
+        draftView: 'branch',
+      },
+    })
+    expect(inbox.issues.find((item) => item.id === 'compare-delta-chapter-2-scene-3')?.primaryFixHandoff).toMatchObject({
+      target: {
+        scope: 'book',
+        draftView: 'compare',
+      },
+    })
+    expect(inbox.issues.find((item) => item.id === 'draft-missing-chapter-1-scene-1')?.primaryFixHandoff).toMatchObject({
+      target: {
+        scope: 'chapter',
+        lens: 'draft',
+      },
+    })
+    expect(inbox.issues.find((item) => item.id === 'scene-proposal-seed-scene-5')?.primaryFixHandoff).toMatchObject({
+      target: {
+        scope: 'scene',
+        lens: 'orchestrate',
+      },
+    })
+    expect(inbox.issues.find((item) => item.id === 'trace-gap-seed-asset-ledger')?.primaryFixHandoff).toMatchObject({
+      target: {
+        scope: 'chapter',
+        lens: 'draft',
+      },
+    })
+
+    const sceneDraftHandoff = {
+      id: 'scene-proposal::scene-draft',
+      label: 'Open scene draft',
+      target: {
+        scope: 'scene' as const,
+        sceneId: 'scene-5',
+        lens: 'draft' as const,
+        tab: 'prose' as const,
+      },
+    }
+    const sceneOrchestrateHandoff = {
+      id: 'scene-proposal::scene-orchestrate',
+      label: 'Open scene proposal',
+      target: {
+        scope: 'scene' as const,
+        sceneId: 'scene-5',
+        lens: 'orchestrate' as const,
+        tab: 'execution' as const,
+      },
+    }
+    expect(
+      selectPrimaryReviewFixHandoff({
+        id: 'scene-proposal-with-draft-first',
+        severity: 'warning',
+        source: 'scene-proposal',
+        kind: 'scene_proposal',
+        title: 'Scene proposal needs review',
+        detail: 'Scene Five is still waiting for proposal review.',
+        recommendation: 'Review the proposal notes.',
+        sourceLabel: 'Scene proposal',
+        tags: [],
+        handoffs: [sceneDraftHandoff, sceneOrchestrateHandoff],
+        issueSignature: 'scene-proposal-signature',
+        decision: {
+          status: 'open',
+          isStale: false,
+        },
+        fixAction: {
+          status: 'not_started',
+          isStale: false,
+        },
+        primaryFixHandoff: null,
+      }),
+    ).toBe(sceneOrchestrateHandoff)
+
+    const fallbackHandoff = {
+      id: 'fallback::chapter',
+      label: 'Fallback first',
+      target: {
+        scope: 'chapter' as const,
+        chapterId: 'chapter-1',
+        lens: 'structure' as const,
+        view: 'sequence' as const,
+      },
+    }
+    expect(
+      selectPrimaryReviewFixHandoff({
+        id: 'fallback',
+        severity: 'info',
+        source: 'manuscript',
+        kind: 'chapter_annotation',
+        title: 'Fallback',
+        detail: 'Fallback detail',
+        recommendation: 'Fallback recommendation',
+        sourceLabel: 'Fallback source',
+        tags: [],
+        handoffs: [fallbackHandoff],
+        issueSignature: 'fallback-signature',
+        decision: {
+          status: 'open',
+          isStale: false,
+        },
+        fixAction: {
+          status: 'not_started',
+          isStale: false,
+        },
+        primaryFixHandoff: fallbackHandoff,
+      }),
+    ).toBe(fallbackHandoff)
+  })
+
+  it('applies started checked blocked and stale fix action overlays with independent counts', () => {
+    const baseInbox = buildInbox()
+    const startedIssue = baseInbox.issues.find((item) => item.id === 'draft-missing-chapter-1-scene-1')!
+    const checkedIssue = baseInbox.issues.find((item) => item.id === 'compare-delta-chapter-2-scene-3')!
+    const blockedIssue = baseInbox.issues.find((item) => item.id === 'branch-warning-scene-4')!
+    const staleIssue = baseInbox.issues.find((item) => item.id === 'export-blocker-scene-1')!
+
+    const inbox = buildInboxWithFixActions({
+      fixActions: [
+        {
+          id: 'fix-started',
+          bookId: 'book-signal-arc',
+          issueId: startedIssue.id,
+          issueSignature: createDecisionSignature(startedIssue),
+          sourceHandoffId: startedIssue.primaryFixHandoff!.id,
+          sourceHandoffLabel: startedIssue.primaryFixHandoff!.label,
+          targetScope: startedIssue.primaryFixHandoff!.target.scope,
+          status: 'started',
+          note: 'Started',
+          startedAtLabel: '2026-04-19 17:00',
+          updatedAtLabel: '2026-04-19 17:00',
+          updatedByLabel: 'Editor',
+        },
+        {
+          id: 'fix-checked',
+          bookId: 'book-signal-arc',
+          issueId: checkedIssue.id,
+          issueSignature: createDecisionSignature(checkedIssue),
+          sourceHandoffId: checkedIssue.primaryFixHandoff!.id,
+          sourceHandoffLabel: checkedIssue.primaryFixHandoff!.label,
+          targetScope: checkedIssue.primaryFixHandoff!.target.scope,
+          status: 'checked',
+          startedAtLabel: '2026-04-19 17:05',
+          updatedAtLabel: '2026-04-19 17:05',
+          updatedByLabel: 'Editor',
+        },
+        {
+          id: 'fix-blocked',
+          bookId: 'book-signal-arc',
+          issueId: blockedIssue.id,
+          issueSignature: createDecisionSignature(blockedIssue),
+          sourceHandoffId: blockedIssue.primaryFixHandoff!.id,
+          sourceHandoffLabel: blockedIssue.primaryFixHandoff!.label,
+          targetScope: blockedIssue.primaryFixHandoff!.target.scope,
+          status: 'blocked',
+          startedAtLabel: '2026-04-19 17:10',
+          updatedAtLabel: '2026-04-19 17:10',
+          updatedByLabel: 'Editor',
+        },
+        {
+          id: 'fix-stale',
+          bookId: 'book-signal-arc',
+          issueId: staleIssue.id,
+          issueSignature: 'stale-signature',
+          sourceHandoffId: staleIssue.primaryFixHandoff!.id,
+          sourceHandoffLabel: staleIssue.primaryFixHandoff!.label,
+          targetScope: staleIssue.primaryFixHandoff!.target.scope,
+          status: 'started',
+          startedAtLabel: '2026-04-19 17:15',
+          updatedAtLabel: '2026-04-19 17:15',
+          updatedByLabel: 'Editor',
+        },
+      ],
+    })
+
+    expect(inbox.issues.find((item) => item.id === startedIssue.id)?.fixAction).toMatchObject({
+      status: 'started',
+      note: 'Started',
+      isStale: false,
+    })
+    expect(inbox.issues.find((item) => item.id === checkedIssue.id)?.fixAction.status).toBe('checked')
+    expect(inbox.issues.find((item) => item.id === blockedIssue.id)?.fixAction.status).toBe('blocked')
+    expect(inbox.issues.find((item) => item.id === staleIssue.id)?.fixAction).toMatchObject({
+      status: 'stale',
+      isStale: true,
+    })
+    expect(inbox.counts.fixStarted).toBe(1)
+    expect(inbox.counts.fixChecked).toBe(1)
+    expect(inbox.counts.fixBlocked).toBe(1)
+    expect(inbox.counts.fixStale).toBe(1)
+  })
+
+  it('keeps decision status filters independent from fix action overlays', () => {
+    const baseInbox = buildInbox()
+    const issue = baseInbox.issues.find((item) => item.id === 'compare-delta-chapter-2-scene-3')!
+
+    const inbox = buildBookReviewInboxViewModel({
+      bookId: 'book-signal-arc',
+      currentDraftWorkspace: createCurrentDraftWorkspace(),
+      compareWorkspace: createCompareWorkspace(),
+      exportWorkspace: createExportWorkspace(),
+      branchWorkspace: createBranchWorkspace(),
+      reviewSeeds: getBookReviewSeeds('book-signal-arc'),
+      reviewStatusFilter: 'reviewed',
+      fixActions: [
+        {
+          id: 'fix-checked',
+          bookId: 'book-signal-arc',
+          issueId: issue.id,
+          issueSignature: createDecisionSignature(issue),
+          sourceHandoffId: issue.primaryFixHandoff!.id,
+          sourceHandoffLabel: issue.primaryFixHandoff!.label,
+          targetScope: issue.primaryFixHandoff!.target.scope,
+          status: 'checked',
+          startedAtLabel: '2026-04-19 17:05',
+          updatedAtLabel: '2026-04-19 17:05',
+          updatedByLabel: 'Editor',
+        },
+      ],
+    } as any)
+
+    expect(inbox.filteredIssues).toEqual([])
+    expect(inbox.issues.find((item) => item.id === issue.id)?.fixAction.status).toBe('checked')
   })
 
   it('filters blockers to blocker severity only', () => {
