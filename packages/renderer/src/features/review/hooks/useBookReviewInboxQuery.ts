@@ -15,10 +15,13 @@ interface UseBookReviewInboxQueryInput {
   currentDraftWorkspace: BookDraftWorkspaceViewModel | null | undefined
   compareWorkspace?: BookManuscriptCompareWorkspaceViewModel | null | undefined
   compareStatus?: ReviewOptionalSourceStatus
+  compareError?: Error | null
   exportWorkspace?: BookExportPreviewWorkspaceViewModel | null | undefined
   exportStatus?: ReviewOptionalSourceStatus
+  exportError?: Error | null
   branchWorkspace?: BookExperimentBranchWorkspaceViewModel | null | undefined
   branchStatus?: ReviewOptionalSourceStatus
+  branchError?: Error | null
   reviewFilter?: BookReviewFilter
   reviewIssueId?: string
 }
@@ -35,10 +38,13 @@ export function useBookReviewInboxQuery({
   currentDraftWorkspace,
   compareWorkspace,
   compareStatus = compareWorkspace === undefined ? 'idle' : 'ready',
+  compareError = null,
   exportWorkspace,
   exportStatus = exportWorkspace === undefined ? 'idle' : 'ready',
+  exportError = null,
   branchWorkspace,
   branchStatus = branchWorkspace === undefined ? 'idle' : 'ready',
+  branchError = null,
   reviewFilter = 'all',
   reviewIssueId,
 }: UseBookReviewInboxQueryInput): UseBookReviewInboxQueryResult {
@@ -58,9 +64,9 @@ export function useBookReviewInboxQuery({
     return buildBookReviewInboxViewModel({
       bookId,
       currentDraftWorkspace,
-      compareWorkspace: compareStatus === 'ready' ? (compareWorkspace ?? null) : undefined,
-      exportWorkspace: exportStatus === 'ready' ? (exportWorkspace ?? null) : undefined,
-      branchWorkspace: branchStatus === 'ready' ? (branchWorkspace ?? null) : undefined,
+      compareWorkspace: compareStatus === 'ready' && compareError === null ? (compareWorkspace ?? null) : undefined,
+      exportWorkspace: exportStatus === 'ready' && exportError === null ? (exportWorkspace ?? null) : undefined,
+      branchWorkspace: branchStatus === 'ready' && branchError === null ? (branchWorkspace ?? null) : undefined,
       reviewSeeds,
       reviewFilter,
       reviewIssueId,
@@ -70,18 +76,21 @@ export function useBookReviewInboxQuery({
     branchStatus,
     branchWorkspace,
     compareStatus,
+    compareError,
     compareWorkspace,
     currentDraftWorkspace,
     exportStatus,
+    exportError,
     exportWorkspace,
     optionalSourcesLoading,
+    branchError,
     reviewFilter,
     reviewIssueId,
     reviewSeeds,
   ])
 
   const isLoading = currentDraftWorkspace === undefined || optionalSourcesLoading
-  const error = null
+  const error = compareError ?? exportError ?? branchError
   const isEmpty = !isLoading && error === null && inbox !== undefined && inbox !== null && inbox.filteredIssues.length === 0
 
   return {

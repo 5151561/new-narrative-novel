@@ -4,8 +4,11 @@ import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
+import type { BookDraftView, BookReviewFilter } from '@/features/workbench/types/workbench-route'
 
 import { getLocaleName, getWorkbenchLensLabel, useI18n } from '@/app/i18n'
+import { useBookReviewInboxQuery } from '@/features/review/hooks/useBookReviewInboxQuery'
+import type { ReviewSourceHandoffViewModel } from '@/features/review/types/review-view-models'
 import { BookDraftBinderPane } from '../components/BookDraftBinderPane'
 import { BookDraftInspectorPane } from '../components/BookDraftInspectorPane'
 import { BookDraftStage } from '../components/BookDraftStage'
@@ -117,6 +120,8 @@ export function BookDraftWorkspace() {
   const effectiveExportProfileId = route.exportProfileId ?? DEFAULT_BOOK_EXPORT_PROFILE_ID
   const effectiveBranchId = route.branchId ?? DEFAULT_BOOK_EXPERIMENT_BRANCH_ID
   const effectiveBranchBaseline = route.branchBaseline ?? 'current'
+  const selectedReviewFilter = route.reviewFilter ?? 'all'
+  const selectedReviewIssueId = route.reviewIssueId ?? null
   const {
     compareWorkspace,
     checkpoints,
@@ -139,7 +144,7 @@ export function BookDraftWorkspace() {
     currentDraftWorkspace: workspace,
     compareWorkspace,
     exportProfileId: effectiveExportProfileId,
-    enabled: activeDraftView === 'export',
+    enabled: activeDraftView === 'export' || activeDraftView === 'review',
   })
   const {
     branchWorkspace,
@@ -157,6 +162,27 @@ export function BookDraftWorkspace() {
   const exportBaselineError = activeDraftView === 'export' ? compareError : null
   const effectiveExportError = exportBaselineError ?? exportError
   const effectiveExportPreview = exportBaselineError ? null : (exportWorkspace ?? null)
+  const reviewExportError = compareError ?? exportError
+  const reviewExportPreview = compareError ? null : (exportWorkspace ?? null)
+  const {
+    inbox: reviewInbox,
+    isLoading: isReviewLoading,
+    error: reviewError,
+  } = useBookReviewInboxQuery({
+    bookId: route.bookId,
+    currentDraftWorkspace: workspace,
+    compareWorkspace,
+    compareStatus: isCompareLoading ? 'loading' : 'ready',
+    compareError,
+    exportWorkspace: activeDraftView === 'review' ? reviewExportPreview : effectiveExportPreview,
+    exportStatus: activeDraftView === 'review' || activeDraftView === 'export' ? (isExportLoading ? 'loading' : 'ready') : 'idle',
+    exportError: activeDraftView === 'review' ? reviewExportError : null,
+    branchWorkspace,
+    branchStatus: isBranchLoading ? 'loading' : 'ready',
+    branchError,
+    reviewFilter: selectedReviewFilter,
+    reviewIssueId: selectedReviewIssueId ?? undefined,
+  })
 
   useEffect(() => {
     if (isLoading || error || workspace === undefined || workspace === null) {
@@ -167,6 +193,80 @@ export function BookDraftWorkspace() {
       patchBookRoute({ selectedChapterId: workspace.selectedChapterId ?? undefined }, { replace: true })
     }
   }, [error, isLoading, patchBookRoute, route.selectedChapterId, workspace])
+
+  useEffect(() => {
+    if (activeDraftView !== 'review' || isReviewLoading || reviewInbox === undefined || reviewInbox === null) {
+      return
+    }
+
+    const nextReviewIssueId = reviewInbox.selectedIssueId ?? undefined
+    const nextSelectedChapterId =
+      reviewInbox.selectedIssue?.chapterId &&
+      workspace?.chapters.some((chapter) => chapter.chapterId === reviewInbox.selectedIssue?.chapterId)
+        ? reviewInbox.selectedIssue.chapterId
+        : undefined
+    const reviewFilterChanged = route.reviewFilter !== reviewInbox.activeFilter
+    const reviewIssueChanged = route.reviewIssueId !== nextReviewIssueId
+    const selectedChapterChanged = !!nextSelectedChapterId && route.selectedChapterId !== nextSelectedChapterId
+
+    if (!reviewFilterChanged && !reviewIssueChanged && !selectedChapterChanged) {
+      return
+    }
+
+    patchBookRoute(
+      {
+        reviewFilter: reviewInbox.activeFilter,
+        reviewIssueId: nextReviewIssueId,
+        selectedChapterId: nextSelectedChapterId ?? route.selectedChapterId,
+      },
+      { replace: true },
+    )
+  }, [
+    activeDraftView,
+    isReviewLoading,
+    patchBookRoute,
+    reviewInbox,
+    route.reviewFilter,
+    route.reviewIssueId,
+    route.selectedChapterId,
+    workspace,
+  ])
+
+  useEffect(() => {
+    if (activeDraftView !== 'review') {
+      return
+    }
+
+    const needsCanonicalCheckpoint = route.checkpointId === undefined
+    const needsCanonicalExportProfile = route.exportProfileId === undefined
+    const needsCanonicalBranchId = route.branchId === undefined
+    const needsCanonicalBranchBaseline = route.branchBaseline === undefined
+
+    if (!needsCanonicalCheckpoint && !needsCanonicalExportProfile && !needsCanonicalBranchId && !needsCanonicalBranchBaseline) {
+      return
+    }
+
+    patchBookRoute(
+      {
+        checkpointId: route.checkpointId ?? effectiveCheckpointId,
+        exportProfileId: route.exportProfileId ?? effectiveExportProfileId,
+        branchId: route.branchId ?? effectiveBranchId,
+        branchBaseline: route.branchBaseline ?? effectiveBranchBaseline,
+      },
+      { replace: true },
+    )
+  }, [
+    activeDraftView,
+    effectiveBranchBaseline,
+    effectiveBranchId,
+    effectiveCheckpointId,
+    effectiveExportProfileId,
+    patchBookRoute,
+    route.branchBaseline,
+    route.branchId,
+    route.checkpointId,
+    route.exportProfileId,
+  ])
 
   const openChapterFromBook = useCallback(
     (chapterId: string, lens: 'structure' | 'draft') => {
@@ -211,7 +311,7 @@ export function BookDraftWorkspace() {
     [patchBookRoute, route.selectedChapterId],
   )
   const onSelectDraftView = useCallback(
-    (draftView: 'read' | 'compare' | 'export' | 'branch') => {
+    (draftView: BookDraftView) => {
       patchBookRoute({
         draftView,
         checkpointId: draftView === 'compare' ? effectiveCheckpointId : route.checkpointId ?? effectiveCheckpointId,
@@ -273,6 +373,81 @@ export function BookDraftWorkspace() {
     },
     [effectiveCheckpointId, patchBookRoute, route.checkpointId],
   )
+  const onSelectReviewFilter = useCallback(
+    (reviewFilter: BookReviewFilter) => {
+      patchBookRoute({
+        draftView: 'review',
+        reviewFilter,
+      })
+    },
+    [patchBookRoute],
+  )
+  const onSelectReviewIssue = useCallback(
+    (reviewIssueId: string) => {
+      const issue = reviewInbox?.issues.find((item) => item.id === reviewIssueId)
+      const nextSelectedChapterId =
+        issue?.chapterId && workspace?.chapters.some((chapter) => chapter.chapterId === issue.chapterId)
+          ? issue.chapterId
+          : route.selectedChapterId
+
+      patchBookRoute({
+        draftView: 'review',
+        reviewIssueId,
+        selectedChapterId: nextSelectedChapterId,
+      })
+    },
+    [patchBookRoute, reviewInbox, route.selectedChapterId, workspace],
+  )
+  const onOpenReviewSource = useCallback(
+    (handoff: ReviewSourceHandoffViewModel) => {
+      const { target } = handoff
+
+      if (target.scope === 'book') {
+        replaceRoute({
+          scope: 'book',
+          lens: 'draft',
+          view: route.view,
+          draftView: target.draftView,
+          selectedChapterId: target.selectedChapterId ?? route.selectedChapterId,
+          checkpointId: target.checkpointId,
+          exportProfileId: target.exportProfileId,
+          branchId: target.branchId,
+          branchBaseline: target.branchBaseline,
+          reviewIssueId: target.reviewIssueId,
+        })
+        return
+      }
+
+      if (target.scope === 'chapter') {
+        replaceRoute({
+          scope: 'chapter',
+          chapterId: target.chapterId,
+          lens: target.lens,
+          view: target.view,
+          sceneId: target.sceneId,
+        })
+        return
+      }
+
+      if (target.scope === 'scene') {
+        replaceRoute({
+          scope: 'scene',
+          sceneId: target.sceneId,
+          lens: target.lens,
+          tab: target.tab,
+        })
+        return
+      }
+
+      replaceRoute({
+        scope: 'asset',
+        assetId: target.assetId,
+        lens: 'knowledge',
+        view: target.view,
+      })
+    },
+    [replaceRoute, route.selectedChapterId, route.view],
+  )
 
   const modeRail = (
     <BookModeRail
@@ -319,7 +494,8 @@ export function BookDraftWorkspace() {
     workspace === undefined ||
     (activeDraftView === 'compare' && (isCompareLoading || compareWorkspace === undefined)) ||
     (activeDraftView === 'export' && (isExportLoading || exportWorkspace === undefined)) ||
-    (activeDraftView === 'branch' && (isBranchLoading || (branchWorkspace === undefined && branchError === null)))
+    (activeDraftView === 'branch' && (isBranchLoading || (branchWorkspace === undefined && branchError === null))) ||
+    (activeDraftView === 'review' && (isReviewLoading || reviewInbox === undefined))
   ) {
     const message =
       locale === 'zh-CN'
@@ -387,6 +563,10 @@ export function BookDraftWorkspace() {
           exportProfiles={exportProfiles ?? []}
           selectedExportProfileId={selectedExportProfile?.exportProfileId ?? effectiveExportProfileId}
           exportError={effectiveExportError}
+          reviewInbox={reviewInbox ?? null}
+          reviewError={reviewError}
+          selectedReviewFilter={selectedReviewFilter}
+          selectedReviewIssueId={selectedReviewIssueId}
           checkpoints={checkpoints ?? []}
           selectedCheckpointId={selectedCheckpoint?.checkpointId ?? effectiveCheckpointId}
           onSelectDraftView={onSelectDraftView}
@@ -396,6 +576,9 @@ export function BookDraftWorkspace() {
           onSelectBranch={onSelectBranch}
           onSelectBranchBaseline={onSelectBranchBaseline}
           onSelectExportProfile={onSelectExportProfile}
+          onSelectReviewFilter={onSelectReviewFilter}
+          onSelectReviewIssue={onSelectReviewIssue}
+          onOpenReviewSource={onOpenReviewSource}
         />
       }
       inspector={

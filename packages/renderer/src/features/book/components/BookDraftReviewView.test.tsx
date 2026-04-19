@@ -176,4 +176,22 @@ describe('BookDraftReviewView', () => {
       screen.getByText('This queue is clear for now. Choose another filter to continue the review pass.'),
     ).toBeInTheDocument()
   })
+
+  it('shows an upstream source warning while keeping the partial inbox visible', () => {
+    render(
+      <AppProviders>
+        <BookDraftReviewView
+          inbox={createInbox()}
+          errorMessage='Book manuscript checkpoint "checkpoint-missing" could not be found for "book-signal-arc".'
+          onSelectFilter={vi.fn()}
+          onSelectIssue={vi.fn()}
+          onOpenReviewSource={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Review sources unavailable')).toBeInTheDocument()
+    expect(screen.getByText('Book manuscript checkpoint "checkpoint-missing" could not be found for "book-signal-arc".')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Blockers' })).toBeInTheDocument()
+  })
 })

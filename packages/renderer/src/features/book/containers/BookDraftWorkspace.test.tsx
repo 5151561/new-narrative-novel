@@ -437,4 +437,228 @@ describe('BookDraftWorkspace', () => {
     expect(screen.getByText('Branch list failed')).toBeInTheDocument()
     expect(screen.queryByText('Loading manuscript')).not.toBeInTheDocument()
   })
+
+  it('renders a deep-linked review route instead of falling through to the reader', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=scene-proposals&reviewIssueId=scene-proposal-seed-scene-5&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Review' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /Scene proposals/i })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('canonicalizes deep-linked review routes with effective checkpoint export and branch defaults', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=all&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('draftView')).toBe('review')
+      expect(params.get('checkpointId')).toBe('checkpoint-book-signal-arc-pr11-baseline')
+      expect(params.get('exportProfileId')).toBe('export-review-packet')
+      expect(params.get('branchId')).toBe('branch-book-signal-arc-quiet-ending')
+      expect(params.get('branchBaseline')).toBe('current')
+      expect(params.get('view')).toBe('signals')
+    })
+  })
+
+  it('surfaces review upstream failures instead of showing a silently healthy queue', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&checkpointId=checkpoint-missing&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+    expect(screen.getByText('Review sources unavailable')).toBeInTheDocument()
+    expect(screen.getByText('Book manuscript checkpoint "checkpoint-missing" could not be found for "book-signal-arc".')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Warnings' })).toBeInTheDocument()
+  })
+
+  it('updates reviewFilter in the URL when the filter changes', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=all&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Blockers/i }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('draftView')).toBe('review')
+      expect(params.get('reviewFilter')).toBe('blockers')
+      expect(params.get('view')).toBe('signals')
+    })
+  })
+
+  it('settles stale reviewIssueId onto the effective blocker and aligns selectedChapterId to that issue chapter', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=blockers&reviewIssueId=scene-proposal-seed-scene-5&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('draftView')).toBe('review')
+      expect(params.get('reviewFilter')).toBe('blockers')
+      expect(params.get('reviewIssueId')).not.toBe('scene-proposal-seed-scene-5')
+      expect(params.get('selectedChapterId')).toBe('chapter-signals-in-rain')
+    })
+  })
+
+  it('opens a book-scope review handoff into export mode while preserving book scope and dormant view', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=export-readiness&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+
+    await user.click(await screen.findByRole('button', { name: 'Open export preview' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('id')).toBe('book-signal-arc')
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('draftView')).toBe('export')
+      expect(params.get('view')).toBe('signals')
+      expect(params.get('exportProfileId')).not.toBeNull()
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Book export preview' })).toBeInTheDocument()
+  })
+
+  it('opens a scene handoff into scene orchestrate and browser back returns to the prior review route state', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=scene-proposals&reviewIssueId=scene-proposal-seed-scene-5&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Open scene proposal' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('scene')
+      expect(params.get('id')).toBe('scene-5')
+      expect(params.get('lens')).toBe('orchestrate')
+      expect(params.get('tab')).toBe('execution')
+    })
+
+    window.history.back()
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('id')).toBe('book-signal-arc')
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('view')).toBe('signals')
+      expect(params.get('draftView')).toBe('review')
+      expect(params.get('reviewFilter')).toBe('scene-proposals')
+      expect(params.get('reviewIssueId')).toBe('scene-proposal-seed-scene-5')
+      expect(params.get('selectedChapterId')).toBe('chapter-open-water-signals')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+  })
+
+  it('keeps the dormant structure view through review roundtrips back to read and into review again', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=all&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Read' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('draftView')).toBe('read')
+      expect(params.get('view')).toBe('signals')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Review' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('draftView')).toBe('review')
+      expect(params.get('view')).toBe('signals')
+    })
+  })
 })

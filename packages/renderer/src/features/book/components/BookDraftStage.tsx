@@ -1,6 +1,7 @@
-import type { BookBranchBaseline, BookDraftView } from '@/features/workbench/types/workbench-route'
+import type { BookBranchBaseline, BookDraftView, BookReviewFilter } from '@/features/workbench/types/workbench-route'
 
 import { useI18n } from '@/app/i18n'
+import type { BookReviewInboxViewModel, ReviewSourceHandoffViewModel } from '@/features/review/types/review-view-models'
 
 import type { BookExperimentBranchSummaryViewModel, BookExperimentBranchWorkspaceViewModel } from '../types/book-branch-view-models'
 import type {
@@ -17,6 +18,7 @@ import { BookDraftBranchView } from './BookDraftBranchView'
 import { BookDraftCompareView } from './BookDraftCompareView'
 import { BookDraftExportView } from './BookDraftExportView'
 import { BookDraftReader } from './BookDraftReader'
+import { BookDraftReviewView } from './BookDraftReviewView'
 
 interface BookDraftStageProps {
   draftView: BookDraftView
@@ -32,6 +34,10 @@ interface BookDraftStageProps {
   exportProfiles: BookExportProfileSummaryViewModel[]
   selectedExportProfileId: string
   exportError?: Error | null
+  reviewInbox?: BookReviewInboxViewModel | null
+  reviewError?: Error | null
+  selectedReviewFilter: BookReviewFilter
+  selectedReviewIssueId?: string | null
   checkpoints: BookManuscriptCheckpointSummaryViewModel[]
   selectedCheckpointId: string
   onSelectDraftView: (draftView: BookDraftView) => void
@@ -41,6 +47,9 @@ interface BookDraftStageProps {
   onSelectBranch: (branchId: string) => void
   onSelectBranchBaseline: (baseline: BookBranchBaseline) => void
   onSelectExportProfile: (exportProfileId: string) => void
+  onSelectReviewFilter: (filter: BookReviewFilter) => void
+  onSelectReviewIssue: (issueId: string) => void
+  onOpenReviewSource: (handoff: ReviewSourceHandoffViewModel) => void
 }
 
 export function BookDraftStage({
@@ -57,6 +66,10 @@ export function BookDraftStage({
   exportProfiles,
   selectedExportProfileId,
   exportError = null,
+  reviewInbox = null,
+  reviewError = null,
+  selectedReviewFilter,
+  selectedReviewIssueId,
   checkpoints,
   selectedCheckpointId,
   onSelectDraftView,
@@ -66,6 +79,9 @@ export function BookDraftStage({
   onSelectBranch,
   onSelectBranchBaseline,
   onSelectExportProfile,
+  onSelectReviewFilter,
+  onSelectReviewIssue,
+  onOpenReviewSource,
 }: BookDraftStageProps) {
   const { locale } = useI18n()
 
@@ -78,6 +94,7 @@ export function BookDraftStage({
             { value: 'compare' as const, label: locale === 'zh-CN' ? 'Compare' : 'Compare' },
             { value: 'export' as const, label: locale === 'zh-CN' ? 'Export' : 'Export' },
             { value: 'branch' as const, label: locale === 'zh-CN' ? 'Branch' : 'Branch' },
+            { value: 'review' as const, label: locale === 'zh-CN' ? 'Review' : 'Review' },
           ]).map((option) => (
             <button
               key={option.value}
@@ -131,6 +148,14 @@ export function BookDraftStage({
           onOpenChapter={onOpenChapter}
           onSelectBranch={onSelectBranch}
           onSelectBranchBaseline={onSelectBranchBaseline}
+        />
+      ) : draftView === 'review' ? (
+        <BookDraftReviewView
+          inbox={reviewInbox}
+          errorMessage={reviewError?.message ?? null}
+          onSelectFilter={onSelectReviewFilter}
+          onSelectIssue={onSelectReviewIssue}
+          onOpenReviewSource={onOpenReviewSource}
         />
       ) : (
         <BookDraftReader workspace={workspace} onSelectChapter={onSelectChapter} onOpenChapter={onOpenChapter} />

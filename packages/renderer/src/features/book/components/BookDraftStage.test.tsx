@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
+import type { BookReviewInboxViewModel, ReviewIssueViewModel } from '@/features/review/types/review-view-models'
 
 import { mockBookExperimentBranchSeeds } from '../api/book-experiment-branches'
 import { buildBookExperimentBranchWorkspace, normalizeBookExperimentBranch } from '../lib/book-experiment-branch-mappers'
@@ -451,6 +452,71 @@ function buildBranchWorkspace(): BookExperimentBranchWorkspaceViewModel {
   })
 }
 
+function buildReviewInbox(): BookReviewInboxViewModel {
+  const issue: ReviewIssueViewModel = {
+    id: 'compare-delta-chapter-open-water-signals-scene-warehouse-bridge',
+    severity: 'warning',
+    source: 'compare',
+    kind: 'compare_delta',
+    title: 'Compare delta needs review',
+    detail: 'Warehouse Bridge changed against the selected checkpoint.',
+    recommendation: 'Open compare review and verify whether the changed passage should be carried forward.',
+    chapterId: 'chapter-open-water-signals',
+    chapterTitle: 'Open Water Signals',
+    chapterOrder: 2,
+    sceneId: 'scene-warehouse-bridge',
+    sceneTitle: 'Warehouse Bridge',
+    sceneOrder: 1,
+    sourceLabel: 'Compare: PR11 Baseline',
+    sourceExcerpt: 'Current excerpt',
+    tags: ['Compare delta', 'changed'],
+    handoffs: [
+      {
+        id: 'compare-delta::book-compare',
+        label: 'Open compare review',
+        target: {
+          scope: 'book',
+          lens: 'draft',
+          view: 'signals',
+          draftView: 'compare',
+          checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+          selectedChapterId: 'chapter-open-water-signals',
+          reviewIssueId: 'compare-delta-chapter-open-water-signals-scene-warehouse-bridge',
+        },
+      },
+    ],
+  }
+
+  return {
+    bookId: 'book-signal-arc',
+    title: 'Signal Arc',
+    selectedIssueId: issue.id,
+    selectedIssue: issue,
+    activeFilter: 'all',
+    issues: [issue],
+    filteredIssues: [issue],
+    groupedIssues: {
+      blockers: [],
+      warnings: [issue],
+      info: [],
+    },
+    counts: {
+      total: 1,
+      blockers: 0,
+      warnings: 1,
+      info: 0,
+      traceGaps: 0,
+      missingDrafts: 0,
+      compareDeltas: 1,
+      exportReadiness: 0,
+      branchReadiness: 0,
+      sceneProposals: 0,
+    },
+    selectedChapterIssueCount: 1,
+    annotationsByChapterId: {},
+  }
+}
+
 describe('BookDraftStage', () => {
   it('renders BookDraftReader in read view', () => {
     render(
@@ -468,6 +534,9 @@ describe('BookDraftStage', () => {
           selectedExportProfileId="export-review-packet"
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          reviewInbox={null}
+          selectedReviewFilter="all"
+          selectedReviewIssueId={null}
           onSelectDraftView={vi.fn()}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -475,6 +544,9 @@ describe('BookDraftStage', () => {
           onSelectBranch={vi.fn()}
           onSelectBranchBaseline={vi.fn()}
           onSelectExportProfile={vi.fn()}
+          onSelectReviewFilter={vi.fn()}
+          onSelectReviewIssue={vi.fn()}
+          onOpenReviewSource={vi.fn()}
         />
       </AppProviders>,
     )
@@ -498,6 +570,9 @@ describe('BookDraftStage', () => {
           selectedExportProfileId="export-review-packet"
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          reviewInbox={null}
+          selectedReviewFilter="all"
+          selectedReviewIssueId={null}
           onSelectDraftView={vi.fn()}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -505,6 +580,9 @@ describe('BookDraftStage', () => {
           onSelectBranch={vi.fn()}
           onSelectBranchBaseline={vi.fn()}
           onSelectExportProfile={vi.fn()}
+          onSelectReviewFilter={vi.fn()}
+          onSelectReviewIssue={vi.fn()}
+          onOpenReviewSource={vi.fn()}
         />
       </AppProviders>,
     )
@@ -529,6 +607,9 @@ describe('BookDraftStage', () => {
           selectedExportProfileId="export-review-packet"
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          reviewInbox={null}
+          selectedReviewFilter="all"
+          selectedReviewIssueId={null}
           onSelectDraftView={vi.fn()}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -536,6 +617,9 @@ describe('BookDraftStage', () => {
           onSelectBranch={vi.fn()}
           onSelectBranchBaseline={vi.fn()}
           onSelectExportProfile={vi.fn()}
+          onSelectReviewFilter={vi.fn()}
+          onSelectReviewIssue={vi.fn()}
+          onOpenReviewSource={vi.fn()}
         />
       </AppProviders>,
     )
@@ -561,6 +645,9 @@ describe('BookDraftStage', () => {
           selectedExportProfileId="export-review-packet"
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          reviewInbox={null}
+          selectedReviewFilter="all"
+          selectedReviewIssueId={null}
           onSelectDraftView={vi.fn()}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -568,6 +655,9 @@ describe('BookDraftStage', () => {
           onSelectBranch={vi.fn()}
           onSelectBranchBaseline={vi.fn()}
           onSelectExportProfile={vi.fn()}
+          onSelectReviewFilter={vi.fn()}
+          onSelectReviewIssue={vi.fn()}
+          onOpenReviewSource={vi.fn()}
         />
       </AppProviders>,
     )
@@ -575,6 +665,43 @@ describe('BookDraftStage', () => {
     expect(screen.getByRole('heading', { name: 'Book experiment branch' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Branch' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByText('Branch preview')).toBeInTheDocument()
+  })
+
+  it('renders BookDraftReviewView in review view', () => {
+    render(
+      <AppProviders>
+        <BookDraftStage
+          draftView="review"
+          workspace={buildWorkspace()}
+          compare={buildCompare()}
+          exportPreview={buildExportWorkspace()}
+          branchWorkspace={buildBranchWorkspace()}
+          branches={branches}
+          selectedBranchId="branch-book-signal-arc-quiet-ending"
+          branchBaseline="current"
+          exportProfiles={exportProfiles}
+          selectedExportProfileId="export-review-packet"
+          checkpoints={checkpoints}
+          selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          reviewInbox={buildReviewInbox()}
+          selectedReviewFilter="all"
+          selectedReviewIssueId="compare-delta-chapter-open-water-signals-scene-warehouse-bridge"
+          onSelectDraftView={vi.fn()}
+          onSelectChapter={vi.fn()}
+          onOpenChapter={vi.fn()}
+          onSelectCheckpoint={vi.fn()}
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
+          onSelectExportProfile={vi.fn()}
+          onSelectReviewFilter={vi.fn()}
+          onSelectReviewIssue={vi.fn()}
+          onOpenReviewSource={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Review' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('passes the specific branch error through the branch stage path', () => {
@@ -594,6 +721,9 @@ describe('BookDraftStage', () => {
           selectedExportProfileId="export-review-packet"
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          reviewInbox={null}
+          selectedReviewFilter="all"
+          selectedReviewIssueId={null}
           onSelectDraftView={vi.fn()}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -601,6 +731,9 @@ describe('BookDraftStage', () => {
           onSelectBranch={vi.fn()}
           onSelectBranchBaseline={vi.fn()}
           onSelectExportProfile={vi.fn()}
+          onSelectReviewFilter={vi.fn()}
+          onSelectReviewIssue={vi.fn()}
+          onOpenReviewSource={vi.fn()}
         />
       </AppProviders>,
     )
@@ -628,6 +761,9 @@ describe('BookDraftStage', () => {
           selectedExportProfileId="export-review-packet"
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          reviewInbox={null}
+          selectedReviewFilter="all"
+          selectedReviewIssueId={null}
           onSelectDraftView={onSelectDraftView}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -635,6 +771,9 @@ describe('BookDraftStage', () => {
           onSelectBranch={vi.fn()}
           onSelectBranchBaseline={vi.fn()}
           onSelectExportProfile={vi.fn()}
+          onSelectReviewFilter={vi.fn()}
+          onSelectReviewIssue={vi.fn()}
+          onOpenReviewSource={vi.fn()}
         />
       </AppProviders>,
     )
@@ -663,6 +802,9 @@ describe('BookDraftStage', () => {
           selectedExportProfileId="export-review-packet"
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          reviewInbox={null}
+          selectedReviewFilter="all"
+          selectedReviewIssueId={null}
           onSelectDraftView={onSelectDraftView}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -670,6 +812,9 @@ describe('BookDraftStage', () => {
           onSelectBranch={vi.fn()}
           onSelectBranchBaseline={vi.fn()}
           onSelectExportProfile={vi.fn()}
+          onSelectReviewFilter={vi.fn()}
+          onSelectReviewIssue={vi.fn()}
+          onOpenReviewSource={vi.fn()}
         />
       </AppProviders>,
     )
@@ -698,6 +843,9 @@ describe('BookDraftStage', () => {
           selectedExportProfileId="export-review-packet"
           checkpoints={checkpoints}
           selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          reviewInbox={null}
+          selectedReviewFilter="all"
+          selectedReviewIssueId={null}
           onSelectDraftView={onSelectDraftView}
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
@@ -705,6 +853,9 @@ describe('BookDraftStage', () => {
           onSelectBranch={vi.fn()}
           onSelectBranchBaseline={vi.fn()}
           onSelectExportProfile={vi.fn()}
+          onSelectReviewFilter={vi.fn()}
+          onSelectReviewIssue={vi.fn()}
+          onOpenReviewSource={vi.fn()}
         />
       </AppProviders>,
     )
@@ -712,5 +863,48 @@ describe('BookDraftStage', () => {
     await user.click(screen.getByRole('button', { name: 'Branch' }))
 
     expect(onSelectDraftView).toHaveBeenCalledWith('branch')
+  })
+
+  it('shows the review tab and switching to review triggers the callback', async () => {
+    const user = userEvent.setup()
+    const onSelectDraftView = vi.fn()
+
+    render(
+      <AppProviders>
+        <BookDraftStage
+          draftView="read"
+          workspace={buildWorkspace()}
+          compare={buildCompare()}
+          exportPreview={buildExportWorkspace()}
+          branchWorkspace={buildBranchWorkspace()}
+          branches={branches}
+          selectedBranchId="branch-book-signal-arc-quiet-ending"
+          branchBaseline="current"
+          exportProfiles={exportProfiles}
+          selectedExportProfileId="export-review-packet"
+          checkpoints={checkpoints}
+          selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          reviewInbox={buildReviewInbox()}
+          selectedReviewFilter="all"
+          selectedReviewIssueId="compare-delta-chapter-open-water-signals-scene-warehouse-bridge"
+          onSelectDraftView={onSelectDraftView}
+          onSelectChapter={vi.fn()}
+          onOpenChapter={vi.fn()}
+          onSelectCheckpoint={vi.fn()}
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
+          onSelectExportProfile={vi.fn()}
+          onSelectReviewFilter={vi.fn()}
+          onSelectReviewIssue={vi.fn()}
+          onOpenReviewSource={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByRole('button', { name: 'Review' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Review' }))
+
+    expect(onSelectDraftView).toHaveBeenCalledWith('review')
   })
 })

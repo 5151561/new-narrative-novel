@@ -464,6 +464,28 @@ describe('useBookReviewInboxQuery', () => {
     expect(result.current.isEmpty).toBe(false)
   })
 
+  it('surfaces upstream optional-source errors while still returning a partial inbox from available sources', () => {
+    const { result } = renderHook(() =>
+      useBookReviewInboxQuery({
+        bookId: 'book-signal-arc',
+        currentDraftWorkspace: createCurrentDraftWorkspace(),
+        compareError: new Error('Compare failed'),
+        exportWorkspace: createExportWorkspace(),
+        exportStatus: 'ready',
+        branchWorkspace: createBranchWorkspace(),
+        branchStatus: 'ready',
+        reviewFilter: 'all',
+      }),
+    )
+
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.error?.message).toBe('Compare failed')
+    expect(result.current.inbox?.issues.some((issue) => issue.source === 'manuscript')).toBe(true)
+    expect(result.current.inbox?.issues.some((issue) => issue.source === 'compare')).toBe(false)
+    expect(result.current.inbox?.issues.some((issue) => issue.source === 'export')).toBe(true)
+    expect(result.current.inbox?.issues.some((issue) => issue.source === 'branch')).toBe(true)
+  })
+
   it('syncs selectedIssue with reviewIssueId when the issue exists in the filtered result', () => {
     const { result } = renderHook(() =>
       useBookReviewInboxQuery({

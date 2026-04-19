@@ -55,6 +55,15 @@ export function BookDraftReviewView({
 
       <div className="min-h-0 flex-1 overflow-auto p-4">
         <div className="space-y-4">
+          {inbox && errorMessage ? (
+            <section className="rounded-md border border-[rgba(156,122,58,0.28)] bg-[rgba(156,122,58,0.08)] p-4">
+              <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
+                {locale === 'zh-CN' ? '审阅来源不可用' : 'Review sources unavailable'}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-text-main">{errorMessage}</p>
+            </section>
+          ) : null}
+
           {inbox ? (
             <BookReviewFilterBar
               activeFilter={inbox.activeFilter}
