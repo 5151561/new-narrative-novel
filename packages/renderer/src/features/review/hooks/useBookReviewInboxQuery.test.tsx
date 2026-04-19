@@ -403,6 +403,9 @@ describe('useBookReviewInboxQuery', () => {
     expect(result.current.inbox?.issues.some((issue) => issue.source === 'compare')).toBe(true)
     expect(result.current.inbox?.issues.some((issue) => issue.source === 'export')).toBe(true)
     expect(result.current.inbox?.issues.some((issue) => issue.source === 'branch')).toBe(true)
+    expect(result.current.inbox?.counts.total).toBe(result.current.inbox?.issues.length)
+    expect(result.current.inbox?.groupedIssues.blockers.length).toBeGreaterThan(0)
+    expect(result.current.inbox?.activeFilter).toBe('all')
     expect(result.current.isLoading).toBe(false)
     expect(result.current.isEmpty).toBe(false)
   })
@@ -515,5 +518,61 @@ describe('useBookReviewInboxQuery', () => {
 
     expect(result.current.inbox?.selectedIssue?.severity).toBe('blocker')
     expect(result.current.inbox?.selectedIssue?.id).toBe(result.current.inbox?.filteredIssues[0]?.id)
+  })
+
+  it('keeps the selected issue detail handoffs available for review detail rendering', () => {
+    const { result } = renderHook(() =>
+      useBookReviewInboxQuery({
+        bookId: 'book-signal-arc',
+        currentDraftWorkspace: createCurrentDraftWorkspace(),
+        compareWorkspace: createCompareWorkspace(),
+        compareStatus: 'ready',
+        exportWorkspace: createExportWorkspace(),
+        exportStatus: 'ready',
+        branchWorkspace: createBranchWorkspace(),
+        branchStatus: 'ready',
+        reviewFilter: 'scene-proposals',
+      }),
+    )
+
+    expect(result.current.inbox?.selectedIssue?.handoffs[0]).toMatchObject({
+      label: 'Open scene proposal',
+      target: {
+        scope: 'scene',
+        sceneId: 'scene-5',
+        lens: 'orchestrate',
+        tab: 'execution',
+      },
+    })
+  })
+
+  it('keeps selectedChapterIssueCount aligned with the active filter', () => {
+    const { result, rerender } = renderHook(
+      (props: { reviewFilter: 'all' | 'scene-proposals' }) =>
+        useBookReviewInboxQuery({
+          bookId: 'book-signal-arc',
+          currentDraftWorkspace: createCurrentDraftWorkspace(),
+          compareWorkspace: createCompareWorkspace(),
+          compareStatus: 'ready',
+          exportWorkspace: createExportWorkspace(),
+          exportStatus: 'ready',
+          branchWorkspace: createBranchWorkspace(),
+          branchStatus: 'ready',
+          reviewFilter: props.reviewFilter,
+        }),
+      {
+        initialProps: {
+          reviewFilter: 'all',
+        },
+      },
+    )
+
+    expect(result.current.inbox?.selectedChapterIssueCount).toBeGreaterThan(0)
+
+    rerender({
+      reviewFilter: 'scene-proposals',
+    })
+
+    expect(result.current.inbox?.selectedChapterIssueCount).toBe(0)
   })
 })

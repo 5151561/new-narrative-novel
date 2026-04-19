@@ -1,4 +1,12 @@
-import type { BookBranchBaseline, BookDraftView, BookReviewFilter } from '@/features/workbench/types/workbench-route'
+import type { SceneTab } from '@/features/scene/types/scene-view-models'
+import type {
+  AssetKnowledgeView,
+  BookBranchBaseline,
+  BookDraftView,
+  BookReviewFilter,
+  BookStructureView,
+  ChapterStructureView,
+} from '@/features/workbench/types/workbench-route'
 
 export type ReviewIssueSeverity = 'blocker' | 'warning' | 'info'
 export type ReviewIssueSource =
@@ -20,14 +28,43 @@ export type ReviewIssueKind =
   | 'scene_proposal'
   | 'chapter_annotation'
 
+export type ReviewSourceHandoffTarget =
+  | {
+      scope: 'book'
+      lens: 'draft'
+      view: BookStructureView
+      draftView: BookDraftView
+      selectedChapterId?: string
+      checkpointId?: string
+      exportProfileId?: string
+      branchId?: string
+      branchBaseline?: BookBranchBaseline
+      reviewIssueId?: string
+    }
+  | {
+      scope: 'chapter'
+      chapterId: string
+      lens: 'structure' | 'draft'
+      view: ChapterStructureView
+      sceneId?: string
+    }
+  | {
+      scope: 'scene'
+      sceneId: string
+      lens: 'orchestrate' | 'draft' | 'structure'
+      tab: SceneTab
+    }
+  | {
+      scope: 'asset'
+      assetId: string
+      lens: 'knowledge'
+      view: AssetKnowledgeView
+    }
+
 export interface ReviewSourceHandoffViewModel {
+  id: string
   label: string
-  draftView: BookDraftView
-  checkpointId?: string
-  exportProfileId?: string
-  branchId?: string
-  branchBaseline?: BookBranchBaseline
-  reviewIssueId?: string
+  target: ReviewSourceHandoffTarget
 }
 
 export type ReviewOptionalSourceStatus = 'idle' | 'loading' | 'ready'
@@ -39,6 +76,7 @@ export interface ReviewIssueViewModel {
   kind: ReviewIssueKind
   title: string
   detail: string
+  recommendation: string
   chapterId?: string
   chapterTitle?: string
   chapterOrder?: number
@@ -47,15 +85,41 @@ export interface ReviewIssueViewModel {
   sceneOrder?: number
   assetId?: string
   assetTitle?: string
-  handoff: ReviewSourceHandoffViewModel
+  sourceLabel: string
+  sourceExcerpt?: string
+  tags: string[]
+  handoffs: ReviewSourceHandoffViewModel[]
+}
+
+export interface ReviewIssueGroupsViewModel {
+  blockers: ReviewIssueViewModel[]
+  warnings: ReviewIssueViewModel[]
+  info: ReviewIssueViewModel[]
+}
+
+export interface BookReviewInboxCountsViewModel {
+  total: number
+  blockers: number
+  warnings: number
+  info: number
+  traceGaps: number
+  missingDrafts: number
+  compareDeltas: number
+  exportReadiness: number
+  branchReadiness: number
+  sceneProposals: number
 }
 
 export interface BookReviewInboxViewModel {
   bookId: string
-  reviewFilter: BookReviewFilter
-  issues: ReviewIssueViewModel[]
-  filteredIssues: ReviewIssueViewModel[]
+  title: string
   selectedIssueId: string | null
   selectedIssue: ReviewIssueViewModel | null
+  activeFilter: BookReviewFilter
+  issues: ReviewIssueViewModel[]
+  filteredIssues: ReviewIssueViewModel[]
+  groupedIssues: ReviewIssueGroupsViewModel
+  counts: BookReviewInboxCountsViewModel
+  selectedChapterIssueCount: number
   annotationsByChapterId: Record<string, ReviewIssueViewModel[]>
 }

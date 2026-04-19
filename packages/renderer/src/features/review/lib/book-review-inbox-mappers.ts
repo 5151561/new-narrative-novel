@@ -1,11 +1,17 @@
 import type { BookExperimentBranchWorkspaceViewModel } from '@/features/book/types/book-branch-view-models'
-import type { BookManuscriptCompareWorkspaceViewModel } from '@/features/book/types/book-compare-view-models'
-import type { BookDraftWorkspaceViewModel } from '@/features/book/types/book-draft-view-models'
+import type { BookManuscriptCompareSceneViewModel, BookManuscriptCompareWorkspaceViewModel } from '@/features/book/types/book-compare-view-models'
+import type { BookDraftChapterViewModel, BookDraftSceneSectionViewModel, BookDraftWorkspaceViewModel } from '@/features/book/types/book-draft-view-models'
 import type { BookExportPreviewWorkspaceViewModel } from '@/features/book/types/book-export-view-models'
 import type { BookReviewFilter } from '@/features/workbench/types/workbench-route'
 
 import type { BookReviewSeedRecord } from '../api/book-review-seeds'
-import type { BookReviewInboxViewModel, ReviewIssueViewModel } from '../types/review-view-models'
+import type {
+  BookReviewInboxCountsViewModel,
+  BookReviewInboxViewModel,
+  ReviewIssueGroupsViewModel,
+  ReviewIssueViewModel,
+  ReviewSourceHandoffViewModel,
+} from '../types/review-view-models'
 
 interface BuildBookReviewInboxViewModelInput {
   bookId: string
@@ -33,6 +39,10 @@ const SOURCE_RANK = {
   'scene-proposal': 5,
   'chapter-draft': 6,
 } as const
+
+function createHandoff(id: string, label: string, target: ReviewSourceHandoffViewModel['target']): ReviewSourceHandoffViewModel {
+  return { id, label, target }
+}
 
 function sortReviewIssues(left: ReviewIssueViewModel, right: ReviewIssueViewModel) {
   return (
@@ -76,96 +86,187 @@ function filterReviewIssues(issues: ReviewIssueViewModel[], reviewFilter: BookRe
   return issues.filter((issue) => issue.source === 'scene-proposal')
 }
 
+function buildIssueGroups(issues: ReviewIssueViewModel[]): ReviewIssueGroupsViewModel {
+  return {
+    blockers: issues.filter((issue) => issue.severity === 'blocker'),
+    warnings: issues.filter((issue) => issue.severity === 'warning'),
+    info: issues.filter((issue) => issue.severity === 'info'),
+  }
+}
+
+function buildCounts(issues: ReviewIssueViewModel[]): BookReviewInboxCountsViewModel {
+  return {
+    total: issues.length,
+    blockers: issues.filter((issue) => issue.severity === 'blocker').length,
+    warnings: issues.filter((issue) => issue.severity === 'warning').length,
+    info: issues.filter((issue) => issue.severity === 'info').length,
+    traceGaps: issues.filter((issue) => issue.kind === 'trace_gap').length,
+    missingDrafts: issues.filter((issue) => issue.kind === 'missing_draft').length,
+    compareDeltas: issues.filter((issue) => issue.source === 'compare').length,
+    exportReadiness: issues.filter((issue) => issue.source === 'export').length,
+    branchReadiness: issues.filter((issue) => issue.source === 'branch').length,
+    sceneProposals: issues.filter((issue) => issue.source === 'scene-proposal').length,
+  }
+}
+
+function buildAnnotationsByChapterId(issues: ReviewIssueViewModel[]) {
+  return issues.reduce<Record<string, ReviewIssueViewModel[]>>((groups, issue) => {
+    if (issue.kind !== 'chapter_annotation' || !issue.chapterId) {
+      return groups
+    }
+
+    const current = groups[issue.chapterId] ?? []
+    groups[issue.chapterId] = [...current, issue]
+    return groups
+  }, {})
+}
+
+function createChapterDraftHandoff(issueId: string, chapterId: string, sceneId?: string) {
+  return createHandoff(`${issueId}::chapter-draft`, 'Open chapter draft', {
+    scope: 'chapter',
+    chapterId,
+    lens: 'draft',
+    view: 'sequence',
+    sceneId,
+  })
+}
+
+function createChapterStructureHandoff(issueId: string, chapterId: string, sceneId?: string) {
+  return createHandoff(`${issueId}::chapter-structure`, 'Open chapter structure', {
+    scope: 'chapter',
+    chapterId,
+    lens: 'structure',
+    view: 'sequence',
+    sceneId,
+  })
+}
+
+function createCurrentDraftIssue(
+  issueId: string,
+  chapter: BookDraftChapterViewModel,
+  section: BookDraftSceneSectionViewModel,
+  overrides: Pick<
+    ReviewIssueViewModel,
+    'severity' | 'source' | 'kind' | 'title' | 'detail' | 'recommendation' | 'sourceLabel' | 'tags'
+  >,
+): ReviewIssueViewModel {
+  return {
+    id: issueId,
+    chapterId: chapter.chapterId,
+    chapterTitle: chapter.title,
+    chapterOrder: chapter.order,
+    sceneId: section.sceneId,
+    sceneTitle: section.title,
+    sceneOrder: section.order,
+    sourceExcerpt: section.proseDraft ?? section.summary,
+    handoffs: [createChapterDraftHandoff(issueId, chapter.chapterId, section.sceneId)],
+    ...overrides,
+  }
+}
+
 function buildDraftIssues(currentDraftWorkspace: BookDraftWorkspaceViewModel): ReviewIssueViewModel[] {
   const issues: ReviewIssueViewModel[] = []
 
   for (const chapter of currentDraftWorkspace.chapters) {
     for (const section of chapter.sections) {
       if (section.isMissingDraft) {
-        issues.push({
-          id: `draft-missing-${chapter.chapterId}-${section.sceneId}`,
-          severity: 'blocker',
-          source: 'manuscript',
-          kind: 'missing_draft',
-          title: 'Draft missing',
-          detail: `${section.title} still needs current draft prose.`,
-          chapterId: chapter.chapterId,
-          chapterTitle: chapter.title,
-          chapterOrder: chapter.order,
-          sceneId: section.sceneId,
-          sceneTitle: section.title,
-          sceneOrder: section.order,
-          handoff: {
-            label: 'Open draft workspace',
-            draftView: 'read',
-            reviewIssueId: `draft-missing-${chapter.chapterId}-${section.sceneId}`,
-          },
-        })
+        const issueId = `draft-missing-${chapter.chapterId}-${section.sceneId}`
+        issues.push(
+          createCurrentDraftIssue(issueId, chapter, section, {
+            severity: 'blocker',
+            source: 'manuscript',
+            kind: 'missing_draft',
+            title: 'Draft missing',
+            detail: `${section.title} still needs current draft prose.`,
+            recommendation: 'Open the chapter draft and complete the missing scene prose before the next manuscript review.',
+            sourceLabel: 'Current manuscript',
+            tags: ['Missing draft', 'Current manuscript'],
+          }),
+        )
       }
 
       if (!section.traceReady) {
-        issues.push({
-          id: `trace-gap-${chapter.chapterId}-${section.sceneId}`,
-          severity: 'warning',
-          source: 'traceability',
-          kind: 'trace_gap',
-          title: 'Trace gap',
-          detail: `${section.title} still lacks trace coverage in the current draft.`,
-          chapterId: chapter.chapterId,
-          chapterTitle: chapter.title,
-          chapterOrder: chapter.order,
-          sceneId: section.sceneId,
-          sceneTitle: section.title,
-          sceneOrder: section.order,
-          handoff: {
-            label: 'Open draft workspace',
-            draftView: 'read',
-            reviewIssueId: `trace-gap-${chapter.chapterId}-${section.sceneId}`,
-          },
-        })
+        const issueId = `trace-gap-${chapter.chapterId}-${section.sceneId}`
+        issues.push(
+          createCurrentDraftIssue(issueId, chapter, section, {
+            severity: 'warning',
+            source: 'traceability',
+            kind: 'trace_gap',
+            title: 'Trace gap',
+            detail: `${section.title} still lacks trace coverage in the current draft.`,
+            recommendation: 'Open the chapter draft and add the missing trace coverage for this scene.',
+            sourceLabel: 'Current trace coverage',
+            tags: ['Trace gap', 'Current manuscript'],
+          }),
+        )
       }
     }
 
     if (chapter.warningsCount > 0) {
+      const issueId = `draft-warning-pressure-${chapter.chapterId}`
       issues.push({
-        id: `draft-warning-pressure-${chapter.chapterId}`,
+        id: issueId,
         severity: 'warning',
         source: 'chapter-draft',
         kind: 'chapter_annotation',
         title: 'Draft warnings need review',
         detail: `${chapter.title} still carries ${chapter.warningsCount} draft warning${chapter.warningsCount === 1 ? '' : 's'}.`,
+        recommendation: 'Open the chapter draft and clear the remaining warning-heavy passages before moving on.',
         chapterId: chapter.chapterId,
         chapterTitle: chapter.title,
         chapterOrder: chapter.order,
-        handoff: {
-          label: 'Open draft workspace',
-          draftView: 'read',
-          reviewIssueId: `draft-warning-pressure-${chapter.chapterId}`,
-        },
+        sourceLabel: 'Current chapter draft',
+        sourceExcerpt: chapter.summary,
+        tags: ['Warnings', 'Chapter draft'],
+        handoffs: [
+          createChapterDraftHandoff(issueId, chapter.chapterId),
+          createChapterStructureHandoff(issueId, chapter.chapterId),
+        ],
       })
     }
 
     if (chapter.queuedRevisionCount > 0) {
+      const issueId = `draft-queued-revision-${chapter.chapterId}`
       issues.push({
-        id: `draft-queued-revision-${chapter.chapterId}`,
+        id: issueId,
         severity: 'info',
         source: 'chapter-draft',
         kind: 'chapter_annotation',
         title: 'Queued revisions remain',
         detail: `${chapter.title} still has ${chapter.queuedRevisionCount} queued revision${chapter.queuedRevisionCount === 1 ? '' : 's'}.`,
+        recommendation: 'Open the chapter draft and review the queued revisions before the next comparison pass.',
         chapterId: chapter.chapterId,
         chapterTitle: chapter.title,
         chapterOrder: chapter.order,
-        handoff: {
-          label: 'Open draft workspace',
-          draftView: 'read',
-          reviewIssueId: `draft-queued-revision-${chapter.chapterId}`,
-        },
+        sourceLabel: 'Current chapter draft',
+        sourceExcerpt: chapter.summary,
+        tags: ['Queued revision', 'Chapter draft'],
+        handoffs: [createChapterDraftHandoff(issueId, chapter.chapterId)],
       })
     }
   }
 
   return issues
+}
+
+function buildCompareSourceExcerpt(scene: BookManuscriptCompareSceneViewModel) {
+  return scene.currentExcerpt ?? scene.checkpointExcerpt ?? scene.summary
+}
+
+function createCompareBookHandoff(
+  issueId: string,
+  compareWorkspace: BookManuscriptCompareWorkspaceViewModel,
+  selectedChapterId?: string,
+) {
+  return createHandoff(`${issueId}::book-compare`, 'Open compare review', {
+    scope: 'book',
+    lens: 'draft',
+    view: 'sequence',
+    draftView: 'compare',
+    checkpointId: compareWorkspace.checkpoint.checkpointId,
+    selectedChapterId,
+    reviewIssueId: issueId,
+  })
 }
 
 function buildCompareIssues(compareWorkspace: BookManuscriptCompareWorkspaceViewModel | null | undefined): ReviewIssueViewModel[] {
@@ -178,100 +279,128 @@ function buildCompareIssues(compareWorkspace: BookManuscriptCompareWorkspaceView
   for (const chapter of compareWorkspace.chapters) {
     for (const scene of chapter.scenes) {
       if (scene.delta === 'draft_missing') {
+        const issueId = `compare-draft-missing-${chapter.chapterId}-${scene.sceneId}`
         issues.push({
-          id: `compare-draft-missing-${chapter.chapterId}-${scene.sceneId}`,
+          id: issueId,
           severity: 'blocker',
           source: 'compare',
           kind: 'missing_draft',
           title: 'Compare draft missing',
           detail: `${scene.title} is still missing draft prose against the selected checkpoint.`,
+          recommendation: 'Open compare review and reconcile the missing draft prose against the checkpoint before continuing.',
           chapterId: chapter.chapterId,
           chapterTitle: chapter.title,
           chapterOrder: chapter.order,
           sceneId: scene.sceneId,
           sceneTitle: scene.title,
           sceneOrder: scene.order,
-          handoff: {
-            label: 'Open compare workspace',
-            draftView: 'compare',
-            checkpointId: compareWorkspace.checkpoint.checkpointId,
-            reviewIssueId: `compare-draft-missing-${chapter.chapterId}-${scene.sceneId}`,
-          },
+          sourceLabel: `Compare: ${compareWorkspace.checkpoint.title}`,
+          sourceExcerpt: buildCompareSourceExcerpt(scene),
+          tags: ['Missing draft', 'Compare delta'],
+          handoffs: [
+            createCompareBookHandoff(issueId, compareWorkspace, chapter.chapterId),
+            createChapterDraftHandoff(issueId, chapter.chapterId, scene.sceneId),
+          ],
         })
       }
 
       if (scene.delta !== 'unchanged' && scene.delta !== 'draft_missing') {
+        const issueId = `compare-delta-${chapter.chapterId}-${scene.sceneId}`
         issues.push({
-          id: `compare-delta-${chapter.chapterId}-${scene.sceneId}`,
+          id: issueId,
           severity: 'warning',
           source: 'compare',
           kind: 'compare_delta',
           title: 'Compare delta needs review',
           detail: `${scene.title} changed against the selected checkpoint.`,
+          recommendation: 'Open compare review and verify whether the changed passage should be carried forward.',
           chapterId: chapter.chapterId,
           chapterTitle: chapter.title,
           chapterOrder: chapter.order,
           sceneId: scene.sceneId,
           sceneTitle: scene.title,
           sceneOrder: scene.order,
-          handoff: {
-            label: 'Open compare workspace',
-            draftView: 'compare',
-            checkpointId: compareWorkspace.checkpoint.checkpointId,
-            reviewIssueId: `compare-delta-${chapter.chapterId}-${scene.sceneId}`,
-          },
+          sourceLabel: `Compare: ${compareWorkspace.checkpoint.title}`,
+          sourceExcerpt: buildCompareSourceExcerpt(scene),
+          tags: ['Compare delta', scene.delta],
+          handoffs: [
+            createCompareBookHandoff(issueId, compareWorkspace, chapter.chapterId),
+            createChapterDraftHandoff(issueId, chapter.chapterId, scene.sceneId),
+          ],
         })
       }
 
       if (scene.traceReadyChanged) {
+        const issueId = `compare-trace-gap-${chapter.chapterId}-${scene.sceneId}`
         issues.push({
-          id: `compare-trace-gap-${chapter.chapterId}-${scene.sceneId}`,
+          id: issueId,
           severity: 'warning',
           source: 'compare',
           kind: 'trace_gap',
           title: 'Compare trace regression',
           detail: `${scene.title} regressed in trace coverage against the selected checkpoint.`,
+          recommendation: 'Open compare review and confirm whether the trace regression is intentional or needs correction.',
           chapterId: chapter.chapterId,
           chapterTitle: chapter.title,
           chapterOrder: chapter.order,
           sceneId: scene.sceneId,
           sceneTitle: scene.title,
           sceneOrder: scene.order,
-          handoff: {
-            label: 'Open compare workspace',
-            draftView: 'compare',
-            checkpointId: compareWorkspace.checkpoint.checkpointId,
-            reviewIssueId: `compare-trace-gap-${chapter.chapterId}-${scene.sceneId}`,
-          },
+          sourceLabel: `Compare: ${compareWorkspace.checkpoint.title}`,
+          sourceExcerpt: buildCompareSourceExcerpt(scene),
+          tags: ['Trace gap', 'Compare delta'],
+          handoffs: [
+            createCompareBookHandoff(issueId, compareWorkspace, chapter.chapterId),
+            createChapterDraftHandoff(issueId, chapter.chapterId, scene.sceneId),
+          ],
         })
       }
 
       if (scene.warningsDelta > 0) {
+        const issueId = `compare-warning-delta-${chapter.chapterId}-${scene.sceneId}`
         issues.push({
-          id: `compare-warning-delta-${chapter.chapterId}-${scene.sceneId}`,
+          id: issueId,
           severity: 'warning',
           source: 'compare',
           kind: 'compare_delta',
           title: 'Compare warnings increased',
           detail: `${scene.title} adds ${scene.warningsDelta} warning${scene.warningsDelta === 1 ? '' : 's'} against the selected checkpoint.`,
+          recommendation: 'Open compare review and check whether the added warnings should block the current manuscript.',
           chapterId: chapter.chapterId,
           chapterTitle: chapter.title,
           chapterOrder: chapter.order,
           sceneId: scene.sceneId,
           sceneTitle: scene.title,
           sceneOrder: scene.order,
-          handoff: {
-            label: 'Open compare workspace',
-            draftView: 'compare',
-            checkpointId: compareWorkspace.checkpoint.checkpointId,
-            reviewIssueId: `compare-warning-delta-${chapter.chapterId}-${scene.sceneId}`,
-          },
+          sourceLabel: `Compare: ${compareWorkspace.checkpoint.title}`,
+          sourceExcerpt: buildCompareSourceExcerpt(scene),
+          tags: ['Compare delta', `Warnings +${scene.warningsDelta}`],
+          handoffs: [
+            createCompareBookHandoff(issueId, compareWorkspace, chapter.chapterId),
+            createChapterDraftHandoff(issueId, chapter.chapterId, scene.sceneId),
+          ],
         })
       }
     }
   }
 
   return issues
+}
+
+function createExportBookHandoff(
+  issueId: string,
+  exportWorkspace: BookExportPreviewWorkspaceViewModel,
+  selectedChapterId?: string,
+) {
+  return createHandoff(`${issueId}::book-export`, 'Open export preview', {
+    scope: 'book',
+    lens: 'draft',
+    view: 'sequence',
+    draftView: 'export',
+    exportProfileId: exportWorkspace.profile.exportProfileId,
+    selectedChapterId,
+    reviewIssueId: issueId,
+  })
 }
 
 function buildExportIssues(exportWorkspace: BookExportPreviewWorkspaceViewModel | null | undefined): ReviewIssueViewModel[] {
@@ -290,19 +419,42 @@ function buildExportIssues(exportWorkspace: BookExportPreviewWorkspaceViewModel 
       kind: issue.severity === 'blocker' ? 'export_blocker' : 'export_warning',
       title: issue.title,
       detail: issue.detail,
+      recommendation:
+        issue.recommendedActionLabel?.trim()
+          ? `${issue.recommendedActionLabel.trim()} in export preview, then clear the blocking source before packaging again.`
+          : 'Open export preview and resolve the readiness issue before the next package review.',
       chapterId: issue.chapterId,
       chapterTitle: issue.chapterTitle,
       chapterOrder: chapter?.order,
       sceneId: issue.sceneId,
       sceneTitle: issue.sceneTitle,
       sceneOrder: scene?.order,
-      handoff: {
-        label: 'Open export preview',
-        draftView: 'export',
-        exportProfileId: exportWorkspace.profile.exportProfileId,
-        reviewIssueId: issue.id,
-      },
+      sourceLabel: `Export readiness: ${exportWorkspace.profile.title}`,
+      sourceExcerpt: scene?.proseDraft ?? scene?.summary ?? chapter?.summary,
+      tags: [issue.severity === 'blocker' ? 'Export blocker' : 'Export warning', issue.kind],
+      handoffs: [
+        createExportBookHandoff(issue.id, exportWorkspace, issue.chapterId),
+        ...(issue.chapterId ? [createChapterDraftHandoff(issue.id, issue.chapterId, issue.sceneId)] : []),
+      ],
     } satisfies ReviewIssueViewModel
+  })
+}
+
+function createBranchBookHandoff(
+  issueId: string,
+  branchWorkspace: BookExperimentBranchWorkspaceViewModel,
+  selectedChapterId?: string,
+) {
+  return createHandoff(`${issueId}::book-branch`, 'Open branch review', {
+    scope: 'book',
+    lens: 'draft',
+    view: 'sequence',
+    draftView: 'branch',
+    branchId: branchWorkspace.branch?.branchId,
+    branchBaseline: branchWorkspace.baseline.kind,
+    checkpointId: branchWorkspace.baseline.checkpointId,
+    selectedChapterId,
+    reviewIssueId: issueId,
   })
 }
 
@@ -322,20 +474,29 @@ function buildBranchIssues(branchWorkspace: BookExperimentBranchWorkspaceViewMod
       kind: issue.severity === 'blocker' ? 'branch_blocker' : 'branch_warning',
       title: issue.title,
       detail: issue.detail,
+      recommendation:
+        issue.severity === 'blocker'
+          ? 'Open branch review and resolve the blocking branch delta before treating this branch as ready.'
+          : 'Open branch review and confirm whether this branch warning still needs attention.',
       chapterId: issue.chapterId,
       chapterTitle: chapter?.title,
       chapterOrder: chapter?.order,
       sceneId: issue.sceneId,
       sceneTitle: scene?.title,
       sceneOrder: scene?.order,
-      handoff: {
-        label: 'Open branch workspace',
-        draftView: 'branch',
-        branchId: branchWorkspace.branch?.branchId,
-        branchBaseline: branchWorkspace.baseline.kind,
-        checkpointId: branchWorkspace.baseline.checkpointId,
-        reviewIssueId: issue.id,
-      },
+      sourceLabel: `Branch readiness: ${branchWorkspace.branch?.title ?? branchWorkspace.title}`,
+      sourceExcerpt:
+        scene?.branchExcerpt ??
+        scene?.baselineExcerpt ??
+        scene?.branchScene?.proseDraft ??
+        scene?.baselineScene?.proseDraft ??
+        scene?.summary ??
+        chapter?.summary,
+      tags: [issue.severity === 'blocker' ? 'Branch blocker' : 'Branch warning'],
+      handoffs: [
+        createBranchBookHandoff(issue.id, branchWorkspace, issue.chapterId),
+        ...(issue.chapterId ? [createChapterDraftHandoff(issue.id, issue.chapterId, issue.sceneId)] : []),
+      ],
     } satisfies ReviewIssueViewModel
   })
 
@@ -355,20 +516,20 @@ function buildBranchIssues(branchWorkspace: BookExperimentBranchWorkspaceViewMod
         kind: 'branch_warning',
         title: 'Added scene lacks source proposal',
         detail: `${scene.title} was added in the branch without a supporting source proposal.`,
+        recommendation: 'Open branch review and decide whether this added scene needs a supporting proposal before it can be kept.',
         chapterId: chapter.chapterId,
         chapterTitle: chapter.title,
         chapterOrder: chapter.order,
         sceneId: scene.sceneId,
         sceneTitle: scene.title,
         sceneOrder: scene.order,
-        handoff: {
-          label: 'Open branch workspace',
-          draftView: 'branch',
-          branchId: branchWorkspace.branch?.branchId,
-          branchBaseline: branchWorkspace.baseline.kind,
-          checkpointId: branchWorkspace.baseline.checkpointId,
-          reviewIssueId: derivedId,
-        },
+        sourceLabel: `Branch readiness: ${branchWorkspace.branch?.title ?? branchWorkspace.title}`,
+        sourceExcerpt: scene.branchExcerpt ?? scene.branchScene?.proseDraft ?? scene.summary,
+        tags: ['Branch warning', 'Missing source proposal'],
+        handoffs: [
+          createBranchBookHandoff(derivedId, branchWorkspace, chapter.chapterId),
+          createChapterDraftHandoff(derivedId, chapter.chapterId, scene.sceneId),
+        ],
       })
     }
   }
@@ -384,6 +545,7 @@ function buildSeedIssues(reviewSeeds: BookReviewSeedRecord[]): ReviewIssueViewMo
     kind: seed.kind,
     title: seed.title,
     detail: seed.detail,
+    recommendation: seed.recommendation,
     chapterId: seed.chapterId,
     chapterTitle: seed.chapterTitle,
     chapterOrder: seed.chapterOrder,
@@ -392,23 +554,11 @@ function buildSeedIssues(reviewSeeds: BookReviewSeedRecord[]): ReviewIssueViewMo
     sceneOrder: seed.sceneOrder,
     assetId: seed.assetId,
     assetTitle: seed.assetTitle,
-    handoff: {
-      ...seed.handoff,
-      reviewIssueId: seed.handoff.reviewIssueId ?? seed.id,
-    },
+    sourceLabel: seed.sourceLabel,
+    sourceExcerpt: seed.sourceExcerpt,
+    tags: seed.tags,
+    handoffs: seed.handoffs,
   }))
-}
-
-function buildAnnotationsByChapterId(issues: ReviewIssueViewModel[]) {
-  return issues.reduce<Record<string, ReviewIssueViewModel[]>>((groups, issue) => {
-    if (issue.kind !== 'chapter_annotation' || !issue.chapterId) {
-      return groups
-    }
-
-    const current = groups[issue.chapterId] ?? []
-    groups[issue.chapterId] = [...current, issue]
-    return groups
-  }, {})
 }
 
 export function buildBookReviewInboxViewModel({
@@ -431,14 +581,21 @@ export function buildBookReviewInboxViewModel({
 
   const filteredIssues = filterReviewIssues(issues, reviewFilter)
   const selectedIssue = filteredIssues.find((issue) => issue.id === reviewIssueId) ?? filteredIssues[0] ?? null
+  const selectedChapterId = currentDraftWorkspace.selectedChapterId
 
   return {
     bookId,
-    reviewFilter,
-    issues,
-    filteredIssues,
+    title: currentDraftWorkspace.title,
     selectedIssueId: selectedIssue?.id ?? null,
     selectedIssue,
+    activeFilter: reviewFilter,
+    issues,
+    filteredIssues,
+    groupedIssues: buildIssueGroups(filteredIssues),
+    counts: buildCounts(issues),
+    selectedChapterIssueCount: selectedChapterId
+      ? filteredIssues.filter((issue) => issue.chapterId === selectedChapterId).length
+      : 0,
     annotationsByChapterId: buildAnnotationsByChapterId(issues),
   }
 }

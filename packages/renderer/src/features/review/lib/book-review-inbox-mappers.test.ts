@@ -573,31 +573,86 @@ describe('buildBookReviewInboxViewModel', () => {
   it('includes explicit scene proposal seeds', () => {
     const issue = buildInbox().issues.find((item) => item.kind === 'scene_proposal')
 
-    expect(issue).toMatchObject({
-      source: 'scene-proposal',
-      severity: 'warning',
-      handoff: {
-        label: 'Open draft workspace',
-        draftView: 'read',
-        reviewIssueId: 'scene-proposal-seed-scene-5',
+    expect(issue?.source).toBe('scene-proposal')
+    expect(issue?.severity).toBe('warning')
+    expect(issue?.recommendation).toBe(
+      'Review the scene proposal execution notes before settling it into the manuscript draft.',
+    )
+    expect(issue?.sourceLabel).toBe('Scene proposal')
+    expect(issue?.handoffs[0]).toMatchObject({
+      label: 'Open scene proposal',
+      target: {
+        scope: 'scene',
+        sceneId: 'scene-5',
+        lens: 'orchestrate',
+        tab: 'execution',
       },
     })
   })
 
-  it('keeps seed handoffs constrained to draft read routing', () => {
-    const seeds = getBookReviewSeeds('book-signal-arc')
+  it('maps source handoffs toward real routing targets for later stage wiring', () => {
+    const inbox = buildInbox()
 
-    expect(seeds).not.toHaveLength(0)
-    expect(
-      seeds.every(
-        (seed) =>
-          seed.handoff.draftView === 'read' &&
-          !('checkpointId' in seed.handoff) &&
-          !('exportProfileId' in seed.handoff) &&
-          !('branchId' in seed.handoff) &&
-          !('branchBaseline' in seed.handoff),
-      ),
-    ).toBe(true)
+    expect(inbox.issues.find((item) => item.id === 'compare-delta-chapter-2-scene-3')?.handoffs[0]).toMatchObject({
+      label: 'Open compare review',
+      target: {
+        scope: 'book',
+        lens: 'draft',
+        view: 'sequence',
+        draftView: 'compare',
+        checkpointId: 'checkpoint-1',
+        selectedChapterId: 'chapter-2',
+        reviewIssueId: 'compare-delta-chapter-2-scene-3',
+      },
+    })
+
+    expect(inbox.issues.find((item) => item.id === 'export-blocker-scene-1')?.handoffs[0]).toMatchObject({
+      label: 'Open export preview',
+      target: {
+        scope: 'book',
+        lens: 'draft',
+        view: 'sequence',
+        draftView: 'export',
+        exportProfileId: 'export-1',
+        selectedChapterId: 'chapter-1',
+        reviewIssueId: 'export-blocker-scene-1',
+      },
+    })
+
+    expect(inbox.issues.find((item) => item.id === 'branch-warning-scene-4')?.handoffs[0]).toMatchObject({
+      label: 'Open branch review',
+      target: {
+        scope: 'book',
+        lens: 'draft',
+        view: 'sequence',
+        draftView: 'branch',
+        branchId: 'branch-1',
+        branchBaseline: 'checkpoint',
+        checkpointId: 'checkpoint-1',
+        selectedChapterId: 'chapter-2',
+        reviewIssueId: 'branch-warning-scene-4',
+      },
+    })
+
+    expect(inbox.issues.find((item) => item.id === 'chapter-annotation-seed-chapter-1')?.handoffs[0]).toMatchObject({
+      label: 'Open chapter draft',
+      target: {
+        scope: 'chapter',
+        chapterId: 'chapter-1',
+        lens: 'draft',
+        view: 'sequence',
+      },
+    })
+
+    expect(inbox.issues.find((item) => item.id === 'trace-gap-seed-asset-ledger')?.handoffs[0]).toMatchObject({
+      label: 'Open asset profile',
+      target: {
+        scope: 'asset',
+        assetId: 'asset-ledger',
+        lens: 'knowledge',
+        view: 'profile',
+      },
+    })
   })
 
   it('filters blockers to blocker severity only', () => {
@@ -631,6 +686,31 @@ describe('buildBookReviewInboxViewModel', () => {
       'export-warning-chapter-2',
       'branch-warning-scene-4',
     ])
+  })
+
+  it('builds grouped issues and counts for the review inbox surface', () => {
+    const inbox = buildInbox()
+
+    expect(inbox.activeFilter).toBe('all')
+    expect(inbox.title).toBe('Signal Arc')
+    expect(inbox.counts.total).toBe(inbox.issues.length)
+    expect(inbox.counts.blockers).toBeGreaterThan(0)
+    expect(inbox.counts.traceGaps).toBeGreaterThan(0)
+    expect(inbox.counts.compareDeltas).toBeGreaterThan(0)
+    expect(inbox.counts.exportReadiness).toBeGreaterThan(0)
+    expect(inbox.counts.branchReadiness).toBeGreaterThan(0)
+    expect(inbox.counts.sceneProposals).toBeGreaterThan(0)
+    expect(inbox.groupedIssues.blockers.every((item) => item.severity === 'blocker')).toBe(true)
+    expect(inbox.groupedIssues.warnings.every((item) => item.severity === 'warning')).toBe(true)
+    expect(inbox.groupedIssues.info.every((item) => item.severity === 'info')).toBe(true)
+    expect(inbox.selectedChapterIssueCount).toBeGreaterThan(0)
+  })
+
+  it('keeps selectedChapterIssueCount aligned to the filtered review queue', () => {
+    expect(buildInbox('scene-proposals').selectedChapterIssueCount).toBe(0)
+    expect(buildInbox('blockers').selectedChapterIssueCount).toBe(
+      buildInbox('blockers').filteredIssues.filter((item) => item.chapterId === 'chapter-1').length,
+    )
   })
 
   it('aggregates chapter annotations by chapter id', () => {
