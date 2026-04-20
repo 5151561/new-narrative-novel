@@ -41,6 +41,7 @@ describe('ProjectRuntimeProvider', () => {
     expect(hook.result.current.projectId).toBe('book-signal-arc')
     expect(hook.result.current.bookClient).toBeDefined()
     expect(hook.result.current.chapterClient).toBeDefined()
+    expect(hook.result.current.assetClient).toBeDefined()
     expect(hook.result.current.reviewClient).toBeDefined()
     expect(hook.result.current.sceneClient).toBeDefined()
     expect(hook.result.current.traceabilitySceneClient).toBeDefined()

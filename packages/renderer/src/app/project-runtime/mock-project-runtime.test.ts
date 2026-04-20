@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import type { AssetClient } from '@/features/asset/api/asset-client'
 import {
   buildMockBookExportArtifact,
   getMockBookExportArtifacts,
@@ -103,6 +104,23 @@ describe('mock project runtime', () => {
     createMockProjectRuntime({ projectId, persistence })
 
     expect(persistence.loadCalls).toEqual([projectId])
+  })
+
+  it('exposes an injected asset client without changing mock persistence behavior', async () => {
+    const assetWorkspace = { assetId: 'asset-lantern', asset: { id: 'asset-lantern' } } as Awaited<
+      ReturnType<AssetClient['getAssetKnowledgeWorkspace']>
+    >
+    const assetClient: AssetClient = {
+      async getAssetKnowledgeWorkspace() {
+        return assetWorkspace
+      },
+    }
+    const persistence = createMemoryPersistence()
+
+    const runtime = createMockProjectRuntime({ projectId, assetClient, persistence })
+
+    await expect(runtime.assetClient.getAssetKnowledgeWorkspace({ assetId: 'asset-lantern' })).resolves.toEqual(assetWorkspace)
+    expect(runtime.persistence).toBe(persistence)
   })
 
   it('hydrates persisted snapshot data before reads in a fresh runtime', async () => {

@@ -1,3 +1,4 @@
+import type { AssetClient } from '@/features/asset/api/asset-client'
 import type { BookClient } from '@/features/book/api/book-client'
 import type { ChapterClient } from '@/features/chapter/api/chapter-client'
 import type { ReviewClient } from '@/features/review/api/review-client'
@@ -10,8 +11,10 @@ export interface ProjectRuntime {
   projectId: string
   bookClient: BookClient
   chapterClient: ChapterClient
+  assetClient: AssetClient
   reviewClient: ReviewClient
   sceneClient: SceneClient
   traceabilitySceneClient: TraceabilitySceneClient
-  persistence: ProjectPersistencePort
+  // Mock-only preview/dev/test capability. API runtimes intentionally omit persistence.
+  persistence?: ProjectPersistencePort
 }

@@ -1,4 +1,8 @@
 import {
+  createAssetClient,
+  type AssetClient,
+} from '@/features/asset/api/asset-client'
+import {
   createBookClient,
   type BookClient,
 } from '@/features/book/api/book-client'
@@ -40,6 +44,7 @@ export interface CreateMockProjectRuntimeOptions {
   projectId?: string
   bookClient?: BookClient
   chapterClient?: ChapterClient
+  assetClient?: AssetClient
   reviewClient?: ReviewClient
   sceneClient?: SceneClient
   traceabilitySceneClient?: TraceabilitySceneClient
@@ -143,6 +148,7 @@ export function createMockProjectRuntime({
   projectId = 'book-signal-arc',
   bookClient: runtimeBookClient,
   chapterClient: runtimeChapterClient,
+  assetClient: runtimeAssetClient,
   reviewClient: runtimeReviewClient,
   sceneClient: runtimeSceneClient,
   traceabilitySceneClient: runtimeTraceabilitySceneClient,
@@ -150,6 +156,7 @@ export function createMockProjectRuntime({
 }: CreateMockProjectRuntimeOptions = {}): ProjectRuntime {
   const baseBookClient = runtimeBookClient ?? createBookClient()
   const baseChapterClient = runtimeChapterClient ?? createChapterClient()
+  const baseAssetClient = runtimeAssetClient ?? createAssetClient()
   const baseReviewClient = runtimeReviewClient ?? createReviewClient()
   const baseSceneClient = runtimeSceneClient ?? createSceneClient()
   const baseTraceabilitySceneClient = runtimeTraceabilitySceneClient ?? baseSceneClient
@@ -232,6 +239,7 @@ export function createMockProjectRuntime({
         return persistAfterMutation(() => baseChapterClient.updateChapterSceneStructure(input))
       },
     },
+    assetClient: baseAssetClient,
     reviewClient: {
       async getBookReviewDecisions(input) {
         await ensureHydrated()
