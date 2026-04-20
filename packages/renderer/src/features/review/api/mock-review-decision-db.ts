@@ -62,3 +62,24 @@ export function clearMockReviewIssueDecision(input: ClearReviewIssueDecisionInpu
 export function resetMockReviewDecisionDb(): void {
   mockReviewDecisionDb.clear()
 }
+
+export function exportMockReviewDecisionSnapshot(): Record<string, ReviewIssueDecisionRecord[]> {
+  return Object.fromEntries(
+    Array.from(mockReviewDecisionDb.entries()).map(([bookId, bucket]) => [bookId, Array.from(bucket.values()).map((record) => clone(record))]),
+  )
+}
+
+export function importMockReviewDecisionSnapshot(snapshot: Record<string, ReviewIssueDecisionRecord[]>): void {
+  mockReviewDecisionDb.clear()
+
+  for (const [bookId, records] of Object.entries(snapshot)) {
+    if (records.length === 0) {
+      continue
+    }
+
+    mockReviewDecisionDb.set(
+      bookId,
+      new Map(records.map((record) => [record.issueId, clone(record)])),
+    )
+  }
+}

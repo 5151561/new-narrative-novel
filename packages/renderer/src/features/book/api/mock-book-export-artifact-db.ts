@@ -61,3 +61,34 @@ export function resetMockBookExportArtifactDb(): void {
   mockBookExportArtifactDb.clear()
   artifactSequence = 0
 }
+
+export function exportMockBookExportArtifactSnapshot(): Record<string, BookExportArtifactRecord[]> {
+  return Object.fromEntries(
+    Array.from(mockBookExportArtifactDb.entries()).map(([bookId, records]) => [bookId, records.map((record) => clone(record))]),
+  )
+}
+
+function readArtifactSequence(recordId: string) {
+  const match = recordId.match(/-(\d+)$/)
+  return match ? Number.parseInt(match[1]!, 10) : 0
+}
+
+export function importMockBookExportArtifactSnapshot(snapshot: Record<string, BookExportArtifactRecord[]>): void {
+  mockBookExportArtifactDb.clear()
+
+  let importedArtifactCount = 0
+  let maxImportedSequence = 0
+
+  for (const [bookId, records] of Object.entries(snapshot)) {
+    if (records.length === 0) {
+      continue
+    }
+
+    const clonedRecords = records.map((record) => clone(record))
+    importedArtifactCount += clonedRecords.length
+    maxImportedSequence = Math.max(maxImportedSequence, ...clonedRecords.map((record) => readArtifactSequence(record.id)))
+    mockBookExportArtifactDb.set(bookId, clonedRecords)
+  }
+
+  artifactSequence = Math.max(importedArtifactCount, maxImportedSequence)
+}

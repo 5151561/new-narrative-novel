@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildMockBookExportArtifact,
+  exportMockBookExportArtifactSnapshot,
   getMockBookExportArtifacts,
+  importMockBookExportArtifactSnapshot,
   resetMockBookExportArtifactDb,
 } from './mock-book-export-artifact-db'
 import { createBookClient } from './book-client'
@@ -107,5 +109,26 @@ describe('book export artifact data layer', () => {
     expect(secondRead[0]).toMatchObject({
       content: '# Signal Arc',
     })
+  })
+
+  it('imports exported artifact snapshots and rebuilds the deterministic sequence', () => {
+    resetMockBookExportArtifactDb()
+    buildMockBookExportArtifact(createBuildInput('markdown'))
+    const second = buildMockBookExportArtifact(createBuildInput('plain_text'))
+
+    const snapshot = exportMockBookExportArtifactSnapshot()
+    resetMockBookExportArtifactDb()
+    importMockBookExportArtifactSnapshot(snapshot)
+    snapshot['book-signal-arc']![0]!.title = 'Mutated snapshot'
+
+    const rebuilt = buildMockBookExportArtifact(createBuildInput('markdown'))
+
+    expect(getMockBookExportArtifacts({ bookId: 'book-signal-arc' }).map((artifact) => artifact.id)).toEqual([
+      rebuilt.id,
+      second.id,
+      'book-export-artifact-book-signal-arc-profile-editorial-md-markdown-1',
+    ])
+    expect(rebuilt.id).toBe('book-export-artifact-book-signal-arc-profile-editorial-md-markdown-3')
+    expect(getMockBookExportArtifacts({ bookId: 'book-signal-arc' })[1]?.title).toBe('Signal Arc')
   })
 })

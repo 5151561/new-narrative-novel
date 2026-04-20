@@ -68,3 +68,24 @@ export function clearMockReviewIssueFixAction(input: ClearReviewIssueFixActionIn
 export function resetMockReviewFixActionDb(): void {
   mockReviewFixActionDb.clear()
 }
+
+export function exportMockReviewFixActionSnapshot(): Record<string, ReviewIssueFixActionRecord[]> {
+  return Object.fromEntries(
+    Array.from(mockReviewFixActionDb.entries()).map(([bookId, bucket]) => [bookId, Array.from(bucket.values()).map((record) => clone(record))]),
+  )
+}
+
+export function importMockReviewFixActionSnapshot(snapshot: Record<string, ReviewIssueFixActionRecord[]>): void {
+  mockReviewFixActionDb.clear()
+
+  for (const [bookId, records] of Object.entries(snapshot)) {
+    if (records.length === 0) {
+      continue
+    }
+
+    mockReviewFixActionDb.set(
+      bookId,
+      new Map(records.map((record) => [record.issueId, clone(record)])),
+    )
+  }
+}

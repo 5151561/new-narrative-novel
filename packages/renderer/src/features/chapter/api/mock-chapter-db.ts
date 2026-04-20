@@ -348,3 +348,14 @@ export function updateMockChapterSceneStructure({
   mutableMockChapterRecords[chapterId] = nextRecord
   return clone(nextRecord)
 }
+
+export function exportMockChapterSnapshot(): Record<string, ChapterStructureWorkspaceRecord> {
+  return clone(mutableMockChapterRecords)
+}
+
+export function importMockChapterSnapshot(snapshot: Record<string, ChapterStructureWorkspaceRecord>): void {
+  mutableMockChapterRecords = {
+    ...clone(mockChapterRecordSeeds),
+    ...clone(snapshot),
+  }
+}

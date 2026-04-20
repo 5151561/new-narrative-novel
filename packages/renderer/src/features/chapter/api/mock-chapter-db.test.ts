@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { getMockChapterRecordById, reorderMockChapterScene, resetMockChapterDb, updateMockChapterSceneStructure } from './mock-chapter-db'
+import {
+  exportMockChapterSnapshot,
+  getMockChapterRecordById,
+  importMockChapterSnapshot,
+  reorderMockChapterScene,
+  resetMockChapterDb,
+  updateMockChapterSceneStructure,
+} from './mock-chapter-db'
 
 describe('mock chapter db', () => {
   it('writes reorders into the mutable db and reset restores the seed data', () => {
@@ -115,5 +122,39 @@ describe('mock chapter db', () => {
     expect(reordered).toEqual(beforeWrite)
     expect(patched).toEqual(beforeWrite)
     expect(getMockChapterRecordById('chapter-signals-in-rain')).toEqual(beforeWrite)
+  })
+
+  it('imports chapter snapshots without deleting seeded chapters that are omitted', () => {
+    resetMockChapterDb()
+
+    importMockChapterSnapshot({
+      'chapter-signals-in-rain': {
+        chapterId: 'chapter-signals-in-rain',
+        title: {
+          en: 'Persisted Signals',
+          'zh-CN': '持久化雨中信号',
+        },
+        summary: {
+          en: 'Persisted summary',
+          'zh-CN': '持久化摘要',
+        },
+        scenes: [],
+        inspector: {
+          chapterNotes: [],
+          problemsSummary: [],
+          assemblyHints: [],
+        },
+      },
+    })
+
+    const snapshot = exportMockChapterSnapshot()
+    snapshot['chapter-signals-in-rain']!.title.en = 'Mutated snapshot'
+
+    expect(getMockChapterRecordById('chapter-signals-in-rain')).toMatchObject({
+      title: {
+        en: 'Persisted Signals',
+      },
+    })
+    expect(getMockChapterRecordById('chapter-open-water-signals')).not.toBeNull()
   })
 })

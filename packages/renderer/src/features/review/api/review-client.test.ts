@@ -2,13 +2,17 @@ import { describe, expect, it } from 'vitest'
 
 import {
   clearMockReviewIssueDecision,
+  exportMockReviewDecisionSnapshot,
   getMockBookReviewDecisions,
+  importMockReviewDecisionSnapshot,
   resetMockReviewDecisionDb,
   setMockReviewIssueDecision,
 } from './mock-review-decision-db'
 import {
   clearMockReviewIssueFixAction,
+  exportMockReviewFixActionSnapshot,
   getMockBookReviewFixActions,
+  importMockReviewFixActionSnapshot,
   resetMockReviewFixActionDb,
   setMockReviewIssueFixAction,
 } from './mock-review-fix-action-db'
@@ -91,6 +95,29 @@ describe('review decision data layer', () => {
       issueId: 'issue-1',
       note: 'Keep isolated',
     })
+  })
+
+  it('exports and imports review decision snapshots without leaking mutable references', () => {
+    resetMockReviewDecisionDb()
+    setMockReviewIssueDecision({
+      bookId: 'book-signal-arc',
+      issueId: 'issue-1',
+      issueSignature: 'signature-1',
+      status: 'reviewed',
+      note: 'Persist me',
+    })
+
+    const snapshot = exportMockReviewDecisionSnapshot()
+    resetMockReviewDecisionDb()
+    importMockReviewDecisionSnapshot(snapshot)
+    snapshot['book-signal-arc']![0]!.note = 'Mutated snapshot'
+
+    expect(getMockBookReviewDecisions('book-signal-arc')).toEqual([
+      expect.objectContaining({
+        issueId: 'issue-1',
+        note: 'Persist me',
+      }),
+    ])
   })
 })
 
@@ -215,5 +242,31 @@ describe('review fix action data layer', () => {
 
     expect(getMockBookReviewFixActions('book-signal-arc')).toEqual([])
     expect(getMockBookReviewDecisions('book-signal-arc')).toHaveLength(1)
+  })
+
+  it('exports and imports review fix action snapshots without leaking mutable references', () => {
+    resetMockReviewFixActionDb()
+    setMockReviewIssueFixAction({
+      bookId: 'book-signal-arc',
+      issueId: 'issue-1',
+      issueSignature: 'signature-1',
+      sourceHandoffId: 'handoff-1',
+      sourceHandoffLabel: 'Open chapter draft',
+      targetScope: 'chapter',
+      status: 'started',
+      note: 'Persist me',
+    })
+
+    const snapshot = exportMockReviewFixActionSnapshot()
+    resetMockReviewFixActionDb()
+    importMockReviewFixActionSnapshot(snapshot)
+    snapshot['book-signal-arc']![0]!.note = 'Mutated snapshot'
+
+    expect(getMockBookReviewFixActions('book-signal-arc')).toEqual([
+      expect.objectContaining({
+        issueId: 'issue-1',
+        note: 'Persist me',
+      }),
+    ])
   })
 })
