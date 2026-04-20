@@ -7,6 +7,7 @@ import {
   getWorkbenchLensLabel,
   useI18n,
 } from '@/app/i18n'
+import { classifyApiResponseState } from '@/app/project-runtime'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
@@ -100,6 +101,10 @@ export function AssetKnowledgeWorkspace() {
     assetId: route.assetId,
     activeView: route.view,
   })
+  const responseState = classifyApiResponseState({
+    data: workspace,
+    error,
+  })
   const traceability = useAssetTraceabilitySummaryQuery(route.assetId)
 
   const openSceneFromAsset = useCallback(
@@ -130,7 +135,7 @@ export function AssetKnowledgeWorkspace() {
     [replaceRoute],
   )
 
-  if (error) {
+  if (responseState.kind === 'auth' || responseState.kind === 'unavailable') {
     return (
       <WorkbenchShell
         topBar={<AssetTopBar view={route.view} />}
@@ -147,15 +152,15 @@ export function AssetKnowledgeWorkspace() {
             onSelectLens={() => {}}
           />
         }
-        navigator={<AssetPaneState title={locale === 'zh-CN' ? '资产不可用' : 'Asset unavailable'} message={error.message} />}
-        mainStage={<AssetPaneState title={locale === 'zh-CN' ? '知识页不可用' : 'Knowledge unavailable'} message={error.message} />}
-        inspector={<AssetPaneState title={locale === 'zh-CN' ? '检查器不可用' : 'Inspector unavailable'} message={error.message} />}
-        bottomDock={<AssetPaneState title={locale === 'zh-CN' ? '底部面板不可用' : 'Bottom dock unavailable'} message={error.message} />}
+        navigator={<AssetPaneState title={locale === 'zh-CN' ? '资产不可用' : 'Asset unavailable'} message={responseState.message ?? ''} />}
+        mainStage={<AssetPaneState title={locale === 'zh-CN' ? '知识页不可用' : 'Knowledge unavailable'} message={responseState.message ?? ''} />}
+        inspector={<AssetPaneState title={locale === 'zh-CN' ? '检查器不可用' : 'Inspector unavailable'} message={responseState.message ?? ''} />}
+        bottomDock={<AssetPaneState title={locale === 'zh-CN' ? '底部面板不可用' : 'Bottom dock unavailable'} message={responseState.message ?? ''} />}
       />
     )
   }
 
-  if (isLoading || workspace === undefined) {
+  if (isLoading || responseState.kind === 'pending') {
     const message =
       locale === 'zh-CN'
         ? '正在准备知识页、mentions、relations、trace detail 和检查器摘要。'
@@ -185,8 +190,10 @@ export function AssetKnowledgeWorkspace() {
     )
   }
 
-  if (workspace === null) {
-    const message = locale === 'zh-CN' ? `未找到资产 ${route.assetId}。` : `Asset ${route.assetId} could not be found.`
+  if (responseState.kind === 'not-found') {
+    const message =
+      responseState.message ??
+      (locale === 'zh-CN' ? `未找到资产 ${route.assetId}。` : `Asset ${route.assetId} could not be found.`)
 
     return (
       <WorkbenchShell

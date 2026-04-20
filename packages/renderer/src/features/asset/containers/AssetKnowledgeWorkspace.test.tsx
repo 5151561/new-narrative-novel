@@ -3,12 +3,15 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
-import { apiRouteContract } from '@/app/project-runtime'
+import { ApiRequestError, apiRouteContract } from '@/app/project-runtime'
 import { createFakeApiRuntime } from '@/app/project-runtime/fake-api-runtime.test-utils'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import { useAssetTraceabilitySummaryQuery } from '@/features/traceability/hooks/useAssetTraceabilitySummaryQuery'
 
 import { AssetKnowledgeWorkspace } from './AssetKnowledgeWorkspace'
+import { AssetNotFound } from './AssetKnowledgeWorkspace.stories'
+
+const API_NOT_FOUND_MESSAGE = 'API boundary reported missing asset detail for asset-missing.'
 
 vi.mock('@/features/traceability/hooks/useAssetTraceabilitySummaryQuery', async () => {
   const actual = await vi.importActual<typeof import('@/features/traceability/hooks/useAssetTraceabilitySummaryQuery')>(
@@ -281,5 +284,47 @@ describe('AssetKnowledgeWorkspace', () => {
     expect(within(dockRegion).getByText('Traceability unavailable')).toBeInTheDocument()
     expect(within(dockRegion).getByText('Trace sources failed')).toBeInTheDocument()
     expect(within(dockRegion).queryByText('Narrative backing gaps')).not.toBeInTheDocument()
+  })
+
+  it('treats API 404 asset detail failures as asset-not-found state instead of a generic unavailable pane', async () => {
+    const { projectId, runtime } = createFakeApiRuntime({
+      overrides: [
+        {
+          method: 'GET',
+          path: apiRouteContract.assetKnowledge({ projectId: 'project-smoke', assetId: 'asset-missing' }),
+          error: new ApiRequestError({
+            status: 404,
+            message: API_NOT_FOUND_MESSAGE,
+            code: 'ASSET_NOT_FOUND',
+          }),
+        },
+      ],
+    })
+
+    window.history.replaceState({}, '', '/workbench?scope=asset&id=asset-missing&lens=knowledge&view=profile')
+
+    render(
+      <AppProviders runtime={runtime}>
+        <AssetRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findAllByText('Asset not found')).toHaveLength(4)
+    expect(screen.getAllByText(API_NOT_FOUND_MESSAGE)).toHaveLength(4)
+    expect(screen.queryByText('Asset unavailable')).not.toBeInTheDocument()
+    expect(screen.queryByText('Asset asset-missing could not be found.')).not.toBeInTheDocument()
+    expect(projectId).toBe('project-smoke')
+  })
+
+  it('renders the AssetNotFound story through the fake API 404 path', async () => {
+    if (!AssetNotFound.render) {
+      throw new Error('Expected AssetNotFound story to define a render function')
+    }
+
+    render(AssetNotFound.render(AssetNotFound.args ?? {}, {} as never))
+
+    expect(await screen.findAllByText('Asset not found')).toHaveLength(4)
+    expect(screen.getAllByText(API_NOT_FOUND_MESSAGE)).toHaveLength(4)
+    expect(screen.queryByText('Asset asset-missing could not be found.')).not.toBeInTheDocument()
   })
 })

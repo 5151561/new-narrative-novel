@@ -121,3 +121,66 @@ PR20 的前端运行路径统一收敛到 `/api/projects/{projectId}/...`。
 - 它可以帮助前端在没有后端时跑通 UI 和 smoke。
 - 它不是产品持久化路径，不代表正式数据边界。
 - 产品态必须以 `/api/projects/{projectId}/...` 为唯一合同来源。
+
+## 8. PR21 Book Draft Review read slice
+
+### 8.1 Deep link 示例
+
+本 bundle 约束的读切片以以下深链为代表：
+
+```txt
+/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&checkpointId=checkpoint-book-signal-arc-pr11-baseline&exportProfileId=export-review-packet&branchId=branch-book-signal-arc-quiet-ending&branchBaseline=current&selectedChapterId=chapter-open-water-signals&reviewFilter=all
+```
+
+### 8.2 实际读取的 endpoint graph
+
+Review 读切片会按当前 route 状态读取以下只读端点：
+
+- `GET /api/projects/{projectId}/books/{bookId}/structure`
+- `GET /api/projects/{projectId}/chapters/{chapterId}/structure`
+- `GET /api/projects/{projectId}/scenes/{sceneId}/prose`
+- `GET /api/projects/{projectId}/books/{bookId}/manuscript-checkpoints`
+- `GET /api/projects/{projectId}/books/{bookId}/manuscript-checkpoints/{checkpointId}`
+- `GET /api/projects/{projectId}/books/{bookId}/export-profiles`
+- `GET /api/projects/{projectId}/books/{bookId}/export-profiles/{exportProfileId}`
+- `GET /api/projects/{projectId}/books/{bookId}/experiment-branches`
+- `GET /api/projects/{projectId}/books/{bookId}/experiment-branches/{branchId}`
+- `GET /api/projects/{projectId}/books/{bookId}/review-decisions`
+- `GET /api/projects/{projectId}/books/{bookId}/review-fix-actions`
+
+其中 compare / export / branch 相关 endpoint 只在对应 read source 被 review slice 依赖时参与读取；本 bundle 不引入任何 mutation endpoint。
+
+### 8.3 Read-only 保证
+
+- 本 slice 只消费 `GET` 查询。
+- 不允许在该 read slice 内偷接 review decision / fix action 的写接口。
+- 本 bundle 不覆盖 `PUT / DELETE review-decisions`、`PUT / DELETE review-fix-actions`、导出构建、branch 变更等 mutation 流程。
+
+### 8.4 null / empty / error 规则
+
+- 明细对象返回 `null`：按 not-found 处理。
+  - 例：`book structure = null` 表示书籍不存在，后续 chapter / scene / review 读取应停止。
+  - 例：`asset knowledge = null` 或 API `404` 表示 asset not found，而不是 generic unavailable。
+- 列表返回空数组：按 empty state 处理，不视为错误。
+  - 例：`review-decisions = []`、`review-fix-actions = []` 时，review surface 仍应展示，只是 decision / fix action 回到空状态。
+- `ApiRequestError 401 / 403`：归类为 auth / session placeholder kind；当前 bundle 不实现真实 auth 流。
+- `ApiRequestError 404`：归类为 not-found kind。
+- `ApiRequestError >= 500`：归类为 server / unavailable kind。
+  - 例：`review-decisions` 500 时，review inbox 仍保持可读，decision 辅助状态显示 unavailable，不得把整个 review 页面打成崩溃或伪健康。
+- malformed JSON 已在 transport 层覆盖；上层 workspace 只需要把它当错误处理，不得崩溃。
+
+### 8.5 Fixture / response note
+
+- `book-signal-arc` read slice fixture 用于验证 review queue、checkpoint/export/branch read source 和 partial-error 降级。
+- `asset-ren-voss` / `asset-missing` fixture 用于验证 asset knowledge happy path 与 not-found path。
+- fixture 响应保持固定输入，供测试与 Storybook 复用；Storybook 不依赖真实 API。
+
+### 8.6 非覆盖范围
+
+本 bundle 只定义 PR21 read slice 的只读合同与降级规则，不覆盖：
+
+- review decision / fix action mutation
+- source-fix mutation 流
+- export artifact build / download 合同
+- branch baseline 切换写入
+- 真实 backend / auth / SSE / Temporal 接线

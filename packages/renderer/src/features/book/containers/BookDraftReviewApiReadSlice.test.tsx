@@ -186,7 +186,7 @@ describe('BookDraftWorkspace API read-slice review states', () => {
     expect(screen.getByRole('button', { name: 'Reviewed 0' })).toBeInTheDocument()
   })
 
-  it('surfaces explicit ApiRequestError responses without crashing the review surface', async () => {
+  it('keeps the review surface visible when review decisions fail with a 500 response', async () => {
     renderReviewRoute({
       route: `${API_READ_SLICE_ROUTE}&reviewIssueId=compare-delta-chapter-2-scene-3`,
       overrides: [
@@ -197,8 +197,8 @@ describe('BookDraftWorkspace API read-slice review states', () => {
             bookId: API_READ_SLICE_BOOK_ID,
           }),
           error: new ApiRequestError({
-            status: 503,
-            message: 'Review decisions failed',
+            status: 500,
+            message: 'Review decisions unavailable from API',
             code: 'review-decisions-unavailable',
           }),
         },
@@ -207,9 +207,10 @@ describe('BookDraftWorkspace API read-slice review states', () => {
 
     expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
     expect(screen.getByText('Review decisions unavailable')).toBeInTheDocument()
-    expect(screen.getByText('Review decisions failed')).toBeInTheDocument()
+    expect(screen.getByText('Review decisions unavailable from API')).toBeInTheDocument()
     expect(screen.getAllByText('Compare delta needs review').length).toBeGreaterThan(0)
     expect(screen.getByRole('heading', { name: 'Selected review issue' })).toBeInTheDocument()
+    expect(screen.queryByText('Review inbox unavailable')).not.toBeInTheDocument()
   })
 
   it.each([
