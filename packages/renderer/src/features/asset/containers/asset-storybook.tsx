@@ -1,6 +1,7 @@
-import type { PropsWithChildren, ReactElement } from 'react'
+import { useMemo, type PropsWithChildren, type ReactElement } from 'react'
 
 import { AppProviders } from '@/app/providers'
+import { createStoryProjectRuntimeEnvironment } from '@/app/project-runtime'
 
 interface AssetStoryParameters {
   assetStory?: {
@@ -27,9 +28,10 @@ export function AssetStoryShell({
   search,
 }: PropsWithChildren<{ frameClassName: string; search?: string }>) {
   applyAssetStoryEnvironment(search)
+  const storyEnvironment = useMemo(() => createStoryProjectRuntimeEnvironment(), [])
 
   return (
-    <AppProviders>
+    <AppProviders runtime={storyEnvironment.runtime} queryClient={storyEnvironment.queryClient}>
       <div className="min-h-screen bg-app p-6">
         <div className={frameClassName}>{children}</div>
       </div>

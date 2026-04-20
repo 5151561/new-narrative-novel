@@ -1,6 +1,7 @@
-import type { PropsWithChildren, ReactElement } from 'react'
+import { useMemo, type PropsWithChildren, type ReactElement } from 'react'
 
 import { AppProviders } from '@/app/providers'
+import { createStoryProjectRuntimeEnvironment } from '@/app/project-runtime'
 import type { SceneRuntimeBridge } from '@/features/scene/api/scene-client'
 import { useSceneUiStore } from '@/features/scene/store/scene-ui-store'
 import type { SceneUiState } from '@/features/scene/store/scene-ui-store'
@@ -56,9 +57,10 @@ interface SceneStoryShellProps extends PropsWithChildren {
 
 export function SceneStoryShell({ children, frameClassName, parameters }: SceneStoryShellProps) {
   applySceneStoryEnvironment(parameters)
+  const storyEnvironment = useMemo(() => createStoryProjectRuntimeEnvironment(), [])
 
   return (
-    <AppProviders>
+    <AppProviders runtime={storyEnvironment.runtime} queryClient={storyEnvironment.queryClient}>
       <div className="min-h-screen bg-app p-6">
         <div className={frameClassName}>{children}</div>
       </div>

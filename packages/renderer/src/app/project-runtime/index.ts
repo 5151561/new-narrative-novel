@@ -1,5 +1,6 @@
 export * from './ProjectRuntimeProvider'
 export * from './local-storage-project-persistence'
 export * from './mock-project-runtime'
+export * from './project-runtime-test-utils'
 export * from './project-persistence'
 export * from './project-runtime'

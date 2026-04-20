@@ -36,7 +36,7 @@ import { createLocalStorageProjectPersistence } from './local-storage-project-pe
 import type { ProjectPersistedSnapshotV1, ProjectPersistencePort } from './project-persistence'
 import type { ProjectRuntime } from './project-runtime'
 
-interface CreateMockProjectRuntimeOptions {
+export interface CreateMockProjectRuntimeOptions {
   projectId?: string
   bookClient?: BookClient
   chapterClient?: ChapterClient

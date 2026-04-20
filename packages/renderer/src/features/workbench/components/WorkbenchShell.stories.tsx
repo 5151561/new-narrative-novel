@@ -1,7 +1,9 @@
+import { useMemo, type PropsWithChildren } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 
 import { useI18n } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
+import { createStoryProjectRuntimeEnvironment } from '@/app/project-runtime'
 import { Badge } from '@/components/ui/Badge'
 import { ChapterBinderPane } from '@/features/chapter/components/ChapterBinderPane'
 import { ChapterStructureInspectorPane } from '@/features/chapter/components/ChapterStructureInspectorPane'
@@ -10,6 +12,12 @@ import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '@
 import { TimelineList } from '@/components/ui/TimelineList'
 
 import { WorkbenchShell } from './WorkbenchShell'
+
+function WorkbenchStoryProviders({ children }: PropsWithChildren) {
+  const storyEnvironment = useMemo(() => createStoryProjectRuntimeEnvironment(), [])
+
+  return <AppProviders runtime={storyEnvironment.runtime} queryClient={storyEnvironment.queryClient}>{children}</AppProviders>
+}
 
 function WorkbenchShellStoryPreview() {
   const { locale } = useI18n()
@@ -88,9 +96,9 @@ const meta = {
     layout: 'fullscreen',
   },
   render: () => (
-    <AppProviders>
+    <WorkbenchStoryProviders>
       <WorkbenchShellStoryPreview />
-    </AppProviders>
+    </WorkbenchStoryProviders>
   ),
   args: {
     topBar: <></>,
@@ -268,8 +276,8 @@ function ChapterWorkbenchShellStoryPreview() {
 
 export const ChapterScope: Story = {
   render: () => (
-    <AppProviders>
+    <WorkbenchStoryProviders>
       <ChapterWorkbenchShellStoryPreview />
-    </AppProviders>
+    </WorkbenchStoryProviders>
   ),
 }

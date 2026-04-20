@@ -1,34 +1,20 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
-import type { PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
+import { createProjectRuntimeTestWrapper, createTestProjectRuntime } from '@/app/project-runtime'
 import type { BookExportArtifactRecord } from '../api/book-export-artifact-records'
+import { createBookClient } from '../api/book-client'
 import type { BookExportPreviewWorkspaceViewModel } from '../types/book-export-view-models'
 import type { BookReviewInboxViewModel, ReviewIssueViewModel } from '@/features/review/types/review-view-models'
 import { createBookExportArtifactSourceSignature } from '../lib/book-export-artifact-mappers'
 import { useBookExportArtifactWorkspaceQuery } from './useBookExportArtifactWorkspaceQuery'
 
-function createWrapper(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
-  return function Wrapper({ children }: PropsWithChildren) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <ProjectRuntimeProvider runtime={createMockProjectRuntime({
-          persistence: {
-            async loadProjectSnapshot() {
-              return null
-            },
-            async saveProjectSnapshot() {},
-            async clearProjectSnapshot() {},
-          },
-        })}
-        >
-          {children}
-        </ProjectRuntimeProvider>
-      </QueryClientProvider>
-    )
-  }
+function createWrapper(
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  runtime = createTestProjectRuntime(),
+) {
+  return createProjectRuntimeTestWrapper({ queryClient, runtime })
 }
 
 function createExportPreview(): BookExportPreviewWorkspaceViewModel {
@@ -278,6 +264,87 @@ describe('useBookExportArtifactWorkspaceQuery', () => {
     })
     expect(hook.result.current.artifactWorkspace?.latestArtifact?.isStale).toBe(true)
     expect(hook.result.current.artifactWorkspace?.artifacts[1]?.isStale).toBe(false)
+  })
+
+  it('uses the project runtime book client when no override is provided', async () => {
+    const exportPreview = createExportPreview()
+    const reviewInbox = createReviewInbox([createReviewIssue()])
+    const runtimeClient = {
+      getBookExportArtifacts: vi.fn(async () => [
+        createArtifactRecord(createBookExportArtifactSourceSignature(exportPreview), 'artifact-runtime'),
+      ]),
+    }
+    const runtime = createTestProjectRuntime({
+      bookClient: {
+        ...createBookClient(),
+        getBookExportArtifacts: runtimeClient.getBookExportArtifacts,
+      },
+    })
+    const hook = renderHook(
+      () =>
+        useBookExportArtifactWorkspaceQuery({
+          bookId: 'book-signal-arc',
+          exportPreview,
+          reviewInbox,
+        }),
+      {
+        wrapper: createWrapper(new QueryClient({ defaultOptions: { queries: { retry: false } } }), runtime),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.artifactWorkspace?.latestArtifact?.artifactId).toBe('artifact-runtime')
+    })
+
+    expect(runtimeClient.getBookExportArtifacts).toHaveBeenCalledWith({
+      bookId: 'book-signal-arc',
+      exportProfileId: 'profile-editorial-md',
+      checkpointId: undefined,
+    })
+  })
+
+  it('prefers the explicit book client over the project runtime client when both are provided', async () => {
+    const exportPreview = createExportPreview()
+    const reviewInbox = createReviewInbox([createReviewIssue()])
+    const runtimeClient = {
+      getBookExportArtifacts: vi.fn(async () => [createArtifactRecord('runtime-source-signature', 'artifact-runtime')]),
+    }
+    const customClient = {
+      getBookExportArtifacts: vi.fn(async () => [
+        createArtifactRecord(createBookExportArtifactSourceSignature(exportPreview), 'artifact-custom'),
+      ]),
+    }
+    const runtime = createTestProjectRuntime({
+      bookClient: {
+        ...createBookClient(),
+        getBookExportArtifacts: runtimeClient.getBookExportArtifacts,
+      },
+    })
+    const hook = renderHook(
+      () =>
+        useBookExportArtifactWorkspaceQuery(
+          {
+            bookId: 'book-signal-arc',
+            exportPreview,
+            reviewInbox,
+          },
+          { bookClient: customClient },
+        ),
+      {
+        wrapper: createWrapper(new QueryClient({ defaultOptions: { queries: { retry: false } } }), runtime),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.artifactWorkspace?.latestArtifact?.artifactId).toBe('artifact-custom')
+    })
+
+    expect(customClient.getBookExportArtifacts).toHaveBeenCalledWith({
+      bookId: 'book-signal-arc',
+      exportProfileId: 'profile-editorial-md',
+      checkpointId: undefined,
+    })
+    expect(runtimeClient.getBookExportArtifacts).not.toHaveBeenCalled()
   })
 
   it('uses review open blockers when deriving the artifact gate', async () => {

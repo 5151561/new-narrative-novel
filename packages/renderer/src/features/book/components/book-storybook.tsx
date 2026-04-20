@@ -2,6 +2,7 @@ import { useMemo, type PropsWithChildren } from 'react'
 
 import { useI18n, type Locale } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
+import { createStoryProjectRuntimeEnvironment } from '@/app/project-runtime'
 import type { BookWorkbenchActivityItem } from '@/features/book/hooks/useBookWorkbenchActivity'
 import type {
   BookStructureChapterViewModel,
@@ -648,8 +649,10 @@ export function BookStoryShell({
   children,
   frameClassName,
 }: PropsWithChildren<{ frameClassName: string }>) {
+  const storyEnvironment = useMemo(() => createStoryProjectRuntimeEnvironment(), [])
+
   return (
-    <AppProviders>
+    <AppProviders runtime={storyEnvironment.runtime} queryClient={storyEnvironment.queryClient}>
       <div className="min-h-[780px] bg-app p-6">
         <div className={frameClassName}>{children}</div>
       </div>

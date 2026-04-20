@@ -2,6 +2,7 @@ import { useMemo, type PropsWithChildren } from 'react'
 
 import { getChapterStructureViewLabel, useI18n, type Locale } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
+import { createStoryProjectRuntimeEnvironment } from '@/app/project-runtime'
 
 import {
   buildChapterDraftMissingStoryWorkspace,
@@ -22,8 +23,10 @@ export function ChapterStoryShell({
   children,
   frameClassName,
 }: PropsWithChildren<{ frameClassName: string }>) {
+  const storyEnvironment = useMemo(() => createStoryProjectRuntimeEnvironment(), [])
+
   return (
-    <AppProviders>
+    <AppProviders runtime={storyEnvironment.runtime} queryClient={storyEnvironment.queryClient}>
       <div className="min-h-[720px] bg-app p-6">
         <div className={frameClassName}>{children}</div>
       </div>

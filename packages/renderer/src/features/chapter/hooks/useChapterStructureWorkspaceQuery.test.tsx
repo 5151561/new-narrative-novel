@@ -4,7 +4,7 @@ import { useEffect, type PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { APP_LOCALE_STORAGE_KEY, I18nProvider, type Locale, useI18n } from '@/app/i18n'
-import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
+import { ProjectRuntimeProvider, createTestProjectRuntime } from '@/app/project-runtime'
 
 import { createChapterClient } from '../api/chapter-client'
 import { useChapterStructureWorkspaceQuery } from './useChapterStructureWorkspaceQuery'
@@ -27,15 +27,7 @@ describe('chapter query hooks', () => {
     }
   }
 
-  function wrapperFactory(runtime = createMockProjectRuntime({
-    persistence: {
-      async loadProjectSnapshot() {
-        return null
-      },
-      async saveProjectSnapshot() {},
-      async clearProjectSnapshot() {},
-    },
-  })) {
+  function wrapperFactory(runtime = createTestProjectRuntime()) {
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -104,15 +96,8 @@ describe('chapter query hooks', () => {
       ...baseChapterClient,
       getChapterStructureWorkspace: vi.fn(baseChapterClient.getChapterStructureWorkspace),
     }
-    const runtime = createMockProjectRuntime({
+    const runtime = createTestProjectRuntime({
       chapterClient: client,
-      persistence: {
-        async loadProjectSnapshot() {
-          return null
-        },
-        async saveProjectSnapshot() {},
-        async clearProjectSnapshot() {},
-      },
     })
     const { wrapper } = wrapperFactory(runtime)
     const hook = renderHook(() => useChapterStructureWorkspaceQuery(baseInput), {
@@ -124,6 +109,29 @@ describe('chapter query hooks', () => {
     })
 
     expect(client.getChapterStructureWorkspace).toHaveBeenCalledWith({ chapterId: 'chapter-signals-in-rain' })
+  })
+
+  it('prefers the explicit chapter client over the project runtime client when both are provided', async () => {
+    const runtimeClient = {
+      getChapterStructureWorkspace: vi.fn(createChapterClient().getChapterStructureWorkspace),
+    }
+    const customClient = {
+      getChapterStructureWorkspace: vi.fn(createChapterClient().getChapterStructureWorkspace),
+    }
+    const runtime = createTestProjectRuntime({
+      chapterClient: runtimeClient,
+    })
+    const { wrapper } = wrapperFactory(runtime)
+    const hook = renderHook(() => useChapterStructureWorkspaceQuery(baseInput, customClient), {
+      wrapper,
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(customClient.getChapterStructureWorkspace).toHaveBeenCalledWith({ chapterId: 'chapter-signals-in-rain' })
+    expect(runtimeClient.getChapterStructureWorkspace).not.toHaveBeenCalled()
   })
 
   it('hydrates the stable chapter workspace model and falls back to the first scene when selectedSceneId is missing', async () => {

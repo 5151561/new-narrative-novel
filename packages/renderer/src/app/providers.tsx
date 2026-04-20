@@ -5,11 +5,12 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 
 import { I18nProvider, useI18n } from './i18n'
 import { ProjectRuntimeProvider } from './project-runtime'
+import type { ProjectRuntime } from './project-runtime'
 import { bookQueryKeys } from '@/features/book/hooks/book-query-keys'
 import { chapterQueryKeys } from '@/features/chapter/hooks/chapter-query-keys'
 import { sceneQueryKeys } from '@/features/scene/hooks/scene-query-keys'
 
-const queryClient = new QueryClient({
+const defaultQueryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
@@ -32,11 +33,20 @@ function LocaleQuerySync() {
   return null
 }
 
-export function AppProviders({ children }: PropsWithChildren) {
+interface AppProvidersProps {
+  runtime?: ProjectRuntime
+  queryClient?: QueryClient
+}
+
+export function AppProviders({
+  children,
+  runtime,
+  queryClient = defaultQueryClient,
+}: PropsWithChildren<AppProvidersProps>) {
   return (
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
-        <ProjectRuntimeProvider>
+        <ProjectRuntimeProvider runtime={runtime}>
           <LocaleQuerySync />
           {children}
         </ProjectRuntimeProvider>

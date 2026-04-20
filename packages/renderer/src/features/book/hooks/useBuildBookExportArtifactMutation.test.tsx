@@ -1,9 +1,8 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import type { PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
+import { createProjectRuntimeTestWrapper, createTestProjectRuntime } from '@/app/project-runtime'
 import type { BookExportPreviewWorkspaceViewModel } from '../types/book-export-view-models'
 import type { BookReviewInboxViewModel, ReviewIssueViewModel } from '@/features/review/types/review-view-models'
 import {
@@ -16,23 +15,9 @@ import { useBuildBookExportArtifactMutation } from './useBuildBookExportArtifact
 
 function createWrapper(
   queryClient: QueryClient,
-  runtime = createMockProjectRuntime({
-    persistence: {
-      async loadProjectSnapshot() {
-        return null
-      },
-      async saveProjectSnapshot() {},
-      async clearProjectSnapshot() {},
-    },
-  }),
+  runtime = createTestProjectRuntime(),
 ) {
-  return function Wrapper({ children }: PropsWithChildren) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <ProjectRuntimeProvider runtime={runtime}>{children}</ProjectRuntimeProvider>
-      </QueryClientProvider>
-    )
-  }
+  return createProjectRuntimeTestWrapper({ queryClient, runtime })
 }
 
 function createQueryClient() {
@@ -218,17 +203,10 @@ describe('useBuildBookExportArtifactMutation', () => {
       createdAtLabel: '2026-04-20 14:00',
       createdByLabel: 'Runtime client',
     }))
-    const runtime = createMockProjectRuntime({
+    const runtime = createTestProjectRuntime({
       bookClient: {
         ...createBookClient(),
         buildBookExportArtifact,
-      },
-      persistence: {
-        async loadProjectSnapshot() {
-          return null
-        },
-        async saveProjectSnapshot() {},
-        async clearProjectSnapshot() {},
       },
     })
     const hook = renderHook(() => useBuildBookExportArtifactMutation(), {
@@ -244,6 +222,50 @@ describe('useBuildBookExportArtifactMutation', () => {
     })
 
     expect(buildBookExportArtifact).toHaveBeenCalledTimes(1)
+  })
+
+  it('prefers the explicit book client over the project runtime client when both are provided', async () => {
+    resetMockBookExportArtifactDb()
+    const runtimeBuildBookExportArtifact = vi.fn(async (input: Parameters<ReturnType<typeof createBookClient>['buildBookExportArtifact']>[0]) => ({
+      id: 'artifact-runtime-default',
+      ...input,
+      status: 'ready' as const,
+      createdAtLabel: '2026-04-20 14:00',
+      createdByLabel: 'Runtime client',
+    }))
+    const customBuildBookExportArtifact = vi.fn(async (input: Parameters<ReturnType<typeof createBookClient>['buildBookExportArtifact']>[0]) => ({
+      id: 'artifact-custom',
+      ...input,
+      status: 'ready' as const,
+      createdAtLabel: '2026-04-20 14:30',
+      createdByLabel: 'Custom client',
+    }))
+    const runtime = createTestProjectRuntime({
+      bookClient: {
+        ...createBookClient(),
+        buildBookExportArtifact: runtimeBuildBookExportArtifact,
+      },
+    })
+    const hook = renderHook(
+      () =>
+        useBuildBookExportArtifactMutation({
+          bookClient: {
+            buildBookExportArtifact: customBuildBookExportArtifact,
+          },
+        }),
+      { wrapper: createWrapper(createQueryClient(), runtime) },
+    )
+
+    await act(async () => {
+      await hook.result.current.mutateAsync({
+        exportPreview: createExportPreview(),
+        reviewInbox: createReviewInbox(),
+        format: 'markdown',
+      })
+    })
+
+    expect(customBuildBookExportArtifact).toHaveBeenCalledTimes(1)
+    expect(runtimeBuildBookExportArtifact).not.toHaveBeenCalled()
   })
 
   it('builds a ready artifact through the book client', async () => {
