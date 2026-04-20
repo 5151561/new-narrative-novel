@@ -2,6 +2,8 @@ import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { resetMockBookExportArtifactDb } from '@/features/book/api/mock-book-export-artifact-db'
+import { resetRememberedBookWorkbenchHandoffs } from '@/features/book/hooks/useBookWorkbenchActivity'
 import { resetMockChapterDb } from '@/features/chapter/api/mock-chapter-db'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 
@@ -17,8 +19,13 @@ function setSceneBridge(bridge: Record<string, unknown> | undefined) {
   Reflect.deleteProperty(window, 'narrativeRuntimeBridge')
 }
 
-async function renderFreshApp(search = '') {
-  vi.resetModules()
+async function renderFreshApp(
+  search = '',
+  { resetModules = true, primeRouteSearches = [] }: { resetModules?: boolean; primeRouteSearches?: string[] } = {},
+) {
+  if (resetModules) {
+    vi.resetModules()
+  }
   vi.doMock('@/features/scene/containers/SceneInspectorContainer', () => ({
     SceneInspectorContainer: ({ sceneId }: { sceneId: string }) => {
       const { useState } = require('react') as typeof import('react')
@@ -74,15 +81,23 @@ async function renderFreshApp(search = '') {
       )
     },
   }))
+  if (primeRouteSearches.length > 0) {
+    const routeModule = await import('@/features/workbench/hooks/useWorkbenchRouteState')
+    for (const routeSearch of primeRouteSearches) {
+      routeModule.readWorkbenchRouteState(routeSearch)
+    }
+  }
+
   window.history.replaceState({}, '', `/workbench${search}`)
 
-  const [{ default: App }, { AppProviders }] = await Promise.all([
+  const [{ default: App }, { AppProviders }, routeModule] = await Promise.all([
     import('./App'),
     import('./app/providers'),
+    import('@/features/workbench/hooks/useWorkbenchRouteState'),
   ])
 
   function RouteControl() {
-    const { replaceRoute } = useWorkbenchRouteState()
+    const { replaceRoute } = routeModule.useWorkbenchRouteState()
 
     latestReplaceRoute = replaceRoute
     return null
@@ -116,15 +131,70 @@ function setNavigatorLanguage(language: string) {
   })
 }
 
+function createReadyArtifactReviewInbox() {
+  return {
+    bookId: 'book-signal-arc',
+    title: 'Signal Arc',
+    selectedIssueId: null,
+    selectedIssue: null,
+    activeFilter: 'all',
+    activeStatusFilter: 'open',
+    issues: [],
+    filteredIssues: [],
+    groupedIssues: {
+      blockers: [],
+      warnings: [],
+      info: [],
+    },
+    counts: {
+      total: 0,
+      blockers: 0,
+      warnings: 0,
+      info: 0,
+      traceGaps: 0,
+      missingDrafts: 0,
+      compareDeltas: 0,
+      exportReadiness: 0,
+      branchReadiness: 0,
+      sceneProposals: 0,
+      open: 0,
+      reviewed: 0,
+      deferred: 0,
+      dismissed: 0,
+      stale: 0,
+      fixStarted: 0,
+      fixChecked: 0,
+      fixBlocked: 0,
+      fixStale: 0,
+    },
+    visibleOpenCount: 0,
+    selectedChapterIssueCount: 0,
+    annotationsByChapterId: {},
+  }
+}
+
 describe('App scene workbench', () => {
   afterEach(() => {
     vi.clearAllMocks()
+    vi.doUnmock('@/features/review/hooks/useBookReviewInboxQuery')
+    vi.doUnmock('@/features/book/api/book-client')
+    vi.doUnmock('@/features/book/hooks/useBookDraftWorkspaceQuery')
+    vi.doUnmock('@/features/book/hooks/useBookExportPreviewQuery')
+    vi.doUnmock('@/features/book/hooks/useBookExportArtifactWorkspaceQuery')
+    vi.doUnmock('/Users/changlepan/new-narrative-novel/packages/renderer/src/features/book/hooks/useBookExportArtifactWorkspaceQuery.ts')
+    vi.doUnmock('@/features/book/hooks/useBookManuscriptCompareQuery')
+    vi.doUnmock('./features/book/hooks/useBookExportArtifactWorkspaceQuery')
+    vi.doUnmock('./features/book/hooks/useBookDraftWorkspaceQuery')
+    vi.doUnmock('./features/book/hooks/useBookExportPreviewQuery')
+    vi.doUnmock('./features/book/hooks/useBookManuscriptCompareQuery')
     vi.unmock('@tanstack/react-query')
     setSceneBridge(undefined)
     latestReplaceRoute = null
     window.localStorage.clear()
     setNavigatorLanguage(originalNavigatorLanguage)
     resetMockChapterDb()
+    resetMockBookExportArtifactDb()
+    resetRememberedBookWorkbenchHandoffs()
   })
 
   it('restores scene execution route state from URL and keeps tab / beat / proposal in sync', async () => {
@@ -852,30 +922,166 @@ describe('App scene workbench', () => {
 
   it('supports scene -> book draft export -> scene without breaking dormant snapshots', async () => {
     const user = userEvent.setup()
+    vi.resetModules()
+
+    const [{ buildBookDraftExportStoryData }, artifactDb, bookClientModule] = await Promise.all([
+      import('@/features/book/components/book-draft-storybook'),
+      import('@/features/book/api/mock-book-export-artifact-db'),
+      import('@/features/book/api/book-client'),
+    ])
+    const { buildBookExportArtifactInput, buildBookExportArtifactWorkspace } = await import('@/features/book/lib/book-export-artifact-mappers')
+    artifactDb.resetMockBookExportArtifactDb()
+    vi.spyOn(bookClientModule.bookClient, 'getBookExportArtifacts').mockImplementation(async (input) =>
+      artifactDb.getMockBookExportArtifacts({
+        bookId: input.bookId,
+        exportProfileId: input.exportProfileId ?? undefined,
+        checkpointId: input.checkpointId ?? undefined,
+      }),
+    )
+    const buildBookExportArtifact = vi
+      .spyOn(bookClientModule.bookClient, 'buildBookExportArtifact')
+      .mockImplementation(async (input) => artifactDb.buildMockBookExportArtifact(input))
+    const readyExportData = buildBookDraftExportStoryData('en', {
+      variant: 'quiet-book',
+      checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      exportProfileId: 'export-archive-snapshot',
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+    const readyReviewInbox = createReadyArtifactReviewInbox()
+    const exportWorkspace = {
+      ...readyExportData.exportWorkspace,
+      bookId: 'book-signal-arc',
+      profile: {
+        ...readyExportData.exportWorkspace.profile,
+        bookId: 'book-signal-arc',
+      },
+    }
+    artifactDb.buildMockBookExportArtifact(
+      buildBookExportArtifactInput({
+        exportPreview: exportWorkspace,
+        reviewInbox: readyReviewInbox,
+        format: 'markdown',
+        checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      }),
+    )
+    const readyDraftWorkspaceQuery = () => ({
+      workspace: readyExportData.workspace,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+    const readyExportPreviewQuery = () => ({
+      exportWorkspace,
+      exportProfiles: readyExportData.exportProfiles,
+      selectedExportProfile: readyExportData.selectedExportProfile,
+      isLoading: false,
+      error: null,
+    })
+    const readyCompareQuery = () => ({
+      compareWorkspace: readyExportData.compare,
+      checkpoints: [],
+      selectedCheckpoint: null,
+      isLoading: false,
+      error: null,
+    })
+    const readyArtifactWorkspaceQuery = () => ({
+      artifactWorkspace: buildBookExportArtifactWorkspace({
+        exportPreview: exportWorkspace,
+        reviewInbox: readyReviewInbox,
+        artifactRecords: artifactDb.getMockBookExportArtifacts({
+          bookId: 'book-signal-arc',
+          exportProfileId: 'export-archive-snapshot',
+          checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+        }),
+        checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      }),
+      isLoading: false,
+      error: null,
+    })
+
+    vi.doMock('@/features/book/hooks/useBookDraftWorkspaceQuery', () => ({
+      useBookDraftWorkspaceQuery: readyDraftWorkspaceQuery,
+    }))
+    vi.doMock('./features/book/hooks/useBookDraftWorkspaceQuery', () => ({
+      useBookDraftWorkspaceQuery: readyDraftWorkspaceQuery,
+    }))
+    vi.doMock('@/features/book/hooks/useBookExportPreviewQuery', () => ({
+      useBookExportPreviewQuery: readyExportPreviewQuery,
+    }))
+    vi.doMock('./features/book/hooks/useBookExportPreviewQuery', () => ({
+      useBookExportPreviewQuery: readyExportPreviewQuery,
+    }))
+    vi.doMock('@/features/book/hooks/useBookManuscriptCompareQuery', () => ({
+      useBookManuscriptCompareQuery: readyCompareQuery,
+    }))
+    vi.doMock('./features/book/hooks/useBookManuscriptCompareQuery', () => ({
+      useBookManuscriptCompareQuery: readyCompareQuery,
+    }))
+    vi.doMock('/Users/changlepan/new-narrative-novel/packages/renderer/src/features/book/hooks/useBookExportArtifactWorkspaceQuery.ts', () => ({
+      useBookExportArtifactWorkspaceQuery: readyArtifactWorkspaceQuery,
+    }))
+    vi.doMock('@/features/review/hooks/useBookReviewInboxQuery', () => ({
+      useBookReviewInboxQuery: () => ({
+        inbox: readyReviewInbox,
+        isLoading: false,
+        error: null,
+        decisionError: null,
+        fixActionError: null,
+        isEmpty: true,
+      }),
+    }))
 
     await renderFreshApp(
       '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution&beatId=beat-bargain&proposalId=proposal-2',
+      { resetModules: false },
     )
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
 
     pushExternalRoute(
-      '?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=export&checkpointId=checkpoint-book-signal-arc-pr11-baseline&exportProfileId=export-review-packet&selectedChapterId=chapter-open-water-signals',
+      '?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=export&checkpointId=checkpoint-book-signal-arc-pr11-baseline&exportProfileId=export-archive-snapshot&selectedChapterId=chapter-open-water-signals',
     )
 
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search)
       expect(params.get('scope')).toBe('book')
+      expect(params.get('id')).toBe('book-signal-arc')
       expect(params.get('lens')).toBe('draft')
       expect(params.get('draftView')).toBe('export')
       expect(params.get('checkpointId')).toBe('checkpoint-book-signal-arc-pr11-baseline')
-      expect(params.get('exportProfileId')).toBe('export-review-packet')
+      expect(params.get('exportProfileId')).toBe('export-archive-snapshot')
       expect(params.get('selectedChapterId')).toBe('chapter-open-water-signals')
     })
 
-    expect(screen.queryByText('Book unavailable')).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Book export preview' }, { timeout: 5000 })).toBeInTheDocument()
+    const buildButton = screen.getByRole('button', { name: 'Build Markdown package' })
+    expect(buildButton).toBeEnabled()
 
-    await user.click(screen.getByRole('button', { name: 'Scene' }))
+    await user.click(buildButton)
+
+    await waitFor(() => {
+      expect(buildBookExportArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({
+          exportProfileId: 'export-archive-snapshot',
+          format: 'markdown',
+        }),
+      )
+    })
+    await user.click(screen.getByRole('button', { name: 'Plain text' }))
+    await user.click(screen.getByRole('button', { name: 'Markdown' }))
+    const artifactFilenameNodes = await screen.findAllByText(/export-archive-snapshot\.md/)
+    expect(artifactFilenameNodes.length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Narrative editor').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Built in mock export session').length).toBeGreaterThan(0)
+    expect(
+      await within(screen.getByRole('region', { name: 'Book draft bottom dock' })).findByText(
+        'Entered Export Preview',
+      ),
+    ).toBeInTheDocument()
+
+    act(() => {
+      window.history.back()
+    })
 
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search)
@@ -888,7 +1094,7 @@ describe('App scene workbench', () => {
     })
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
-  })
+  }, 15000)
 
   it('supports scene -> book draft branch -> scene without breaking dormant state', async () => {
     const user = userEvent.setup()

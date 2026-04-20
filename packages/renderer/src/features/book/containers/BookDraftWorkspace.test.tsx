@@ -12,9 +12,52 @@ import { reviewClient } from '@/features/review/api/review-client'
 import { reviewQueryKeys } from '@/features/review/hooks/review-query-keys'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 
+import { resetMockBookExportArtifactDb } from '../api/mock-book-export-artifact-db'
 import * as bookExperimentBranchQueryModule from '../hooks/useBookExperimentBranchQuery'
 import { resetRememberedBookWorkbenchHandoffs } from '../hooks/useBookWorkbenchActivity'
 import { BookDraftWorkspace } from './BookDraftWorkspace'
+
+function createReadyArtifactReviewInbox() {
+  return {
+    bookId: 'book-signal-arc',
+    title: 'Signal Arc',
+    selectedIssueId: null,
+    selectedIssue: null,
+    activeFilter: 'all',
+    activeStatusFilter: 'open',
+    issues: [],
+    filteredIssues: [],
+    groupedIssues: {
+      blockers: [],
+      warnings: [],
+      info: [],
+    },
+    counts: {
+      total: 0,
+      blockers: 0,
+      warnings: 0,
+      info: 0,
+      traceGaps: 0,
+      missingDrafts: 0,
+      compareDeltas: 0,
+      exportReadiness: 0,
+      branchReadiness: 0,
+      sceneProposals: 0,
+      open: 0,
+      reviewed: 0,
+      deferred: 0,
+      dismissed: 0,
+      stale: 0,
+      fixStarted: 0,
+      fixChecked: 0,
+      fixBlocked: 0,
+      fixStale: 0,
+    },
+    visibleOpenCount: 0,
+    selectedChapterIssueCount: 0,
+    annotationsByChapterId: {},
+  }
+}
 
 function BookRouteHarness() {
   const { route } = useWorkbenchRouteState()
@@ -33,9 +76,17 @@ function BookRouteHarness() {
 describe('BookDraftWorkspace', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.doUnmock('@/features/review/hooks/useBookReviewInboxQuery')
+    vi.doUnmock('@/features/book/hooks/useBookExportPreviewQuery')
+    vi.doUnmock('../hooks/useBookExportPreviewQuery')
+    vi.doUnmock('@/features/book/hooks/useBookExportArtifactWorkspaceQuery')
+    vi.doUnmock('../hooks/useBookExportArtifactWorkspaceQuery')
+    vi.unstubAllGlobals()
+    window.localStorage.clear()
     resetRememberedBookWorkbenchHandoffs()
     resetMockReviewDecisionDb()
     resetMockReviewFixActionDb()
+    resetMockBookExportArtifactDb()
   })
 
   it('keeps binder reader inspector and dock aligned to route.selectedChapterId and roundtrips through chapter draft', async () => {
@@ -298,6 +349,319 @@ describe('BookDraftWorkspace', () => {
       expect(params.get('checkpointId')).toBe('checkpoint-missing')
       expect(params.get('exportProfileId')).toBe('export-review-packet')
     })
+  })
+
+  it('shows artifact gate blocked and disables build when export readiness and review blockers are open', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=export&checkpointId=checkpoint-book-signal-arc-pr11-baseline&exportProfileId=export-review-packet&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Book export preview' })).toBeInTheDocument()
+    expect((await screen.findAllByText('Artifact build blocked')).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Build Markdown package' })).toBeDisabled()
+    expect(screen.getByText('Artifact builder')).toBeInTheDocument()
+    expect(screen.getByText('No artifact built yet')).toBeInTheDocument()
+
+    const bottomDock = screen.getByLabelText('Book draft bottom dock')
+    expect(within(bottomDock).getByText('Artifact readiness blockers')).toBeInTheDocument()
+    expect(within(bottomDock).getByText('Artifact review blockers')).toBeInTheDocument()
+  })
+
+  it('builds a ready markdown artifact, copies it, downloads it, and records dock activity', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    const createObjectURL = vi.fn(() => 'blob:book-export-artifact')
+    const revokeObjectURL = vi.fn()
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+
+    vi.resetModules()
+    const [{ buildBookDraftExportStoryData }, artifactDb, bookClientModule] = await Promise.all([
+      import('../components/book-draft-storybook'),
+      import('../api/mock-book-export-artifact-db'),
+      import('../api/book-client'),
+    ])
+    const { buildBookExportArtifactWorkspace } = await import('../lib/book-export-artifact-mappers')
+    artifactDb.resetMockBookExportArtifactDb()
+    vi.spyOn(bookClientModule.bookClient, 'getBookExportArtifacts').mockImplementation(async (input) =>
+      artifactDb.getMockBookExportArtifacts({
+        bookId: input.bookId,
+        exportProfileId: input.exportProfileId ?? undefined,
+        checkpointId: input.checkpointId ?? undefined,
+      }),
+    )
+    const buildBookExportArtifact = vi
+      .spyOn(bookClientModule.bookClient, 'buildBookExportArtifact')
+      .mockImplementation(async (input) => artifactDb.buildMockBookExportArtifact(input))
+    const readyExportData = buildBookDraftExportStoryData('en', {
+      variant: 'quiet-book',
+      checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      exportProfileId: 'export-archive-snapshot',
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+    const exportWorkspace = {
+      ...readyExportData.exportWorkspace,
+      bookId: 'book-signal-arc',
+      title: 'Signal Arc',
+      profile: {
+        ...readyExportData.exportWorkspace.profile,
+        bookId: 'book-signal-arc',
+      },
+    }
+    const readyReviewInbox = createReadyArtifactReviewInbox()
+
+    vi.doMock('@/features/review/hooks/useBookReviewInboxQuery', () => ({
+      useBookReviewInboxQuery: () => ({
+        inbox: readyReviewInbox,
+        isLoading: false,
+        error: null,
+        decisionError: null,
+        fixActionError: null,
+        isEmpty: true,
+      }),
+    }))
+    vi.doMock('@/features/book/hooks/useBookExportArtifactWorkspaceQuery', () => ({
+      useBookExportArtifactWorkspaceQuery: () => ({
+        artifactWorkspace: buildBookExportArtifactWorkspace({
+          exportPreview: exportWorkspace,
+          reviewInbox: readyReviewInbox,
+          artifactRecords: artifactDb.getMockBookExportArtifacts({
+            bookId: 'book-signal-arc',
+            exportProfileId: 'export-archive-snapshot',
+            checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+          }),
+          checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+        }),
+        isLoading: false,
+        error: null,
+      }),
+    }))
+    vi.doMock('../hooks/useBookExportArtifactWorkspaceQuery', () => ({
+      useBookExportArtifactWorkspaceQuery: () => ({
+        artifactWorkspace: buildBookExportArtifactWorkspace({
+          exportPreview: exportWorkspace,
+          reviewInbox: readyReviewInbox,
+          artifactRecords: artifactDb.getMockBookExportArtifacts({
+            bookId: 'book-signal-arc',
+            exportProfileId: 'export-archive-snapshot',
+            checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+          }),
+          checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+        }),
+        isLoading: false,
+        error: null,
+      }),
+    }))
+    vi.doMock('@/features/book/hooks/useBookExportPreviewQuery', () => ({
+      useBookExportPreviewQuery: () => ({
+        exportWorkspace,
+        exportProfiles: readyExportData.exportProfiles,
+        selectedExportProfile: readyExportData.selectedExportProfile,
+        isLoading: false,
+        error: null,
+      }),
+    }))
+    vi.doMock('../hooks/useBookExportPreviewQuery', () => ({
+      useBookExportPreviewQuery: () => ({
+        exportWorkspace,
+        exportProfiles: readyExportData.exportProfiles,
+        selectedExportProfile: readyExportData.selectedExportProfile,
+        isLoading: false,
+        error: null,
+      }),
+    }))
+    const [{ AppProviders: FreshAppProviders }, { BookDraftWorkspace: FreshBookDraftWorkspace }, routeModule] = await Promise.all([
+      import('@/app/providers'),
+      import('./BookDraftWorkspace'),
+      import('@/features/workbench/hooks/useWorkbenchRouteState'),
+    ])
+    function FreshBookRouteHarness() {
+      const { route } = routeModule.useWorkbenchRouteState()
+
+      return route.scope === 'book' ? <FreshBookDraftWorkspace /> : <div>Non-book scope</div>
+    }
+
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: createObjectURL,
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: revokeObjectURL,
+    })
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=export&checkpointId=checkpoint-book-signal-arc-pr11-baseline&exportProfileId=export-archive-snapshot&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <FreshAppProviders>
+        <FreshBookRouteHarness />
+      </FreshAppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Book export preview' })).toBeInTheDocument()
+    const buildButton = await screen.findByRole('button', { name: 'Build Markdown package' })
+    await waitFor(() => {
+      expect(buildButton).toBeEnabled()
+    })
+
+    await user.click(buildButton)
+
+    await waitFor(() => {
+      expect(buildBookExportArtifact).toHaveBeenCalledTimes(1)
+      expect(buildBookExportArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bookId: 'book-signal-arc',
+          exportProfileId: 'export-archive-snapshot',
+          format: 'markdown',
+        }),
+      )
+    })
+    await user.click(screen.getByRole('button', { name: 'Plain text' }))
+    await user.click(screen.getByRole('button', { name: 'Markdown' }))
+    expect((await screen.findAllByText('signal-arc-export-archive-snapshot.md')).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Narrative editor').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Current').length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: 'Copy package text' }))
+    await user.click(screen.getByRole('button', { name: 'Download .md' }))
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Signal Arc'))
+      expect(createObjectURL).toHaveBeenCalledTimes(1)
+      expect(anchorClick).toHaveBeenCalledTimes(1)
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:book-export-artifact')
+    })
+
+    const bottomDock = screen.getByLabelText('Book draft bottom dock')
+    await waitFor(() => {
+      expect(within(bottomDock).getByText(/Built Markdown package signal-arc-export-archive-snapshot\.md/)).toBeInTheDocument()
+      expect(within(bottomDock).getByText(/Copied artifact signal-arc-export-archive-snapshot\.md/)).toBeInTheDocument()
+      expect(within(bottomDock).getByText(/Downloaded artifact signal-arc-export-archive-snapshot\.md/)).toBeInTheDocument()
+    })
+  })
+
+  it('does not record copied artifact activity when clipboard write rejects', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockRejectedValue(new Error('Clipboard denied'))
+
+    vi.resetModules()
+    const [{ buildBookDraftArtifactStoryData, buildBookDraftExportStoryData }] = await Promise.all([
+      import('../components/book-draft-storybook'),
+    ])
+    const readyExportData = buildBookDraftExportStoryData('en', {
+      variant: 'quiet-book',
+      checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      exportProfileId: 'export-archive-snapshot',
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+    const artifactWorkspace = buildBookDraftArtifactStoryData('en', {
+      variant: 'quiet-book',
+      checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      exportProfileId: 'export-archive-snapshot',
+      selectedChapterId: 'chapter-open-water-signals',
+      artifactScenario: 'latest',
+    })
+    const readyReviewInbox = createReadyArtifactReviewInbox()
+
+    vi.doMock('@/features/review/hooks/useBookReviewInboxQuery', () => ({
+      useBookReviewInboxQuery: () => ({
+        inbox: readyReviewInbox,
+        isLoading: false,
+        error: null,
+        decisionError: null,
+        fixActionError: null,
+        isEmpty: true,
+      }),
+    }))
+    vi.doMock('@/features/book/hooks/useBookExportPreviewQuery', () => ({
+      useBookExportPreviewQuery: () => ({
+        exportWorkspace: readyExportData.exportWorkspace,
+        exportProfiles: readyExportData.exportProfiles,
+        selectedExportProfile: readyExportData.selectedExportProfile,
+        isLoading: false,
+        error: null,
+      }),
+    }))
+    vi.doMock('../hooks/useBookExportPreviewQuery', () => ({
+      useBookExportPreviewQuery: () => ({
+        exportWorkspace: readyExportData.exportWorkspace,
+        exportProfiles: readyExportData.exportProfiles,
+        selectedExportProfile: readyExportData.selectedExportProfile,
+        isLoading: false,
+        error: null,
+      }),
+    }))
+    vi.doMock('@/features/book/hooks/useBookExportArtifactWorkspaceQuery', () => ({
+      useBookExportArtifactWorkspaceQuery: () => ({
+        artifactWorkspace,
+        isLoading: false,
+        error: null,
+      }),
+    }))
+    vi.doMock('../hooks/useBookExportArtifactWorkspaceQuery', () => ({
+      useBookExportArtifactWorkspaceQuery: () => ({
+        artifactWorkspace,
+        isLoading: false,
+        error: null,
+      }),
+    }))
+
+    const [{ AppProviders: FreshAppProviders }, { BookDraftWorkspace: FreshBookDraftWorkspace }, routeModule] = await Promise.all([
+      import('@/app/providers'),
+      import('./BookDraftWorkspace'),
+      import('@/features/workbench/hooks/useWorkbenchRouteState'),
+    ])
+    function FreshBookRouteHarness() {
+      const { route } = routeModule.useWorkbenchRouteState()
+
+      return route.scope === 'book' ? <FreshBookDraftWorkspace /> : <div>Non-book scope</div>
+    }
+
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=export&checkpointId=checkpoint-book-signal-arc-pr11-baseline&exportProfileId=export-archive-snapshot&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <FreshAppProviders>
+        <FreshBookRouteHarness />
+      </FreshAppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Book export preview' })).toBeInTheDocument()
+    expect((await screen.findAllByText(/export-archive-snapshot\.md/)).length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: 'Copy package text' }))
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledTimes(1)
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const bottomDock = screen.getByLabelText('Book draft bottom dock')
+    expect(within(bottomDock).queryByText(/Copied artifact .*export-archive-snapshot\.md/)).not.toBeInTheDocument()
   })
 
   it('roundtrips a deep-linked branch session while keeping binder, branch panels, draft/export handoff, and dormant view state aligned', async () => {

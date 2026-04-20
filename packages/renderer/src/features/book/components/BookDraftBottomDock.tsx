@@ -17,11 +17,16 @@ export interface BookDraftExportProblems {
   traceGapCount: number
   missingDraftCount: number
   compareRegressionCount: number
+  artifactReadinessBlockerCount?: number
+  artifactReviewBlockerCount?: number
+  artifactWarningCount?: number
+  staleArtifactCount?: number
   blockers: BookDraftDockSummaryItem[]
   warnings: BookDraftDockSummaryItem[]
   traceGaps: BookDraftDockSummaryItem[]
   missingDrafts: BookDraftDockSummaryItem[]
   compareRegressions: BookDraftDockSummaryItem[]
+  artifactGateProblems?: BookDraftDockSummaryItem[]
 }
 
 export interface BookDraftBranchProblems {
@@ -139,6 +144,10 @@ function getActivityMeta(locale: 'en' | 'zh-CN', item: BookWorkbenchActivityItem
     return locale === 'zh-CN' ? '审阅' : 'Review'
   }
 
+  if (item.kind === 'export-artifact') {
+    return locale === 'zh-CN' ? 'Artifact' : 'Artifact'
+  }
+
   return locale === 'zh-CN' ? '跳转' : 'Handoff'
 }
 
@@ -182,6 +191,26 @@ export function BookDraftBottomDock({
             { id: 'export-trace-gaps', label: locale === 'zh-CN' ? '缺溯源场景' : 'Trace gaps', value: `${exportProblems.traceGapCount}` },
             { id: 'export-missing-drafts', label: locale === 'zh-CN' ? '缺稿场景' : 'Missing drafts', value: `${exportProblems.missingDraftCount}` },
             { id: 'export-compare-regressions', label: locale === 'zh-CN' ? 'Compare 回退' : 'Compare regressions', value: `${exportProblems.compareRegressionCount}` },
+            {
+              id: 'export-artifact-readiness-blockers',
+              label: locale === 'zh-CN' ? 'Artifact readiness blockers' : 'Artifact readiness blockers',
+              value: `${exportProblems.artifactReadinessBlockerCount ?? 0}`,
+            },
+            {
+              id: 'export-artifact-review-blockers',
+              label: locale === 'zh-CN' ? 'Artifact review blockers' : 'Artifact review blockers',
+              value: `${exportProblems.artifactReviewBlockerCount ?? 0}`,
+            },
+            {
+              id: 'export-artifact-warnings',
+              label: locale === 'zh-CN' ? 'Artifact gate warnings' : 'Artifact gate warnings',
+              value: `${exportProblems.artifactWarningCount ?? 0}`,
+            },
+            {
+              id: 'export-artifact-stale',
+              label: locale === 'zh-CN' ? 'Stale artifacts' : 'Stale artifacts',
+              value: `${exportProblems.staleArtifactCount ?? 0}`,
+            },
           ]
         : reviewMode
           ? [
@@ -500,6 +529,16 @@ export function BookDraftBottomDock({
               </>
             ) : exportMode ? (
               <>
+                <SupportList
+                  title={locale === 'zh-CN' ? 'Artifact gate' : 'Artifact gate'}
+                  items={exportProblems.artifactGateProblems ?? []}
+                  emptyTitle={locale === 'zh-CN' ? 'Artifact gate 已就绪' : 'Artifact gate ready'}
+                  emptyMessage={
+                    locale === 'zh-CN'
+                      ? '当前 artifact gate 没有额外阻塞或 stale 提示。'
+                      : 'The current artifact gate has no extra blockers or stale artifact warnings.'
+                  }
+                />
                 <SupportList
                   title={locale === 'zh-CN' ? '缺稿' : 'Missing drafts'}
                   items={exportProblems.missingDrafts}

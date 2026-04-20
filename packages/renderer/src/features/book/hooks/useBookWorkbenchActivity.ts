@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useI18n } from '@/app/i18n'
 import type { BookDraftView, BookLens, BookReviewFilter, BookStructureView } from '@/features/workbench/types/workbench-route'
+import type { BookExportArtifactFormat } from '../api/book-export-artifact-records'
 
 interface BookWorkbenchActivityChapter {
   id: string
@@ -73,6 +74,14 @@ export interface BookWorkbenchReviewFixActionEvent {
   note?: string
 }
 
+export interface BookWorkbenchExportArtifactEvent {
+  id: string
+  bookId: string
+  action: 'built' | 'copied' | 'downloaded'
+  filename?: string
+  format?: BookExportArtifactFormat
+}
+
 export type BookWorkbenchActivityKind =
   | 'lens'
   | 'view'
@@ -88,6 +97,7 @@ export type BookWorkbenchActivityKind =
   | 'review-decision'
   | 'review-fix-action'
   | 'review-source'
+  | 'export-artifact'
 
 interface BookWorkbenchActivityEntry {
   id: string
@@ -122,6 +132,9 @@ interface BookWorkbenchActivityEntry {
     | 'marked-source-blocked'
     | 'cleared-source-fix-action'
     | 'opened-review-source'
+    | 'built-export-artifact'
+    | 'copied-export-artifact'
+    | 'downloaded-export-artifact'
   lens?: BookLens
   view?: BookStructureView
   draftView?: BookDraftView
@@ -144,6 +157,8 @@ interface BookWorkbenchActivityEntry {
   reviewDecisionNote?: string
   reviewFixActionNote?: string
   reviewSourceActionLabel?: string
+  exportArtifactFilename?: string
+  exportArtifactFormat?: BookExportArtifactFormat
 }
 
 export interface BookWorkbenchActivityItem {
@@ -167,6 +182,7 @@ interface UseBookWorkbenchActivityOptions {
   selectedExportProfile?: BookWorkbenchExportProfile | null
   selectedChapter: BookWorkbenchActivityChapter | null
   latestHandoff?: BookWorkbenchHandoffEvent | null
+  activityRevision?: number
   maxItems?: number
 }
 
@@ -174,6 +190,7 @@ const rememberedBookHandoffsByBookId = new Map<string, BookWorkbenchActivityEntr
 const rememberedBookReviewSourceByBookId = new Map<string, BookWorkbenchActivityEntry[]>()
 const rememberedBookReviewDecisionByBookId = new Map<string, BookWorkbenchActivityEntry[]>()
 const rememberedBookReviewFixActionByBookId = new Map<string, BookWorkbenchActivityEntry[]>()
+const rememberedBookExportArtifactByBookId = new Map<string, BookWorkbenchActivityEntry[]>()
 
 function buildHandoffActivityEntry(event: BookWorkbenchHandoffEvent): BookWorkbenchActivityEntry {
   return {
@@ -265,11 +282,36 @@ export function rememberBookWorkbenchReviewFixAction(event: BookWorkbenchReviewF
   rememberedBookReviewFixActionByBookId.set(event.bookId, [nextEntry, ...dedupedEntries].slice(0, maxItems))
 }
 
+function buildExportArtifactActivityEntry(event: BookWorkbenchExportArtifactEvent): BookWorkbenchActivityEntry {
+  return {
+    id: event.id,
+    kind: 'export-artifact',
+    tone: event.action === 'built' ? 'accent' : 'neutral',
+    action:
+      event.action === 'built'
+        ? 'built-export-artifact'
+        : event.action === 'copied'
+          ? 'copied-export-artifact'
+          : 'downloaded-export-artifact',
+    exportArtifactFilename: event.filename,
+    exportArtifactFormat: event.format,
+  }
+}
+
+export function rememberBookWorkbenchExportArtifact(event: BookWorkbenchExportArtifactEvent, maxItems = 6) {
+  const nextEntry = buildExportArtifactActivityEntry(event)
+  const currentEntries = rememberedBookExportArtifactByBookId.get(event.bookId) ?? []
+  const dedupedEntries = currentEntries.filter((entry) => entry.id !== nextEntry.id)
+
+  rememberedBookExportArtifactByBookId.set(event.bookId, [nextEntry, ...dedupedEntries].slice(0, maxItems))
+}
+
 export function resetRememberedBookWorkbenchHandoffs() {
   rememberedBookHandoffsByBookId.clear()
   rememberedBookReviewSourceByBookId.clear()
   rememberedBookReviewDecisionByBookId.clear()
   rememberedBookReviewFixActionByBookId.clear()
+  rememberedBookExportArtifactByBookId.clear()
 }
 
 function getViewLabel(locale: 'en' | 'zh-CN', view: BookStructureView) {
@@ -321,7 +363,15 @@ function getReviewFilterLabel(locale: 'en' | 'zh-CN', filter: BookReviewFilter) 
               ? 'Export readiness'
               : filter === 'branch-readiness'
                 ? 'Branch readiness'
-                : 'Scene proposals'
+      : 'Scene proposals'
+}
+
+function getExportArtifactFormatLabel(locale: 'en' | 'zh-CN', format?: BookExportArtifactFormat) {
+  if (format === 'plain_text') {
+    return locale === 'zh-CN' ? 'Plain text' : 'plain text'
+  }
+
+  return 'Markdown'
 }
 
 function localizeActivityEntry(
@@ -611,6 +661,34 @@ function localizeActivityEntry(
     }
   }
 
+  if (entry.kind === 'export-artifact') {
+    const filename = entry.exportArtifactFilename ?? ''
+    const formatLabel = getExportArtifactFormatLabel(locale, entry.exportArtifactFormat)
+    const title =
+      entry.action === 'built-export-artifact'
+        ? locale === 'zh-CN'
+          ? `构建 ${formatLabel} package ${filename}`.trim()
+          : `Built ${formatLabel} package ${filename}`.trim()
+        : entry.action === 'copied-export-artifact'
+          ? locale === 'zh-CN'
+            ? `复制 artifact ${filename}`.trim()
+            : `Copied artifact ${filename}`.trim()
+          : locale === 'zh-CN'
+            ? `下载 artifact ${filename}`.trim()
+            : `Downloaded artifact ${filename}`.trim()
+
+    return {
+      id: entry.id,
+      kind: entry.kind,
+      tone: entry.tone,
+      title,
+      detail:
+        locale === 'zh-CN'
+          ? 'Artifact activity 是会话级记录；artifact 真源仍保留在 export artifact cache。'
+          : 'Artifact activity is session-local; the artifact record remains in the export artifact cache.',
+    }
+  }
+
   return {
     id: entry.id,
     kind: entry.kind,
@@ -633,6 +711,7 @@ export function useBookWorkbenchActivity({
   selectedExportProfile = null,
   selectedChapter,
   latestHandoff = null,
+  activityRevision = 0,
   maxItems = 6,
 }: UseBookWorkbenchActivityOptions) {
   const { locale } = useI18n()
@@ -653,6 +732,7 @@ export function useBookWorkbenchActivity({
   const seenReviewSourceIdsRef = useRef<Set<string>>(new Set())
   const seenReviewDecisionIdsRef = useRef<Set<string>>(new Set())
   const seenReviewFixActionIdsRef = useRef<Set<string>>(new Set())
+  const seenExportArtifactIdsRef = useRef<Set<string>>(new Set())
   const sequenceRef = useRef(0)
 
   useEffect(() => {
@@ -682,6 +762,7 @@ export function useBookWorkbenchActivity({
       seenReviewSourceIdsRef.current = new Set()
       seenReviewDecisionIdsRef.current = new Set()
       seenReviewFixActionIdsRef.current = new Set()
+      seenExportArtifactIdsRef.current = new Set()
       sequenceRef.current = 0
 
       if (localeChanged) {
@@ -932,6 +1013,16 @@ export function useBookWorkbenchActivity({
       seenReviewFixActionIdsRef.current.add(reviewFixActionEntry.id)
     }
 
+    const rememberedExportArtifactEntries = rememberedBookExportArtifactByBookId.get(bookId) ?? []
+    for (const exportArtifactEntry of [...rememberedExportArtifactEntries].reverse()) {
+      if (seenExportArtifactIdsRef.current.has(exportArtifactEntry.id)) {
+        continue
+      }
+
+      nextEntries.unshift(exportArtifactEntry)
+      seenExportArtifactIdsRef.current.add(exportArtifactEntry.id)
+    }
+
     if (nextEntries.length === 0) {
       return
     }
@@ -941,6 +1032,7 @@ export function useBookWorkbenchActivity({
     activeDraftView,
     activeLens,
     activeView,
+    activityRevision,
     bookId,
     latestHandoff,
     locale,

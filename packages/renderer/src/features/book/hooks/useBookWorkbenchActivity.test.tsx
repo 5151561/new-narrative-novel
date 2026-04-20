@@ -6,6 +6,7 @@ import { useI18n } from '@/app/i18n'
 import type { BookDraftView, BookReviewFilter, BookStructureView } from '@/features/workbench/types/workbench-route'
 
 import {
+  rememberBookWorkbenchExportArtifact,
   rememberBookWorkbenchReviewDecision,
   rememberBookWorkbenchReviewFixAction,
   rememberBookWorkbenchReviewSourceOpen,
@@ -998,6 +999,84 @@ describe('useBookWorkbenchActivity', () => {
     )
     expect(result.current.find((item) => item.title.includes('Marked source blocked'))?.detail).toBe(
       'Proposal owner has not confirmed the source.',
+    )
+  })
+
+  it('records export artifact built copied and downloaded activity copy', () => {
+    const initialProps: ActivityHookProps = {
+      activeView: 'sequence',
+      activeDraftView: 'export',
+      selectedChapter: {
+        id: 'chapter-open-water-signals',
+        title: 'Open Water Signals',
+        summary: 'Warehouse pressure should stay legible as the exit opens.',
+      },
+    }
+
+    const { result, rerender } = renderHook(
+      ({ activeDraftView = 'export', selectedChapter }: ActivityHookProps) =>
+        useBookWorkbenchActivity({
+          bookId: 'book-signal-arc',
+          activeLens: 'draft',
+          activeView: 'sequence',
+          activeDraftView,
+          selectedCheckpoint: null,
+          selectedExportProfile: {
+            id: 'export-review-packet',
+            title: 'Review Packet',
+            summary: 'Full manuscript packet with compare and trace context attached.',
+          },
+          selectedChapter,
+          maxItems: 10,
+        }),
+      {
+        initialProps,
+        wrapper: AppProviders,
+      },
+    )
+
+    act(() => {
+      rememberBookWorkbenchExportArtifact({
+        id: 'artifact-built',
+        bookId: 'book-signal-arc',
+        action: 'built',
+        filename: 'signal-arc-review-packet.md',
+        format: 'markdown',
+      })
+      rememberBookWorkbenchExportArtifact({
+        id: 'artifact-copied',
+        bookId: 'book-signal-arc',
+        action: 'copied',
+        filename: 'signal-arc-review-packet.md',
+        format: 'markdown',
+      })
+      rememberBookWorkbenchExportArtifact({
+        id: 'artifact-downloaded',
+        bookId: 'book-signal-arc',
+        action: 'downloaded',
+        filename: 'signal-arc-review-packet.md',
+        format: 'markdown',
+      })
+    })
+
+    rerender({
+      ...initialProps,
+      selectedChapter: {
+        id: 'chapter-open-water-signals',
+        title: 'Open Water Signals',
+        summary: 'Warehouse pressure should stay legible as the exit opens.',
+      },
+    })
+
+    expect(result.current.map((item) => item.title)).toEqual(
+      expect.arrayContaining([
+        'Built Markdown package signal-arc-review-packet.md',
+        'Copied artifact signal-arc-review-packet.md',
+        'Downloaded artifact signal-arc-review-packet.md',
+      ]),
+    )
+    expect(result.current.find((item) => item.title.includes('Built Markdown package'))?.detail).toBe(
+      'Artifact activity is session-local; the artifact record remains in the export artifact cache.',
     )
   })
 })

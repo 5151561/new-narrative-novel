@@ -11,6 +11,7 @@ import { buildCompareReviewAttention } from '../lib/book-draft-compare-presentat
 import type { BookExperimentBranchWorkspaceViewModel } from '../types/book-branch-view-models'
 import type { BookManuscriptCompareWorkspaceViewModel } from '../types/book-compare-view-models'
 import type { BookDraftInspectorViewModel } from '../types/book-draft-view-models'
+import type { BookExportArtifactWorkspaceViewModel } from '../types/book-export-artifact-view-models'
 import type { BookExportPreviewWorkspaceViewModel } from '../types/book-export-view-models'
 
 interface BookDraftInspectorPaneProps {
@@ -20,6 +21,7 @@ interface BookDraftInspectorPaneProps {
   compare?: BookManuscriptCompareWorkspaceViewModel | null
   branch?: BookExperimentBranchWorkspaceViewModel | null
   exportPreview?: BookExportPreviewWorkspaceViewModel | null
+  artifactWorkspace?: BookExportArtifactWorkspaceViewModel | null
   exportError?: Error | null
   reviewInbox?: BookReviewInboxViewModel | null
   onOpenReviewSource?: (handoff: ReviewSourceHandoffViewModel) => void
@@ -37,6 +39,7 @@ export function BookDraftInspectorPane({
   compare = null,
   branch = null,
   exportPreview = null,
+  artifactWorkspace = null,
   exportError = null,
   reviewInbox = null,
   onOpenReviewSource,
@@ -50,6 +53,7 @@ export function BookDraftInspectorPane({
   const branchBlockers = branch?.readiness.issues.filter((issue) => issue.severity === 'blocker') ?? []
   const branchWarnings = branch?.readiness.issues.filter((issue) => issue.severity === 'warning') ?? []
   const reviewSelectedIssue = reviewInbox?.selectedIssue ?? null
+  const latestArtifact = artifactWorkspace?.latestArtifact ?? null
 
   const getReviewSeverityBadge = (severity: ReviewIssueSeverity) => {
     if (severity === 'blocker') {
@@ -363,6 +367,59 @@ export function BookDraftInspectorPane({
                     { id: 'export-warnings', label: locale === 'zh-CN' ? '警告' : 'Warnings', value: `${exportPreview.readiness.warningCount}` },
                     { id: 'export-package-size', label: locale === 'zh-CN' ? '包估算' : 'Package estimate', value: exportPreview.packageSummary.estimatedPackageLabel },
                     { id: 'export-changed-scenes', label: locale === 'zh-CN' ? 'Compare 变更场景' : 'Compare changed scenes', value: `${exportPreview.totals.compareChangedSceneCount}` },
+                  ]}
+                />
+              </div>
+            </section>
+            <section className="rounded-md border border-line-soft bg-surface-2 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-base text-text-main">{locale === 'zh-CN' ? 'Artifact' : 'Artifact'}</h4>
+                {latestArtifact ? (
+                  <Badge tone={latestArtifact.isStale ? 'warn' : 'success'}>
+                    {latestArtifact.isStale ? (locale === 'zh-CN' ? '已过期' : 'Stale') : locale === 'zh-CN' ? '当前' : 'Current'}
+                  </Badge>
+                ) : null}
+              </div>
+              <div className="mt-3 space-y-3">
+                <div className="rounded-md border border-line-soft bg-surface-1 p-3">
+                  <p className="break-all text-sm font-medium text-text-main">
+                    {latestArtifact?.filename ?? (locale === 'zh-CN' ? '还没有 artifact' : 'No artifact yet')}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">
+                    {artifactWorkspace?.gate.label ??
+                      (locale === 'zh-CN' ? '等待 artifact gate 数据。' : 'Waiting for artifact gate data.')}
+                  </p>
+                </div>
+                <FactList
+                  items={[
+                    {
+                      id: 'artifact-currentness',
+                      label: locale === 'zh-CN' ? '状态' : 'Status',
+                      value: latestArtifact
+                        ? latestArtifact.isStale
+                          ? locale === 'zh-CN'
+                            ? '已过期'
+                            : 'Stale'
+                          : locale === 'zh-CN'
+                            ? '当前'
+                            : 'Current'
+                        : '—',
+                    },
+                    {
+                      id: 'artifact-gate-status',
+                      label: locale === 'zh-CN' ? 'Gate' : 'Gate',
+                      value: artifactWorkspace?.gate.label ?? '—',
+                    },
+                    {
+                      id: 'artifact-open-blockers',
+                      label: locale === 'zh-CN' ? 'Open blockers' : 'Open blockers',
+                      value: `${artifactWorkspace?.gate.openBlockerCount ?? 0}`,
+                    },
+                    {
+                      id: 'artifact-last-build',
+                      label: locale === 'zh-CN' ? 'Last build' : 'Last build',
+                      value: latestArtifact?.createdAtLabel ?? '—',
+                    },
                   ]}
                 />
               </div>

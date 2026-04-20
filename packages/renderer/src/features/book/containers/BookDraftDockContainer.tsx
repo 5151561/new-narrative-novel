@@ -14,6 +14,7 @@ import { buildBookDraftCompareProblems } from '../lib/book-draft-compare-present
 import type { BookExperimentBranchWorkspaceViewModel } from '../types/book-branch-view-models'
 import type { BookManuscriptCompareWorkspaceViewModel } from '../types/book-compare-view-models'
 import type { BookDraftWorkspaceViewModel } from '../types/book-draft-view-models'
+import type { BookExportArtifactWorkspaceViewModel } from '../types/book-export-artifact-view-models'
 import type { BookExportPreviewWorkspaceViewModel } from '../types/book-export-view-models'
 
 interface BookDraftDockContainerProps {
@@ -22,12 +23,18 @@ interface BookDraftDockContainerProps {
   compare?: BookManuscriptCompareWorkspaceViewModel | null
   branch?: BookExperimentBranchWorkspaceViewModel | null
   exportPreview?: BookExportPreviewWorkspaceViewModel | null
+  artifactWorkspace?: BookExportArtifactWorkspaceViewModel | null
   reviewInbox?: BookReviewInboxViewModel | null
   exportError?: Error | null
   latestHandoff?: BookWorkbenchHandoffEvent | null
+  activityRevision?: number
 }
 
-function buildExportProblems(exportPreview: BookExportPreviewWorkspaceViewModel | null): BookDraftExportProblems | null {
+function buildExportProblems(
+  exportPreview: BookExportPreviewWorkspaceViewModel | null,
+  artifactWorkspace: BookExportArtifactWorkspaceViewModel | null,
+  locale: 'en' | 'zh-CN',
+): BookDraftExportProblems | null {
   if (!exportPreview) {
     return null
   }
@@ -37,12 +44,47 @@ function buildExportProblems(exportPreview: BookExportPreviewWorkspaceViewModel 
   const traceGaps = exportPreview.readiness.issues.filter((issue) => issue.kind === 'trace_gap')
   const missingDrafts = exportPreview.readiness.issues.filter((issue) => issue.kind === 'missing_draft')
   const compareRegressions = exportPreview.readiness.issues.filter((issue) => issue.kind === 'compare_regression')
+  const artifactReadinessBlockers =
+    artifactWorkspace?.gate.reasons.filter((reason) => reason.severity === 'blocker' && reason.source === 'export-readiness') ?? []
+  const artifactReviewBlockers =
+    artifactWorkspace?.gate.reasons.filter((reason) => reason.severity === 'blocker' && reason.source === 'review-open-blocker') ?? []
+  const artifactWarnings = artifactWorkspace?.gate.reasons.filter((reason) => reason.severity === 'warning') ?? []
+  const staleArtifact = artifactWorkspace?.latestArtifact?.isStale ? artifactWorkspace.latestArtifact : null
   const toSummaryItems = (issues: typeof blockers) =>
     issues.map((issue) => ({
       chapterId: `${issue.chapterId ?? 'export'}:${issue.id}`,
       title: issue.chapterTitle ?? exportPreview.title,
       detail: issue.detail,
     }))
+  const artifactGateProblems = [
+    ...artifactReadinessBlockers.map((reason, index) => ({
+      chapterId: `artifact-readiness:${reason.id}:${index}`,
+      title: locale === 'zh-CN' ? 'Artifact blocked by export readiness' : 'Artifact blocked by export readiness',
+      detail: reason.title,
+    })),
+    ...artifactReviewBlockers.map((reason, index) => ({
+      chapterId: `artifact-review:${reason.id}:${index}`,
+      title: locale === 'zh-CN' ? 'Artifact blocked by review open blockers' : 'Artifact blocked by review open blockers',
+      detail: reason.detail,
+    })),
+    ...artifactWarnings.map((reason, index) => ({
+      chapterId: `artifact-warning:${reason.id}:${index}`,
+      title: locale === 'zh-CN' ? 'Artifact gate needs attention' : 'Artifact gate needs attention',
+      detail: reason.detail || reason.title,
+    })),
+    ...(staleArtifact
+      ? [
+          {
+            chapterId: `artifact-stale:${staleArtifact.artifactId}`,
+            title: locale === 'zh-CN' ? 'Latest artifact stale' : 'Latest artifact stale',
+            detail:
+              locale === 'zh-CN'
+                ? `${staleArtifact.filename} no longer matches the current export source.`
+                : `${staleArtifact.filename} no longer matches the current export source.`,
+          },
+        ]
+      : []),
+  ]
 
   return {
     blockerCount: blockers.length,
@@ -50,11 +92,16 @@ function buildExportProblems(exportPreview: BookExportPreviewWorkspaceViewModel 
     traceGapCount: traceGaps.length,
     missingDraftCount: missingDrafts.length,
     compareRegressionCount: compareRegressions.length,
+    artifactReadinessBlockerCount: artifactReadinessBlockers.length,
+    artifactReviewBlockerCount: artifactReviewBlockers.length,
+    artifactWarningCount: artifactWarnings.length,
+    staleArtifactCount: staleArtifact ? 1 : 0,
     blockers: toSummaryItems(blockers),
     warnings: toSummaryItems(warnings),
     traceGaps: toSummaryItems(traceGaps),
     missingDrafts: toSummaryItems(missingDrafts),
     compareRegressions: toSummaryItems(compareRegressions),
+    artifactGateProblems,
   }
 }
 
@@ -165,9 +212,11 @@ export function BookDraftDockContainer({
   compare = null,
   branch = null,
   exportPreview = null,
+  artifactWorkspace = null,
   reviewInbox = null,
   exportError = null,
   latestHandoff = null,
+  activityRevision = 0,
 }: BookDraftDockContainerProps) {
   const { locale } = useI18n()
   const selectedChapter =
@@ -234,6 +283,7 @@ export function BookDraftDockContainer({
           }
         : null,
     latestHandoff,
+    activityRevision,
     selectedChapter,
   })
 
@@ -244,7 +294,7 @@ export function BookDraftDockContainer({
       activeDraftView={activeDraftView}
       compareProblems={buildBookDraftCompareProblems(compare, locale)}
       branchProblems={buildBranchProblems(branch, locale)}
-      exportProblems={buildExportProblems(exportPreview)}
+      exportProblems={buildExportProblems(exportPreview, artifactWorkspace, locale)}
       reviewProblems={buildReviewProblems(reviewInbox)}
       exportError={exportError}
     />

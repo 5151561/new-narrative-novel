@@ -229,6 +229,129 @@ describe('BookDraftBottomDock', () => {
     expect(screen.getByText('Selected export profile Submission Preview')).toBeInTheDocument()
   })
 
+  it('shows export artifact gate problems without replacing export readiness problems', () => {
+    render(
+      <AppProviders>
+        <BookDraftBottomDock
+          summary={{
+            missingDraftChapterCount: 1,
+            missingTraceChapterCount: 1,
+            warningsChapterCount: 2,
+            queuedRevisionChapterCount: 1,
+            highestPressureChapters: [],
+            missingDraftChapters: [],
+            missingTraceChapters: [],
+            warningsChapters: [],
+            queuedRevisionChapters: [],
+          }}
+          activity={[
+            {
+              id: 'artifact-built',
+              kind: 'export-artifact',
+              title: 'Built Markdown package signal-arc-review-packet.md',
+              detail: 'Artifact activity is session-local; the artifact record remains in the export artifact cache.',
+              tone: 'accent',
+            },
+          ]}
+          activeDraftView="export"
+          exportProblems={{
+            blockerCount: 1,
+            warningCount: 1,
+            traceGapCount: 1,
+            missingDraftCount: 1,
+            compareRegressionCount: 0,
+            artifactReadinessBlockerCount: 1,
+            artifactReviewBlockerCount: 2,
+            staleArtifactCount: 1,
+            blockers: [{ chapterId: 'chapter-signals-in-rain:export-blocker', title: 'Signals in Rain', detail: 'Departure Bell still needs current draft prose.' }],
+            warnings: [{ chapterId: 'chapter-open-water-signals:export-warning', title: 'Open Water Signals', detail: 'Dawn Slip still lacks trace coverage.' }],
+            traceGaps: [{ chapterId: 'chapter-open-water-signals:trace-gap', title: 'Open Water Signals', detail: 'Dawn Slip still lacks trace coverage.' }],
+            missingDrafts: [{ chapterId: 'chapter-signals-in-rain:missing-draft', title: 'Signals in Rain', detail: 'Departure Bell is still missing current draft prose.' }],
+            compareRegressions: [],
+            artifactGateProblems: [
+              {
+                chapterId: 'artifact:readiness',
+                title: 'Artifact blocked by export readiness',
+                detail: 'Draft coverage incomplete',
+              },
+              {
+                chapterId: 'artifact:review-open-blockers',
+                title: 'Artifact blocked by review open blockers',
+                detail: '2 review blockers still need decisions before the artifact can be built.',
+              },
+              {
+                chapterId: 'artifact:stale',
+                title: 'Latest artifact stale',
+                detail: 'signal-arc-review-packet.md no longer matches the current export source.',
+              },
+            ],
+          }}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getAllByText('Blockers').length).toBeGreaterThan(0)
+    expect(screen.getByText('Artifact readiness blockers')).toBeInTheDocument()
+    expect(screen.getByText('Artifact review blockers')).toBeInTheDocument()
+    expect(screen.getByText('Stale artifacts')).toBeInTheDocument()
+    expect(screen.getByText('Artifact gate')).toBeInTheDocument()
+    expect(screen.getByText('Artifact blocked by export readiness')).toBeInTheDocument()
+    expect(screen.getByText('Artifact blocked by review open blockers')).toBeInTheDocument()
+    expect(screen.getByText('Latest artifact stale')).toBeInTheDocument()
+    expect(screen.getByText('Built Markdown package signal-arc-review-packet.md')).toBeInTheDocument()
+  })
+
+  it('shows artifact gate attention instead of ready when warning reasons are present', () => {
+    render(
+      <AppProviders>
+        <BookDraftBottomDock
+          summary={{
+            missingDraftChapterCount: 0,
+            missingTraceChapterCount: 0,
+            warningsChapterCount: 0,
+            queuedRevisionChapterCount: 0,
+            highestPressureChapters: [],
+            missingDraftChapters: [],
+            missingTraceChapters: [],
+            warningsChapters: [],
+            queuedRevisionChapters: [],
+          }}
+          activity={[]}
+          activeDraftView="export"
+          exportProblems={{
+            blockerCount: 0,
+            warningCount: 0,
+            traceGapCount: 0,
+            missingDraftCount: 0,
+            compareRegressionCount: 0,
+            artifactReadinessBlockerCount: 0,
+            artifactReviewBlockerCount: 0,
+            artifactWarningCount: 1,
+            staleArtifactCount: 0,
+            blockers: [],
+            warnings: [],
+            traceGaps: [],
+            missingDrafts: [],
+            compareRegressions: [],
+            artifactGateProblems: [
+              {
+                chapterId: 'artifact-warning:attention',
+                title: 'Artifact gate needs attention',
+                detail: 'Latest artifact is stale against the current export source.',
+              },
+            ],
+          }}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Artifact gate warnings')).toBeInTheDocument()
+    expect(screen.getByText('Artifact gate')).toBeInTheDocument()
+    expect(screen.getByText('Artifact gate needs attention')).toBeInTheDocument()
+    expect(screen.getByText('Latest artifact is stale against the current export source.')).toBeInTheDocument()
+    expect(screen.queryByText('Artifact gate ready')).not.toBeInTheDocument()
+  })
+
   it('shows an export-baseline error state instead of generic manuscript support when export mode is broken', () => {
     render(
       <AppProviders>

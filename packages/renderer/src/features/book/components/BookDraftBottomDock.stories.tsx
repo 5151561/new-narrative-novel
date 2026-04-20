@@ -7,6 +7,7 @@ import {
 } from './book-storybook'
 import { useI18n } from '@/app/i18n'
 import {
+  buildBookDraftArtifactStoryData,
   buildBookDraftBranchProblemsStoryData,
   buildBookDraftBranchStoryData,
   buildBookDraftCompareStoryData,
@@ -17,6 +18,7 @@ import {
   useLocalizedBookDraftWorkspace,
 } from './book-draft-storybook'
 import type { BookDraftExportProblems } from './BookDraftBottomDock'
+import type { BookExportArtifactWorkspaceViewModel } from '../types/book-export-artifact-view-models'
 import type { BookExportPreviewWorkspaceViewModel } from '../types/book-export-view-models'
 
 interface BookDraftBottomDockStoryProps {
@@ -35,9 +37,13 @@ interface BookDraftBottomDockStoryProps {
     stale?: boolean
   }>
   draftView?: 'read' | 'compare' | 'export' | 'branch' | 'review'
+  artifactScenario?: 'empty' | 'latest' | 'stale'
 }
 
-function buildExportProblems(exportPreview: BookExportPreviewWorkspaceViewModel | null): BookDraftExportProblems | null {
+function buildExportProblems(
+  exportPreview: BookExportPreviewWorkspaceViewModel | null,
+  artifactWorkspace: BookExportArtifactWorkspaceViewModel | null,
+): BookDraftExportProblems | null {
   if (!exportPreview) {
     return null
   }
@@ -47,6 +53,12 @@ function buildExportProblems(exportPreview: BookExportPreviewWorkspaceViewModel 
   const traceGaps = exportPreview.readiness.issues.filter((issue) => issue.kind === 'trace_gap')
   const missingDrafts = exportPreview.readiness.issues.filter((issue) => issue.kind === 'missing_draft')
   const compareRegressions = exportPreview.readiness.issues.filter((issue) => issue.kind === 'compare_regression')
+  const artifactReadinessBlockers =
+    artifactWorkspace?.gate.reasons.filter((reason) => reason.severity === 'blocker' && reason.source === 'export-readiness') ?? []
+  const artifactReviewBlockers =
+    artifactWorkspace?.gate.reasons.filter((reason) => reason.severity === 'blocker' && reason.source === 'review-open-blocker') ?? []
+  const artifactWarnings = artifactWorkspace?.gate.reasons.filter((reason) => reason.severity === 'warning') ?? []
+  const staleArtifact = artifactWorkspace?.latestArtifact?.isStale ? artifactWorkspace.latestArtifact : null
   const toItems = (issues: typeof blockers) =>
     issues.map((issue) => ({
       chapterId: issue.id,
@@ -60,11 +72,41 @@ function buildExportProblems(exportPreview: BookExportPreviewWorkspaceViewModel 
     traceGapCount: traceGaps.length,
     missingDraftCount: missingDrafts.length,
     compareRegressionCount: compareRegressions.length,
+    artifactReadinessBlockerCount: artifactReadinessBlockers.length,
+    artifactReviewBlockerCount: artifactReviewBlockers.length,
+    artifactWarningCount: artifactWarnings.length,
+    staleArtifactCount: staleArtifact ? 1 : 0,
     blockers: toItems(blockers),
     warnings: toItems(warnings),
     traceGaps: toItems(traceGaps),
     missingDrafts: toItems(missingDrafts),
     compareRegressions: toItems(compareRegressions),
+    artifactGateProblems: [
+      ...artifactReadinessBlockers.map((reason, index) => ({
+        chapterId: `artifact-readiness:${reason.id}:${index}`,
+        title: 'Artifact blocked by export readiness',
+        detail: reason.title,
+      })),
+      ...artifactReviewBlockers.map((reason, index) => ({
+        chapterId: `artifact-review:${reason.id}:${index}`,
+        title: 'Artifact blocked by review open blockers',
+        detail: reason.detail,
+      })),
+      ...artifactWarnings.map((reason, index) => ({
+        chapterId: `artifact-warning:${reason.id}:${index}`,
+        title: 'Artifact gate needs attention',
+        detail: reason.detail || reason.title,
+      })),
+      ...(staleArtifact
+        ? [
+            {
+              chapterId: `artifact-stale:${staleArtifact.artifactId}`,
+              title: 'Latest artifact stale',
+              detail: `${staleArtifact.filename} no longer matches the current export source.`,
+            },
+          ]
+        : []),
+    ],
   }
 }
 
@@ -79,12 +121,17 @@ function StoryComponent({
   reviewStatusFilter = 'open',
   decisionStates = [],
   draftView = 'read',
+  artifactScenario = 'latest',
 }: BookDraftBottomDockStoryProps) {
   const { locale } = useI18n()
   const workspace = useLocalizedBookDraftWorkspace({ variant, selectedChapterId })
   const compareData = buildBookDraftCompareStoryData(locale, { variant, selectedChapterId, checkpointId })
   const branchData = buildBookDraftBranchStoryData(locale, { variant, selectedChapterId, branchId, branchBaseline, checkpointId })
   const exportData = buildBookDraftExportStoryData(locale, { variant, selectedChapterId, checkpointId, exportProfileId })
+  const artifactWorkspace =
+    draftView === 'export'
+      ? buildBookDraftArtifactStoryData(locale, { variant, selectedChapterId, checkpointId, exportProfileId, artifactScenario })
+      : null
   const reviewData = buildBookDraftReviewStoryData(locale, {
     variant,
     selectedChapterId,
@@ -121,7 +168,7 @@ function StoryComponent({
       activeDraftView={draftView}
       compareProblems={draftView === 'compare' ? compareData.compareProblems : null}
       branchProblems={draftView === 'branch' ? buildBookDraftBranchProblemsStoryData(locale, branchData.branchWorkspace) : null}
-      exportProblems={draftView === 'export' ? buildExportProblems(exportData.exportWorkspace) : null}
+      exportProblems={draftView === 'export' ? buildExportProblems(exportData.exportWorkspace, artifactWorkspace) : null}
       reviewProblems={draftView === 'review' ? buildBookDraftReviewProblemsStoryData(reviewData.reviewInbox) : null}
     />
   )
@@ -201,12 +248,33 @@ export const ExportWarningsOnly: Story = {
   },
 }
 
+export const ExportArtifactGateAttention: Story = {
+  args: {
+    draftView: 'export',
+    variant: 'quiet-book',
+    checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+    exportProfileId: 'export-archive-snapshot',
+    selectedChapterId: 'chapter-open-water-signals',
+    artifactScenario: 'empty',
+  },
+}
+
 export const ExportReady: Story = {
   args: {
     draftView: 'export',
     variant: 'quiet-book',
     checkpointId: 'checkpoint-book-signal-arc-quiet-pass',
     exportProfileId: 'export-review-packet',
+  },
+}
+
+export const ExportLatestArtifactStale: Story = {
+  args: {
+    draftView: 'export',
+    variant: 'quiet-book',
+    checkpointId: 'checkpoint-book-signal-arc-quiet-pass',
+    exportProfileId: 'export-review-packet',
+    artifactScenario: 'stale',
   },
 }
 

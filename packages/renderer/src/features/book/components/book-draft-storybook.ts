@@ -11,6 +11,10 @@ import type { ReviewIssueFixActionRecord } from '@/features/review/api/review-fi
 import { buildBookReviewInboxViewModel } from '@/features/review/lib/book-review-inbox-mappers'
 import type { BookReviewInboxViewModel } from '@/features/review/types/review-view-models'
 
+import type {
+  BookExportArtifactRecord,
+  BuildBookExportArtifactInput,
+} from '../api/book-export-artifact-records'
 import {
   DEFAULT_BOOK_EXPORT_PROFILE_ID,
   mockBookExportProfileSeeds,
@@ -24,6 +28,11 @@ import {
   buildBookExperimentBranchWorkspace,
   normalizeBookExperimentBranch,
 } from '../lib/book-experiment-branch-mappers'
+import {
+  buildBookExportArtifactInput,
+  buildBookExportArtifactWorkspace,
+} from '../lib/book-export-artifact-mappers'
+import type { BookExportArtifactWorkspaceViewModel } from '../types/book-export-artifact-view-models'
 import {
   buildBookExportPreviewWorkspace,
   normalizeBookExportProfile,
@@ -540,6 +549,60 @@ export function buildBookDraftExportStoryData(
   }
 }
 
+function toBookDraftArtifactStoryRecord(
+  input: BuildBookExportArtifactInput,
+  overrides?: Partial<BookExportArtifactRecord>,
+): BookExportArtifactRecord {
+  return {
+    ...input,
+    id: overrides?.id ?? `story-export-artifact-${input.format}`,
+    createdAtLabel: overrides?.createdAtLabel ?? '2026-04-20 10:15',
+    createdByLabel: overrides?.createdByLabel ?? 'Story builder',
+    sourceSignature: overrides?.sourceSignature ?? input.sourceSignature,
+  }
+}
+
+export function buildBookDraftArtifactStoryData(
+  locale: Locale,
+  options?: {
+    variant?: BookStoryVariant
+    selectedChapterId?: string
+    checkpointId?: string
+    exportProfileId?: string
+    artifactScenario?: 'empty' | 'latest' | 'stale'
+  },
+): BookExportArtifactWorkspaceViewModel {
+  const exportData = buildBookDraftExportStoryData(locale, options)
+  const reviewData = buildBookDraftReviewStoryData(locale, {
+    variant: options?.variant,
+    selectedChapterId: options?.selectedChapterId,
+    checkpointId: options?.checkpointId,
+    exportProfileId: options?.exportProfileId,
+  })
+  const input = buildBookExportArtifactInput({
+    exportPreview: exportData.exportWorkspace,
+    reviewInbox: reviewData.reviewInbox,
+    format: 'markdown',
+    checkpointId: options?.checkpointId ?? DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+  })
+  const records =
+    options?.artifactScenario === 'latest' || options?.artifactScenario === 'stale'
+      ? [
+          toBookDraftArtifactStoryRecord(input, {
+            id: 'story-export-artifact-latest',
+            sourceSignature: options.artifactScenario === 'stale' ? 'story-stale-source-signature' : input.sourceSignature,
+          }),
+        ]
+      : []
+
+  return buildBookExportArtifactWorkspace({
+    exportPreview: exportData.exportWorkspace,
+    reviewInbox: reviewData.reviewInbox,
+    artifactRecords: records,
+    checkpointId: options?.checkpointId ?? DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+  })
+}
+
 export function buildBookDraftBranchStoryData(
   locale: Locale,
   options?: {
@@ -921,7 +984,20 @@ export function buildBookDraftStoryActivity(
         tone: 'neutral',
       },
       {
-        id: 'chapter-2',
+        id: 'export-artifact-2',
+        kind: 'export-artifact',
+        title:
+          locale === 'zh-CN'
+            ? '构建 Markdown package signal-arc-review-packet.md'
+            : 'Built Markdown package signal-arc-review-packet.md',
+        detail:
+          locale === 'zh-CN'
+            ? 'Artifact activity 是会话级记录；artifact 真源仍保留在 export artifact cache。'
+            : 'Artifact activity is session-local; the artifact record remains in the export artifact cache.',
+        tone: 'accent',
+      },
+      {
+        id: 'chapter-3',
         kind: 'chapter',
         title: locale === 'zh-CN' ? `聚焦${workspace.selectedChapter?.title ?? workspace.title}` : `Focused ${workspace.selectedChapter?.title ?? workspace.title}`,
         detail: workspace.selectedChapter?.summary ?? workspace.summary,

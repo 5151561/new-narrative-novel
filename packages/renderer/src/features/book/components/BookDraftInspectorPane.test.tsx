@@ -9,6 +9,7 @@ import type { BookReviewInboxViewModel, ReviewIssueViewModel } from '@/features/
 import type { BookExperimentBranchWorkspaceViewModel } from '../types/book-branch-view-models'
 import type { BookManuscriptCompareWorkspaceViewModel } from '../types/book-compare-view-models'
 import type { BookDraftInspectorViewModel } from '../types/book-draft-view-models'
+import type { BookExportArtifactWorkspaceViewModel } from '../types/book-export-artifact-view-models'
 import type { BookExportPreviewWorkspaceViewModel } from '../types/book-export-view-models'
 import { BookDraftInspectorPane } from './BookDraftInspectorPane'
 
@@ -329,6 +330,41 @@ const exportPreview: BookExportPreviewWorkspaceViewModel = {
   },
 }
 
+const artifactWorkspace: BookExportArtifactWorkspaceViewModel = {
+  bookId: 'book-signal-arc',
+  exportProfileId: 'export-review-packet',
+  checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+  sourceSignature: 'current-source-signature',
+  gate: {
+    canBuild: false,
+    status: 'blocked',
+    label: 'Blocked by export readiness and review blockers',
+    reasons: [],
+    openBlockerCount: 2,
+    checkedFixCount: 1,
+    blockedFixCount: 1,
+    staleFixCount: 0,
+  },
+  latestArtifact: {
+    artifactId: 'artifact-review-packet',
+    format: 'markdown',
+    filename: 'signal-arc-review-packet.md',
+    mimeType: 'text/markdown',
+    title: 'Signal Arc Review Packet',
+    summary: 'Markdown package generated from the current export preview.',
+    content: '# Signal Arc',
+    createdAtLabel: '2026-04-20 10:15',
+    createdByLabel: 'Mock builder',
+    sourceSignature: 'previous-source-signature',
+    isStale: true,
+    chapterCount: 2,
+    sceneCount: 5,
+    wordCount: 680,
+    readinessStatus: 'attention',
+  },
+  artifacts: [],
+}
+
 const branchWorkspace: BookExperimentBranchWorkspaceViewModel = {
   bookId: 'book-signal-arc',
   title: 'Signal Arc',
@@ -630,6 +666,29 @@ describe('BookDraftInspectorPane', () => {
     expect(screen.getByText('Blocked by missing draft coverage')).toBeInTheDocument()
     expect(screen.getByText('Selected chapter export')).toBeInTheDocument()
     expect(screen.getByText('Approx. 8 manuscript pages')).toBeInTheDocument()
+  })
+
+  it('shows artifact status in export mode without adding inspector build actions', () => {
+    render(
+      <AppProviders>
+        <BookDraftInspectorPane
+          bookTitle="Signal Arc"
+          inspector={inspector}
+          activeDraftView="export"
+          exportPreview={exportPreview}
+          artifactWorkspace={artifactWorkspace}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Artifact')).toBeInTheDocument()
+    expect(screen.getByText('signal-arc-review-packet.md')).toBeInTheDocument()
+    expect(screen.getAllByText('Stale').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Blocked by export readiness and review blockers').length).toBeGreaterThan(0)
+    expect(screen.getByText('Open blockers')).toBeInTheDocument()
+    expect(screen.getByText('Last build')).toBeInTheDocument()
+    expect(screen.getByText('2026-04-20 10:15')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Build Markdown package/i })).not.toBeInTheDocument()
   })
 
   it('shows an export-baseline error state instead of generic manuscript support when export mode is broken', () => {

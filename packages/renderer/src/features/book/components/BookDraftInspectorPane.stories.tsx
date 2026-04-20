@@ -8,6 +8,7 @@ import {
   type BookStoryVariant,
 } from './book-storybook'
 import {
+  buildBookDraftArtifactStoryData,
   buildBookDraftBranchStoryData,
   buildBookDraftCompareStoryData,
   buildBookDraftExportStoryData,
@@ -31,6 +32,7 @@ interface BookDraftInspectorPaneStoryProps {
     stale?: boolean
   }>
   draftView?: 'read' | 'compare' | 'export' | 'branch' | 'review'
+  artifactScenario?: 'empty' | 'latest' | 'stale'
 }
 
 function StoryComponent({
@@ -44,12 +46,17 @@ function StoryComponent({
   reviewStatusFilter = 'open',
   decisionStates = [],
   draftView = 'read',
+  artifactScenario = 'latest',
 }: BookDraftInspectorPaneStoryProps) {
   const { locale } = useI18n()
   const workspace = useLocalizedBookDraftWorkspace({ variant, selectedChapterId })
   const compareData = buildBookDraftCompareStoryData(locale, { variant, selectedChapterId, checkpointId })
   const branchData = buildBookDraftBranchStoryData(locale, { variant, selectedChapterId, branchId, branchBaseline, checkpointId })
   const exportData = buildBookDraftExportStoryData(locale, { variant, selectedChapterId, checkpointId, exportProfileId })
+  const artifactWorkspace =
+    draftView === 'export'
+      ? buildBookDraftArtifactStoryData(locale, { variant, selectedChapterId, checkpointId, exportProfileId, artifactScenario })
+      : null
   const reviewData = buildBookDraftReviewStoryData(locale, {
     variant,
     selectedChapterId,
@@ -70,6 +77,7 @@ function StoryComponent({
       compare={draftView === 'compare' ? compareData.compare : null}
       branch={draftView === 'branch' ? branchData.branchWorkspace : null}
       exportPreview={draftView === 'export' ? exportData.exportWorkspace : null}
+      artifactWorkspace={artifactWorkspace}
       reviewInbox={draftView === 'review' ? reviewData.reviewInbox : null}
       onOpenReviewSource={() => undefined}
       checkpointMeta={draftView === 'compare' ? compareData.selectedCheckpoint : null}
@@ -135,6 +143,16 @@ export const ExportReady: Story = {
     variant: 'quiet-book',
     checkpointId: 'checkpoint-book-signal-arc-quiet-pass',
     exportProfileId: 'export-review-packet',
+  },
+}
+
+export const ExportLatestArtifactStale: Story = {
+  args: {
+    draftView: 'export',
+    variant: 'quiet-book',
+    checkpointId: 'checkpoint-book-signal-arc-quiet-pass',
+    exportProfileId: 'export-review-packet',
+    artifactScenario: 'stale',
   },
 }
 

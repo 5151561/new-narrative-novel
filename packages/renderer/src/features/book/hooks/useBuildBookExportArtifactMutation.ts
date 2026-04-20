@@ -43,10 +43,14 @@ export function useBuildBookExportArtifactMutation({
         }),
       )
     },
-    onSuccess: async (_artifact, { exportPreview }) => {
-      await queryClient.invalidateQueries({
-        queryKey: bookQueryKeys.exportArtifacts(exportPreview.bookId, exportPreview.profile.exportProfileId, checkpointId),
-      })
+    onSuccess: async (artifact, { exportPreview }) => {
+      const queryKey = bookQueryKeys.exportArtifacts(exportPreview.bookId, exportPreview.profile.exportProfileId, checkpointId)
+
+      queryClient.setQueryData<BookExportArtifactRecord[]>(queryKey, (current) => [
+        artifact,
+        ...(current?.filter((item) => item.id !== artifact.id) ?? []),
+      ])
+      await queryClient.invalidateQueries({ queryKey })
     },
   })
 }

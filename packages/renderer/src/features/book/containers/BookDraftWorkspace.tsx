@@ -1,4 +1,6 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+
+import { useQueryClient } from '@tanstack/react-query'
 
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -17,11 +19,17 @@ import { BookDraftBinderPane } from '../components/BookDraftBinderPane'
 import { BookDraftInspectorPane } from '../components/BookDraftInspectorPane'
 import { BookDraftStage } from '../components/BookDraftStage'
 import { BookModeRail } from '../components/BookModeRail'
+import type { BookExportArtifactFormat, BookExportArtifactRecord } from '../api/book-export-artifact-records'
+import type { BookExportArtifactSummaryViewModel } from '../types/book-export-artifact-view-models'
+import { useBookExportArtifactWorkspaceQuery } from '../hooks/useBookExportArtifactWorkspaceQuery'
+import { bookQueryKeys } from '../hooks/book-query-keys'
 import { useBookDraftWorkspaceQuery } from '../hooks/useBookDraftWorkspaceQuery'
+import { useBuildBookExportArtifactMutation } from '../hooks/useBuildBookExportArtifactMutation'
 import { useBookExperimentBranchQuery } from '../hooks/useBookExperimentBranchQuery'
 import { useBookExportPreviewQuery } from '../hooks/useBookExportPreviewQuery'
 import { useBookManuscriptCompareQuery } from '../hooks/useBookManuscriptCompareQuery'
 import {
+  rememberBookWorkbenchExportArtifact,
   rememberBookWorkbenchHandoff,
   rememberBookWorkbenchReviewDecision,
   rememberBookWorkbenchReviewFixAction,
@@ -34,6 +42,7 @@ import { DEFAULT_BOOK_EXPORT_PROFILE_ID } from '../api/book-export-profiles'
 let rememberedBookDraftHandoffSequence = 0
 let rememberedBookReviewDecisionSequence = 0
 let rememberedBookReviewFixActionSequence = 0
+let rememberedBookExportArtifactSequence = 0
 const DEFAULT_BOOK_EXPERIMENT_BRANCH_ID = 'branch-book-signal-arc-quiet-ending'
 
 function LanguageToggle() {
@@ -117,6 +126,9 @@ function BookDraftTopBar({
 export function BookDraftWorkspace() {
   const { route, replaceRoute, patchBookRoute } = useWorkbenchRouteState()
   const { locale } = useI18n()
+  const queryClient = useQueryClient()
+  const [selectedArtifactFormat, setSelectedArtifactFormat] = useState<BookExportArtifactFormat>('markdown')
+  const [artifactActivityRevision, setArtifactActivityRevision] = useState(0)
 
   if (route.scope !== 'book') {
     return null
@@ -197,6 +209,21 @@ export function BookDraftWorkspace() {
     reviewFilter: selectedReviewFilter,
     reviewStatusFilter: selectedReviewStatusFilter,
     reviewIssueId: selectedReviewIssueId ?? undefined,
+  })
+  const {
+    artifactWorkspace,
+    isLoading: isArtifactLoading,
+    error: artifactError,
+  } = useBookExportArtifactWorkspaceQuery({
+    bookId: route.bookId,
+    exportPreview: effectiveExportPreview,
+    reviewInbox,
+    exportProfileId: effectiveExportProfileId,
+    checkpointId: effectiveCheckpointId,
+    enabled: (activeDraftView === 'export' || activeDraftView === 'review') && reviewInbox !== undefined,
+  })
+  const buildArtifactMutation = useBuildBookExportArtifactMutation({
+    checkpointId: effectiveCheckpointId,
   })
   const setReviewIssueDecisionMutation = useSetReviewIssueDecisionMutation({
     bookId: route.bookId,
@@ -648,6 +675,93 @@ export function BookDraftWorkspace() {
     },
     [clearReviewIssueFixActionMutation, reviewInbox, route.bookId],
   )
+  const onBuildArtifact = useCallback(() => {
+    if (!effectiveExportPreview) {
+      return
+    }
+
+    void buildArtifactMutation
+      .mutateAsync({
+        exportPreview: effectiveExportPreview,
+        reviewInbox: reviewInbox ?? null,
+        format: selectedArtifactFormat,
+      })
+      .then((artifact) => {
+        queryClient.setQueryData(
+          bookQueryKeys.exportArtifacts(route.bookId, effectiveExportProfileId, effectiveCheckpointId),
+          (current: BookExportArtifactRecord[] | undefined) => [
+            artifact,
+            ...(current?.filter((item) => item.id !== artifact.id) ?? []),
+          ],
+        )
+        rememberBookWorkbenchExportArtifact({
+          id: `export-artifact-${route.bookId}-${rememberedBookExportArtifactSequence++}`,
+          bookId: route.bookId,
+          action: 'built',
+          filename: artifact.filename,
+          format: artifact.format,
+        })
+        setArtifactActivityRevision((value) => value + 1)
+      })
+      .catch(() => undefined)
+  }, [
+    buildArtifactMutation,
+    effectiveCheckpointId,
+    effectiveExportPreview,
+    effectiveExportProfileId,
+    queryClient,
+    reviewInbox,
+    route.bookId,
+    selectedArtifactFormat,
+  ])
+  const onCopyArtifact = useCallback(
+    (artifact: BookExportArtifactSummaryViewModel) => {
+      const writeText = navigator.clipboard?.writeText
+      if (!writeText) {
+        return
+      }
+
+      void writeText
+        .call(navigator.clipboard, artifact.content)
+        .then(() => {
+          rememberBookWorkbenchExportArtifact({
+            id: `export-artifact-${route.bookId}-${rememberedBookExportArtifactSequence++}`,
+            bookId: route.bookId,
+            action: 'copied',
+            filename: artifact.filename,
+            format: artifact.format,
+          })
+          setArtifactActivityRevision((value) => value + 1)
+        })
+        .catch(() => undefined)
+    },
+    [route.bookId],
+  )
+  const onDownloadArtifact = useCallback(
+    (artifact: BookExportArtifactSummaryViewModel) => {
+      const blob = new Blob([artifact.content], { type: artifact.mimeType })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+
+      anchor.href = url
+      anchor.download = artifact.filename
+      anchor.style.display = 'none'
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+
+      rememberBookWorkbenchExportArtifact({
+        id: `export-artifact-${route.bookId}-${rememberedBookExportArtifactSequence++}`,
+        bookId: route.bookId,
+        action: 'downloaded',
+        filename: artifact.filename,
+        format: artifact.format,
+      })
+      setArtifactActivityRevision((value) => value + 1)
+    },
+    [route.bookId],
+  )
 
   const modeRail = (
     <BookModeRail
@@ -763,6 +877,10 @@ export function BookDraftWorkspace() {
           exportProfiles={exportProfiles ?? []}
           selectedExportProfileId={selectedExportProfile?.exportProfileId ?? effectiveExportProfileId}
           exportError={effectiveExportError}
+          artifactWorkspace={artifactWorkspace ?? null}
+          selectedArtifactFormat={selectedArtifactFormat}
+          isBuildingArtifact={buildArtifactMutation.isPending || isArtifactLoading}
+          artifactBuildErrorMessage={buildArtifactMutation.error?.message ?? artifactError?.message ?? null}
           reviewInbox={reviewInbox ?? null}
           reviewError={reviewError}
           reviewDecisionError={reviewDecisionError}
@@ -776,6 +894,10 @@ export function BookDraftWorkspace() {
           onSelectBranch={onSelectBranch}
           onSelectBranchBaseline={onSelectBranchBaseline}
           onSelectExportProfile={onSelectExportProfile}
+          onSelectArtifactFormat={setSelectedArtifactFormat}
+          onBuildArtifact={onBuildArtifact}
+          onCopyArtifact={onCopyArtifact}
+          onDownloadArtifact={onDownloadArtifact}
           onSelectReviewFilter={onSelectReviewFilter}
           onSelectReviewStatusFilter={onSelectReviewStatusFilter}
           onSelectReviewIssue={onSelectReviewIssue}
@@ -797,6 +919,7 @@ export function BookDraftWorkspace() {
           compare={compareWorkspace ?? null}
           branch={branchWorkspace ?? null}
           exportPreview={effectiveExportPreview}
+          artifactWorkspace={artifactWorkspace ?? null}
           exportError={effectiveExportError}
           reviewInbox={reviewInbox ?? null}
           onOpenReviewSource={onOpenReviewSource}
@@ -810,8 +933,10 @@ export function BookDraftWorkspace() {
           compare={compareWorkspace ?? null}
           branch={branchWorkspace ?? null}
           exportPreview={effectiveExportPreview}
+          artifactWorkspace={artifactWorkspace ?? null}
           reviewInbox={reviewInbox ?? null}
           exportError={effectiveExportError}
+          activityRevision={artifactActivityRevision}
         />
       }
     />
