@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 
 import { I18nProvider, useI18n } from './i18n'
+import { ProjectRuntimeProvider } from './project-runtime'
 import { chapterQueryKeys } from '@/features/chapter/hooks/chapter-query-keys'
 import { sceneQueryKeys } from '@/features/scene/hooks/scene-query-keys'
 
@@ -33,8 +34,10 @@ export function AppProviders({ children }: PropsWithChildren) {
   return (
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
-        <LocaleQuerySync />
-        {children}
+        <ProjectRuntimeProvider>
+          <LocaleQuerySync />
+          {children}
+        </ProjectRuntimeProvider>
       </I18nProvider>
     </QueryClientProvider>
   )
