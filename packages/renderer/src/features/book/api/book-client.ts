@@ -8,6 +8,8 @@ import {
   getMockBookExportProfiles,
   type BookExportProfileRecord,
 } from './book-export-profiles'
+import type { BookExportArtifactRecord, BuildBookExportArtifactInput } from './book-export-artifact-records'
+import { buildMockBookExportArtifact, getMockBookExportArtifacts } from './mock-book-export-artifact-db'
 import {
   getMockBookManuscriptCheckpoints,
   type BookManuscriptCheckpointRecord,
@@ -37,6 +39,12 @@ export interface GetBookExportProfileInput {
   exportProfileId: string
 }
 
+export interface GetBookExportArtifactsInput {
+  bookId: string
+  exportProfileId?: string | null
+  checkpointId?: string | null
+}
+
 export interface GetBookExperimentBranchesInput {
   bookId: string
 }
@@ -52,6 +60,8 @@ export interface BookClient {
   getBookManuscriptCheckpoint(input: GetBookManuscriptCheckpointInput): Promise<BookManuscriptCheckpointRecord | null>
   getBookExportProfiles(input: GetBookExportProfilesInput): Promise<BookExportProfileRecord[]>
   getBookExportProfile(input: GetBookExportProfileInput): Promise<BookExportProfileRecord | null>
+  getBookExportArtifacts(input: GetBookExportArtifactsInput): Promise<BookExportArtifactRecord[]>
+  buildBookExportArtifact(input: BuildBookExportArtifactInput): Promise<BookExportArtifactRecord>
   getBookExperimentBranches(input: GetBookExperimentBranchesInput): Promise<BookExperimentBranchRecord[]>
   getBookExperimentBranch(input: GetBookExperimentBranchInput): Promise<BookExperimentBranchRecord | null>
 }
@@ -61,6 +71,8 @@ interface CreateBookClientOptions {
   getBookManuscriptCheckpointsByBookId?: (bookId: string) => BookManuscriptCheckpointRecord[]
   getBookExportProfilesByBookId?: (bookId: string) => BookExportProfileRecord[]
   getBookExportProfileById?: (bookId: string, exportProfileId: string) => BookExportProfileRecord | null
+  getBookExportArtifactsByContext?: (input: { bookId: string; exportProfileId?: string; checkpointId?: string }) => BookExportArtifactRecord[]
+  buildBookExportArtifactRecord?: (input: BuildBookExportArtifactInput) => BookExportArtifactRecord
   getBookExperimentBranchesByBookId?: (bookId: string) => BookExperimentBranchRecord[]
   getBookExperimentBranchById?: (bookId: string, branchId: string) => BookExperimentBranchRecord | null
 }
@@ -74,6 +86,8 @@ export function createBookClient({
   getBookManuscriptCheckpointsByBookId = getMockBookManuscriptCheckpoints,
   getBookExportProfilesByBookId = getMockBookExportProfiles,
   getBookExportProfileById = getMockBookExportProfile,
+  getBookExportArtifactsByContext = getMockBookExportArtifacts,
+  buildBookExportArtifactRecord = buildMockBookExportArtifact,
   getBookExperimentBranchesByBookId = getMockBookExperimentBranches,
   getBookExperimentBranchById = getMockBookExperimentBranch,
 }: CreateBookClientOptions = {}): BookClient {
@@ -95,6 +109,18 @@ export function createBookClient({
     async getBookExportProfile({ bookId, exportProfileId }) {
       const record = getBookExportProfileById(bookId, exportProfileId)
       return record ? clone(record) : null
+    },
+    async getBookExportArtifacts({ bookId, exportProfileId, checkpointId }) {
+      return clone(
+        getBookExportArtifactsByContext({
+          bookId,
+          exportProfileId: exportProfileId ?? undefined,
+          checkpointId: checkpointId ?? undefined,
+        }),
+      )
+    },
+    async buildBookExportArtifact(input) {
+      return clone(buildBookExportArtifactRecord(input))
     },
     async getBookExperimentBranches({ bookId }) {
       return clone(getBookExperimentBranchesByBookId(bookId))

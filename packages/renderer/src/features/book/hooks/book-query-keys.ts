@@ -28,4 +28,6 @@ export const bookQueryKeys = {
     locale
       ? ([...bookQueryKeys.all, 'exportProfile', bookId, exportProfileId, locale] as const)
       : ([...bookQueryKeys.all, 'exportProfile', bookId, exportProfileId] as const),
+  exportArtifacts: (bookId: string, exportProfileId?: string | null, checkpointId?: string | null) =>
+    [...bookQueryKeys.all, 'exportArtifacts', bookId, exportProfileId ?? 'all', checkpointId ?? 'current'] as const,
 }
