@@ -60,7 +60,13 @@ export function createLocalStorageProjectPersistence(): ProjectPersistencePort {
 
   return {
     async loadProjectSnapshot(projectId) {
-      const rawSnapshot = resolveStorage().getItem(getProjectPersistenceStorageKey(projectId))
+      let rawSnapshot: string | null
+      try {
+        rawSnapshot = resolveStorage().getItem(getProjectPersistenceStorageKey(projectId))
+      } catch {
+        return null
+      }
+
       if (!rawSnapshot) {
         return null
       }
@@ -82,7 +88,11 @@ export function createLocalStorageProjectPersistence(): ProjectPersistencePort {
       }
     },
     async clearProjectSnapshot(projectId) {
-      resolveStorage().removeItem(getProjectPersistenceStorageKey(projectId))
+      try {
+        resolveStorage().removeItem(getProjectPersistenceStorageKey(projectId))
+      } catch {
+        return
+      }
     },
   }
 }

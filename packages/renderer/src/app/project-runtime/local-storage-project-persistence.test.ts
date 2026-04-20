@@ -181,4 +181,22 @@ describe('localStorage project persistence', () => {
       `Failed to save project snapshot for "${projectId}"`,
     )
   })
+
+  it('returns null when storage reads fail', async () => {
+    const persistence = createLocalStorageProjectPersistence()
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage unavailable')
+    })
+
+    await expect(persistence.loadProjectSnapshot(projectId)).resolves.toBeNull()
+  })
+
+  it('does not throw when storage remove fails', async () => {
+    const persistence = createLocalStorageProjectPersistence()
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new Error('storage unavailable')
+    })
+
+    await expect(persistence.clearProjectSnapshot(projectId)).resolves.toBeUndefined()
+  })
 })
