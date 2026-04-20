@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resetMockBookExportArtifactDb } from '@/features/book/api/mock-book-export-artifact-db'
 import { resetRememberedBookWorkbenchHandoffs } from '@/features/book/hooks/useBookWorkbenchActivity'
@@ -96,11 +96,9 @@ async function renderFreshApp(
 
   window.history.replaceState({}, '', `/workbench${search}`)
 
-  const [{ default: App }, { AppProviders }, routeModule] = await Promise.all([
-    import('./App'),
-    import('./app/providers'),
-    import('@/features/workbench/hooks/useWorkbenchRouteState'),
-  ])
+  const { default: App } = await import('./App')
+  const { AppProviders } = await import('./app/providers')
+  const routeModule = await import('@/features/workbench/hooks/useWorkbenchRouteState')
 
   function RouteControl() {
     const { replaceRoute } = routeModule.useWorkbenchRouteState()
@@ -214,6 +212,10 @@ function createReadyArtifactReviewInbox() {
 }
 
 describe('App scene workbench', () => {
+  beforeEach(() => {
+    setNavigatorLanguage('en-US')
+  })
+
   afterEach(() => {
     vi.clearAllMocks()
     vi.doUnmock('@/features/review/hooks/useBookReviewInboxQuery')

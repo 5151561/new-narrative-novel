@@ -34,10 +34,8 @@ async function renderFreshApp(search = '') {
   }))
   window.history.replaceState({}, '', `/workbench${search}`)
 
-  const [{ default: App }, { AppProviders }] = await Promise.all([
-    import('./App'),
-    import('./app/providers'),
-  ])
+  const { default: App } = await import('./App')
+  const { AppProviders } = await import('./app/providers')
 
   return render(
     <AppProviders>
@@ -64,6 +62,7 @@ describe('App chapter draft lens smoke', () => {
 
   it('supports chapter structure -> chapter draft -> scene draft -> back -> structure with view restoration', async () => {
     const user = userEvent.setup()
+    setNavigatorLanguage('en-US')
 
     await renderFreshApp(
       '?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=assembly&sceneId=scene-concourse-delay',
