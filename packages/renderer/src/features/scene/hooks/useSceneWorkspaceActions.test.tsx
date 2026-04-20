@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { type PropsWithChildren } from 'react'
+import { vi } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
+import { ProjectRuntimeProvider, createTestProjectRuntime } from '@/app/project-runtime'
 import { createSceneClient } from '@/features/scene/api/scene-client'
 import {
   commitAcceptedPatch,
@@ -33,7 +35,7 @@ describe('useSceneWorkspaceActions', () => {
     })
   })
 
-  function createWrapper() {
+  function createWrapper(runtime = createTestProjectRuntime()) {
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -45,7 +47,9 @@ describe('useSceneWorkspaceActions', () => {
       wrapper({ children }: PropsWithChildren) {
         return (
           <QueryClientProvider client={queryClient}>
-            <I18nProvider>{children}</I18nProvider>
+            <I18nProvider>
+              <ProjectRuntimeProvider runtime={runtime}>{children}</ProjectRuntimeProvider>
+            </I18nProvider>
           </QueryClientProvider>
         )
       },
@@ -84,6 +88,47 @@ describe('useSceneWorkspaceActions', () => {
 
     return { bridgeClient, fallbackClient }
   }
+
+  it('uses the runtime-injected scene client for workspace, prose, patch preview, and workspace actions', async () => {
+    const { bridgeClient } = createBridgeClient()
+    const runtimeClient = {
+      ...bridgeClient,
+      getSceneWorkspace: vi.fn(bridgeClient.getSceneWorkspace),
+      getSceneProse: vi.fn(bridgeClient.getSceneProse),
+      previewAcceptedPatch: vi.fn(bridgeClient.previewAcceptedPatch),
+      commitAcceptedPatch: vi.fn(bridgeClient.commitAcceptedPatch),
+    }
+    const { wrapper } = createWrapper(
+      createTestProjectRuntime({
+        sceneClient: runtimeClient,
+      }),
+    )
+    useSceneUiStore.getState().setPatchPreviewOpen(true)
+
+    const workspaceHook = renderHook(() => useSceneWorkspaceQuery(sceneId), { wrapper })
+    const proseHook = renderHook(() => useSceneProseQuery(sceneId), { wrapper })
+    const patchPreviewHook = renderHook(() => useScenePatchPreview(sceneId, true), { wrapper })
+    const actionsHook = renderHook(() => useSceneWorkspaceActions({ sceneId }), { wrapper })
+
+    await waitFor(() => {
+      expect(workspaceHook.result.current.isLoading).toBe(false)
+      expect(proseHook.result.current.isLoading).toBe(false)
+      expect(patchPreviewHook.result.current.isLoading).toBe(false)
+    })
+
+    await act(async () => {
+      await actionsHook.result.current.commitAcceptedPatch(patchPreviewHook.result.current.preview!.patchId)
+    })
+
+    await waitFor(() => {
+      expect(patchPreviewHook.result.current.preview).toBeNull()
+    })
+
+    expect(runtimeClient.getSceneWorkspace).toHaveBeenCalled()
+    expect(runtimeClient.getSceneProse).toHaveBeenCalled()
+    expect(runtimeClient.previewAcceptedPatch).toHaveBeenCalled()
+    expect(runtimeClient.commitAcceptedPatch).toHaveBeenCalled()
+  })
 
   it('refetches bridge-backed execution after continue run without mutating fallback fixtures', async () => {
     const { bridgeClient, fallbackClient } = createBridgeClient()

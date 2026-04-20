@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 
-import { chapterClient, type ChapterClient } from '@/features/chapter/api/chapter-client'
+import type { ChapterClient } from '@/features/chapter/api/chapter-client'
 import { useChapterDraftWorkspaceQuery } from '@/features/chapter/hooks/useChapterDraftWorkspaceQuery'
 
 import { buildChapterDraftTraceabilityViewModel } from '../lib/traceability-mappers'
@@ -18,7 +18,7 @@ interface ChapterDraftTraceabilityQueryDeps {
 
 export function useChapterDraftTraceabilityQuery(
   { chapterId, selectedSceneId }: UseChapterDraftTraceabilityQueryInput,
-  { chapterClient: customChapterClient = chapterClient, sceneClient }: ChapterDraftTraceabilityQueryDeps = {},
+  { chapterClient: customChapterClient, sceneClient }: ChapterDraftTraceabilityQueryDeps = {},
 ) {
   const chapterWorkspaceQuery = useChapterDraftWorkspaceQuery(
     { chapterId, selectedSceneId },

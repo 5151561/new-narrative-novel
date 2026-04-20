@@ -2,14 +2,22 @@ import { useCallback, useState } from 'react'
 
 import { useQueryClient } from '@tanstack/react-query'
 
-import { sceneClient, type SceneClient } from '@/features/scene/api/scene-client'
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
+import type { SceneClient } from '@/features/scene/api/scene-client'
 
 import type { ProposalActionInput } from '../types/scene-view-models'
 import { sceneQueryKeys } from './scene-query-keys'
 
-export function useProposalActions(sceneId: string, client: SceneClient = sceneClient) {
+export function useProposalActions(sceneId: string, client?: SceneClient) {
+  const runtime = useOptionalProjectRuntime()
   const queryClient = useQueryClient()
   const [isMutating, setIsMutating] = useState(false)
+  const effectiveClient = resolveProjectRuntimeDependency(
+    client,
+    runtime?.sceneClient,
+    'useProposalActions',
+    'client',
+  )
 
   const runAction = useCallback(
     async (action: (sceneId: string, input: ProposalActionInput) => Promise<void>, input: ProposalActionInput) => {
@@ -31,10 +39,10 @@ export function useProposalActions(sceneId: string, client: SceneClient = sceneC
   )
 
   return {
-    accept: (input: ProposalActionInput) => runAction(client.acceptProposal, input),
-    editAccept: (input: ProposalActionInput) => runAction(client.editAcceptProposal, input),
-    requestRewrite: (input: ProposalActionInput) => runAction(client.requestRewrite, input),
-    reject: (input: ProposalActionInput) => runAction(client.rejectProposal, input),
+    accept: (input: ProposalActionInput) => runAction(effectiveClient.acceptProposal, input),
+    editAccept: (input: ProposalActionInput) => runAction(effectiveClient.editAcceptProposal, input),
+    requestRewrite: (input: ProposalActionInput) => runAction(effectiveClient.requestRewrite, input),
+    reject: (input: ProposalActionInput) => runAction(effectiveClient.rejectProposal, input),
     isMutating,
   }
 }

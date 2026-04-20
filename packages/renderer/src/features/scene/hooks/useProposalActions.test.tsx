@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { type PropsWithChildren } from 'react'
+import { vi } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
+import { ProjectRuntimeProvider, createTestProjectRuntime } from '@/app/project-runtime'
 import { createSceneClient } from '@/features/scene/api/scene-client'
 import { applyProposalAction, createSceneMockDatabase, getSceneDockSummary } from '@/mock/scene-fixtures'
 import { useSceneDockData } from './useSceneDockData'
@@ -13,7 +15,7 @@ import { useProposalActions } from './useProposalActions'
 const sceneId = 'scene-midnight-platform'
 
 describe('useProposalActions', () => {
-  function createWrapper() {
+  function createWrapper(runtime = createTestProjectRuntime()) {
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -26,13 +28,58 @@ describe('useProposalActions', () => {
       wrapper({ children }: PropsWithChildren) {
         return (
           <QueryClientProvider client={queryClient}>
-            <I18nProvider>{children}</I18nProvider>
+            <I18nProvider>
+              <ProjectRuntimeProvider runtime={runtime}>{children}</ProjectRuntimeProvider>
+            </I18nProvider>
           </QueryClientProvider>
         )
       },
       client,
     }
   }
+
+  it('uses the runtime-injected scene client across execution, inspector, dock, and proposal actions', async () => {
+    const baseClient = createSceneClient()
+    const runtimeClient = {
+      ...baseClient,
+      getSceneExecution: vi.fn(baseClient.getSceneExecution),
+      getSceneInspector: vi.fn(baseClient.getSceneInspector),
+      getSceneDockSummary: vi.fn(baseClient.getSceneDockSummary),
+      acceptProposal: vi.fn(baseClient.acceptProposal),
+    }
+    const { wrapper } = createWrapper(
+      createTestProjectRuntime({
+        sceneClient: runtimeClient,
+      }),
+    )
+    const executionHook = renderHook(() => useSceneExecutionQuery(sceneId), { wrapper })
+    const inspectorHook = renderHook(() => useSceneInspectorData(sceneId), { wrapper })
+    const dockHook = renderHook(() => useSceneDockData(sceneId, 'events'), { wrapper })
+
+    await waitFor(() => {
+      expect(executionHook.result.current.isLoading).toBe(false)
+      expect(inspectorHook.result.current.isLoading).toBe(false)
+      expect(dockHook.result.current.isLoading).toBe(false)
+    })
+
+    const pending = executionHook.result.current.proposals.find((proposal) => proposal.status === 'pending')
+    expect(pending).toBeDefined()
+
+    const actionHook = renderHook(() => useProposalActions(sceneId), { wrapper })
+
+    await act(async () => {
+      await actionHook.result.current.accept({ proposalId: pending!.id })
+    })
+
+    await waitFor(() => {
+      expect(executionHook.result.current.proposals.find((proposal) => proposal.id === pending!.id)?.status).toBe('accepted')
+    })
+
+    expect(runtimeClient.getSceneExecution).toHaveBeenCalled()
+    expect(runtimeClient.getSceneInspector).toHaveBeenCalled()
+    expect(runtimeClient.getSceneDockSummary).toHaveBeenCalled()
+    expect(runtimeClient.acceptProposal).toHaveBeenCalled()
+  })
 
   it('accepts a proposal without introducing commit state into execution actions', async () => {
     const { wrapper, client } = createWrapper()

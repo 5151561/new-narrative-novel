@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
 import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
@@ -11,19 +11,18 @@ import type { SceneClient } from '@/features/scene/api/scene-client'
 
 import { useChapterDraftTraceabilityQuery } from './useChapterDraftTraceabilityQuery'
 
-function createWrapper() {
+function createWrapper(runtime = createMockProjectRuntime({
+  persistence: {
+    async loadProjectSnapshot() {
+      return null
+    },
+    async saveProjectSnapshot() {},
+    async clearProjectSnapshot() {},
+  },
+})) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
-    },
-  })
-  const runtime = createMockProjectRuntime({
-    persistence: {
-      async loadProjectSnapshot() {
-        return null
-      },
-      async saveProjectSnapshot() {},
-      async clearProjectSnapshot() {},
     },
   })
 
@@ -39,6 +38,69 @@ function createWrapper() {
 }
 
 describe('useChapterDraftTraceabilityQuery', () => {
+  it('uses runtime-injected chapter and traceability scene clients when no overrides are provided', async () => {
+    const chapterClient: Pick<ChapterClient, 'getChapterStructureWorkspace'> = {
+      getChapterStructureWorkspace: vi.fn(async () => structuredClone(mockChapterRecordSeeds['chapter-signals-in-rain'])),
+    }
+    const sceneClient: Pick<SceneClient, 'getSceneExecution' | 'getSceneProse' | 'getSceneInspector' | 'previewAcceptedPatch'> = {
+      getSceneExecution: vi.fn(async (sceneId) => ({
+        runId: `run-${sceneId}`,
+        objective: { goal: 'Goal', warningsCount: 0, unresolvedCount: 0, cast: [], constraintSummary: [] },
+        beats: [],
+        proposals: [],
+        acceptedSummary: { sceneSummary: 'Summary', acceptedFacts: [], readiness: 'draftable', pendingProposalCount: 0, warningCount: 0, patchCandidateCount: 0 },
+        runtimeSummary: { runHealth: 'stable', latencyLabel: '', tokenLabel: '', costLabel: '' },
+        canContinueRun: false,
+        canOpenProse: true,
+      })),
+      getSceneProse: vi.fn(async (sceneId) => ({
+        sceneId,
+        proseDraft: `${sceneId} draft`,
+        revisionModes: ['rewrite'],
+        latestDiffSummary: `${sceneId} diff`,
+        warningsCount: 0,
+        focusModeAvailable: true,
+      })),
+      getSceneInspector: vi.fn(async () => ({
+        context: { acceptedFacts: [], privateInfoGuard: { summary: '', items: [] }, actorKnowledgeBoundaries: [], localState: [], overrides: [] },
+        versions: { checkpoints: [], acceptanceTimeline: [], patchCandidates: [] },
+        runtime: { profile: { label: '', summary: '' }, runHealth: 'stable', metrics: { latencyLabel: '', tokenLabel: '', costLabel: '' } },
+      })),
+      previewAcceptedPatch: vi.fn(async () => null),
+    }
+
+    const hook = renderHook(
+      () =>
+        useChapterDraftTraceabilityQuery({
+          chapterId: 'chapter-signals-in-rain',
+          selectedSceneId: null,
+        }),
+      {
+        wrapper: createWrapper(createMockProjectRuntime({
+          chapterClient: chapterClient as ChapterClient,
+          traceabilitySceneClient: sceneClient,
+          persistence: {
+            async loadProjectSnapshot() {
+              return null
+            },
+            async saveProjectSnapshot() {},
+            async clearProjectSnapshot() {},
+          },
+        })),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(chapterClient.getChapterStructureWorkspace).toHaveBeenCalled()
+    expect(sceneClient.getSceneExecution).toHaveBeenCalled()
+    expect(sceneClient.getSceneInspector).toHaveBeenCalled()
+    expect(sceneClient.previewAcceptedPatch).toHaveBeenCalled()
+    expect(hook.result.current.traceability?.selectedSceneId).toBe('scene-midnight-platform')
+  })
+
   it('falls back selectedSceneId to the first chapter section and returns chapter-draft-facing summaries plus trace coverage', async () => {
     const hook = renderHook(
       () =>

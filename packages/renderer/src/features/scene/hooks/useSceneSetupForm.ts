@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { useI18n } from '@/app/i18n'
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { sceneClient, type SceneClient } from '@/features/scene/api/scene-client'
+import type { SceneClient } from '@/features/scene/api/scene-client'
 
 import type { SceneSetupViewModel } from '../types/scene-view-models'
 import { sceneQueryKeys } from './scene-query-keys'
@@ -20,14 +21,21 @@ interface UseSceneSetupFormOptions {
 
 export function useSceneSetupForm({
   sceneId,
-  client = sceneClient,
+  client,
   onSaveAndRun,
 }: UseSceneSetupFormOptions) {
+  const runtime = useOptionalProjectRuntime()
   const { locale } = useI18n()
   const queryClient = useQueryClient()
+  const effectiveClient = resolveProjectRuntimeDependency(
+    client,
+    runtime?.sceneClient,
+    'useSceneSetupForm',
+    'options.client',
+  )
   const query = useQuery({
     queryKey: sceneQueryKeys.setup(sceneId, locale),
-    queryFn: () => client.getSceneSetup(sceneId),
+    queryFn: () => effectiveClient.getSceneSetup(sceneId),
   })
   const [draft, setDraft] = useState<SceneSetupViewModel | null>(null)
   const [savedSnapshot, setSavedSnapshot] = useState<SceneSetupViewModel | null>(null)
@@ -95,7 +103,7 @@ export function useSceneSetupForm({
 
     setIsSaving(true)
     try {
-      await client.saveSceneSetup(sceneId, clone(draft))
+      await effectiveClient.saveSceneSetup(sceneId, clone(draft))
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: sceneQueryKeys.setup(sceneId) }),
         queryClient.invalidateQueries({ queryKey: sceneQueryKeys.workspace(sceneId) }),
@@ -104,7 +112,7 @@ export function useSceneSetupForm({
       ])
       const refreshedSetup = await queryClient.fetchQuery({
         queryKey: sceneQueryKeys.setup(sceneId, locale),
-        queryFn: () => client.getSceneSetup(sceneId),
+        queryFn: () => effectiveClient.getSceneSetup(sceneId),
       })
       const nextSnapshot = clone(refreshedSetup)
       setSavedSnapshot(nextSnapshot)

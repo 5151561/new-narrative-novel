@@ -3,8 +3,9 @@ import { useMemo } from 'react'
 import { useQueries } from '@tanstack/react-query'
 
 import { useI18n } from '@/app/i18n'
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
 import type { ChapterDraftSceneProseState } from '@/features/chapter/hooks/useChapterDraftWorkspaceQuery'
-import { sceneClient, type SceneClient } from '@/features/scene/api/scene-client'
+import type { SceneClient } from '@/features/scene/api/scene-client'
 import { sceneQueryKeys } from '@/features/scene/hooks/scene-query-keys'
 
 import { buildSceneTraceabilityViewModel } from '../lib/traceability-mappers'
@@ -47,10 +48,17 @@ function getSeededProseError(seed: TraceabilitySceneSourceSeed | undefined) {
 
 export function useTraceabilitySceneSources(
   sceneIds: string[],
-  client: TraceabilitySceneClient = sceneClient,
+  client?: TraceabilitySceneClient,
   { sceneSourceSeedsBySceneId = {} }: UseTraceabilitySceneSourcesOptions = {},
 ) {
+  const runtime = useOptionalProjectRuntime()
   const { locale } = useI18n()
+  const effectiveClient = resolveProjectRuntimeDependency(
+    client,
+    runtime?.traceabilitySceneClient,
+    'useTraceabilitySceneSources',
+    'client',
+  )
   const queryPlan = useMemo(() => {
     const descriptors: TraceabilityQueryDescriptor[] = []
 
@@ -60,7 +68,7 @@ export function useTraceabilitySceneSources(
         kind: 'execution',
         query: {
           queryKey: sceneQueryKeys.execution(sceneId, locale),
-          queryFn: () => client.getSceneExecution(sceneId),
+          queryFn: () => effectiveClient.getSceneExecution(sceneId),
         },
       })
 
@@ -70,7 +78,7 @@ export function useTraceabilitySceneSources(
           kind: 'prose',
           query: {
             queryKey: sceneQueryKeys.prose(sceneId, locale),
-            queryFn: () => client.getSceneProse(sceneId),
+            queryFn: () => effectiveClient.getSceneProse(sceneId),
           },
         })
       }
@@ -80,7 +88,7 @@ export function useTraceabilitySceneSources(
         kind: 'inspector',
         query: {
           queryKey: sceneQueryKeys.inspector(sceneId, locale),
-          queryFn: () => client.getSceneInspector(sceneId),
+          queryFn: () => effectiveClient.getSceneInspector(sceneId),
         },
       })
 
@@ -89,13 +97,13 @@ export function useTraceabilitySceneSources(
         kind: 'patchPreview',
         query: {
           queryKey: sceneQueryKeys.patchPreview(sceneId, locale),
-          queryFn: () => client.previewAcceptedPatch(sceneId),
+          queryFn: () => effectiveClient.previewAcceptedPatch(sceneId),
         },
       })
     }
 
     return descriptors
-  }, [client, locale, sceneIds, sceneSourceSeedsBySceneId])
+  }, [effectiveClient, locale, sceneIds, sceneSourceSeedsBySceneId])
   const queries = useQueries({
     queries: queryPlan.map((descriptor) => descriptor.query),
   })

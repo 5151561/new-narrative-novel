@@ -1,14 +1,16 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { type PropsWithChildren } from 'react'
+import { vi } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
+import { ProjectRuntimeProvider, createTestProjectRuntime } from '@/app/project-runtime'
 import { createSceneClient } from '@/features/scene/api/scene-client'
 import { createSceneMockDatabase, saveSceneSetup } from '@/mock/scene-fixtures'
 
 import { useSceneSetupForm } from './useSceneSetupForm'
 
-function wrapperFactory() {
+function wrapperFactory(runtime = createTestProjectRuntime()) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -18,7 +20,9 @@ function wrapperFactory() {
   return function Wrapper({ children }: PropsWithChildren) {
     return (
       <QueryClientProvider client={queryClient}>
-        <I18nProvider>{children}</I18nProvider>
+        <I18nProvider>
+          <ProjectRuntimeProvider runtime={runtime}>{children}</ProjectRuntimeProvider>
+        </I18nProvider>
       </QueryClientProvider>
     )
   }
@@ -27,6 +31,50 @@ function wrapperFactory() {
 describe('useSceneSetupForm', () => {
   afterEach(() => {
     window.localStorage.clear()
+  })
+
+  it('uses the runtime-injected scene client when no explicit client override is provided', async () => {
+    const baseClient = createSceneClient()
+    const runtimeClient = {
+      ...baseClient,
+      getSceneSetup: vi.fn(baseClient.getSceneSetup),
+      saveSceneSetup: vi.fn(baseClient.saveSceneSetup),
+    }
+    const wrapper = wrapperFactory(
+      createTestProjectRuntime({
+        sceneClient: runtimeClient,
+      }),
+    )
+
+    const hook = renderHook(
+      () =>
+        useSceneSetupForm({
+          sceneId: 'scene-midnight-platform',
+        }),
+      { wrapper },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    act(() => {
+      hook.result.current.updateDraft((current) => ({
+        ...current,
+        identity: {
+          ...current.identity,
+          title: 'Runtime Client Title',
+        },
+      }))
+    })
+
+    await act(async () => {
+      await hook.result.current.save()
+    })
+
+    expect(runtimeClient.getSceneSetup).toHaveBeenCalled()
+    expect(runtimeClient.saveSceneSetup).toHaveBeenCalled()
+    expect(hook.result.current.draft?.identity.title).toBe('Runtime Client Title')
   })
 
   it('tracks local draft dirty state and persists save/saveAndRun through the mock client', async () => {

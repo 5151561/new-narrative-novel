@@ -4,7 +4,7 @@ import type { PropsWithChildren } from 'react'
 import { describe, expect, it } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
-import type { SceneClient } from '@/features/scene/api/scene-client'
+import { createSceneClient, type SceneClient } from '@/features/scene/api/scene-client'
 
 import { useSceneTraceabilityQuery } from './useSceneTraceabilityQuery'
 
@@ -26,7 +26,7 @@ function createWrapper() {
 
 describe('useSceneTraceabilityQuery', () => {
   it('combines scene prose origin, latest patch, and related assets from existing scene payloads', async () => {
-    const hook = renderHook(() => useSceneTraceabilityQuery('scene-midnight-platform'), {
+    const hook = renderHook(() => useSceneTraceabilityQuery('scene-midnight-platform', createSceneClient()), {
       wrapper: createWrapper(),
     })
 

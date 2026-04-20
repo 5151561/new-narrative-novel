@@ -1,11 +1,23 @@
 import { createContext, useContext, useMemo, type PropsWithChildren } from 'react'
 
+import { createApiProjectRuntime } from './api-project-runtime'
+import { createApiTransport } from './api-transport'
 import type { ProjectRuntime } from './project-runtime'
 import { createMockProjectRuntime } from './mock-project-runtime'
 
 const ProjectRuntimeContext = createContext<ProjectRuntime | null>(null)
 
 export function createDefaultProjectRuntime() {
+  const apiBaseUrl = import.meta.env.VITE_NARRATIVE_API_BASE_URL
+  if (apiBaseUrl) {
+    return createApiProjectRuntime({
+      projectId: import.meta.env.VITE_NARRATIVE_PROJECT_ID ?? 'book-signal-arc',
+      transport: createApiTransport({
+        baseUrl: apiBaseUrl,
+      }),
+    })
+  }
+
   return createMockProjectRuntime()
 }
 

@@ -2,14 +2,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type PropsWithChildren } from 'react'
+import { vi } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
+import { ProjectRuntimeProvider, createTestProjectRuntime } from '@/app/project-runtime'
 import { createSceneClient } from '@/features/scene/api/scene-client'
 import { applyProseRevision, createSceneMockDatabase } from '@/mock/scene-fixtures'
 
 import { SceneProseContainer } from './SceneProseContainer'
 
-function wrapperFactory() {
+function wrapperFactory(runtime = createTestProjectRuntime()) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -19,13 +21,74 @@ function wrapperFactory() {
   return function Wrapper({ children }: PropsWithChildren) {
     return (
       <QueryClientProvider client={queryClient}>
-        <I18nProvider>{children}</I18nProvider>
+        <I18nProvider>
+          <ProjectRuntimeProvider runtime={runtime}>{children}</ProjectRuntimeProvider>
+        </I18nProvider>
       </QueryClientProvider>
     )
   }
 }
 
 describe('SceneProseContainer', () => {
+  it('uses the runtime scene client when no explicit client prop is provided', async () => {
+    const baseClient = createSceneClient()
+    const runtimeClient = {
+      ...baseClient,
+      getSceneProse: vi.fn(baseClient.getSceneProse),
+    }
+    const Wrapper = wrapperFactory(
+      createTestProjectRuntime({
+        sceneClient: runtimeClient,
+      }),
+    )
+
+    render(<SceneProseContainer sceneId="scene-midnight-platform" />, {
+      wrapper: Wrapper,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Current Draft')).toBeInTheDocument()
+    })
+
+    expect(runtimeClient.getSceneProse).toHaveBeenCalledWith('scene-midnight-platform')
+  })
+
+  it('prefers the explicit client prop over the runtime scene client', async () => {
+    const runtimeClient = {
+      ...createSceneClient(),
+      getSceneProse: vi.fn(async () => {
+        throw new Error('runtime client should not be used')
+      }),
+    }
+    const explicitClient = createSceneClient()
+    const explicitSpy = vi.fn(explicitClient.getSceneProse)
+    const Wrapper = wrapperFactory(
+      createTestProjectRuntime({
+        sceneClient: runtimeClient,
+      }),
+    )
+
+    render(
+      <SceneProseContainer
+        sceneId="scene-midnight-platform"
+        client={{
+          ...explicitClient,
+          getSceneProse: explicitSpy,
+        }}
+      />,
+      {
+        wrapper: Wrapper,
+      },
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Current Draft')).toBeInTheDocument()
+    })
+
+    expect(explicitSpy).toHaveBeenCalledWith('scene-midnight-platform')
+    expect(runtimeClient.getSceneProse).not.toHaveBeenCalled()
+  })
+
   it('applies a mock revision request and updates the prose status footer', async () => {
     const user = userEvent.setup()
     const client = createSceneClient()
@@ -76,7 +139,7 @@ describe('SceneProseContainer', () => {
     const user = userEvent.setup()
     const localDatabase = createSceneMockDatabase()
     const bridgeDatabase = createSceneMockDatabase()
-    const client = createSceneClient({
+    const runtimeClient = createSceneClient({
       database: localDatabase,
       bridgeResolver: () => ({
         getSceneProse: async () => structuredClone(bridgeDatabase.scenes['scene-midnight-platform']!.prose),
@@ -89,9 +152,16 @@ describe('SceneProseContainer', () => {
       database: localDatabase,
       bridgeResolver: () => undefined,
     })
-    const Wrapper = wrapperFactory()
+    const runtime = createTestProjectRuntime({
+      sceneClient: {
+        ...runtimeClient,
+        getSceneProse: vi.fn(runtimeClient.getSceneProse),
+        reviseSceneProse: vi.fn(runtimeClient.reviseSceneProse),
+      },
+    })
+    const Wrapper = wrapperFactory(runtime)
 
-    render(<SceneProseContainer sceneId="scene-midnight-platform" client={client} />, {
+    render(<SceneProseContainer sceneId="scene-midnight-platform" />, {
       wrapper: Wrapper,
     })
 
@@ -104,6 +174,8 @@ describe('SceneProseContainer', () => {
 
     expect(await screen.findAllByText('Latest revision: compress pass prepared for review.')).toHaveLength(2)
     expect(screen.getByText('1 revision queued')).toBeInTheDocument()
+    expect(runtime.sceneClient.reviseSceneProse).toHaveBeenCalledWith('scene-midnight-platform', 'compress')
+    expect(runtime.sceneClient.getSceneProse).toHaveBeenCalledTimes(2)
 
     const fallbackProse = await fallbackClient.getSceneProse('scene-midnight-platform')
     expect(fallbackProse.latestDiffSummary).not.toBe('Latest revision: compress pass prepared for review.')

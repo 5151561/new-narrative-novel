@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 
 import { useI18n } from '@/app/i18n'
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
 import { EmptyState } from '@/components/ui/EmptyState'
 
-import { sceneClient, type SceneClient } from '@/features/scene/api/scene-client'
+import type { SceneClient } from '@/features/scene/api/scene-client'
 
 import { SceneProseTab } from '../components/SceneProseTab'
 import { useSceneProseQuery } from '../hooks/useSceneProseQuery'
@@ -14,9 +15,15 @@ interface SceneProseContainerProps {
 }
 
 export function SceneProseContainer({ sceneId, client }: SceneProseContainerProps) {
+  const runtime = useOptionalProjectRuntime()
   const { locale } = useI18n()
-  const resolvedClient = client ?? sceneClient
-  const proseQuery = useSceneProseQuery(sceneId, resolvedClient)
+  const effectiveClient = resolveProjectRuntimeDependency(
+    client,
+    runtime?.sceneClient,
+    'SceneProseContainer',
+    'props.client',
+  )
+  const proseQuery = useSceneProseQuery(sceneId, effectiveClient)
   const [selectedMode, setSelectedMode] = useState<'rewrite' | 'compress' | 'expand' | 'tone_adjust' | 'continuity_fix'>(
     'rewrite',
   )
@@ -68,7 +75,7 @@ export function SceneProseContainer({ sceneId, client }: SceneProseContainerProp
       onRevise={async () => {
         setIsRevising(true)
         try {
-          await resolvedClient.reviseSceneProse(sceneId, selectedMode)
+          await effectiveClient.reviseSceneProse(sceneId, selectedMode)
           await proseQuery.refetch()
         } finally {
           setIsRevising(false)

@@ -3,10 +3,10 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { useI18n } from '@/app/i18n'
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
 import type { AssetKnowledgeView } from '@/features/workbench/types/workbench-route'
 
 import {
-  assetClient,
   type AssetClient,
   type GetAssetKnowledgeWorkspaceInput,
 } from '../api/asset-client'
@@ -377,12 +377,19 @@ function buildAssetKnowledgeWorkspaceModel(
 
 export function useAssetKnowledgeWorkspaceQuery(
   input: GetAssetKnowledgeWorkspaceInput & { activeView?: AssetKnowledgeView },
-  client: Pick<AssetClient, 'getAssetKnowledgeWorkspace'> = assetClient,
+  client?: Pick<AssetClient, 'getAssetKnowledgeWorkspace'>,
 ) {
+  const runtime = useOptionalProjectRuntime()
   const { locale } = useI18n()
+  const effectiveClient = resolveProjectRuntimeDependency(
+    client,
+    runtime?.assetClient,
+    'useAssetKnowledgeWorkspaceQuery',
+    'client',
+  )
   const query = useQuery({
     queryKey: assetQueryKeys.workspace(input.assetId, locale),
-    queryFn: () => client.getAssetKnowledgeWorkspace({ ...input, locale }),
+    queryFn: () => effectiveClient.getAssetKnowledgeWorkspace({ ...input, locale }),
   })
 
   const workspace = useMemo(

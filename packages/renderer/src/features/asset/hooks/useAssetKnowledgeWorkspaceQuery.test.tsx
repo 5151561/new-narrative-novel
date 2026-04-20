@@ -1,15 +1,17 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useEffect, type PropsWithChildren } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { APP_LOCALE_STORAGE_KEY, I18nProvider, type Locale, useI18n } from '@/app/i18n'
+import { ProjectRuntimeProvider, createTestProjectRuntime } from '@/app/project-runtime'
+import { getMockAssetKnowledgeWorkspace } from '@/features/asset/api/mock-asset-db'
 import type { AssetKnowledgeView } from '@/features/workbench/types/workbench-route'
 
 import { assetQueryKeys } from './asset-query-keys'
 import { useAssetKnowledgeWorkspaceQuery } from './useAssetKnowledgeWorkspaceQuery'
 
-function wrapperFactory() {
+function wrapperFactory(runtime = createTestProjectRuntime()) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -32,8 +34,10 @@ function wrapperFactory() {
       return (
         <QueryClientProvider client={queryClient}>
           <I18nProvider>
-            <LocaleControl />
-            {children}
+            <ProjectRuntimeProvider runtime={runtime}>
+              <LocaleControl />
+              {children}
+            </ProjectRuntimeProvider>
           </I18nProvider>
         </QueryClientProvider>
       )
@@ -49,6 +53,70 @@ function wrapperFactory() {
 describe('useAssetKnowledgeWorkspaceQuery', () => {
   it('uses asset id and locale for the workspace query key', () => {
     expect(assetQueryKeys.workspace('asset-ren-voss', 'en')).toEqual(['asset', 'workspace', 'asset-ren-voss', 'en'])
+  })
+
+  it('uses the project runtime asset client when no override is provided', async () => {
+    const runtimeClient = {
+      getAssetKnowledgeWorkspace: vi.fn(async ({ assetId }: { assetId: string }) => structuredClone(getMockAssetKnowledgeWorkspace(assetId))),
+    }
+    const { wrapper } = wrapperFactory(
+      createTestProjectRuntime({
+        assetClient: runtimeClient,
+      }),
+    )
+
+    const hook = renderHook(
+      () =>
+        useAssetKnowledgeWorkspaceQuery({
+          assetId: 'asset-ren-voss',
+        }),
+      { wrapper },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(runtimeClient.getAssetKnowledgeWorkspace).toHaveBeenCalledWith({
+      assetId: 'asset-ren-voss',
+      locale: 'en',
+    })
+    expect(hook.result.current.workspace?.assetId).toBe('asset-ren-voss')
+  })
+
+  it('prefers the explicit asset client over the project runtime asset client', async () => {
+    const runtimeClient = {
+      getAssetKnowledgeWorkspace: vi.fn(async ({ assetId }: { assetId: string }) => structuredClone(getMockAssetKnowledgeWorkspace(assetId))),
+    }
+    const customClient = {
+      getAssetKnowledgeWorkspace: vi.fn(async ({ assetId }: { assetId: string }) => structuredClone(getMockAssetKnowledgeWorkspace(assetId))),
+    }
+    const { wrapper } = wrapperFactory(
+      createTestProjectRuntime({
+        assetClient: runtimeClient,
+      }),
+    )
+
+    const hook = renderHook(
+      () =>
+        useAssetKnowledgeWorkspaceQuery(
+          {
+            assetId: 'asset-ren-voss',
+          },
+          customClient,
+        ),
+      { wrapper },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(customClient.getAssetKnowledgeWorkspace).toHaveBeenCalledWith({
+      assetId: 'asset-ren-voss',
+      locale: 'en',
+    })
+    expect(runtimeClient.getAssetKnowledgeWorkspace).not.toHaveBeenCalled()
   })
 
   it('hydrates the asset knowledge workspace with grouped navigator items and read-heavy inspector data', async () => {

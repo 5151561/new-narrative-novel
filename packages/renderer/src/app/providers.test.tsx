@@ -1,7 +1,7 @@
 import { act, render, renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { useEffect } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { QueryClient } from '@tanstack/react-query'
 
@@ -11,8 +11,41 @@ import { useI18n } from './i18n'
 import { createTestProjectRuntime, useProjectRuntime } from './project-runtime'
 import { AppProviders } from './providers'
 
+const runtimeEnv = import.meta.env as Record<string, string | undefined>
+const originalApiBaseUrl = runtimeEnv.VITE_NARRATIVE_API_BASE_URL
+const originalProjectId = runtimeEnv.VITE_NARRATIVE_PROJECT_ID
+
+afterEach(() => {
+  if (originalApiBaseUrl === undefined) {
+    delete runtimeEnv.VITE_NARRATIVE_API_BASE_URL
+  } else {
+    runtimeEnv.VITE_NARRATIVE_API_BASE_URL = originalApiBaseUrl
+  }
+
+  if (originalProjectId === undefined) {
+    delete runtimeEnv.VITE_NARRATIVE_PROJECT_ID
+  } else {
+    runtimeEnv.VITE_NARRATIVE_PROJECT_ID = originalProjectId
+  }
+})
+
 describe('AppProviders', () => {
-  it('uses an injected project runtime instead of creating the default localStorage runtime', async () => {
+  it('defaults to the mock runtime when the API env is absent', () => {
+    delete runtimeEnv.VITE_NARRATIVE_API_BASE_URL
+    delete runtimeEnv.VITE_NARRATIVE_PROJECT_ID
+
+    const hook = renderHook(() => useProjectRuntime(), {
+      wrapper: AppProviders,
+    })
+
+    expect(hook.result.current.projectId).toBe('book-signal-arc')
+    expect(hook.result.current.persistence).toBeDefined()
+    expect(hook.result.current.assetClient).toBeDefined()
+  })
+
+  it('uses an injected project runtime instead of creating the default env-driven runtime', async () => {
+    runtimeEnv.VITE_NARRATIVE_API_BASE_URL = 'https://api.example.test'
+    runtimeEnv.VITE_NARRATIVE_PROJECT_ID = 'project-from-env'
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
     const runtime = createTestProjectRuntime()
 
@@ -25,6 +58,7 @@ describe('AppProviders', () => {
     })
 
     expect(hook.result.current).toBe(runtime)
+    expect(hook.result.current.projectId).not.toBe('project-from-env')
 
     await act(async () => {
       await hook.result.current.reviewClient.setReviewIssueDecision({

@@ -2,7 +2,8 @@ import { useCallback, useMemo, useState } from 'react'
 
 import { QueryClient, useQueryClient } from '@tanstack/react-query'
 
-import { sceneClient, type SceneClient } from '@/features/scene/api/scene-client'
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
+import type { SceneClient } from '@/features/scene/api/scene-client'
 
 import { useSceneUiStore } from '../store/scene-ui-store'
 import type { SceneTab } from '../types/scene-view-models'
@@ -25,12 +26,19 @@ async function invalidateSceneQueries(queryClient: QueryClient, sceneId: string)
   ])
 }
 
-export function useSceneWorkspaceActions({ sceneId, client = sceneClient }: UseSceneWorkspaceActionsOptions) {
+export function useSceneWorkspaceActions({ sceneId, client }: UseSceneWorkspaceActionsOptions) {
+  const runtime = useOptionalProjectRuntime()
   const queryClient = useQueryClient()
   const { setRoute } = useSceneRouteState()
   const setInspectorTab = useSceneUiStore((state) => state.setInspectorTab)
   const setPatchPreviewOpen = useSceneUiStore((state) => state.setPatchPreviewOpen)
   const [isMutating, setIsMutating] = useState(false)
+  const effectiveClient = resolveProjectRuntimeDependency(
+    client,
+    runtime?.sceneClient,
+    'useSceneWorkspaceActions',
+    'options.client',
+  )
 
   const runMutation = useCallback(
     async (mutation: () => Promise<void>) => {
@@ -72,21 +80,21 @@ export function useSceneWorkspaceActions({ sceneId, client = sceneClient }: UseS
       },
       continueRun: async () => {
         await runMutation(async () => {
-          await client.continueSceneRun(sceneId)
+          await effectiveClient.continueSceneRun(sceneId)
         })
       },
       switchThread: async (threadId: string) => {
         await runMutation(async () => {
-          await client.switchSceneThread(sceneId, threadId)
+          await effectiveClient.switchSceneThread(sceneId, threadId)
         })
       },
       commitAcceptedPatch: async (patchId: string) => {
         await runMutation(async () => {
-          await client.commitAcceptedPatch(sceneId, patchId)
+          await effectiveClient.commitAcceptedPatch(sceneId, patchId)
         })
         setPatchPreviewOpen(false)
       },
     }),
-    [client, isMutating, runMutation, sceneId, setInspectorTab, setPatchPreviewOpen, setRoute],
+    [effectiveClient, isMutating, runMutation, sceneId, setInspectorTab, setPatchPreviewOpen, setRoute],
   )
 }

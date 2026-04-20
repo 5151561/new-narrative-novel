@@ -3,11 +3,12 @@ import { useMemo } from 'react'
 import { useQueries } from '@tanstack/react-query'
 
 import { useI18n } from '@/app/i18n'
-import { sceneClient, type SceneClient } from '@/features/scene/api/scene-client'
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
+import type { SceneClient } from '@/features/scene/api/scene-client'
 import { sceneQueryKeys } from '@/features/scene/hooks/scene-query-keys'
 import type { SceneProseViewModel } from '@/features/scene/types/scene-view-models'
 
-import { chapterClient, type ChapterClient, type GetChapterStructureWorkspaceInput } from '../api/chapter-client'
+import { type ChapterClient, type GetChapterStructureWorkspaceInput } from '../api/chapter-client'
 import type {
   ChapterDraftDockSummaryItem,
   ChapterDraftDockSummaryViewModel,
@@ -176,18 +177,31 @@ function buildWorkspaceModel(
 
 export function useChapterDraftWorkspaceQuery(
   { chapterId, selectedSceneId }: UseChapterDraftWorkspaceQueryInput,
-  { chapterClient: customChapterClient = chapterClient, sceneClient: customSceneClient = sceneClient }: ChapterDraftWorkspaceQueryDeps = {},
+  { chapterClient: customChapterClient, sceneClient: customSceneClient }: ChapterDraftWorkspaceQueryDeps = {},
 ) {
+  const runtime = useOptionalProjectRuntime()
   const { locale } = useI18n()
+  const effectiveChapterClient = resolveProjectRuntimeDependency(
+    customChapterClient,
+    runtime?.chapterClient,
+    'useChapterDraftWorkspaceQuery',
+    'deps.chapterClient',
+  )
+  const effectiveSceneClient = resolveProjectRuntimeDependency(
+    customSceneClient,
+    runtime?.sceneClient,
+    'useChapterDraftWorkspaceQuery',
+    'deps.sceneClient',
+  )
   const chapterWorkspaceQuery = useChapterStructureWorkspaceQuery(
     { chapterId, selectedSceneId },
-    customChapterClient,
+    effectiveChapterClient,
   )
   const orderedScenes = chapterWorkspaceQuery.workspace?.scenes ?? []
   const proseQueries = useQueries({
     queries: orderedScenes.map((scene) => ({
       queryKey: sceneQueryKeys.prose(scene.id, locale),
-      queryFn: () => customSceneClient.getSceneProse(scene.id),
+      queryFn: () => effectiveSceneClient.getSceneProse(scene.id),
     })),
   })
   const proseStateBySceneId = useMemo(

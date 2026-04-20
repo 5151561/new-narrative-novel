@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
 import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
@@ -13,7 +13,15 @@ import type { SceneProseViewModel } from '@/features/scene/types/scene-view-mode
 
 import { useChapterDraftWorkspaceQuery } from './useChapterDraftWorkspaceQuery'
 
-function createWrapper() {
+function createWrapper(runtime = createMockProjectRuntime({
+  persistence: {
+    async loadProjectSnapshot() {
+      return null
+    },
+    async saveProjectSnapshot() {},
+    async clearProjectSnapshot() {},
+  },
+})) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -24,16 +32,7 @@ function createWrapper() {
     return (
       <QueryClientProvider client={queryClient}>
         <I18nProvider>
-          <ProjectRuntimeProvider runtime={createMockProjectRuntime({
-            persistence: {
-              async loadProjectSnapshot() {
-                return null
-              },
-              async saveProjectSnapshot() {},
-              async clearProjectSnapshot() {},
-            },
-          })}
-          >
+          <ProjectRuntimeProvider runtime={runtime}>
             {children}
           </ProjectRuntimeProvider>
         </I18nProvider>
@@ -43,6 +42,56 @@ function createWrapper() {
 }
 
 describe('useChapterDraftWorkspaceQuery', () => {
+  it('uses runtime-injected chapter and scene clients when no overrides are provided', async () => {
+    const runtimeChapterClient: Pick<ChapterClient, 'getChapterStructureWorkspace'> = {
+      getChapterStructureWorkspace: vi.fn(async () => structuredClone(mockChapterRecordSeeds['chapter-signals-in-rain'])),
+    }
+    const runtimeSceneClient: Pick<SceneClient, 'getSceneProse'> = {
+      getSceneProse: vi.fn(async (sceneId: string) => ({
+        sceneId,
+        proseDraft: `${sceneId} draft`,
+        revisionModes: ['rewrite'],
+        latestDiffSummary: `${sceneId} diff`,
+        warningsCount: 0,
+        focusModeAvailable: true,
+        revisionQueueCount: 0,
+        draftWordCount: 3,
+        statusLabel: 'Ready',
+      })),
+    }
+
+    const hook = renderHook(
+      () =>
+        useChapterDraftWorkspaceQuery({
+          chapterId: 'chapter-signals-in-rain',
+          selectedSceneId: null,
+        }),
+      {
+        wrapper: createWrapper(createMockProjectRuntime({
+          chapterClient: runtimeChapterClient as ChapterClient,
+          sceneClient: runtimeSceneClient as SceneClient,
+          persistence: {
+            async loadProjectSnapshot() {
+              return null
+            },
+            async saveProjectSnapshot() {},
+            async clearProjectSnapshot() {},
+          },
+        })),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(runtimeChapterClient.getChapterStructureWorkspace).toHaveBeenCalledWith({
+      chapterId: 'chapter-signals-in-rain',
+    })
+    expect(runtimeSceneClient.getSceneProse).toHaveBeenCalled()
+    expect(hook.result.current.workspace?.chapterId).toBe('chapter-signals-in-rain')
+  })
+
   it('assembles scenes in chapter order, flags missing drafts, and falls back the selection to the first scene', async () => {
     const chapterRecord = structuredClone(
       mockChapterRecordSeeds['chapter-signals-in-rain'],

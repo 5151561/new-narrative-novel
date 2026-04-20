@@ -8,6 +8,7 @@ import {
   getWorkbenchLensLabel,
   useI18n,
 } from '@/app/i18n'
+import { useProjectRuntime } from '@/app/project-runtime'
 import { Badge } from '@/components/ui/Badge'
 import { PaneHeader } from '@/components/ui/PaneHeader'
 import { AssetWorkbench } from '@/features/asset/containers/AssetWorkbench'
@@ -15,7 +16,6 @@ import { getMockChapterRecordById } from '@/features/chapter/api/mock-chapter-db
 import { readLocalizedChapterText } from '@/features/chapter/api/chapter-records'
 import { ChapterWorkbench } from '@/features/chapter/containers/ChapterWorkbench'
 import { BookWorkbench } from '@/features/book/containers/BookWorkbench'
-import { sceneClient } from '@/features/scene/api/scene-client'
 import { SceneDockContainer } from '@/features/scene/containers/SceneDockContainer'
 import { SceneInspectorContainer } from '@/features/scene/containers/SceneInspectorContainer'
 import { SceneWorkspace } from '@/features/scene/containers/SceneWorkspace'
@@ -86,9 +86,10 @@ function SceneTopCommandBar({
   tab: SceneTab
 }) {
   const { locale, dictionary } = useI18n()
+  const runtime = useProjectRuntime()
   const runtimeInfo = useQuery({
     queryKey: sceneQueryKeys.runtimeInfo(locale),
-    queryFn: () => sceneClient.getRuntimeInfo(),
+    queryFn: () => runtime.sceneClient.getRuntimeInfo(),
   })
   const runtimeBadge = runtimeInfo.data ?? {
     source: 'mock-fallback' as const,
@@ -278,6 +279,7 @@ function SceneWorkbench({
   patchSceneRoute: ReturnType<typeof useWorkbenchRouteState>['patchSceneRoute']
 }) {
   const { locale, dictionary } = useI18n()
+  const runtime = useProjectRuntime()
   const sceneId = route.sceneId
   const activeSceneQuery = useSceneWorkspaceQuery(sceneId)
   const navigatorChapterId = activeSceneQuery.scene?.chapterId ?? getSceneFixtureChapterId(sceneId)
@@ -286,7 +288,7 @@ function SceneWorkbench({
   const navigatorQueries = useQueries({
     queries: navigatorSceneIds.map((navigatorSceneId) => ({
       queryKey: sceneQueryKeys.workspace(navigatorSceneId, locale),
-      queryFn: () => sceneClient.getSceneWorkspace(navigatorSceneId),
+      queryFn: () => runtime.sceneClient.getSceneWorkspace(navigatorSceneId),
     })),
   })
   const fallbackNavigatorItems: SceneNavigatorCard[] =

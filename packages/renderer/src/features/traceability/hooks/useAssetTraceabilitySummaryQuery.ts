@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 
-import { assetClient, type AssetClient } from '@/features/asset/api/asset-client'
+import type { AssetClient } from '@/features/asset/api/asset-client'
 import { useAssetKnowledgeWorkspaceQuery } from '@/features/asset/hooks/useAssetKnowledgeWorkspaceQuery'
 
 import { buildAssetTraceabilitySummaryViewModel } from '../lib/traceability-mappers'
@@ -13,7 +13,7 @@ interface AssetTraceabilitySummaryQueryDeps {
 
 export function useAssetTraceabilitySummaryQuery(
   assetId: string,
-  { assetClient: customAssetClient = assetClient, sceneClient }: AssetTraceabilitySummaryQueryDeps = {},
+  { assetClient: customAssetClient, sceneClient }: AssetTraceabilitySummaryQueryDeps = {},
 ) {
   const assetWorkspaceQuery = useAssetKnowledgeWorkspaceQuery({ assetId }, customAssetClient)
   const sceneIds = useMemo(

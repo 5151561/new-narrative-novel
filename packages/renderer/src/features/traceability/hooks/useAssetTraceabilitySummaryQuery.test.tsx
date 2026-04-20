@@ -1,16 +1,17 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
+import { ProjectRuntimeProvider, createTestProjectRuntime } from '@/app/project-runtime'
 import type { AssetClient } from '@/features/asset/api/asset-client'
 import { getMockAssetKnowledgeWorkspace } from '@/features/asset/api/mock-asset-db'
 import type { SceneClient } from '@/features/scene/api/scene-client'
 
 import { useAssetTraceabilitySummaryQuery } from './useAssetTraceabilitySummaryQuery'
 
-function createWrapper() {
+function createWrapper(runtime = createTestProjectRuntime()) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -20,13 +21,69 @@ function createWrapper() {
   return function Wrapper({ children }: PropsWithChildren) {
     return (
       <QueryClientProvider client={queryClient}>
-        <I18nProvider>{children}</I18nProvider>
+        <I18nProvider>
+          <ProjectRuntimeProvider runtime={runtime}>{children}</ProjectRuntimeProvider>
+        </I18nProvider>
       </QueryClientProvider>
     )
   }
 }
 
 describe('useAssetTraceabilitySummaryQuery', () => {
+  it('uses runtime-injected asset and traceability scene clients when no overrides are provided', async () => {
+    const assetClient: Pick<AssetClient, 'getAssetKnowledgeWorkspace'> = {
+      getAssetKnowledgeWorkspace: vi.fn(async () => structuredClone(getMockAssetKnowledgeWorkspace('asset-ren-voss'))),
+    }
+    const sceneClient: Pick<SceneClient, 'getSceneExecution' | 'getSceneProse' | 'getSceneInspector' | 'previewAcceptedPatch'> = {
+      getSceneExecution: vi.fn(async (sceneId) => ({
+        runId: `run-${sceneId}`,
+        objective: { goal: 'Goal', warningsCount: 0, unresolvedCount: 0, cast: [], constraintSummary: [] },
+        beats: [],
+        proposals: [],
+        acceptedSummary: { sceneSummary: 'Summary', acceptedFacts: [], readiness: 'draftable', pendingProposalCount: 0, warningCount: 0, patchCandidateCount: 0 },
+        runtimeSummary: { runHealth: 'stable', latencyLabel: '', tokenLabel: '', costLabel: '' },
+        canContinueRun: false,
+        canOpenProse: true,
+      })),
+      getSceneProse: vi.fn(async (sceneId) => ({
+        sceneId,
+        proseDraft: `${sceneId} draft`,
+        revisionModes: ['rewrite'],
+        latestDiffSummary: `${sceneId} diff`,
+        warningsCount: 0,
+        focusModeAvailable: true,
+      })),
+      getSceneInspector: vi.fn(async () => ({
+        context: { acceptedFacts: [], privateInfoGuard: { summary: '', items: [] }, actorKnowledgeBoundaries: [], localState: [], overrides: [] },
+        versions: { checkpoints: [], acceptanceTimeline: [], patchCandidates: [] },
+        runtime: { profile: { label: '', summary: '' }, runHealth: 'stable', metrics: { latencyLabel: '', tokenLabel: '', costLabel: '' } },
+      })),
+      previewAcceptedPatch: vi.fn(async () => null),
+    }
+    const runtime = createTestProjectRuntime({
+      assetClient: assetClient as AssetClient,
+      traceabilitySceneClient: sceneClient,
+    })
+
+    const hook = renderHook(() => useAssetTraceabilitySummaryQuery('asset-ren-voss'), {
+      wrapper: createWrapper(runtime),
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(assetClient.getAssetKnowledgeWorkspace).toHaveBeenCalledWith({
+      assetId: 'asset-ren-voss',
+      locale: 'en',
+    })
+    expect(sceneClient.getSceneExecution).toHaveBeenCalled()
+    expect(sceneClient.getSceneProse).toHaveBeenCalled()
+    expect(sceneClient.getSceneInspector).toHaveBeenCalled()
+    expect(sceneClient.previewAcceptedPatch).toHaveBeenCalled()
+    expect(hook.result.current.summary?.assetId).toBe('asset-ren-voss')
+  })
+
   it('aggregates mention backing kinds and proposal/fact summaries from scene traceability anchors', async () => {
     const hook = renderHook(() => useAssetTraceabilitySummaryQuery('asset-ren-voss'), {
       wrapper: createWrapper(),

@@ -60,6 +60,14 @@ describe('SceneExecutionContainer', () => {
         isMutating: false,
       }),
     }))
+    vi.doMock('../hooks/useSceneWorkspaceActions', () => ({
+      useSceneWorkspaceActions: () => ({
+        continueRun: vi.fn(),
+        openPatchPreview: vi.fn(),
+        openProse: vi.fn(),
+        openTab: vi.fn(),
+      }),
+    }))
     vi.doMock('../components/SceneExecutionTab', () => ({
       SceneExecutionTab: () => <div>execution tab</div>,
     }))
