@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
 
+import type {
+  BookExportArtifactSummaryViewModel,
+  BookExportArtifactWorkspaceViewModel,
+} from '../types/book-export-artifact-view-models'
 import type { BookExportPreviewWorkspaceViewModel, BookExportProfileSummaryViewModel } from '../types/book-export-view-models'
 import { BookDraftExportView } from './BookDraftExportView'
 
@@ -188,6 +192,43 @@ const exportWorkspace: BookExportPreviewWorkspaceViewModel = {
   },
 }
 
+const latestArtifact: BookExportArtifactSummaryViewModel = {
+  artifactId: 'artifact-latest',
+  format: 'markdown',
+  filename: 'signal-arc-review.md',
+  mimeType: 'text/markdown',
+  title: 'Signal Arc',
+  summary: 'Export artifact for Review Packet.',
+  content: '# Signal Arc\n',
+  createdAtLabel: 'Built in mock export session',
+  createdByLabel: 'Narrative editor',
+  sourceSignature: 'current-signature',
+  isStale: false,
+  chapterCount: 2,
+  sceneCount: 5,
+  wordCount: 1200,
+  readinessStatus: 'ready',
+}
+
+const artifactWorkspace: BookExportArtifactWorkspaceViewModel = {
+  bookId: 'book-signal-arc',
+  exportProfileId: 'export-review-packet',
+  checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+  sourceSignature: 'current-signature',
+  gate: {
+    canBuild: true,
+    status: 'ready',
+    label: 'Artifact build ready',
+    reasons: [],
+    openBlockerCount: 0,
+    checkedFixCount: 0,
+    blockedFixCount: 0,
+    staleFixCount: 0,
+  },
+  latestArtifact,
+  artifacts: [latestArtifact],
+}
+
 describe('BookDraftExportView', () => {
   it('renders the export profile, readiness, package summary, chapter list, and selected chapter detail', () => {
     render(
@@ -196,9 +237,15 @@ describe('BookDraftExportView', () => {
           exportPreview={exportWorkspace}
           exportProfiles={profiles}
           selectedExportProfileId="export-review-packet"
+          artifactWorkspace={artifactWorkspace}
+          selectedArtifactFormat="markdown"
           onSelectChapter={vi.fn()}
           onOpenChapter={vi.fn()}
           onSelectExportProfile={vi.fn()}
+          onSelectArtifactFormat={vi.fn()}
+          onBuildArtifact={vi.fn()}
+          onCopyArtifact={vi.fn()}
+          onDownloadArtifact={vi.fn()}
         />
       </AppProviders>,
     )
@@ -224,9 +271,15 @@ describe('BookDraftExportView', () => {
           exportPreview={exportWorkspace}
           exportProfiles={profiles}
           selectedExportProfileId="export-review-packet"
+          artifactWorkspace={artifactWorkspace}
+          selectedArtifactFormat="markdown"
           onSelectChapter={onSelectChapter}
           onOpenChapter={onOpenChapter}
           onSelectExportProfile={vi.fn()}
+          onSelectArtifactFormat={vi.fn()}
+          onBuildArtifact={vi.fn()}
+          onCopyArtifact={vi.fn()}
+          onDownloadArtifact={vi.fn()}
         />
       </AppProviders>,
     )
@@ -242,5 +295,58 @@ describe('BookDraftExportView', () => {
 
     expect(onOpenChapter).toHaveBeenNthCalledWith(1, 'chapter-open-water-signals', 'draft')
     expect(onOpenChapter).toHaveBeenNthCalledWith(2, 'chapter-open-water-signals', 'structure')
+  })
+
+  it('renders the artifact gate and artifact panel', () => {
+    render(
+      <AppProviders>
+        <BookDraftExportView
+          exportPreview={exportWorkspace}
+          exportProfiles={profiles}
+          selectedExportProfileId="export-review-packet"
+          artifactWorkspace={artifactWorkspace}
+          selectedArtifactFormat="markdown"
+          onSelectChapter={vi.fn()}
+          onOpenChapter={vi.fn()}
+          onSelectExportProfile={vi.fn()}
+          onSelectArtifactFormat={vi.fn()}
+          onBuildArtifact={vi.fn()}
+          onCopyArtifact={vi.fn()}
+          onDownloadArtifact={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Artifact builder' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Artifact gate' })).toBeInTheDocument()
+    expect(screen.getByText('signal-arc-review.md')).toBeInTheDocument()
+  })
+
+  it('forwards artifact build action', async () => {
+    const user = userEvent.setup()
+    const onBuildArtifact = vi.fn()
+
+    render(
+      <AppProviders>
+        <BookDraftExportView
+          exportPreview={exportWorkspace}
+          exportProfiles={profiles}
+          selectedExportProfileId="export-review-packet"
+          artifactWorkspace={artifactWorkspace}
+          selectedArtifactFormat="plain_text"
+          onSelectChapter={vi.fn()}
+          onOpenChapter={vi.fn()}
+          onSelectExportProfile={vi.fn()}
+          onSelectArtifactFormat={vi.fn()}
+          onBuildArtifact={onBuildArtifact}
+          onCopyArtifact={vi.fn()}
+          onDownloadArtifact={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Build plain text package' }))
+
+    expect(onBuildArtifact).toHaveBeenCalledTimes(1)
   })
 })

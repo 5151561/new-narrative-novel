@@ -5,11 +5,17 @@ import { PaneHeader } from '@/components/ui/PaneHeader'
 
 import { useI18n } from '@/app/i18n'
 
+import type { BookExportArtifactFormat } from '../api/book-export-artifact-records'
+import type {
+  BookExportArtifactSummaryViewModel,
+  BookExportArtifactWorkspaceViewModel,
+} from '../types/book-export-artifact-view-models'
 import type {
   BookExportChapterPreviewViewModel,
   BookExportPreviewWorkspaceViewModel,
   BookExportProfileSummaryViewModel,
 } from '../types/book-export-view-models'
+import { BookExportArtifactPanel } from './BookExportArtifactPanel'
 import { BookExportProfilePicker } from './BookExportProfilePicker'
 import { BookExportReadinessChecklist } from './BookExportReadinessChecklist'
 
@@ -17,10 +23,18 @@ interface BookDraftExportViewProps {
   exportPreview: BookExportPreviewWorkspaceViewModel | null
   exportProfiles: BookExportProfileSummaryViewModel[]
   selectedExportProfileId: string
+  artifactWorkspace?: BookExportArtifactWorkspaceViewModel | null
+  selectedArtifactFormat: BookExportArtifactFormat
+  isBuildingArtifact?: boolean
+  artifactBuildErrorMessage?: string | null
   errorMessage?: string | null
   onSelectChapter: (chapterId: string) => void
   onOpenChapter: (chapterId: string, lens: 'structure' | 'draft') => void
   onSelectExportProfile: (exportProfileId: string) => void
+  onSelectArtifactFormat?: (format: BookExportArtifactFormat) => void
+  onBuildArtifact?: () => void
+  onCopyArtifact?: (artifact: BookExportArtifactSummaryViewModel) => void
+  onDownloadArtifact?: (artifact: BookExportArtifactSummaryViewModel) => void
 }
 
 function getChapterLabel(locale: 'en' | 'zh-CN', order: number) {
@@ -53,10 +67,18 @@ export function BookDraftExportView({
   exportPreview,
   exportProfiles,
   selectedExportProfileId,
+  artifactWorkspace = null,
+  selectedArtifactFormat,
+  isBuildingArtifact = false,
+  artifactBuildErrorMessage = null,
   errorMessage = null,
   onSelectChapter,
   onOpenChapter,
   onSelectExportProfile,
+  onSelectArtifactFormat,
+  onBuildArtifact,
+  onCopyArtifact,
+  onDownloadArtifact,
 }: BookDraftExportViewProps) {
   const { locale } = useI18n()
 
@@ -66,8 +88,8 @@ export function BookDraftExportView({
         title={locale === 'zh-CN' ? '书籍导出预览' : 'Book export preview'}
         description={
           locale === 'zh-CN'
-            ? '按章节检查 package readiness，不生成真实文件。'
-            : 'Review package readiness chapter by chapter without generating a real export file.'
+            ? '按章节检查 package readiness，并构建本地 Markdown / 纯文本 artifact。'
+            : 'Review package readiness chapter by chapter and build a local Markdown or plain text artifact.'
         }
       />
       <div className="min-h-0 flex-1 overflow-auto p-4">
@@ -117,6 +139,16 @@ export function BookDraftExportView({
                     </div>
                   </div>
                 </section>
+                <BookExportArtifactPanel
+                  artifactWorkspace={artifactWorkspace}
+                  selectedFormat={selectedArtifactFormat}
+                  isBuilding={isBuildingArtifact}
+                  buildErrorMessage={artifactBuildErrorMessage}
+                  onSelectFormat={onSelectArtifactFormat}
+                  onBuildArtifact={onBuildArtifact}
+                  onCopyArtifact={onCopyArtifact}
+                  onDownloadArtifact={onDownloadArtifact}
+                />
                 <section className="space-y-3">
                   {exportPreview.chapters.map((chapter) => {
                     const active = chapter.chapterId === exportPreview.selectedChapterId

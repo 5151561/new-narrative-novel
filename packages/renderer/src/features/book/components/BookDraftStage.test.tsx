@@ -10,6 +10,10 @@ import { buildBookExperimentBranchWorkspace, normalizeBookExperimentBranch } fro
 import type { BookExperimentBranchSummaryViewModel, BookExperimentBranchWorkspaceViewModel } from '../types/book-branch-view-models'
 import type { BookManuscriptCheckpointSummaryViewModel, BookManuscriptCompareWorkspaceViewModel } from '../types/book-compare-view-models'
 import type { BookDraftWorkspaceViewModel } from '../types/book-draft-view-models'
+import type {
+  BookExportArtifactSummaryViewModel,
+  BookExportArtifactWorkspaceViewModel,
+} from '../types/book-export-artifact-view-models'
 import type { BookExportPreviewWorkspaceViewModel, BookExportProfileSummaryViewModel } from '../types/book-export-view-models'
 import { BookDraftStage } from './BookDraftStage'
 
@@ -441,6 +445,44 @@ function buildExportWorkspace(): BookExportPreviewWorkspaceViewModel {
   }
 }
 
+const latestArtifact: BookExportArtifactSummaryViewModel = {
+  artifactId: 'artifact-stage-latest',
+  format: 'markdown',
+  filename: 'signal-arc-review.md',
+  mimeType: 'text/markdown',
+  title: 'Signal Arc',
+  summary: 'Export artifact for Review Packet.',
+  content: '# Signal Arc\n',
+  createdAtLabel: 'Built in mock export session',
+  createdByLabel: 'Narrative editor',
+  sourceSignature: 'current-signature',
+  isStale: false,
+  chapterCount: 2,
+  sceneCount: 2,
+  wordCount: 44,
+  readinessStatus: 'ready',
+}
+
+function buildArtifactWorkspace(): BookExportArtifactWorkspaceViewModel {
+  return {
+    bookId: 'book-signal-arc',
+    exportProfileId: 'export-review-packet',
+    sourceSignature: 'current-signature',
+    gate: {
+      canBuild: true,
+      status: 'ready',
+      label: 'Artifact build ready',
+      reasons: [],
+      openBlockerCount: 0,
+      checkedFixCount: 0,
+      blockedFixCount: 0,
+      staleFixCount: 0,
+    },
+    latestArtifact,
+    artifacts: [latestArtifact],
+  }
+}
+
 function buildBranchWorkspace(): BookExperimentBranchWorkspaceViewModel {
   return buildBookExperimentBranchWorkspace({
     currentDraftWorkspace: buildWorkspace(),
@@ -640,6 +682,102 @@ describe('BookDraftStage', () => {
 
     expect(screen.getByRole('heading', { name: 'Book export preview' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Manuscript checkpoint')).not.toBeInTheDocument()
+  })
+
+  it('passes artifact props through to BookDraftExportView with safe callbacks', async () => {
+    const user = userEvent.setup()
+    const onSelectArtifactFormat = vi.fn()
+    const onBuildArtifact = vi.fn()
+    const onCopyArtifact = vi.fn()
+    const onDownloadArtifact = vi.fn()
+
+    render(
+      <AppProviders>
+        <BookDraftStage
+          draftView="export"
+          workspace={buildWorkspace()}
+          compare={buildCompare()}
+          exportPreview={buildExportWorkspace()}
+          artifactWorkspace={buildArtifactWorkspace()}
+          selectedArtifactFormat="plain_text"
+          branchWorkspace={buildBranchWorkspace()}
+          branches={branches}
+          selectedBranchId="branch-book-signal-arc-quiet-ending"
+          branchBaseline="current"
+          exportProfiles={exportProfiles}
+          selectedExportProfileId="export-review-packet"
+          checkpoints={checkpoints}
+          selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          reviewInbox={null}
+          onSelectDraftView={vi.fn()}
+          onSelectChapter={vi.fn()}
+          onOpenChapter={vi.fn()}
+          onSelectCheckpoint={vi.fn()}
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
+          onSelectExportProfile={vi.fn()}
+          onSelectArtifactFormat={onSelectArtifactFormat}
+          onBuildArtifact={onBuildArtifact}
+          onCopyArtifact={onCopyArtifact}
+          onDownloadArtifact={onDownloadArtifact}
+          onSelectReviewFilter={vi.fn()}
+          onSelectReviewIssue={vi.fn()}
+          onOpenReviewSource={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('signal-arc-review.md')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Build plain text package' }))
+
+    expect(onBuildArtifact).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not expose enabled artifact controls when workspace is supplied without artifact handlers', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <AppProviders>
+        <BookDraftStage
+          draftView="export"
+          workspace={buildWorkspace()}
+          compare={buildCompare()}
+          exportPreview={buildExportWorkspace()}
+          artifactWorkspace={buildArtifactWorkspace()}
+          selectedArtifactFormat="markdown"
+          branchWorkspace={buildBranchWorkspace()}
+          branches={branches}
+          selectedBranchId="branch-book-signal-arc-quiet-ending"
+          branchBaseline="current"
+          exportProfiles={exportProfiles}
+          selectedExportProfileId="export-review-packet"
+          checkpoints={checkpoints}
+          selectedCheckpointId="checkpoint-book-signal-arc-pr11-baseline"
+          reviewInbox={null}
+          onSelectDraftView={vi.fn()}
+          onSelectChapter={vi.fn()}
+          onOpenChapter={vi.fn()}
+          onSelectCheckpoint={vi.fn()}
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
+          onSelectExportProfile={vi.fn()}
+          onSelectReviewFilter={vi.fn()}
+          onSelectReviewIssue={vi.fn()}
+          onOpenReviewSource={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.queryByText('signal-arc-review.md')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Copy package text' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Download .md' })).not.toBeInTheDocument()
+    expect(screen.getByText('Artifact gate unavailable')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Build Markdown package' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Markdown' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Plain text' })).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'Build Markdown package' }))
   })
 
   it('renders BookDraftBranchView in branch view', () => {

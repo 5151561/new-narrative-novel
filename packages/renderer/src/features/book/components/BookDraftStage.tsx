@@ -3,12 +3,17 @@ import type { BookBranchBaseline, BookDraftView, BookReviewFilter, BookReviewSta
 import { useI18n } from '@/app/i18n'
 import type { BookReviewInboxViewModel, ReviewSourceHandoffViewModel } from '@/features/review/types/review-view-models'
 
+import type { BookExportArtifactFormat } from '../api/book-export-artifact-records'
 import type { BookExperimentBranchSummaryViewModel, BookExperimentBranchWorkspaceViewModel } from '../types/book-branch-view-models'
 import type {
   BookManuscriptCheckpointSummaryViewModel,
   BookManuscriptCompareWorkspaceViewModel,
 } from '../types/book-compare-view-models'
 import type { BookDraftWorkspaceViewModel } from '../types/book-draft-view-models'
+import type {
+  BookExportArtifactSummaryViewModel,
+  BookExportArtifactWorkspaceViewModel,
+} from '../types/book-export-artifact-view-models'
 import type {
   BookExportPreviewWorkspaceViewModel,
   BookExportProfileSummaryViewModel,
@@ -34,6 +39,10 @@ interface BookDraftStageProps {
   exportProfiles: BookExportProfileSummaryViewModel[]
   selectedExportProfileId: string
   exportError?: Error | null
+  artifactWorkspace?: BookExportArtifactWorkspaceViewModel | null
+  selectedArtifactFormat?: BookExportArtifactFormat
+  isBuildingArtifact?: boolean
+  artifactBuildErrorMessage?: string | null
   reviewInbox?: BookReviewInboxViewModel | null
   reviewError?: Error | null
   reviewDecisionError?: Error | null
@@ -47,6 +56,10 @@ interface BookDraftStageProps {
   onSelectBranch: (branchId: string) => void
   onSelectBranchBaseline: (baseline: BookBranchBaseline) => void
   onSelectExportProfile: (exportProfileId: string) => void
+  onSelectArtifactFormat?: (format: BookExportArtifactFormat) => void
+  onBuildArtifact?: () => void
+  onCopyArtifact?: (artifact: BookExportArtifactSummaryViewModel) => void
+  onDownloadArtifact?: (artifact: BookExportArtifactSummaryViewModel) => void
   onSelectReviewFilter: (filter: BookReviewFilter) => void
   onSelectReviewStatusFilter?: (statusFilter: BookReviewStatusFilter) => void
   onSelectReviewIssue: (issueId: string) => void
@@ -76,6 +89,18 @@ interface BookDraftStageProps {
   onOpenReviewSource: (handoff: ReviewSourceHandoffViewModel) => void
 }
 
+function hasArtifactActionHandlers({
+  onSelectArtifactFormat,
+  onBuildArtifact,
+  onCopyArtifact,
+  onDownloadArtifact,
+}: Pick<
+  BookDraftStageProps,
+  'onSelectArtifactFormat' | 'onBuildArtifact' | 'onCopyArtifact' | 'onDownloadArtifact'
+>) {
+  return Boolean(onSelectArtifactFormat && onBuildArtifact && onCopyArtifact && onDownloadArtifact)
+}
+
 export function BookDraftStage({
   draftView,
   workspace,
@@ -90,6 +115,10 @@ export function BookDraftStage({
   exportProfiles,
   selectedExportProfileId,
   exportError = null,
+  artifactWorkspace = null,
+  selectedArtifactFormat = 'markdown',
+  isBuildingArtifact = false,
+  artifactBuildErrorMessage = null,
   reviewInbox = null,
   reviewError = null,
   reviewDecisionError = null,
@@ -103,6 +132,10 @@ export function BookDraftStage({
   onSelectBranch,
   onSelectBranchBaseline,
   onSelectExportProfile,
+  onSelectArtifactFormat,
+  onBuildArtifact,
+  onCopyArtifact,
+  onDownloadArtifact,
   onSelectReviewFilter,
   onSelectReviewStatusFilter = () => undefined,
   onSelectReviewIssue,
@@ -116,6 +149,12 @@ export function BookDraftStage({
   onOpenReviewSource,
 }: BookDraftStageProps) {
   const { locale } = useI18n()
+  const artifactActionsReady = hasArtifactActionHandlers({
+    onSelectArtifactFormat,
+    onBuildArtifact,
+    onCopyArtifact,
+    onDownloadArtifact,
+  })
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -160,14 +199,22 @@ export function BookDraftStage({
           />
         </>
       ) : draftView === 'export' ? (
-          <BookDraftExportView
+        <BookDraftExportView
           exportPreview={exportPreview}
           exportProfiles={exportProfiles}
           selectedExportProfileId={selectedExportProfileId}
           errorMessage={exportError?.message ?? null}
+          artifactWorkspace={artifactActionsReady ? artifactWorkspace : null}
+          selectedArtifactFormat={selectedArtifactFormat}
+          isBuildingArtifact={isBuildingArtifact}
+          artifactBuildErrorMessage={artifactBuildErrorMessage}
           onSelectChapter={onSelectChapter}
           onOpenChapter={onOpenChapter}
           onSelectExportProfile={onSelectExportProfile}
+          onSelectArtifactFormat={onSelectArtifactFormat}
+          onBuildArtifact={onBuildArtifact}
+          onCopyArtifact={onCopyArtifact}
+          onDownloadArtifact={onDownloadArtifact}
         />
       ) : draftView === 'branch' ? (
         <BookDraftBranchView
