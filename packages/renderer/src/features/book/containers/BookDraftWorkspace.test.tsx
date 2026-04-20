@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
+import { apiRouteContract } from '@/app/project-runtime'
+import { createFakeApiRuntime } from '@/app/project-runtime/fake-api-runtime.test-utils'
 import { resetMockReviewDecisionDb } from '@/features/review/api/mock-review-decision-db'
 import { resetMockReviewFixActionDb } from '@/features/review/api/mock-review-fix-action-db'
 import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
@@ -971,6 +973,74 @@ describe('BookDraftWorkspace', () => {
       expect(params.get('draftView')).toBe('review')
       expect(params.get('reviewFilter')).toBe('blockers')
       expect(params.get('view')).toBe('signals')
+    })
+  })
+
+  it('sets a review decision through the API runtime boundary and invalidates the original review query key', async () => {
+    const user = userEvent.setup()
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          staleTime: 30_000,
+          retry: false,
+          refetchOnWindowFocus: false,
+        },
+        mutations: {
+          retry: false,
+        },
+      },
+    })
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    const { projectId, requests, runtime } = createFakeApiRuntime()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=all&reviewStatusFilter=open&reviewIssueId=compare-delta-chapter-2-scene-3&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders runtime={runtime} queryClient={queryClient}>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+    const effectiveIssueId = new URLSearchParams(window.location.search).get('reviewIssueId')
+
+    expect(effectiveIssueId).toBeTruthy()
+
+    await user.type(screen.getByRole('textbox', { name: 'Decision note' }), 'Need another pass')
+    await user.click(screen.getByRole('button', { name: 'Defer' }))
+
+    await waitFor(() => {
+      expect(requests).toContainEqual(
+        expect.objectContaining({
+          method: 'PUT',
+          path: apiRouteContract.reviewIssueDecision({
+            projectId,
+            bookId: 'book-signal-arc',
+            issueId: effectiveIssueId!,
+          }),
+          body: expect.objectContaining({
+            bookId: 'book-signal-arc',
+            issueId: effectiveIssueId!,
+            status: 'deferred',
+            note: 'Need another pass',
+          }),
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Deferred 1' })).toBeInTheDocument()
+    })
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: reviewQueryKeys.decisions('book-signal-arc'),
+        refetchType: 'active',
+      })
     })
   })
 

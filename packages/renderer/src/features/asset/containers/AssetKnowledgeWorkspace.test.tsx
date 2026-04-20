@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
+import { apiRouteContract } from '@/app/project-runtime'
+import { createFakeApiRuntime } from '@/app/project-runtime/fake-api-runtime.test-utils'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import { useAssetTraceabilitySummaryQuery } from '@/features/traceability/hooks/useAssetTraceabilitySummaryQuery'
 
@@ -41,6 +43,83 @@ function AssetRouteHarness() {
 }
 
 describe('AssetKnowledgeWorkspace', () => {
+  it('renders asset knowledge deep links through the API runtime boundary and roundtrips scene and chapter handoffs', async () => {
+    const user = userEvent.setup()
+    const { projectId, requests, runtime } = createFakeApiRuntime()
+
+    window.history.replaceState({}, '', '/workbench?scope=asset&id=asset-ren-voss&lens=knowledge&view=mentions')
+
+    render(
+      <AppProviders runtime={runtime}>
+        <AssetRouteHarness />
+      </AppProviders>,
+    )
+
+    const sceneDraftHandoff = await screen.findByRole('button', { name: 'Open in Draft: Midnight Platform' })
+    const navigatorRen = screen.getByRole('button', { name: /Ren Voss/i })
+    const inspectorSummary = screen.getByRole('heading', { name: 'Summary' }).closest('section')
+    const dockRegion = screen.getByRole('region', { name: 'Asset bottom dock' })
+
+    expect(navigatorRen).toHaveClass('border-line-strong')
+    expect(screen.getByText('Primary POV')).toBeInTheDocument()
+    expect(screen.getByText('Canon-backed')).toBeInTheDocument()
+    expect(inspectorSummary).not.toBeNull()
+    expect(within(inspectorSummary!).getByText('Ren Voss')).toBeInTheDocument()
+    expect(within(dockRegion).getByText('Focused Ren Voss')).toBeInTheDocument()
+    expect(requests).toContainEqual(
+      expect.objectContaining({
+        method: 'GET',
+        path: apiRouteContract.assetKnowledge({ projectId, assetId: 'asset-ren-voss' }),
+      }),
+    )
+
+    await user.click(sceneDraftHandoff)
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('scene')
+      expect(params.get('id')).toBe('scene-midnight-platform')
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('tab')).toBe('prose')
+    })
+
+    expect(screen.getByText('Scene scope placeholder')).toBeInTheDocument()
+
+    window.history.back()
+
+    await screen.findByRole('button', { name: 'Open in Draft: Midnight Platform' })
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('asset')
+      expect(params.get('id')).toBe('asset-ren-voss')
+      expect(params.get('view')).toBe('mentions')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Open in Structure: Signals in Rain' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('chapter')
+      expect(params.get('id')).toBe('chapter-signals-in-rain')
+      expect(params.get('lens')).toBe('structure')
+      expect(params.get('sceneId')).toBeNull()
+    })
+
+    expect(screen.getByText('Chapter scope placeholder')).toBeInTheDocument()
+
+    window.history.back()
+
+    await screen.findByRole('button', { name: 'Open in Draft: Midnight Platform' })
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('asset')
+      expect(params.get('id')).toBe('asset-ren-voss')
+      expect(params.get('view')).toBe('mentions')
+    })
+
+    expect(screen.getByRole('button', { name: /Ren Voss/i })).toHaveClass('border-line-strong')
+  })
+
   it('keeps navigator, stage, inspector, dock, route handoff, and browser back in sync', async () => {
     const user = userEvent.setup()
 
