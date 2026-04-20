@@ -4,6 +4,7 @@ import { useEffect, type PropsWithChildren } from 'react'
 import { describe, expect, it } from 'vitest'
 
 import { APP_LOCALE_STORAGE_KEY, I18nProvider, type Locale, useI18n } from '@/app/i18n'
+import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
 import { mockBookRecordSeeds } from '../api/mock-book-db'
 
 import { bookQueryKeys } from './book-query-keys'
@@ -13,6 +14,15 @@ function wrapperFactory() {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
+    },
+  })
+  const runtime = createMockProjectRuntime({
+    persistence: {
+      async loadProjectSnapshot() {
+        return null
+      },
+      async saveProjectSnapshot() {},
+      async clearProjectSnapshot() {},
     },
   })
   let setLocaleRef: ((locale: Locale) => void) | undefined
@@ -32,8 +42,10 @@ function wrapperFactory() {
       return (
         <QueryClientProvider client={queryClient}>
           <I18nProvider>
-            <LocaleControl />
-            {children}
+            <ProjectRuntimeProvider runtime={runtime}>
+              <LocaleControl />
+              {children}
+            </ProjectRuntimeProvider>
           </I18nProvider>
         </QueryClientProvider>
       )

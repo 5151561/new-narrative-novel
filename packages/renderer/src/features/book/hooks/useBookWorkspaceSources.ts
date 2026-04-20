@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 
 import { useI18n } from '@/app/i18n'
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
 import { chapterClient, type ChapterClient } from '@/features/chapter/api/chapter-client'
 import { chapterQueryKeys } from '@/features/chapter/hooks/chapter-query-keys'
 import type { ChapterStructureWorkspaceRecord } from '@/features/chapter/api/chapter-records'
@@ -56,23 +57,48 @@ function buildTraceRollup(
 export function useBookWorkspaceSources(
   { bookId }: BookWorkspaceSourcesInput,
   {
-    bookClient: customBookClient = bookClient,
-    chapterClient: customChapterClient = chapterClient,
-    sceneClient: customSceneClient = sceneClient,
-    traceabilitySceneClient = sceneClient,
+    bookClient: customBookClient,
+    chapterClient: customChapterClient,
+    sceneClient: customSceneClient,
+    traceabilitySceneClient: customTraceabilitySceneClient,
   }: BookWorkspaceSourcesDeps = {},
 ) {
+  const runtime = useOptionalProjectRuntime()
   const { locale } = useI18n()
+  const effectiveBookClient = resolveProjectRuntimeDependency(
+    customBookClient,
+    runtime?.bookClient,
+    'useBookWorkspaceSources',
+    'deps.bookClient',
+  )
+  const effectiveChapterClient = resolveProjectRuntimeDependency(
+    customChapterClient,
+    runtime?.chapterClient,
+    'useBookWorkspaceSources',
+    'deps.chapterClient',
+  )
+  const effectiveSceneClient = resolveProjectRuntimeDependency(
+    customSceneClient,
+    runtime?.sceneClient,
+    'useBookWorkspaceSources',
+    'deps.sceneClient',
+  )
+  const effectiveTraceabilitySceneClient = resolveProjectRuntimeDependency(
+    customTraceabilitySceneClient,
+    runtime?.traceabilitySceneClient,
+    'useBookWorkspaceSources',
+    'deps.traceabilitySceneClient',
+  )
   const bookRecordQuery = useQuery({
     queryKey: bookQueryKeys.workspace(bookId, locale),
-    queryFn: () => customBookClient.getBookStructureRecord({ bookId }),
+    queryFn: () => effectiveBookClient.getBookStructureRecord({ bookId }),
   })
 
   const orderedChapterIds = bookRecordQuery.data?.chapterIds ?? []
   const chapterQueries = useQueries({
     queries: orderedChapterIds.map((chapterId) => ({
       queryKey: chapterQueryKeys.workspace(chapterId),
-      queryFn: () => customChapterClient.getChapterStructureWorkspace({ chapterId }),
+      queryFn: () => effectiveChapterClient.getChapterStructureWorkspace({ chapterId }),
     })),
   })
 
@@ -121,7 +147,7 @@ export function useBookWorkspaceSources(
   const proseQueries = useQueries({
     queries: orderedSceneIds.map((sceneId) => ({
       queryKey: sceneQueryKeys.prose(sceneId, locale),
-      queryFn: () => customSceneClient.getSceneProse(sceneId),
+      queryFn: () => effectiveSceneClient.getSceneProse(sceneId),
     })),
   })
 
@@ -152,7 +178,7 @@ export function useBookWorkspaceSources(
     [orderedSceneIds, sceneProseStateBySceneId],
   )
 
-  const traceability = useTraceabilitySceneSources(orderedSceneIds, traceabilitySceneClient, {
+  const traceability = useTraceabilitySceneSources(orderedSceneIds, effectiveTraceabilitySceneClient, {
     sceneSourceSeedsBySceneId: Object.fromEntries(
       orderedSceneIds.map((sceneId) => [
         sceneId,

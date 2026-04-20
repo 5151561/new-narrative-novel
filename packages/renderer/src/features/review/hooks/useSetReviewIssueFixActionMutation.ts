@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
 import { reviewClient, type ReviewClient } from '../api/review-client'
 import type { ReviewIssueFixActionRecord, SetReviewIssueFixActionInput } from '../api/review-fix-action-records'
 import { createReviewFixActionRecordId } from '../api/review-fix-action-records'
@@ -24,10 +25,17 @@ interface ReviewFixActionOptimisticContext {
 
 export function useSetReviewIssueFixActionMutation({
   bookId,
-  client = reviewClient,
+  client,
 }: UseSetReviewIssueFixActionMutationOptions) {
+  const runtime = useOptionalProjectRuntime()
   const queryClient = useQueryClient()
   const queryKey = reviewQueryKeys.fixActions(bookId)
+  const effectiveClient = resolveProjectRuntimeDependency(
+    client,
+    runtime?.reviewClient,
+    'useSetReviewIssueFixActionMutation',
+    'options.client',
+  )
 
   return useMutation<
     ReviewIssueFixActionRecord,
@@ -44,7 +52,7 @@ export function useSetReviewIssueFixActionMutation({
       status,
       note,
     }) =>
-      client.setReviewIssueFixAction({
+      effectiveClient.setReviewIssueFixAction({
         bookId,
         issueId,
         issueSignature,

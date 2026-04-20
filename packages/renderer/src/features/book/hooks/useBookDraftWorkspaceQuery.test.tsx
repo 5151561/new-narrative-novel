@@ -1,17 +1,47 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
+import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
+import { createBookClient, type BookClient } from '@/features/book/api/book-client'
 import type { ChapterClient } from '@/features/chapter/api/chapter-client'
+import { createChapterClient } from '@/features/chapter/api/chapter-client'
 import { mockChapterRecordSeeds } from '@/features/chapter/api/mock-chapter-db'
+import { createSceneClient } from '@/features/scene/api/scene-client'
 import type { SceneClient } from '@/features/scene/api/scene-client'
 import type { SceneProseViewModel } from '@/features/scene/types/scene-view-models'
 
 import { useBookDraftWorkspaceQuery } from './useBookDraftWorkspaceQuery'
 
-function createWrapper() {
+function createWrapper(runtime = createMockProjectRuntime({
+  persistence: {
+    async loadProjectSnapshot() {
+      return null
+    },
+    async saveProjectSnapshot() {},
+    async clearProjectSnapshot() {},
+  },
+})) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  })
+
+  return function Wrapper({ children }: PropsWithChildren) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <I18nProvider>
+          <ProjectRuntimeProvider runtime={runtime}>{children}</ProjectRuntimeProvider>
+        </I18nProvider>
+      </QueryClientProvider>
+    )
+  }
+}
+
+function createWrapperWithoutRuntime() {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -28,6 +58,112 @@ function createWrapper() {
 }
 
 describe('useBookDraftWorkspaceQuery', () => {
+  it('supports explicit source deps without a runtime provider', async () => {
+    const baseBookClient = createBookClient()
+    const baseChapterClient = createChapterClient()
+    const baseSceneClient = createSceneClient()
+    const bookClient = {
+      getBookStructureRecord: vi.fn(baseBookClient.getBookStructureRecord),
+    } satisfies Pick<BookClient, 'getBookStructureRecord'>
+    const chapterClient = {
+      getChapterStructureWorkspace: vi.fn(baseChapterClient.getChapterStructureWorkspace),
+    } satisfies Pick<ChapterClient, 'getChapterStructureWorkspace'>
+    const sceneClient = {
+      getSceneProse: vi.fn(baseSceneClient.getSceneProse),
+    } satisfies Pick<SceneClient, 'getSceneProse'>
+    const traceabilitySceneClient = {
+      getSceneExecution: vi.fn(baseSceneClient.getSceneExecution),
+      getSceneProse: vi.fn(baseSceneClient.getSceneProse),
+      getSceneInspector: vi.fn(baseSceneClient.getSceneInspector),
+      previewAcceptedPatch: vi.fn(baseSceneClient.previewAcceptedPatch),
+    }
+
+    const hook = renderHook(
+      () =>
+        useBookDraftWorkspaceQuery(
+          {
+            bookId: 'book-signal-arc',
+            selectedChapterId: 'chapter-signals-in-rain',
+          },
+          {
+            bookClient,
+            chapterClient,
+            sceneClient,
+            traceabilitySceneClient,
+          },
+        ),
+      {
+        wrapper: createWrapperWithoutRuntime(),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(hook.result.current.error).toBeNull()
+    expect(hook.result.current.workspace?.bookId).toBe('book-signal-arc')
+    expect(bookClient.getBookStructureRecord).toHaveBeenCalledWith({ bookId: 'book-signal-arc' })
+    expect(chapterClient.getChapterStructureWorkspace).toHaveBeenCalled()
+    expect(sceneClient.getSceneProse).toHaveBeenCalled()
+    expect(traceabilitySceneClient.getSceneExecution).toHaveBeenCalled()
+  })
+
+  it('uses project runtime book, chapter, and scene clients when deps are omitted', async () => {
+    const baseBookClient = createBookClient()
+    const baseChapterClient = createChapterClient()
+    const baseSceneClient = createSceneClient()
+    const trackedBookClient = {
+      ...baseBookClient,
+      getBookStructureRecord: vi.fn(baseBookClient.getBookStructureRecord),
+    } satisfies BookClient
+    const trackedChapterClient = {
+      ...baseChapterClient,
+      getChapterStructureWorkspace: vi.fn(baseChapterClient.getChapterStructureWorkspace),
+    } satisfies ChapterClient
+    const trackedSceneClient = {
+      ...baseSceneClient,
+      getSceneExecution: vi.fn(baseSceneClient.getSceneExecution),
+      getSceneProse: vi.fn(baseSceneClient.getSceneProse),
+      getSceneInspector: vi.fn(baseSceneClient.getSceneInspector),
+      previewAcceptedPatch: vi.fn(baseSceneClient.previewAcceptedPatch),
+    }
+    const runtime = createMockProjectRuntime({
+      bookClient: trackedBookClient,
+      chapterClient: trackedChapterClient,
+      sceneClient: trackedSceneClient,
+      traceabilitySceneClient: trackedSceneClient,
+      persistence: {
+        async loadProjectSnapshot() {
+          return null
+        },
+        async saveProjectSnapshot() {},
+        async clearProjectSnapshot() {},
+      },
+    })
+
+    const hook = renderHook(
+      () =>
+        useBookDraftWorkspaceQuery({
+          bookId: 'book-signal-arc',
+          selectedChapterId: 'chapter-signals-in-rain',
+        }),
+      {
+        wrapper: createWrapper(runtime),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(hook.result.current.error).toBeNull()
+    expect(hook.result.current.workspace?.bookId).toBe('book-signal-arc')
+    expect(trackedBookClient.getBookStructureRecord).toHaveBeenCalledWith({ bookId: 'book-signal-arc' })
+    expect(trackedChapterClient.getChapterStructureWorkspace).toHaveBeenCalled()
+    expect(trackedSceneClient.getSceneProse).toHaveBeenCalled()
+  })
+
   it('assembles chapters and scene sections in book order while deriving manuscript readiness and dock summary', async () => {
     const hook = renderHook(
       () =>

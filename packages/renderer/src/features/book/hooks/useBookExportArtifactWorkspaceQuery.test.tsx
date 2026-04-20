@@ -3,6 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
 import type { BookExportArtifactRecord } from '../api/book-export-artifact-records'
 import type { BookExportPreviewWorkspaceViewModel } from '../types/book-export-view-models'
 import type { BookReviewInboxViewModel, ReviewIssueViewModel } from '@/features/review/types/review-view-models'
@@ -11,7 +12,22 @@ import { useBookExportArtifactWorkspaceQuery } from './useBookExportArtifactWork
 
 function createWrapper(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   return function Wrapper({ children }: PropsWithChildren) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    return (
+      <QueryClientProvider client={queryClient}>
+        <ProjectRuntimeProvider runtime={createMockProjectRuntime({
+          persistence: {
+            async loadProjectSnapshot() {
+              return null
+            },
+            async saveProjectSnapshot() {},
+            async clearProjectSnapshot() {},
+          },
+        })}
+        >
+          {children}
+        </ProjectRuntimeProvider>
+      </QueryClientProvider>
+    )
   }
 }
 

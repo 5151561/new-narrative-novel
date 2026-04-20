@@ -1,14 +1,16 @@
-import { useRef } from 'react'
+import { useRef, type PropsWithChildren } from 'react'
 
-import { useQueryClient } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { I18nProvider } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
 import { resetMockReviewDecisionDb } from '@/features/review/api/mock-review-decision-db'
 import { resetMockReviewFixActionDb } from '@/features/review/api/mock-review-fix-action-db'
-import { reviewClient } from '@/features/review/api/review-client'
+import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
+import { createReviewClient } from '@/features/review/api/review-client'
 import { reviewQueryKeys } from '@/features/review/hooks/review-query-keys'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 
@@ -73,6 +75,38 @@ function BookRouteHarness() {
   return route.scope === 'book' ? <BookDraftWorkspace /> : <div>Non-book scope</div>
 }
 
+function createNoopPersistence() {
+  return {
+    async loadProjectSnapshot() {
+      return null
+    },
+    async saveProjectSnapshot() {},
+    async clearProjectSnapshot() {},
+  }
+}
+
+function createInjectedProviders(runtime = createMockProjectRuntime({ persistence: createNoopPersistence() })) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 30_000,
+        retry: false,
+        refetchOnWindowFocus: false,
+      },
+    },
+  })
+
+  return function InjectedProviders({ children }: PropsWithChildren) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <I18nProvider>
+          <ProjectRuntimeProvider runtime={runtime}>{children}</ProjectRuntimeProvider>
+        </I18nProvider>
+      </QueryClientProvider>
+    )
+  }
+}
+
 describe('BookDraftWorkspace', () => {
   afterEach(() => {
     vi.restoreAllMocks()
@@ -81,6 +115,7 @@ describe('BookDraftWorkspace', () => {
     vi.doUnmock('../hooks/useBookExportPreviewQuery')
     vi.doUnmock('@/features/book/hooks/useBookExportArtifactWorkspaceQuery')
     vi.doUnmock('../hooks/useBookExportArtifactWorkspaceQuery')
+    vi.doUnmock('@/app/project-runtime')
     vi.unstubAllGlobals()
     window.localStorage.clear()
     resetRememberedBookWorkbenchHandoffs()
@@ -477,15 +512,45 @@ describe('BookDraftWorkspace', () => {
         error: null,
       }),
     }))
-    const [{ AppProviders: FreshAppProviders }, { BookDraftWorkspace: FreshBookDraftWorkspace }, routeModule] = await Promise.all([
-      import('@/app/providers'),
-      import('./BookDraftWorkspace'),
+    const [
+      { I18nProvider: FreshI18nProvider },
+      freshProjectRuntimeModule,
+      routeModule,
+      { BookDraftWorkspace: FreshBookDraftWorkspace },
+    ] = await Promise.all([
+      import('@/app/i18n'),
+      import('@/app/project-runtime'),
       import('@/features/workbench/hooks/useWorkbenchRouteState'),
+      import('./BookDraftWorkspace'),
     ])
+    const freshQueryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          staleTime: 30_000,
+          retry: false,
+          refetchOnWindowFocus: false,
+        },
+      },
+    })
+    const runtime = freshProjectRuntimeModule.createMockProjectRuntime({
+      bookClient: bookClientModule.bookClient,
+      persistence: createNoopPersistence(),
+    })
     function FreshBookRouteHarness() {
       const { route } = routeModule.useWorkbenchRouteState()
 
       return route.scope === 'book' ? <FreshBookDraftWorkspace /> : <div>Non-book scope</div>
+    }
+    function FreshProviders({ children }: PropsWithChildren) {
+      return (
+        <QueryClientProvider client={freshQueryClient}>
+          <FreshI18nProvider>
+            <freshProjectRuntimeModule.ProjectRuntimeProvider runtime={runtime}>
+              {children}
+            </freshProjectRuntimeModule.ProjectRuntimeProvider>
+          </FreshI18nProvider>
+        </QueryClientProvider>
+      )
     }
 
     Object.defineProperty(navigator, 'clipboard', {
@@ -508,9 +573,9 @@ describe('BookDraftWorkspace', () => {
     )
 
     render(
-      <FreshAppProviders>
+      <FreshProviders>
         <FreshBookRouteHarness />
-      </FreshAppProviders>,
+      </FreshProviders>,
     )
 
     expect(await screen.findByRole('heading', { name: 'Book export preview' })).toBeInTheDocument()
@@ -967,7 +1032,16 @@ describe('BookDraftWorkspace', () => {
 
   it('does not record review decision activity when deferring fails', async () => {
     const user = userEvent.setup()
-    const setReviewIssueDecisionSpy = vi.spyOn(reviewClient, 'setReviewIssueDecision').mockRejectedValueOnce(new Error('Decision failed'))
+    const baseReviewClient = createReviewClient()
+    const setReviewIssueDecisionSpy = vi.fn(baseReviewClient.setReviewIssueDecision).mockRejectedValueOnce(new Error('Decision failed'))
+    const runtime = createMockProjectRuntime({
+      reviewClient: {
+        ...baseReviewClient,
+        setReviewIssueDecision: setReviewIssueDecisionSpy,
+      },
+      persistence: createNoopPersistence(),
+    })
+    const InjectedProviders = createInjectedProviders(runtime)
 
     window.history.replaceState(
       {},
@@ -976,9 +1050,9 @@ describe('BookDraftWorkspace', () => {
     )
 
     render(
-      <AppProviders>
+      <InjectedProviders>
         <BookRouteHarness />
-      </AppProviders>,
+      </InjectedProviders>,
     )
 
     expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
@@ -1276,9 +1350,18 @@ describe('BookDraftWorkspace', () => {
 
   it('does not open a review source target when starting the source fix action fails', async () => {
     const user = userEvent.setup()
+    const baseReviewClient = createReviewClient()
     const setReviewIssueFixActionSpy = vi
-      .spyOn(reviewClient, 'setReviewIssueFixAction')
+      .fn(baseReviewClient.setReviewIssueFixAction)
       .mockRejectedValueOnce(new Error('Fix action failed'))
+    const runtime = createMockProjectRuntime({
+      reviewClient: {
+        ...baseReviewClient,
+        setReviewIssueFixAction: setReviewIssueFixActionSpy,
+      },
+      persistence: createNoopPersistence(),
+    })
+    const InjectedProviders = createInjectedProviders(runtime)
 
     window.history.replaceState(
       {},
@@ -1287,9 +1370,9 @@ describe('BookDraftWorkspace', () => {
     )
 
     render(
-      <AppProviders>
+      <InjectedProviders>
         <BookRouteHarness />
-      </AppProviders>,
+      </InjectedProviders>,
     )
 
     expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()

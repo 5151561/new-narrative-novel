@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
 import {
   chapterClient,
   type ChapterClient,
@@ -23,10 +24,17 @@ interface UseUpdateChapterSceneStructureMutationOptions {
 
 export function useUpdateChapterSceneStructureMutation({
   chapterId,
-  client = chapterClient,
+  client,
 }: UseUpdateChapterSceneStructureMutationOptions) {
+  const runtime = useOptionalProjectRuntime()
   const queryClient = useQueryClient()
   const queryKey = chapterQueryKeys.workspace(chapterId)
+  const effectiveClient = resolveProjectRuntimeDependency(
+    client,
+    runtime?.chapterClient,
+    'useUpdateChapterSceneStructureMutation',
+    'options.client',
+  )
 
   return useMutation<
     ChapterStructureWorkspaceRecord | null,
@@ -35,7 +43,7 @@ export function useUpdateChapterSceneStructureMutation({
     ChapterWorkspaceOptimisticMutationContext
   >({
     mutationFn: async ({ sceneId, locale, patch }) =>
-      client.updateChapterSceneStructure({
+      effectiveClient.updateChapterSceneStructure({
         chapterId,
         sceneId,
         locale,

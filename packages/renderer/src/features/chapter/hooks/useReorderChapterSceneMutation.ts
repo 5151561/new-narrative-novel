@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
 import { chapterClient, type ChapterClient, type ReorderChapterSceneInput } from '../api/chapter-client'
 import { reorderChapterRecordScenes } from '../api/chapter-record-mutations'
 import type { ChapterStructureWorkspaceRecord } from '../api/chapter-records'
@@ -19,14 +20,21 @@ interface UseReorderChapterSceneMutationOptions {
 
 export function useReorderChapterSceneMutation({
   chapterId,
-  client = chapterClient,
+  client,
 }: UseReorderChapterSceneMutationOptions) {
+  const runtime = useOptionalProjectRuntime()
   const queryClient = useQueryClient()
   const queryKey = chapterQueryKeys.workspace(chapterId)
+  const effectiveClient = resolveProjectRuntimeDependency(
+    client,
+    runtime?.chapterClient,
+    'useReorderChapterSceneMutation',
+    'options.client',
+  )
 
   return useMutation<ChapterStructureWorkspaceRecord | null, Error, Omit<ReorderChapterSceneInput, 'chapterId'>, ChapterWorkspaceOptimisticMutationContext>({
     mutationFn: async ({ sceneId, targetIndex }) =>
-      client.reorderChapterScene({
+      effectiveClient.reorderChapterScene({
         chapterId,
         sceneId,
         targetIndex,

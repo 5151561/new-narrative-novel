@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
 import { bookClient, type BookClient } from '../api/book-client'
 import type { BookExportArtifactFormat, BookExportArtifactRecord } from '../api/book-export-artifact-records'
 import {
@@ -23,9 +24,16 @@ interface BuildBookExportArtifactMutationInput {
 
 export function useBuildBookExportArtifactMutation({
   checkpointId,
-  bookClient: customBookClient = bookClient,
+  bookClient: customBookClient,
 }: UseBuildBookExportArtifactMutationOptions = {}) {
+  const runtime = useOptionalProjectRuntime()
   const queryClient = useQueryClient()
+  const effectiveBookClient = resolveProjectRuntimeDependency(
+    customBookClient,
+    runtime?.bookClient,
+    'useBuildBookExportArtifactMutation',
+    'options.bookClient',
+  )
 
   return useMutation<BookExportArtifactRecord, Error, BuildBookExportArtifactMutationInput>({
     mutationFn: async ({ exportPreview, reviewInbox, format }) => {
@@ -34,7 +42,7 @@ export function useBuildBookExportArtifactMutation({
         throw new Error('Book export artifact build is blocked by export readiness or review blockers.')
       }
 
-      return customBookClient.buildBookExportArtifact(
+      return effectiveBookClient.buildBookExportArtifact(
         buildBookExportArtifactInput({
           exportPreview,
           reviewInbox,

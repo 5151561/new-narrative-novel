@@ -1,5 +1,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import userEvent from '@testing-library/user-event'
+import type { PropsWithChildren } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { resetMockBookExportArtifactDb } from '@/features/book/api/mock-book-export-artifact-db'
@@ -21,7 +23,11 @@ function setSceneBridge(bridge: Record<string, unknown> | undefined) {
 
 async function renderFreshApp(
   search = '',
-  { resetModules = true, primeRouteSearches = [] }: { resetModules?: boolean; primeRouteSearches?: string[] } = {},
+  {
+    resetModules = true,
+    primeRouteSearches = [],
+    runtime,
+  }: { resetModules?: boolean; primeRouteSearches?: string[]; runtime?: ProjectRuntime } = {},
 ) {
   if (resetModules) {
     vi.resetModules()
@@ -103,11 +109,45 @@ async function renderFreshApp(
     return null
   }
 
+  if (!runtime) {
+    return render(
+      <AppProviders>
+        <RouteControl />
+        <App />
+      </AppProviders>,
+    )
+  }
+
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 30_000,
+        retry: false,
+        refetchOnWindowFocus: false,
+      },
+    },
+  })
+
+  const [{ I18nProvider }, projectRuntimeModule] = await Promise.all([
+    import('@/app/i18n'),
+    import('@/app/project-runtime'),
+  ])
+
+  function RuntimeProviders({ children }: PropsWithChildren) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <I18nProvider>
+          <projectRuntimeModule.ProjectRuntimeProvider runtime={runtime}>{children}</projectRuntimeModule.ProjectRuntimeProvider>
+        </I18nProvider>
+      </QueryClientProvider>
+    )
+  }
+
   return render(
-    <AppProviders>
+    <RuntimeProviders>
       <RouteControl />
       <App />
-    </AppProviders>,
+    </RuntimeProviders>,
   )
 }
 
@@ -938,9 +978,17 @@ describe('App scene workbench', () => {
         checkpointId: input.checkpointId ?? undefined,
       }),
     )
-    const buildBookExportArtifact = vi
-      .spyOn(bookClientModule.bookClient, 'buildBookExportArtifact')
-      .mockImplementation(async (input) => artifactDb.buildMockBookExportArtifact(input))
+    const runtimeBookClient = {
+      ...bookClientModule.createBookClient(),
+      getBookExportArtifacts: vi.fn(async (input: { bookId: string; exportProfileId?: string | null; checkpointId?: string | null }) =>
+        artifactDb.getMockBookExportArtifacts({
+          bookId: input.bookId,
+          exportProfileId: input.exportProfileId ?? undefined,
+          checkpointId: input.checkpointId ?? undefined,
+        }),
+      ),
+      buildBookExportArtifact: vi.fn(async (input) => artifactDb.buildMockBookExportArtifact(input)),
+    }
     const readyExportData = buildBookDraftExportStoryData('en', {
       variant: 'quiet-book',
       checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
@@ -1031,9 +1079,21 @@ describe('App scene workbench', () => {
       }),
     }))
 
+    const { createMockProjectRuntime } = await import('@/app/project-runtime')
+    const runtime = createMockProjectRuntime({
+      bookClient: runtimeBookClient,
+      persistence: {
+        async loadProjectSnapshot() {
+          return null
+        },
+        async saveProjectSnapshot() {},
+        async clearProjectSnapshot() {},
+      },
+    })
+
     await renderFreshApp(
       '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution&beatId=beat-bargain&proposalId=proposal-2',
-      { resetModules: false },
+      { resetModules: false, runtime },
     )
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
@@ -1060,7 +1120,7 @@ describe('App scene workbench', () => {
     await user.click(buildButton)
 
     await waitFor(() => {
-      expect(buildBookExportArtifact).toHaveBeenCalledWith(
+      expect(runtimeBookClient.buildBookExportArtifact).toHaveBeenCalledWith(
         expect.objectContaining({
           exportProfileId: 'export-archive-snapshot',
           format: 'markdown',

@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
 import { createChapterClient } from '../api/chapter-client'
 import { patchChapterRecordScene, reorderChapterRecordScenes } from '../api/chapter-record-mutations'
 import type { ChapterStructureWorkspaceRecord } from '../api/chapter-records'
@@ -88,9 +89,24 @@ describe('useUpdateChapterSceneStructureMutation', () => {
     }
   }
 
-  function createWrapper(queryClient: QueryClient) {
+  function createWrapper(
+    queryClient: QueryClient,
+    runtime = createMockProjectRuntime({
+      persistence: {
+        async loadProjectSnapshot() {
+          return null
+        },
+        async saveProjectSnapshot() {},
+        async clearProjectSnapshot() {},
+      },
+    }),
+  ) {
     return function Wrapper({ children }: PropsWithChildren) {
-      return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      return (
+        <QueryClientProvider client={queryClient}>
+          <ProjectRuntimeProvider runtime={runtime}>{children}</ProjectRuntimeProvider>
+        </QueryClientProvider>
+      )
     }
   }
 

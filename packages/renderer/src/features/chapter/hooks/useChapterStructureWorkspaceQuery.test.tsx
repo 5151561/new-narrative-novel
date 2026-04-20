@@ -4,13 +4,38 @@ import { useEffect, type PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { APP_LOCALE_STORAGE_KEY, I18nProvider, type Locale, useI18n } from '@/app/i18n'
+import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
 
 import { createChapterClient } from '../api/chapter-client'
 import { useChapterStructureWorkspaceQuery } from './useChapterStructureWorkspaceQuery'
 import { chapterQueryKeys } from './chapter-query-keys'
 
 describe('chapter query hooks', () => {
-  function wrapperFactory() {
+  function wrapperWithoutRuntime() {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+      },
+    })
+
+    return function Wrapper({ children }: PropsWithChildren) {
+      return (
+        <QueryClientProvider client={queryClient}>
+          <I18nProvider>{children}</I18nProvider>
+        </QueryClientProvider>
+      )
+    }
+  }
+
+  function wrapperFactory(runtime = createMockProjectRuntime({
+    persistence: {
+      async loadProjectSnapshot() {
+        return null
+      },
+      async saveProjectSnapshot() {},
+      async clearProjectSnapshot() {},
+    },
+  })) {
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -33,8 +58,10 @@ describe('chapter query hooks', () => {
         return (
           <QueryClientProvider client={queryClient}>
             <I18nProvider>
-              <LocaleControl />
-              {children}
+              <ProjectRuntimeProvider runtime={runtime}>
+                <LocaleControl />
+                {children}
+              </ProjectRuntimeProvider>
             </I18nProvider>
           </QueryClientProvider>
         )
@@ -53,6 +80,50 @@ describe('chapter query hooks', () => {
 
   it('uses chapter id only for the workspace query key', () => {
     expect(chapterQueryKeys.workspace('chapter-signals-in-rain')).toEqual(['chapter', 'workspace', 'chapter-signals-in-rain'])
+  })
+
+  it('supports an explicit chapter client without a runtime provider', async () => {
+    const client = {
+      getChapterStructureWorkspace: vi.fn(createChapterClient().getChapterStructureWorkspace),
+    }
+    const hook = renderHook(() => useChapterStructureWorkspaceQuery(baseInput, client), {
+      wrapper: wrapperWithoutRuntime(),
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(client.getChapterStructureWorkspace).toHaveBeenCalledWith({ chapterId: 'chapter-signals-in-rain' })
+    expect(hook.result.current.workspace?.chapterId).toBe('chapter-signals-in-rain')
+  })
+
+  it('uses the project runtime chapter client when no override is provided', async () => {
+    const baseChapterClient = createChapterClient()
+    const client = {
+      ...baseChapterClient,
+      getChapterStructureWorkspace: vi.fn(baseChapterClient.getChapterStructureWorkspace),
+    }
+    const runtime = createMockProjectRuntime({
+      chapterClient: client,
+      persistence: {
+        async loadProjectSnapshot() {
+          return null
+        },
+        async saveProjectSnapshot() {},
+        async clearProjectSnapshot() {},
+      },
+    })
+    const { wrapper } = wrapperFactory(runtime)
+    const hook = renderHook(() => useChapterStructureWorkspaceQuery(baseInput), {
+      wrapper,
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(client.getChapterStructureWorkspace).toHaveBeenCalledWith({ chapterId: 'chapter-signals-in-rain' })
   })
 
   it('hydrates the stable chapter workspace model and falls back to the first scene when selectedSceneId is missing', async () => {

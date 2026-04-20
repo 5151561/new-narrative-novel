@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { useI18n } from '@/app/i18n'
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
 
 import { DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID } from '../api/book-manuscript-checkpoints'
 import { bookClient, type BookClient } from '../api/book-client'
@@ -39,19 +40,26 @@ export interface UseBookManuscriptCompareQueryResult {
 
 export function useBookManuscriptCompareQuery(
   { bookId, currentDraftWorkspace, checkpointId }: UseBookManuscriptCompareQueryInput,
-  { bookClient: customBookClient = bookClient }: UseBookManuscriptCompareQueryDeps = {},
+  { bookClient: customBookClient }: UseBookManuscriptCompareQueryDeps = {},
 ): UseBookManuscriptCompareQueryResult {
+  const runtime = useOptionalProjectRuntime()
   const { locale } = useI18n()
   const effectiveCheckpointId = checkpointId ?? DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID
+  const effectiveBookClient = resolveProjectRuntimeDependency(
+    customBookClient,
+    runtime?.bookClient,
+    'useBookManuscriptCompareQuery',
+    'deps.bookClient',
+  )
 
   const checkpointsQuery = useQuery({
     queryKey: bookQueryKeys.checkpoints(bookId, locale),
-    queryFn: () => customBookClient.getBookManuscriptCheckpoints({ bookId }),
+    queryFn: () => effectiveBookClient.getBookManuscriptCheckpoints({ bookId }),
   })
 
   const selectedCheckpointQuery = useQuery({
     queryKey: bookQueryKeys.checkpoint(bookId, effectiveCheckpointId, locale),
-    queryFn: () => customBookClient.getBookManuscriptCheckpoint({ bookId, checkpointId: effectiveCheckpointId }),
+    queryFn: () => effectiveBookClient.getBookManuscriptCheckpoint({ bookId, checkpointId: effectiveCheckpointId }),
   })
 
   const checkpoints = useMemo(

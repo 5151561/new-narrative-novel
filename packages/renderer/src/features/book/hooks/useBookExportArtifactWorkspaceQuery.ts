@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 
 import { useQuery } from '@tanstack/react-query'
 
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
 import { bookClient, type BookClient } from '../api/book-client'
 import { buildBookExportArtifactWorkspace } from '../lib/book-export-artifact-mappers'
 import type { BookExportArtifactWorkspaceViewModel } from '../types/book-export-artifact-view-models'
@@ -37,14 +38,21 @@ export function useBookExportArtifactWorkspaceQuery(
     checkpointId,
     enabled = true,
   }: UseBookExportArtifactWorkspaceQueryInput,
-  { bookClient: customBookClient = bookClient }: UseBookExportArtifactWorkspaceQueryDeps = {},
+  { bookClient: customBookClient }: UseBookExportArtifactWorkspaceQueryDeps = {},
 ): UseBookExportArtifactWorkspaceQueryResult {
+  const runtime = useOptionalProjectRuntime()
   const artifactsEnabled = enabled && exportPreview !== undefined && exportPreview !== null
   const effectiveExportProfileId = exportProfileId ?? exportPreview?.profile.exportProfileId
+  const effectiveBookClient = resolveProjectRuntimeDependency(
+    customBookClient,
+    runtime?.bookClient,
+    'useBookExportArtifactWorkspaceQuery',
+    'deps.bookClient',
+  )
   const artifactsQuery = useQuery({
     queryKey: bookQueryKeys.exportArtifacts(bookId, effectiveExportProfileId, checkpointId),
     queryFn: () =>
-      customBookClient.getBookExportArtifacts({
+      effectiveBookClient.getBookExportArtifacts({
         bookId,
         exportProfileId: effectiveExportProfileId,
         checkpointId,

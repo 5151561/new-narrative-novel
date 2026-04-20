@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { getChapterUnresolvedCountLabel, useI18n } from '@/app/i18n'
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
 
 import {
   chapterClient,
@@ -132,12 +133,19 @@ function buildChapterStructureWorkspaceModel(
 
 export function useChapterStructureWorkspaceQuery(
   { chapterId, selectedSceneId }: UseChapterStructureWorkspaceQueryInput,
-  client: Pick<ChapterClient, 'getChapterStructureWorkspace'> = chapterClient,
+  client?: Pick<ChapterClient, 'getChapterStructureWorkspace'>,
 ) {
+  const runtime = useOptionalProjectRuntime()
   const { locale } = useI18n()
+  const effectiveClient = resolveProjectRuntimeDependency(
+    client,
+    runtime?.chapterClient,
+    'useChapterStructureWorkspaceQuery',
+    'client',
+  )
   const query = useQuery({
     queryKey: chapterQueryKeys.workspace(chapterId),
-    queryFn: () => client.getChapterStructureWorkspace({ chapterId }),
+    queryFn: () => effectiveClient.getChapterStructureWorkspace({ chapterId }),
   })
 
   const workspace = useMemo(

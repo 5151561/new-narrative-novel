@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
 import { createChapterClient } from '../api/chapter-client'
 import { patchChapterRecordScene, reorderChapterRecordScenes } from '../api/chapter-record-mutations'
 import type { ChapterStructureWorkspaceRecord } from '../api/chapter-records'
@@ -88,11 +89,79 @@ describe('useReorderChapterSceneMutation', () => {
     }
   }
 
-  function createWrapper(queryClient: QueryClient) {
+  function createWrapper(
+    queryClient: QueryClient,
+    runtime = createMockProjectRuntime({
+      persistence: {
+        async loadProjectSnapshot() {
+          return null
+        },
+        async saveProjectSnapshot() {},
+        async clearProjectSnapshot() {},
+      },
+    }),
+  ) {
     return function Wrapper({ children }: PropsWithChildren) {
-      return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      return (
+        <QueryClientProvider client={queryClient}>
+          <ProjectRuntimeProvider runtime={runtime}>{children}</ProjectRuntimeProvider>
+        </QueryClientProvider>
+      )
     }
   }
+
+  it('uses the project runtime chapter client when no override is provided', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const baseChapterClient = createChapterClient()
+    const seedRecord = await baseChapterClient.getChapterStructureWorkspace({ chapterId: 'chapter-signals-in-rain' })
+    expect(seedRecord).not.toBeNull()
+    if (!seedRecord) {
+      return
+    }
+    const reorderChapterScene = vi.fn(async ({ sceneId, targetIndex }: { sceneId: string; targetIndex: number }) =>
+      reorderChapterRecordScenes(structuredClone(seedRecord), sceneId, targetIndex),
+    )
+    const runtime = createMockProjectRuntime({
+      chapterClient: {
+        ...baseChapterClient,
+        reorderChapterScene,
+      },
+      persistence: {
+        async loadProjectSnapshot() {
+          return null
+        },
+        async saveProjectSnapshot() {},
+        async clearProjectSnapshot() {},
+      },
+    })
+    const hook = renderHook(
+      () =>
+        useReorderChapterSceneMutation({
+          chapterId: 'chapter-signals-in-rain',
+        }),
+      {
+        wrapper: createWrapper(queryClient, runtime),
+      },
+    )
+
+    await act(async () => {
+      await hook.result.current.mutateAsync({
+        sceneId: 'scene-ticket-window',
+        targetIndex: 0,
+      })
+    })
+
+    expect(reorderChapterScene).toHaveBeenCalledWith({
+      chapterId: 'chapter-signals-in-rain',
+      sceneId: 'scene-ticket-window',
+      targetIndex: 0,
+    })
+  })
 
   it('optimistically reorders the raw chapter record cache and invalidates the workspace query after success', async () => {
     const queryClient = new QueryClient({

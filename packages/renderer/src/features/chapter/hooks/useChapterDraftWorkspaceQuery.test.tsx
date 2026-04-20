@@ -4,6 +4,7 @@ import type { PropsWithChildren } from 'react'
 import { describe, expect, it } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
+import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
 import type { ChapterClient } from '@/features/chapter/api/chapter-client'
 import type { ChapterStructureWorkspaceRecord } from '@/features/chapter/api/chapter-records'
 import { mockChapterRecordSeeds } from '@/features/chapter/api/mock-chapter-db'
@@ -22,7 +23,20 @@ function createWrapper() {
   return function Wrapper({ children }: PropsWithChildren) {
     return (
       <QueryClientProvider client={queryClient}>
-        <I18nProvider>{children}</I18nProvider>
+        <I18nProvider>
+          <ProjectRuntimeProvider runtime={createMockProjectRuntime({
+            persistence: {
+              async loadProjectSnapshot() {
+                return null
+              },
+              async saveProjectSnapshot() {},
+              async clearProjectSnapshot() {},
+            },
+          })}
+          >
+            {children}
+          </ProjectRuntimeProvider>
+        </I18nProvider>
       </QueryClientProvider>
     )
   }

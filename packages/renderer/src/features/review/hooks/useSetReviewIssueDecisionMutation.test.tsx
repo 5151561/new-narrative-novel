@@ -3,10 +3,33 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
+import { createReviewClient } from '../api/review-client'
 import { useSetReviewIssueDecisionMutation } from './useSetReviewIssueDecisionMutation'
 import { reviewQueryKeys } from './review-query-keys'
 
-function createWrapper(queryClient: QueryClient) {
+function createWrapper(
+  queryClient: QueryClient,
+  runtime = createMockProjectRuntime({
+    persistence: {
+      async loadProjectSnapshot() {
+        return null
+      },
+      async saveProjectSnapshot() {},
+      async clearProjectSnapshot() {},
+    },
+  }),
+) {
+  return function Wrapper({ children }: PropsWithChildren) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <ProjectRuntimeProvider runtime={runtime}>{children}</ProjectRuntimeProvider>
+      </QueryClientProvider>
+    )
+  }
+}
+
+function createWrapperWithoutRuntime(queryClient: QueryClient) {
   return function Wrapper({ children }: PropsWithChildren) {
     return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   }
@@ -27,6 +50,99 @@ describe('useSetReviewIssueDecisionMutation', () => {
       reject: (error: Error) => reject?.(error),
     }
   }
+
+  it('uses the project runtime review client when no override is provided', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const setReviewIssueDecision = vi.fn(async (input: any) => ({
+      id: 'decision-runtime-default',
+      updatedAtLabel: '2026-04-20 14:00',
+      updatedByLabel: 'Runtime client',
+      ...input,
+    }))
+    const runtime = createMockProjectRuntime({
+      reviewClient: {
+        ...createReviewClient(),
+        setReviewIssueDecision,
+      },
+      persistence: {
+        async loadProjectSnapshot() {
+          return null
+        },
+        async saveProjectSnapshot() {},
+        async clearProjectSnapshot() {},
+      },
+    })
+    const hook = renderHook(
+      () =>
+        useSetReviewIssueDecisionMutation({
+          bookId: 'book-signal-arc',
+        }),
+      { wrapper: createWrapper(queryClient, runtime) },
+    )
+
+    await act(async () => {
+      await hook.result.current.mutateAsync({
+        issueId: 'issue-1',
+        issueSignature: 'signature-1',
+        status: 'reviewed',
+      })
+    })
+
+    expect(setReviewIssueDecision).toHaveBeenCalledWith({
+      bookId: 'book-signal-arc',
+      issueId: 'issue-1',
+      issueSignature: 'signature-1',
+      status: 'reviewed',
+      note: undefined,
+    })
+  })
+
+  it('supports an explicit review client without a runtime provider', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const setReviewIssueDecision = vi.fn(async (input: any) => ({
+      id: 'decision-explicit',
+      updatedAtLabel: '2026-04-20 15:00',
+      updatedByLabel: 'Explicit client',
+      ...input,
+    }))
+
+    const hook = renderHook(
+      () =>
+        useSetReviewIssueDecisionMutation({
+          bookId: 'book-signal-arc',
+          client: {
+            setReviewIssueDecision,
+          } as any,
+        }),
+      { wrapper: createWrapperWithoutRuntime(queryClient) },
+    )
+
+    await act(async () => {
+      await hook.result.current.mutateAsync({
+        issueId: 'issue-explicit',
+        issueSignature: 'signature-explicit',
+        status: 'deferred',
+      })
+    })
+
+    expect(setReviewIssueDecision).toHaveBeenCalledWith({
+      bookId: 'book-signal-arc',
+      issueId: 'issue-explicit',
+      issueSignature: 'signature-explicit',
+      status: 'deferred',
+      note: undefined,
+    })
+  })
 
   it('optimistically updates the decision cache and invalidates the review decision query on settle', async () => {
     const queryClient = new QueryClient({

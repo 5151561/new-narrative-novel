@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
 import { reviewClient, type ReviewClient } from '../api/review-client'
 import { reviewQueryKeys } from './review-query-keys'
 
@@ -14,11 +15,19 @@ interface UseBookReviewFixActionsQueryDeps {
 
 export function useBookReviewFixActionsQuery(
   { bookId, enabled = true }: UseBookReviewFixActionsQueryInput,
-  { reviewClient: customReviewClient = reviewClient }: UseBookReviewFixActionsQueryDeps = {},
+  { reviewClient: customReviewClient }: UseBookReviewFixActionsQueryDeps = {},
 ) {
+  const runtime = useOptionalProjectRuntime()
+  const effectiveReviewClient = resolveProjectRuntimeDependency(
+    customReviewClient,
+    runtime?.reviewClient,
+    'useBookReviewFixActionsQuery',
+    'deps.reviewClient',
+  )
+
   return useQuery({
     queryKey: reviewQueryKeys.fixActions(bookId),
-    queryFn: () => customReviewClient.getBookReviewFixActions({ bookId }),
+    queryFn: () => effectiveReviewClient.getBookReviewFixActions({ bookId }),
     enabled,
   })
 }

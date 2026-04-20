@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
 import { reviewClient, type ReviewClient } from '../api/review-client'
 import type { ReviewIssueDecisionRecord, SetReviewIssueDecisionInput } from '../api/review-decision-records'
 import { createReviewDecisionRecordId } from '../api/review-decision-records'
@@ -24,14 +25,21 @@ interface ReviewDecisionOptimisticContext {
 
 export function useSetReviewIssueDecisionMutation({
   bookId,
-  client = reviewClient,
+  client,
 }: UseSetReviewIssueDecisionMutationOptions) {
+  const runtime = useOptionalProjectRuntime()
   const queryClient = useQueryClient()
   const queryKey = reviewQueryKeys.decisions(bookId)
+  const effectiveClient = resolveProjectRuntimeDependency(
+    client,
+    runtime?.reviewClient,
+    'useSetReviewIssueDecisionMutation',
+    'options.client',
+  )
 
   return useMutation<ReviewIssueDecisionRecord, Error, Omit<SetReviewIssueDecisionInput, 'bookId'>, ReviewDecisionOptimisticContext>({
     mutationFn: async ({ issueId, issueSignature, status, note }) =>
-      client.setReviewIssueDecision({
+      effectiveClient.setReviewIssueDecision({
         bookId,
         issueId,
         issueSignature,

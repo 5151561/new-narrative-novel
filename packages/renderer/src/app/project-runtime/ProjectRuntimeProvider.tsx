@@ -26,3 +26,21 @@ export function useProjectRuntime() {
 
   return runtime
 }
+
+export function useOptionalProjectRuntime() {
+  return useContext(ProjectRuntimeContext)
+}
+
+export function resolveProjectRuntimeDependency<T>(
+  provided: T | undefined,
+  runtimeValue: T | undefined,
+  owner: string,
+  dependency: string,
+) {
+  const resolved = provided ?? runtimeValue
+  if (!resolved) {
+    throw new Error(`${owner} requires ProjectRuntimeProvider or ${dependency}.`)
+  }
+
+  return resolved
+}

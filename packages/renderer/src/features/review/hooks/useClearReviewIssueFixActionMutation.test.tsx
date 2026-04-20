@@ -3,12 +3,28 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
 import { reviewQueryKeys } from './review-query-keys'
 import { useClearReviewIssueFixActionMutation } from './useClearReviewIssueFixActionMutation'
 
-function createWrapper(queryClient: QueryClient) {
+function createWrapper(
+  queryClient: QueryClient,
+  runtime = createMockProjectRuntime({
+    persistence: {
+      async loadProjectSnapshot() {
+        return null
+      },
+      async saveProjectSnapshot() {},
+      async clearProjectSnapshot() {},
+    },
+  }),
+) {
   return function Wrapper({ children }: PropsWithChildren) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    return (
+      <QueryClientProvider client={queryClient}>
+        <ProjectRuntimeProvider runtime={runtime}>{children}</ProjectRuntimeProvider>
+      </QueryClientProvider>
+    )
   }
 }
 

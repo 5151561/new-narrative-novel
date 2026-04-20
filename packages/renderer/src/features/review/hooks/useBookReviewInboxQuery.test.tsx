@@ -3,10 +3,12 @@ import { renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
 import type { BookExperimentBranchWorkspaceViewModel } from '@/features/book/types/book-branch-view-models'
 import type { BookManuscriptCompareWorkspaceViewModel } from '@/features/book/types/book-compare-view-models'
 import type { BookDraftWorkspaceViewModel } from '@/features/book/types/book-draft-view-models'
 import type { BookExportPreviewWorkspaceViewModel } from '@/features/book/types/book-export-view-models'
+import { createReviewClient } from '../api/review-client'
 import type { ReviewIssueDecisionRecord } from '../api/review-decision-records'
 import type { ReviewIssueFixActionRecord } from '../api/review-fix-action-records'
 import { reviewQueryKeys } from './review-query-keys'
@@ -397,9 +399,24 @@ function createQueryClient() {
   })
 }
 
-function createWrapper(queryClient = createQueryClient()) {
+function createWrapper(
+  queryClient = createQueryClient(),
+  runtime = createMockProjectRuntime({
+    persistence: {
+      async loadProjectSnapshot() {
+        return null
+      },
+      async saveProjectSnapshot() {},
+      async clearProjectSnapshot() {},
+    },
+  }),
+) {
   return function Wrapper({ children }: PropsWithChildren) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    return (
+      <QueryClientProvider client={queryClient}>
+        <ProjectRuntimeProvider runtime={runtime}>{children}</ProjectRuntimeProvider>
+      </QueryClientProvider>
+    )
   }
 }
 
@@ -482,6 +499,47 @@ function buildHookIssueForDecision() {
 }
 
 describe('useBookReviewInboxQuery', () => {
+  it('uses the project runtime review client when no override is provided', async () => {
+    const baseReviewClient = createReviewClient()
+    const reviewClient = {
+      ...baseReviewClient,
+      getBookReviewDecisions: vi.fn(baseReviewClient.getBookReviewDecisions),
+      getBookReviewFixActions: vi.fn(baseReviewClient.getBookReviewFixActions),
+    }
+    const runtime = createMockProjectRuntime({
+      reviewClient,
+      persistence: {
+        async loadProjectSnapshot() {
+          return null
+        },
+        async saveProjectSnapshot() {},
+        async clearProjectSnapshot() {},
+      },
+    })
+
+    const { result } = renderHook(
+      () =>
+        useBookReviewInboxQuery({
+          bookId: 'book-signal-arc',
+          currentDraftWorkspace: createCurrentDraftWorkspace(),
+          compareStatus: 'idle',
+          exportStatus: 'idle',
+          branchStatus: 'idle',
+          reviewFilter: 'all',
+        }),
+      {
+        wrapper: createWrapper(createQueryClient(), runtime),
+      },
+    )
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(reviewClient.getBookReviewDecisions).toHaveBeenCalledWith({ bookId: 'book-signal-arc' })
+    expect(reviewClient.getBookReviewFixActions).toHaveBeenCalledWith({ bookId: 'book-signal-arc' })
+  })
+
   it('combines current compare export and branch workspaces into a review inbox', async () => {
     const { result } = renderReviewInboxHook({
       bookId: 'book-signal-arc',

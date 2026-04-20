@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { useI18n } from '@/app/i18n'
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
 import type { BookBranchBaseline } from '@/features/workbench/types/workbench-route'
 
 import { DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID } from '../api/book-manuscript-checkpoints'
@@ -39,26 +40,33 @@ export interface UseBookExperimentBranchQueryResult {
 
 export function useBookExperimentBranchQuery(
   { bookId, currentDraftWorkspace, branchId, branchBaseline, checkpointId }: UseBookExperimentBranchQueryInput,
-  { bookClient: customBookClient = bookClient }: UseBookExperimentBranchQueryDeps = {},
+  { bookClient: customBookClient }: UseBookExperimentBranchQueryDeps = {},
 ): UseBookExperimentBranchQueryResult {
+  const runtime = useOptionalProjectRuntime()
   const { locale } = useI18n()
   const effectiveBranchId = branchId ?? DEFAULT_BOOK_EXPERIMENT_BRANCH_ID
   const effectiveCheckpointId = checkpointId ?? DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID
   const checkpointEnabled = branchBaseline === 'checkpoint'
+  const effectiveBookClient = resolveProjectRuntimeDependency(
+    customBookClient,
+    runtime?.bookClient,
+    'useBookExperimentBranchQuery',
+    'deps.bookClient',
+  )
 
   const branchesQuery = useQuery({
     queryKey: bookQueryKeys.branches(bookId, locale),
-    queryFn: () => customBookClient.getBookExperimentBranches({ bookId }),
+    queryFn: () => effectiveBookClient.getBookExperimentBranches({ bookId }),
   })
 
   const selectedBranchQuery = useQuery({
     queryKey: bookQueryKeys.branch(bookId, effectiveBranchId, locale),
-    queryFn: () => customBookClient.getBookExperimentBranch({ bookId, branchId: effectiveBranchId }),
+    queryFn: () => effectiveBookClient.getBookExperimentBranch({ bookId, branchId: effectiveBranchId }),
   })
 
   const selectedCheckpointQuery = useQuery({
     queryKey: bookQueryKeys.checkpoint(bookId, effectiveCheckpointId, locale),
-    queryFn: () => customBookClient.getBookManuscriptCheckpoint({ bookId, checkpointId: effectiveCheckpointId }),
+    queryFn: () => effectiveBookClient.getBookManuscriptCheckpoint({ bookId, checkpointId: effectiveCheckpointId }),
     enabled: checkpointEnabled,
   })
 

@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { useI18n } from '@/app/i18n'
+import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
 
 import { DEFAULT_BOOK_EXPORT_PROFILE_ID } from '../api/book-export-profiles'
 import { bookClient, type BookClient } from '../api/book-client'
@@ -41,20 +42,27 @@ export interface UseBookExportPreviewQueryResult {
 
 export function useBookExportPreviewQuery(
   { bookId, currentDraftWorkspace, compareWorkspace, exportProfileId, enabled = true }: UseBookExportPreviewQueryInput,
-  { bookClient: customBookClient = bookClient }: UseBookExportPreviewQueryDeps = {},
+  { bookClient: customBookClient }: UseBookExportPreviewQueryDeps = {},
 ): UseBookExportPreviewQueryResult {
+  const runtime = useOptionalProjectRuntime()
   const { locale } = useI18n()
   const effectiveExportProfileId = exportProfileId ?? DEFAULT_BOOK_EXPORT_PROFILE_ID
+  const effectiveBookClient = resolveProjectRuntimeDependency(
+    customBookClient,
+    runtime?.bookClient,
+    'useBookExportPreviewQuery',
+    'deps.bookClient',
+  )
 
   const exportProfilesQuery = useQuery({
     queryKey: bookQueryKeys.exportProfiles(bookId, locale),
-    queryFn: () => customBookClient.getBookExportProfiles({ bookId }),
+    queryFn: () => effectiveBookClient.getBookExportProfiles({ bookId }),
     enabled,
   })
 
   const selectedExportProfileQuery = useQuery({
     queryKey: bookQueryKeys.exportProfile(bookId, effectiveExportProfileId, locale),
-    queryFn: () => customBookClient.getBookExportProfile({ bookId, exportProfileId: effectiveExportProfileId }),
+    queryFn: () => effectiveBookClient.getBookExportProfile({ bookId, exportProfileId: effectiveExportProfileId }),
     enabled,
   })
 
