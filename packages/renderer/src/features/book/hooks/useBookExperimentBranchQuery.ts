@@ -47,6 +47,8 @@ export function useBookExperimentBranchQuery(
   const effectiveBranchId = branchId ?? DEFAULT_BOOK_EXPERIMENT_BRANCH_ID
   const effectiveCheckpointId = checkpointId ?? DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID
   const checkpointEnabled = branchBaseline === 'checkpoint'
+  const branchQueriesEnabled =
+    currentDraftWorkspace !== undefined && currentDraftWorkspace !== null
   const effectiveBookClient = resolveProjectRuntimeDependency(
     customBookClient,
     runtime?.bookClient,
@@ -57,36 +59,46 @@ export function useBookExperimentBranchQuery(
   const branchesQuery = useQuery({
     queryKey: bookQueryKeys.branches(bookId, locale),
     queryFn: () => effectiveBookClient.getBookExperimentBranches({ bookId }),
+    enabled: branchQueriesEnabled,
   })
 
   const selectedBranchQuery = useQuery({
     queryKey: bookQueryKeys.branch(bookId, effectiveBranchId, locale),
     queryFn: () => effectiveBookClient.getBookExperimentBranch({ bookId, branchId: effectiveBranchId }),
+    enabled: branchQueriesEnabled,
   })
 
   const selectedCheckpointQuery = useQuery({
     queryKey: bookQueryKeys.checkpoint(bookId, effectiveCheckpointId, locale),
     queryFn: () => effectiveBookClient.getBookManuscriptCheckpoint({ bookId, checkpointId: effectiveCheckpointId }),
-    enabled: checkpointEnabled,
+    enabled: branchQueriesEnabled && checkpointEnabled,
   })
 
   const branches = useMemo(
     () =>
-      branchesQuery.data?.map((record) => normalizeBookExperimentBranch(record, locale) satisfies BookExperimentBranchSummaryViewModel),
-    [branchesQuery.data, locale],
+      !branchQueriesEnabled
+        ? undefined
+        : branchesQuery.data?.map((record) => normalizeBookExperimentBranch(record, locale) satisfies BookExperimentBranchSummaryViewModel),
+    [branchQueriesEnabled, branchesQuery.data, locale],
   )
 
   const selectedBranch = useMemo(
     () =>
-      selectedBranchQuery.data === undefined
+      !branchQueriesEnabled
         ? undefined
-        : selectedBranchQuery.data === null
-          ? null
-          : normalizeBookExperimentBranch(selectedBranchQuery.data, locale),
-    [locale, selectedBranchQuery.data],
+        : selectedBranchQuery.data === undefined
+          ? undefined
+          : selectedBranchQuery.data === null
+            ? null
+            : normalizeBookExperimentBranch(selectedBranchQuery.data, locale),
+    [branchQueriesEnabled, locale, selectedBranchQuery.data],
   )
 
   const branchWorkspace = useMemo(() => {
+    if (!branchQueriesEnabled) {
+      return undefined
+    }
+
     if (currentDraftWorkspace === undefined || branchesQuery.data === undefined || selectedBranchQuery.data === undefined) {
       return undefined
     }
@@ -126,20 +138,22 @@ export function useBookExperimentBranchQuery(
   ])
 
   const missingBranchError =
-    !selectedBranchQuery.isLoading && selectedBranchQuery.data === null
+    branchQueriesEnabled && !selectedBranchQuery.isLoading && selectedBranchQuery.data === null
       ? new Error(`Book experiment branch "${effectiveBranchId}" could not be found for "${bookId}".`)
       : null
   const missingCheckpointError =
-    checkpointEnabled && !selectedCheckpointQuery.isLoading && selectedCheckpointQuery.data === null
+    branchQueriesEnabled && checkpointEnabled && !selectedCheckpointQuery.isLoading && selectedCheckpointQuery.data === null
       ? new Error(`Book manuscript checkpoint "${effectiveCheckpointId}" could not be found for "${bookId}".`)
       : null
 
   const error =
-    (branchesQuery.error instanceof Error ? branchesQuery.error : null) ??
-    (selectedBranchQuery.error instanceof Error ? selectedBranchQuery.error : null) ??
-    (selectedCheckpointQuery.error instanceof Error ? selectedCheckpointQuery.error : null) ??
-    missingBranchError ??
-    missingCheckpointError
+    !branchQueriesEnabled
+      ? null
+      : (branchesQuery.error instanceof Error ? branchesQuery.error : null) ??
+        (selectedBranchQuery.error instanceof Error ? selectedBranchQuery.error : null) ??
+        (selectedCheckpointQuery.error instanceof Error ? selectedCheckpointQuery.error : null) ??
+        missingBranchError ??
+        missingCheckpointError
 
   return {
     branchWorkspace,
@@ -147,9 +161,10 @@ export function useBookExperimentBranchQuery(
     selectedBranch,
     isLoading:
       currentDraftWorkspace === undefined ||
-      branchesQuery.isLoading ||
-      selectedBranchQuery.isLoading ||
-      (checkpointEnabled && selectedCheckpointQuery.isLoading),
+      (branchQueriesEnabled &&
+        (branchesQuery.isLoading ||
+          selectedBranchQuery.isLoading ||
+          (checkpointEnabled && selectedCheckpointQuery.isLoading))),
     error,
   }
 }

@@ -263,7 +263,7 @@ describe('useBookManuscriptCompareQuery', () => {
     expect(hook.result.current.checkpoints).toHaveLength(1)
   })
 
-  it('does not emit a spurious error while the current draft workspace is still undefined', async () => {
+  it('stays dormant without emitting a spurious error while the current draft workspace is still undefined', async () => {
     const hook = renderHook(
       () =>
         useBookManuscriptCompareQuery(
@@ -282,11 +282,72 @@ describe('useBookManuscriptCompareQuery', () => {
     )
 
     expect(hook.result.current.isLoading).toBe(true)
+    expect(hook.result.current.error).toBeNull()
+    expect(hook.result.current.selectedCheckpoint).toBeUndefined()
+    expect(hook.result.current.compareWorkspace).toBeUndefined()
+  })
+
+  it('clears loaded checkpoint metadata when rerendering from a loaded compare slice into a dormant slice', async () => {
+    const hook = renderHook(
+      ({ currentDraftWorkspace }) =>
+        useBookManuscriptCompareQuery(
+          {
+            bookId: 'book-signal-arc',
+            currentDraftWorkspace,
+            checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+          },
+          {
+            bookClient: createBookClient(),
+          },
+        ),
+      {
+        initialProps: { currentDraftWorkspace: createWorkspace() as BookDraftWorkspaceViewModel | undefined },
+        wrapper: createWrapper(),
+      },
+    )
+
     await waitFor(() => {
       expect(hook.result.current.selectedCheckpoint?.checkpointId).toBe(DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID)
     })
 
+    hook.rerender({ currentDraftWorkspace: undefined })
+
+    expect(hook.result.current.isLoading).toBe(true)
     expect(hook.result.current.error).toBeNull()
+    expect(hook.result.current.checkpoints).toBeUndefined()
+    expect(hook.result.current.selectedCheckpoint).toBeUndefined()
+    expect(hook.result.current.compareWorkspace).toBeUndefined()
+  })
+
+  it('clears missing-checkpoint errors when rerendering from a failed compare slice into a dormant slice', async () => {
+    const hook = renderHook(
+      ({ currentDraftWorkspace }) =>
+        useBookManuscriptCompareQuery(
+          {
+            bookId: 'book-signal-arc',
+            currentDraftWorkspace,
+            checkpointId: 'checkpoint-missing',
+          },
+          {
+            bookClient: createBookClient(),
+          },
+        ),
+      {
+        initialProps: { currentDraftWorkspace: createWorkspace() as BookDraftWorkspaceViewModel | undefined },
+        wrapper: createWrapper(),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.error?.message).toContain('checkpoint-missing')
+    })
+
+    hook.rerender({ currentDraftWorkspace: undefined })
+
+    expect(hook.result.current.isLoading).toBe(true)
+    expect(hook.result.current.error).toBeNull()
+    expect(hook.result.current.checkpoints).toBeUndefined()
+    expect(hook.result.current.selectedCheckpoint).toBeUndefined()
     expect(hook.result.current.compareWorkspace).toBeUndefined()
   })
 })

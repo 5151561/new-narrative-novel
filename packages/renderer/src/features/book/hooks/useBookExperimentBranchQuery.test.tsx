@@ -236,6 +236,15 @@ function createBookClient({
   }
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve
+  })
+
+  return { promise, resolve }
+}
+
 describe('useBookExperimentBranchQuery', () => {
   it('uses dedicated branch query keys', () => {
     expect(bookQueryKeys.branches('book-signal-arc', 'en')).toEqual(['book', 'branches', 'book-signal-arc', 'en'])
@@ -408,7 +417,7 @@ describe('useBookExperimentBranchQuery', () => {
     expect(hook.result.current.error?.message).toBe('Branch list failed')
   })
 
-  it('keeps branchWorkspace undefined without emitting an error while the current draft workspace is still loading', async () => {
+  it('stays dormant without emitting an error while the current draft workspace is still loading', async () => {
     const hook = renderHook(
       () =>
         useBookExperimentBranchQuery(
@@ -424,14 +433,182 @@ describe('useBookExperimentBranchQuery', () => {
       { wrapper: createWrapper() },
     )
 
-    await waitFor(() => {
-      expect(hook.result.current.branches).toHaveLength(2)
-      expect(hook.result.current.selectedBranch?.branchId).toBe(DEFAULT_BOOK_EXPERIMENT_BRANCH_ID)
-    })
-
+    expect(hook.result.current.branches).toBeUndefined()
+    expect(hook.result.current.selectedBranch).toBeUndefined()
     expect(hook.result.current.branchWorkspace).toBeUndefined()
     expect(hook.result.current.isLoading).toBe(true)
     expect(hook.result.current.error).toBeNull()
+  })
+
+  it('clears loaded branch metadata when rerendering from a loaded branch slice into a dormant slice', async () => {
+    const hook = renderHook(
+      ({ currentDraftWorkspace }) =>
+        useBookExperimentBranchQuery(
+          {
+            bookId: 'book-signal-arc',
+            currentDraftWorkspace,
+            branchId: DEFAULT_BOOK_EXPERIMENT_BRANCH_ID,
+            branchBaseline: 'checkpoint',
+            checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+          },
+          { bookClient: createBookClient() },
+        ),
+      {
+        initialProps: { currentDraftWorkspace: createWorkspace() as BookDraftWorkspaceViewModel | undefined },
+        wrapper: createWrapper(),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.selectedBranch?.branchId).toBe(DEFAULT_BOOK_EXPERIMENT_BRANCH_ID)
+    })
+
+    hook.rerender({ currentDraftWorkspace: undefined })
+
+    expect(hook.result.current.isLoading).toBe(true)
+    expect(hook.result.current.error).toBeNull()
+    expect(hook.result.current.branches).toBeUndefined()
+    expect(hook.result.current.selectedBranch).toBeUndefined()
+    expect(hook.result.current.branchWorkspace).toBeUndefined()
+  })
+
+  it('clears loaded branch metadata when rerendering from a loaded branch slice into a null dormant slice', async () => {
+    const hook = renderHook(
+      ({ currentDraftWorkspace }) =>
+        useBookExperimentBranchQuery(
+          {
+            bookId: 'book-signal-arc',
+            currentDraftWorkspace,
+            branchId: DEFAULT_BOOK_EXPERIMENT_BRANCH_ID,
+            branchBaseline: 'checkpoint',
+            checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+          },
+          { bookClient: createBookClient() },
+        ),
+      {
+        initialProps: { currentDraftWorkspace: createWorkspace() as BookDraftWorkspaceViewModel | null },
+        wrapper: createWrapper(),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.selectedBranch?.branchId).toBe(DEFAULT_BOOK_EXPERIMENT_BRANCH_ID)
+    })
+
+    hook.rerender({ currentDraftWorkspace: null })
+
+    expect(hook.result.current.isLoading).toBe(false)
+    expect(hook.result.current.error).toBeNull()
+    expect(hook.result.current.branches).toBeUndefined()
+    expect(hook.result.current.selectedBranch).toBeUndefined()
+    expect(hook.result.current.branchWorkspace).toBeUndefined()
+  })
+
+  it('clears missing-branch errors when rerendering from a failed branch slice into a dormant slice', async () => {
+    const hook = renderHook(
+      ({ currentDraftWorkspace }) =>
+        useBookExperimentBranchQuery(
+          {
+            bookId: 'book-signal-arc',
+            currentDraftWorkspace,
+            branchId: 'branch-missing',
+            branchBaseline: 'current',
+            checkpointId: undefined,
+          },
+          { bookClient: createBookClient() },
+        ),
+      {
+        initialProps: { currentDraftWorkspace: createWorkspace() as BookDraftWorkspaceViewModel | undefined },
+        wrapper: createWrapper(),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.error?.message).toContain('branch-missing')
+    })
+
+    hook.rerender({ currentDraftWorkspace: undefined })
+
+    expect(hook.result.current.isLoading).toBe(true)
+    expect(hook.result.current.error).toBeNull()
+    expect(hook.result.current.branches).toBeUndefined()
+    expect(hook.result.current.selectedBranch).toBeUndefined()
+    expect(hook.result.current.branchWorkspace).toBeUndefined()
+  })
+
+  it('clears missing-branch errors when rerendering from a failed branch slice into a null dormant slice', async () => {
+    const hook = renderHook(
+      ({ currentDraftWorkspace }) =>
+        useBookExperimentBranchQuery(
+          {
+            bookId: 'book-signal-arc',
+            currentDraftWorkspace,
+            branchId: 'branch-missing',
+            branchBaseline: 'current',
+            checkpointId: undefined,
+          },
+          { bookClient: createBookClient() },
+        ),
+      {
+        initialProps: { currentDraftWorkspace: createWorkspace() as BookDraftWorkspaceViewModel | null },
+        wrapper: createWrapper(),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.error?.message).toContain('branch-missing')
+    })
+
+    hook.rerender({ currentDraftWorkspace: null })
+
+    expect(hook.result.current.isLoading).toBe(false)
+    expect(hook.result.current.error).toBeNull()
+    expect(hook.result.current.branches).toBeUndefined()
+    expect(hook.result.current.selectedBranch).toBeUndefined()
+    expect(hook.result.current.branchWorkspace).toBeUndefined()
+  })
+
+  it('stays dormant when rerendered to null while branch queries are still in flight', async () => {
+    const branches = createDeferred<BookExperimentBranchRecord[]>()
+    const branch = createDeferred<BookExperimentBranchRecord | null>()
+    const checkpoint = createDeferred<BookManuscriptCheckpointRecord | null>()
+    const hook = renderHook(
+      ({ currentDraftWorkspace }) =>
+        useBookExperimentBranchQuery(
+          {
+            bookId: 'book-signal-arc',
+            currentDraftWorkspace,
+            branchId: DEFAULT_BOOK_EXPERIMENT_BRANCH_ID,
+            branchBaseline: 'checkpoint',
+            checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+          },
+          {
+            bookClient: {
+              getBookExperimentBranches: () => branches.promise,
+              getBookExperimentBranch: () => branch.promise,
+              getBookManuscriptCheckpoint: () => checkpoint.promise,
+            },
+          },
+        ),
+      {
+        initialProps: { currentDraftWorkspace: createWorkspace() as BookDraftWorkspaceViewModel | null },
+        wrapper: createWrapper(),
+      },
+    )
+
+    expect(hook.result.current.isLoading).toBe(true)
+
+    hook.rerender({ currentDraftWorkspace: null })
+
+    expect(hook.result.current.isLoading).toBe(false)
+    expect(hook.result.current.error).toBeNull()
+    expect(hook.result.current.branches).toBeUndefined()
+    expect(hook.result.current.selectedBranch).toBeUndefined()
+    expect(hook.result.current.branchWorkspace).toBeUndefined()
+
+    branches.resolve(mockBookExperimentBranchSeeds['book-signal-arc']!)
+    branch.resolve(mockBookExperimentBranchSeeds['book-signal-arc']![0]!)
+    checkpoint.resolve(mockBookManuscriptCheckpointSeeds['book-signal-arc']![0]!)
   })
 
   it('keeps selection synced when the route-owned selected chapter changes', async () => {

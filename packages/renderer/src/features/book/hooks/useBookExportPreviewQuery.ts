@@ -47,6 +47,8 @@ export function useBookExportPreviewQuery(
   const runtime = useOptionalProjectRuntime()
   const { locale } = useI18n()
   const effectiveExportProfileId = exportProfileId ?? DEFAULT_BOOK_EXPORT_PROFILE_ID
+  const exportQueriesEnabled =
+    enabled && currentDraftWorkspace !== undefined && currentDraftWorkspace !== null
   const effectiveBookClient = resolveProjectRuntimeDependency(
     customBookClient,
     runtime?.bookClient,
@@ -57,13 +59,13 @@ export function useBookExportPreviewQuery(
   const exportProfilesQuery = useQuery({
     queryKey: bookQueryKeys.exportProfiles(bookId, locale),
     queryFn: () => effectiveBookClient.getBookExportProfiles({ bookId }),
-    enabled,
+    enabled: exportQueriesEnabled,
   })
 
   const selectedExportProfileQuery = useQuery({
     queryKey: bookQueryKeys.exportProfile(bookId, effectiveExportProfileId, locale),
     queryFn: () => effectiveBookClient.getBookExportProfile({ bookId, exportProfileId: effectiveExportProfileId }),
-    enabled,
+    enabled: exportQueriesEnabled,
   })
 
   const exportProfiles = useMemo(
@@ -104,23 +106,23 @@ export function useBookExportPreviewQuery(
   }, [compareWorkspace, currentDraftWorkspace, locale, selectedExportProfile])
 
   const missingProfileError =
-    enabled && !selectedExportProfileQuery.isLoading && selectedExportProfileQuery.data === null
+    exportQueriesEnabled && !selectedExportProfileQuery.isLoading && selectedExportProfileQuery.data === null
       ? new Error(`Book export profile "${effectiveExportProfileId}" could not be found for "${bookId}".`)
       : null
 
   const error =
-    !enabled
+    !exportQueriesEnabled
       ? null
       : (exportProfilesQuery.error instanceof Error ? exportProfilesQuery.error : null) ??
         (selectedExportProfileQuery.error instanceof Error ? selectedExportProfileQuery.error : null) ??
         missingProfileError
 
   return {
-    exportWorkspace: enabled ? exportWorkspace : undefined,
-    exportProfiles: enabled ? exportProfiles : undefined,
-    selectedExportProfile: enabled ? selectedExportProfile : undefined,
+    exportWorkspace: exportQueriesEnabled ? exportWorkspace : undefined,
+    exportProfiles: exportQueriesEnabled ? exportProfiles : undefined,
+    selectedExportProfile: exportQueriesEnabled ? selectedExportProfile : undefined,
     isLoading:
-      enabled &&
+      exportQueriesEnabled &&
       (currentDraftWorkspace === undefined || compareWorkspace === undefined || exportProfilesQuery.isLoading || selectedExportProfileQuery.isLoading),
     error,
   }

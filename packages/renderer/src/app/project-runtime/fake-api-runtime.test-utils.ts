@@ -2,19 +2,30 @@ import {
   createMockProjectRuntime,
   type CreateMockProjectRuntimeOptions,
 } from './mock-project-runtime'
-import type { ApiRequestOptions } from './api-transport'
+import type { ApiQueryValue, ApiRequestOptions } from './api-transport'
 import { createApiProjectRuntime } from './api-project-runtime'
 
 export interface FakeApiRequest<TBody = unknown> extends ApiRequestOptions<TBody> {}
 
+export interface FakeApiRequestOverride {
+  method: FakeApiRequest['method']
+  path: string
+  query?: Record<string, ApiQueryValue>
+  body?: unknown
+  response?: unknown | ((request: FakeApiRequest) => unknown | Promise<unknown>)
+  error?: Error | ((request: FakeApiRequest) => Error | Promise<Error>)
+}
+
 export interface CreateFakeApiRuntimeOptions {
   projectId?: string
   mockRuntimeOptions?: CreateMockProjectRuntimeOptions
+  overrides?: FakeApiRequestOverride[]
 }
 
 export function createFakeApiRuntime({
   projectId = 'project-smoke',
   mockRuntimeOptions,
+  overrides = [],
 }: CreateFakeApiRuntimeOptions = {}) {
   const requests: FakeApiRequest[] = []
   const mockRuntime = createMockProjectRuntime({
@@ -33,6 +44,10 @@ export function createFakeApiRuntime({
     transport: {
       async requestJson<TResponse, TBody = unknown>(options: ApiRequestOptions<TBody>) {
         requests.push(structuredClone(options) as FakeApiRequest)
+        const override = findFakeApiRequestOverride(overrides, options)
+        if (override) {
+          return resolveFakeApiRequestOverride<TResponse>(override, options)
+        }
         return handleFakeApiRequest<TResponse, TBody>(projectId, mockRuntime, options)
       },
     },
@@ -44,6 +59,102 @@ export function createFakeApiRuntime({
     runtime,
     mockRuntime,
   }
+}
+
+function normalizeRecord(record: Record<string, ApiQueryValue> | undefined) {
+  if (!record) {
+    return undefined
+  }
+
+  return Object.fromEntries(
+    Object.entries(record)
+      .filter(([, value]) => value !== undefined && value !== null)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => [key, String(value)]),
+  )
+}
+
+function stableSerialize(value: unknown): string {
+  if (value === undefined) {
+    return 'undefined'
+  }
+
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value)
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableSerialize(item)).join(',')}]`
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, entryValue]) => entryValue !== undefined)
+    .sort(([left], [right]) => left.localeCompare(right))
+
+  return `{${entries.map(([key, entryValue]) => `${JSON.stringify(key)}:${stableSerialize(entryValue)}`).join(',')}}`
+}
+
+function normalizeBody(body: unknown) {
+  return body === undefined ? undefined : stableSerialize(body)
+}
+
+function matchesFakeApiRequestOverride(
+  override: FakeApiRequestOverride,
+  options: ApiRequestOptions,
+) {
+  if (override.method !== options.method || override.path !== options.path) {
+    return false
+  }
+
+  if (
+    override.query !== undefined &&
+    JSON.stringify(normalizeRecord(override.query)) !== JSON.stringify(normalizeRecord(options.query))
+  ) {
+    return false
+  }
+
+  if (override.body !== undefined && normalizeBody(override.body) !== normalizeBody(options.body)) {
+    return false
+  }
+
+  return true
+}
+
+function findFakeApiRequestOverride(
+  overrides: FakeApiRequestOverride[],
+  options: ApiRequestOptions,
+) {
+  return overrides.find((override) => matchesFakeApiRequestOverride(override, options))
+}
+
+function cloneFakeApiResponse<T>(value: T): T {
+  if (value === undefined || value === null) {
+    return value
+  }
+
+  return structuredClone(value)
+}
+
+async function resolveFakeApiRequestOverride<TResponse>(
+  override: FakeApiRequestOverride,
+  options: ApiRequestOptions,
+): Promise<TResponse> {
+  const request = structuredClone(options) as FakeApiRequest
+
+  if (override.error) {
+    throw (typeof override.error === 'function' ? await override.error(request) : override.error)
+  }
+
+  if ('response' in override) {
+    const response =
+      typeof override.response === 'function'
+        ? await override.response(request)
+        : override.response
+
+    return cloneFakeApiResponse(response) as TResponse
+  }
+
+  return undefined as TResponse
 }
 
 function escapeRegExp(value: string) {

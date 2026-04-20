@@ -45,6 +45,7 @@ export function useBookManuscriptCompareQuery(
   const runtime = useOptionalProjectRuntime()
   const { locale } = useI18n()
   const effectiveCheckpointId = checkpointId ?? DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID
+  const compareEnabled = currentDraftWorkspace !== undefined && currentDraftWorkspace !== null
   const effectiveBookClient = resolveProjectRuntimeDependency(
     customBookClient,
     runtime?.bookClient,
@@ -55,36 +56,42 @@ export function useBookManuscriptCompareQuery(
   const checkpointsQuery = useQuery({
     queryKey: bookQueryKeys.checkpoints(bookId, locale),
     queryFn: () => effectiveBookClient.getBookManuscriptCheckpoints({ bookId }),
+    enabled: compareEnabled,
   })
 
   const selectedCheckpointQuery = useQuery({
     queryKey: bookQueryKeys.checkpoint(bookId, effectiveCheckpointId, locale),
     queryFn: () => effectiveBookClient.getBookManuscriptCheckpoint({ bookId, checkpointId: effectiveCheckpointId }),
+    enabled: compareEnabled,
   })
 
   const checkpoints = useMemo(
     () =>
-      checkpointsQuery.data?.map((record) => {
-        const normalized = normalizeBookManuscriptCheckpoint(record, locale)
-        return {
-          checkpointId: normalized.checkpointId,
-          bookId: normalized.bookId,
-          title: normalized.title,
-          createdAtLabel: normalized.createdAtLabel,
-          summary: normalized.summary,
-        } satisfies BookManuscriptCheckpointSummaryViewModel
-      }),
-    [checkpointsQuery.data, locale],
+      !compareEnabled
+        ? undefined
+        : checkpointsQuery.data?.map((record) => {
+            const normalized = normalizeBookManuscriptCheckpoint(record, locale)
+            return {
+              checkpointId: normalized.checkpointId,
+              bookId: normalized.bookId,
+              title: normalized.title,
+              createdAtLabel: normalized.createdAtLabel,
+              summary: normalized.summary,
+            } satisfies BookManuscriptCheckpointSummaryViewModel
+          }),
+    [compareEnabled, checkpointsQuery.data, locale],
   )
 
   const selectedCheckpoint = useMemo(
     () =>
-      selectedCheckpointQuery.data === undefined
+      !compareEnabled
         ? undefined
-        : selectedCheckpointQuery.data === null
-          ? null
-          : normalizeBookManuscriptCheckpoint(selectedCheckpointQuery.data, locale),
-    [locale, selectedCheckpointQuery.data],
+        : selectedCheckpointQuery.data === undefined
+          ? undefined
+          : selectedCheckpointQuery.data === null
+            ? null
+            : normalizeBookManuscriptCheckpoint(selectedCheckpointQuery.data, locale),
+    [compareEnabled, locale, selectedCheckpointQuery.data],
   )
 
   const compareWorkspace = useMemo(() => {
@@ -104,20 +111,22 @@ export function useBookManuscriptCompareQuery(
   }, [currentDraftWorkspace, selectedCheckpoint])
 
   const missingCheckpointError =
-    !selectedCheckpointQuery.isLoading && selectedCheckpointQuery.data === null
+    compareEnabled && !selectedCheckpointQuery.isLoading && selectedCheckpointQuery.data === null
       ? new Error(`Book manuscript checkpoint "${effectiveCheckpointId}" could not be found for "${bookId}".`)
       : null
 
   const error =
-    (checkpointsQuery.error instanceof Error ? checkpointsQuery.error : null) ??
-    (selectedCheckpointQuery.error instanceof Error ? selectedCheckpointQuery.error : null) ??
-    missingCheckpointError
+    !compareEnabled
+      ? null
+      : (checkpointsQuery.error instanceof Error ? checkpointsQuery.error : null) ??
+        (selectedCheckpointQuery.error instanceof Error ? selectedCheckpointQuery.error : null) ??
+        missingCheckpointError
 
   return {
     compareWorkspace,
     checkpoints,
     selectedCheckpoint,
-    isLoading: currentDraftWorkspace === undefined || checkpointsQuery.isLoading || selectedCheckpointQuery.isLoading,
+    isLoading: currentDraftWorkspace === undefined || (compareEnabled && (checkpointsQuery.isLoading || selectedCheckpointQuery.isLoading)),
     error,
   }
 }

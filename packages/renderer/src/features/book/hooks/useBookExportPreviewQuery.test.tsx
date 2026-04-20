@@ -510,7 +510,7 @@ describe('useBookExportPreviewQuery', () => {
     expect(hook.result.current.exportProfiles).toHaveLength(3)
   })
 
-  it('returns undefined export workspace while the current draft workspace is still undefined', async () => {
+  it('stays dormant while the current draft workspace is still undefined', async () => {
     const hook = renderHook(
       () =>
         useBookExportPreviewQuery(
@@ -529,17 +529,13 @@ describe('useBookExportPreviewQuery', () => {
       },
     )
 
-    expect(hook.result.current.isLoading).toBe(true)
-
-    await waitFor(() => {
-      expect(hook.result.current.selectedExportProfile?.exportProfileId).toBe(DEFAULT_BOOK_EXPORT_PROFILE_ID)
-    })
-
+    expect(hook.result.current.isLoading).toBe(false)
     expect(hook.result.current.error).toBeNull()
+    expect(hook.result.current.selectedExportProfile).toBeUndefined()
     expect(hook.result.current.exportWorkspace).toBeUndefined()
   })
 
-  it('returns null workspace instead of crashing when the current draft workspace is null', async () => {
+  it('stays dormant when the current draft workspace is null', async () => {
     const hook = renderHook(
       () =>
         useBookExportPreviewQuery(
@@ -563,8 +559,8 @@ describe('useBookExportPreviewQuery', () => {
     })
 
     expect(hook.result.current.error).toBeNull()
-    expect(hook.result.current.selectedExportProfile?.exportProfileId).toBe(DEFAULT_BOOK_EXPORT_PROFILE_ID)
-    expect(hook.result.current.exportWorkspace).toBeNull()
+    expect(hook.result.current.selectedExportProfile).toBeUndefined()
+    expect(hook.result.current.exportWorkspace).toBeUndefined()
   })
 
   it('stays dormant when disabled and does not fetch export profile data', async () => {
