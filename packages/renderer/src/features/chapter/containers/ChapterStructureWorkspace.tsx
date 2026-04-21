@@ -193,7 +193,10 @@ export function ChapterStructureWorkspace() {
         return
       }
 
-      await reorderSceneMutation.mutateAsync({ sceneId, targetIndex })
+      const nextWorkspace = await reorderSceneMutation.mutateAsync({ sceneId, targetIndex })
+      if (nextWorkspace === null) {
+        return
+      }
 
       setLatestMutation({
         id: `mutation-${mutationSequenceRef.current++}`,
@@ -212,7 +215,10 @@ export function ChapterStructureWorkspace() {
         return
       }
 
-      await updateSceneStructureMutation.mutateAsync({ sceneId, locale, patch })
+      const nextWorkspace = await updateSceneStructureMutation.mutateAsync({ sceneId, locale, patch })
+      if (nextWorkspace === null) {
+        return
+      }
 
       setLatestMutation({
         id: `mutation-${mutationSequenceRef.current++}`,

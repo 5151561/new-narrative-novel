@@ -1,10 +1,14 @@
+import { QueryClient } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
+import { apiRouteContract } from '@/app/project-runtime'
+import { createFakeApiRuntime } from '@/app/project-runtime/fake-api-runtime.test-utils'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import { resetMockChapterDb } from '../api/mock-chapter-db'
+import { chapterQueryKeys } from '../hooks/chapter-query-keys'
 import { buildChapterStoryWorkspace } from '../components/chapter-story-fixture'
 import * as chapterWorkspaceQuery from '../hooks/useChapterStructureWorkspaceQuery'
 
@@ -24,6 +28,21 @@ function ChapterRouteHarness() {
   ) : (
     <div data-testid="route-scope">{route.scope}</div>
   )
+}
+
+function createRuntimeQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 30_000,
+        retry: false,
+        refetchOnWindowFocus: false,
+      },
+      mutations: {
+        retry: false,
+      },
+    },
+  })
 }
 
 describe('ChapterStructureWorkspace', () => {
@@ -360,6 +379,201 @@ describe('ChapterStructureWorkspace', () => {
 
     expect(within(dockRegion).getByText('Moved Ticket Window earlier')).toBeInTheDocument()
     expect(within(dockRegion).getByText('Updated structure for Concourse Delay')).toBeInTheDocument()
+  })
+
+  it('reorders and patches through the API runtime while keeping binder, outliner, inspector, and route.sceneId aligned', async () => {
+    const user = userEvent.setup()
+    const queryClient = createRuntimeQueryClient()
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    const { requests, runtime } = createFakeApiRuntime({
+      projectId: 'project-chapter-write-route',
+    })
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=outliner&sceneId=scene-concourse-delay',
+    )
+
+    render(
+      <AppProviders runtime={runtime} queryClient={queryClient}>
+        <ChapterRouteHarness />
+      </AppProviders>,
+    )
+
+    const dockRegion = await screen.findByRole('region', { name: 'Chapter bottom dock' })
+    const ticketWindowBinderItem = screen.getByRole('button', { name: /Scene 3 Ticket Window/i }).closest('li')
+
+    await user.click(within(ticketWindowBinderItem!).getByRole('button', { name: 'Move earlier: Ticket Window' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Scene 2 Ticket Window/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Scene 3 Concourse Delay/i })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: /Beat line 2 Ticket Window/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Beat line 3 Concourse Delay/i })).toHaveAttribute('aria-current', 'true')
+      expect(new URLSearchParams(window.location.search).get('sceneId')).toBe('scene-concourse-delay')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Assembly' }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /Sequence 3 Concourse Delay/i })).not.toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Current seam' })).toBeInTheDocument()
+      expect(
+        within(screen.getByRole('heading', { name: 'Summary' }).closest('section')!).getByText('Concourse Delay · Unresolved 2'),
+      ).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Outliner' }))
+
+    const selectedRow = await screen.findByRole('button', { name: /Beat line 3 Concourse Delay/i })
+    const selectedRowItem = selectedRow.closest('li')
+
+    await user.click(within(selectedRowItem!).getByRole('button', { name: 'Edit Structure' }))
+    await user.clear(within(selectedRowItem!).getByLabelText('Summary'))
+    await user.type(within(selectedRowItem!).getByLabelText('Summary'), '  Keep the witness line open through the gate.  ')
+    await user.click(within(selectedRowItem!).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(
+        within(screen.getByRole('heading', { name: 'Summary' }).closest('section')!).getByText(
+          'Keep the witness line open through the gate.',
+        ),
+      ).toBeInTheDocument()
+      expect(new URLSearchParams(window.location.search).get('sceneId')).toBe('scene-concourse-delay')
+    })
+
+    expect(requests).toContainEqual(
+      expect.objectContaining({
+        method: 'POST',
+        path: apiRouteContract.chapterSceneReorder({
+          projectId: 'project-chapter-write-route',
+          chapterId: 'chapter-signals-in-rain',
+          sceneId: 'scene-ticket-window',
+        }),
+        body: {
+          targetIndex: 1,
+        },
+      }),
+    )
+    expect(requests).toContainEqual(
+      expect.objectContaining({
+        method: 'PATCH',
+        path: apiRouteContract.chapterSceneStructure({
+          projectId: 'project-chapter-write-route',
+          chapterId: 'chapter-signals-in-rain',
+          sceneId: 'scene-concourse-delay',
+        }),
+        body: {
+          locale: 'en',
+          patch: {
+            summary: 'Keep the witness line open through the gate.',
+          },
+        },
+      }),
+    )
+    expect(within(dockRegion).getByText('Moved Ticket Window earlier')).toBeInTheDocument()
+    expect(within(dockRegion).getByText('Updated structure for Concourse Delay')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: chapterQueryKeys.workspace('chapter-signals-in-rain'),
+        refetchType: 'active',
+      })
+    })
+  })
+
+  it('does not record reorder success activity when the API runtime resolves the mutation to null', async () => {
+    const user = userEvent.setup()
+    const queryClient = createRuntimeQueryClient()
+    const { runtime } = createFakeApiRuntime({
+      projectId: 'project-chapter-null-reorder',
+      overrides: [
+        {
+          method: 'POST',
+          path: apiRouteContract.chapterSceneReorder({
+            projectId: 'project-chapter-null-reorder',
+            chapterId: 'chapter-signals-in-rain',
+            sceneId: 'scene-ticket-window',
+          }),
+          body: {
+            targetIndex: 1,
+          },
+          response: null,
+        },
+      ],
+    })
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=outliner&sceneId=scene-concourse-delay',
+    )
+
+    render(
+      <AppProviders runtime={runtime} queryClient={queryClient}>
+        <ChapterRouteHarness />
+      </AppProviders>,
+    )
+
+    const ticketWindowBinderItem = (await screen.findByRole('button', { name: /Scene 3 Ticket Window/i })).closest('li')
+    await user.click(within(ticketWindowBinderItem!).getByRole('button', { name: 'Move earlier: Ticket Window' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Moved Ticket Window earlier')).not.toBeInTheDocument()
+    })
+    expect(screen.queryByText('Moved Ticket Window earlier')).not.toBeInTheDocument()
+    expect(new URLSearchParams(window.location.search).get('sceneId')).toBe('scene-concourse-delay')
+  })
+
+  it('does not record structure update success activity when the API runtime resolves the patch mutation to null', async () => {
+    const user = userEvent.setup()
+    const queryClient = createRuntimeQueryClient()
+    const { runtime } = createFakeApiRuntime({
+      projectId: 'project-chapter-null-patch',
+      overrides: [
+        {
+          method: 'PATCH',
+          path: apiRouteContract.chapterSceneStructure({
+            projectId: 'project-chapter-null-patch',
+            chapterId: 'chapter-signals-in-rain',
+            sceneId: 'scene-concourse-delay',
+          }),
+          body: {
+            locale: 'en',
+            patch: {
+              summary: 'Keep the witness line open through the gate.',
+            },
+          },
+          response: null,
+        },
+      ],
+    })
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=outliner&sceneId=scene-concourse-delay',
+    )
+
+    render(
+      <AppProviders runtime={runtime} queryClient={queryClient}>
+        <ChapterRouteHarness />
+      </AppProviders>,
+    )
+
+    const selectedRow = await screen.findByRole('button', { name: /Beat line 2 Concourse Delay/i })
+    const selectedRowItem = selectedRow.closest('li')
+    await user.click(within(selectedRowItem!).getByRole('button', { name: 'Edit Structure' }))
+    await user.clear(within(selectedRowItem!).getByLabelText('Summary'))
+    await user.type(within(selectedRowItem!).getByLabelText('Summary'), '  Keep the witness line open through the gate.  ')
+    await user.click(within(selectedRowItem!).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Updated structure for Concourse Delay')).not.toBeInTheDocument()
+    })
+
+    expect(screen.queryByText('Updated structure for Concourse Delay')).not.toBeInTheDocument()
+    expect(new URLSearchParams(window.location.search).get('sceneId')).toBe('scene-concourse-delay')
   })
 
   it('closes the selected-row edit form when the locale changes before save', async () => {

@@ -184,3 +184,155 @@ Review 读切片会按当前 route 状态读取以下只读端点：
 - export artifact build / download 合同
 - branch baseline 切换写入
 - 真实 backend / auth / SSE / Temporal 接线
+
+## 9. PR22 API-backed mutation write slice
+
+### 9.1 覆盖的 endpoint
+
+本 bundle 覆盖以下 API-backed mutation write path：
+
+- `PUT /api/projects/{projectId}/books/{bookId}/review-decisions/{issueId}`
+- `DELETE /api/projects/{projectId}/books/{bookId}/review-decisions/{issueId}`
+- `PUT /api/projects/{projectId}/books/{bookId}/review-fix-actions/{issueId}`
+- `DELETE /api/projects/{projectId}/books/{bookId}/review-fix-actions/{issueId}`
+- `POST /api/projects/{projectId}/books/{bookId}/export-artifacts`
+- `POST /api/projects/{projectId}/chapters/{chapterId}/scenes/{sceneId}/reorder`
+- `PATCH /api/projects/{projectId}/chapters/{chapterId}/scenes/{sceneId}/structure`
+
+### 9.2 请求体示例
+
+Review decision set:
+
+```json
+{
+  "bookId": "book-signal-arc",
+  "issueId": "compare-delta-chapter-2-scene-3",
+  "issueSignature": "compare-delta-chapter-2-scene-3::compare_delta",
+  "status": "reviewed",
+  "note": "Ship it"
+}
+```
+
+Review fix action set:
+
+```json
+{
+  "bookId": "book-signal-arc",
+  "issueId": "scene-proposal-seed-scene-5",
+  "issueSignature": "scene-proposal-seed-scene-5::scene_proposal",
+  "sourceHandoffId": "scene-proposal-handoff",
+  "sourceHandoffLabel": "Open scene proposal",
+  "targetScope": "scene",
+  "status": "started",
+  "note": "Follow proposal branch"
+}
+```
+
+Chapter reorder:
+
+```json
+{
+  "targetIndex": 1
+}
+```
+
+Chapter structure patch:
+
+```json
+{
+  "locale": "en",
+  "patch": {
+    "summary": "Keep the witness line open through the gate."
+  }
+}
+```
+
+Export artifact build:
+
+```json
+{
+  "bookId": "book-signal-arc",
+  "exportProfileId": "profile-editorial-md",
+  "checkpointId": "checkpoint-api-write",
+  "format": "markdown",
+  "filename": "signal-arc-profile-editorial-md.md",
+  "mimeType": "text/markdown",
+  "title": "Signal Arc",
+  "summary": "Export artifact for Editorial Markdown.",
+  "content": "# Signal Arc\n...",
+  "sourceSignature": "...stable export signature...",
+  "chapterCount": 1,
+  "sceneCount": 1,
+  "wordCount": 88,
+  "readinessSnapshot": {
+    "status": "ready",
+    "blockerCount": 0,
+    "warningCount": 0,
+    "infoCount": 0
+  },
+  "reviewGateSnapshot": {
+    "openBlockerCount": 0,
+    "checkedFixCount": 0,
+    "blockedFixCount": 0,
+    "staleFixCount": 0
+  }
+}
+```
+
+导出构建请求体必须由 `buildBookExportArtifactInput(...)` 生成；gate blocked 时不得偷发 `POST`。
+
+### 9.3 success / optimistic / rollback / invalidation 规则
+
+- Review decision / fix action `PUT`
+  - 使用 issue 级 optimistic record 覆盖对应 query cache 项。
+  - 成功时以服务端返回的最新单条 record 替换 optimistic record。
+  - settle 后只失效原 query key：
+    - `reviewQueryKeys.decisions(bookId)`
+    - `reviewQueryKeys.fixActions(bookId)`
+- Review decision / fix action `DELETE`
+  - optimistic 地移除对应 issue 的 record。
+  - 失败时只回滚该 issue，自身之外的 read list 不得被抹掉。
+  - settle 后只失效原 query key，不改 route shape。
+- Chapter reorder / structure patch
+  - optimistic 更新整章 `chapterQueryKeys.workspace(chapterId)`。
+  - 成功时以服务端返回的整章 workspace 快照提交；binder / outliner / inspector 继续围绕同一个 route `sceneId` 对齐。
+  - settle 后 query key identity 仍然是 `chapterQueryKeys.workspace(chapterId)`。
+  - 若 mutation response 为 `null`，不得继续记录 success activity；应让 workspace 自己走 not-found / unavailable 语义，而不是伪装写成功。
+- Export artifact build
+  - gate blocked 时不发请求。
+  - 成功时只更新并失效 `bookQueryKeys.exportArtifacts(bookId, exportProfileId, checkpointId)`。
+  - 500 失败时不得污染 artifact cache，错误保持 action-scoped。
+
+### 9.4 错误语义
+
+- `409`
+  - 视为冲突 / stale write。
+  - Chapter reorder、review fix action set 等写操作必须回滚 optimistic state。
+- `422`
+  - 视为输入无效。
+  - Review decision set、chapter structure patch 等写操作必须回滚 optimistic state。
+- `401 / 403`
+  - 归类为 auth / permission placeholder。
+  - 本 bundle 不实现真实登录、续期、权限流，只要求按统一错误体返回并保持 action-scoped。
+- `404`
+  - 归类为目标资源不存在。
+  - 对 chapter workspace，允许现有 not-found 语义接管；不得伪造成功。
+- `500`
+  - 归类为 server / unavailable。
+  - Review mutation failure 不得把 review read issue list 清空，也不得把 review surface 误判成 read failure。
+  - Export artifact build failure 不得写入脏 artifact record。
+
+### 9.5 生产路径 audit 结论
+
+- 本次 write slice 审计没有新增 PR22 write path 的直连 feature client bypass。
+- `rg "from '@/features/.*/api/.*client'" ...` 命中的生产代码主要是既有 read-side source hook import；本 bundle 不扩大到 scene / asset / traceability 读链修整。
+- `rg "create.*Client\\(" ...` 命中的生产路径限于 api module 自身与测试；PR22 write path 未发现新的 runtime 绕过创建。
+
+### 9.6 非覆盖范围
+
+本节只定义 PR22 的前端 API-backed mutation write slice 合同，不覆盖：
+
+- scene run / scene continue / proposal accept / prose revision
+- SSE / 运行事件流
+- Temporal / backend orchestration
+- 真实 backend server、auth server、session server

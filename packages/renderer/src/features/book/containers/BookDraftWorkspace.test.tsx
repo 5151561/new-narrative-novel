@@ -11,7 +11,7 @@ import { apiRouteContract } from '@/app/project-runtime'
 import { createFakeApiRuntime } from '@/app/project-runtime/fake-api-runtime.test-utils'
 import { resetMockReviewDecisionDb } from '@/features/review/api/mock-review-decision-db'
 import { resetMockReviewFixActionDb } from '@/features/review/api/mock-review-fix-action-db'
-import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
+import { ApiRequestError, ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
 import { createReviewClient } from '@/features/review/api/review-client'
 import { reviewQueryKeys } from '@/features/review/hooks/review-query-keys'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
@@ -107,6 +107,21 @@ function createInjectedProviders(runtime = createMockProjectRuntime({ persistenc
       </QueryClientProvider>
     )
   }
+}
+
+function createRuntimeQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 30_000,
+        retry: false,
+        refetchOnWindowFocus: false,
+      },
+      mutations: {
+        retry: false,
+      },
+    },
+  })
 }
 
 describe('BookDraftWorkspace', () => {
@@ -1141,6 +1156,84 @@ describe('BookDraftWorkspace', () => {
     expect(within(bottomDock).queryByText(/Deferred issue/)).not.toBeInTheDocument()
   })
 
+  it('keeps the review surface mounted and the review route stable when an API 422 decision write fails', async () => {
+    const user = userEvent.setup()
+    const queryClient = createRuntimeQueryClient()
+    const { requests, runtime } = createFakeApiRuntime({
+      projectId: 'project-review-write-422',
+      overrides: [
+        {
+          method: 'PUT',
+          path: apiRouteContract.reviewIssueDecision({
+            projectId: 'project-review-write-422',
+            bookId: 'book-signal-arc',
+            issueId: 'compare-delta-chapter-2-scene-3',
+          }),
+          error: new ApiRequestError({
+            status: 422,
+            message: 'Decision note is invalid.',
+            code: 'review-decision-invalid',
+          }),
+        },
+      ],
+    })
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=all&reviewStatusFilter=open&reviewIssueId=compare-delta-chapter-2-scene-3&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders runtime={runtime} queryClient={queryClient}>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+    const effectiveIssueId = new URLSearchParams(window.location.search).get('reviewIssueId')
+
+    expect(effectiveIssueId).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Defer' }))
+
+    await waitFor(() => {
+      expect(requests).toContainEqual(
+        expect.objectContaining({
+          method: 'PUT',
+          path: apiRouteContract.reviewIssueDecision({
+            projectId: 'project-review-write-422',
+            bookId: 'book-signal-arc',
+            issueId: effectiveIssueId!,
+          }),
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('draftView')).toBe('review')
+      expect(params.get('reviewFilter')).toBe('all')
+      expect(params.get('reviewStatusFilter')).toBe('open')
+      expect(params.get('reviewIssueId')).toBe(effectiveIssueId)
+      expect(params.get('selectedChapterId')).toBeTruthy()
+    })
+
+    const detail = screen.getByRole('heading', { name: 'Selected review issue' }).closest('section')
+    expect(detail).not.toBeNull()
+
+    expect(screen.getByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+    expect(screen.getAllByText('Compare delta needs review').length).toBeGreaterThan(0)
+    expect(screen.getByRole('heading', { name: 'Selected review issue' })).toBeInTheDocument()
+    expect(within(detail!).getAllByText('Decision stale').length).toBeGreaterThan(0)
+    expect(within(detail!).queryByText('Deferred')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Defer' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reopen' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Review inbox unavailable')).not.toBeInTheDocument()
+    expect(screen.queryByText('Review decisions unavailable')).not.toBeInTheDocument()
+  })
+
   it('derives review problems for the bottom dock from the runtime review inbox', async () => {
     window.history.replaceState(
       {},
@@ -1462,6 +1555,79 @@ describe('BookDraftWorkspace', () => {
     const detail = screen.getByRole('heading', { name: 'Scene proposal needs review' }).closest('section')
     expect(detail).not.toBeNull()
     expect(within(detail!).queryByText('Fix started')).not.toBeInTheDocument()
+  })
+
+  it('keeps the review surface mounted and the review route stable when an API 409 source fix write fails', async () => {
+    const user = userEvent.setup()
+    const queryClient = createRuntimeQueryClient()
+    const { requests, runtime } = createFakeApiRuntime({
+      projectId: 'project-review-fix-409',
+      overrides: [
+        {
+          method: 'PUT',
+          path: apiRouteContract.reviewIssueFixAction({
+            projectId: 'project-review-fix-409',
+            bookId: 'book-signal-arc',
+            issueId: 'scene-proposal-seed-scene-5',
+          }),
+          error: new ApiRequestError({
+            status: 409,
+            message: 'Source fix action is stale.',
+            code: 'review-fix-action-conflict',
+          }),
+        },
+      ],
+    })
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=scene-proposals&reviewStatusFilter=open&reviewIssueId=scene-proposal-seed-scene-5&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders runtime={runtime} queryClient={queryClient}>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Start source fix' }))
+
+    await waitFor(() => {
+      expect(requests).toContainEqual(
+        expect.objectContaining({
+          method: 'PUT',
+          path: apiRouteContract.reviewIssueFixAction({
+            projectId: 'project-review-fix-409',
+            bookId: 'book-signal-arc',
+            issueId: 'scene-proposal-seed-scene-5',
+          }),
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('draftView')).toBe('review')
+      expect(params.get('reviewFilter')).toBe('scene-proposals')
+      expect(params.get('reviewStatusFilter')).toBe('open')
+      expect(params.get('reviewIssueId')).toBe('scene-proposal-seed-scene-5')
+      expect(params.get('selectedChapterId')).toBe('chapter-open-water-signals')
+    })
+
+    const detail = screen.getByRole('heading', { name: 'Scene proposal needs review' }).closest('section')
+    expect(detail).not.toBeNull()
+
+    expect(screen.getByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+    expect(screen.getAllByText('Scene proposal needs review').length).toBeGreaterThan(0)
+    expect(screen.getByRole('heading', { name: 'Selected review issue' })).toBeInTheDocument()
+    expect(within(detail!).getAllByText('Not started').length).toBeGreaterThan(0)
+    expect(within(detail!).queryByText('Fix started')).not.toBeInTheDocument()
+    expect(screen.queryByText('Review inbox unavailable')).not.toBeInTheDocument()
+    expect(screen.queryByText('Review fix actions unavailable')).not.toBeInTheDocument()
   })
 
   it('keeps the dormant structure view through review roundtrips back to read and into review again', async () => {
