@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ApiRequestError, type ProjectRuntime } from '@/app/project-runtime'
 import { resetMockBookExportArtifactDb } from '@/features/book/api/mock-book-export-artifact-db'
 import { resetRememberedBookWorkbenchHandoffs } from '@/features/book/hooks/useBookWorkbenchActivity'
 import { resetMockChapterDb } from '@/features/chapter/api/mock-chapter-db'
@@ -354,8 +355,9 @@ describe('App scene workbench', () => {
     await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
 
     expect(await screen.findByText('Scene unavailable')).toBeInTheDocument()
-    expect(screen.getByText('Preload Bridge')).toBeInTheDocument()
     expect(screen.getByText('Scene runtime capability "getSceneWorkspace" is unavailable for preload-bridge.')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Mock')
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Healthy')
     expect(screen.queryByText('Proposal Review')).not.toBeInTheDocument()
   })
 
@@ -363,7 +365,9 @@ describe('App scene workbench', () => {
     await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
-    expect(screen.getByText('Preview Data')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Mock')
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Healthy')
+    expect(screen.queryByText('Preview Data')).not.toBeInTheDocument()
     expect(screen.queryByText('Mock Fallback')).not.toBeInTheDocument()
   })
 
@@ -505,7 +509,8 @@ describe('App scene workbench', () => {
     await waitFor(() => {
       expect(screen.getAllByText('午夜站台').length).toBeGreaterThan(0)
     })
-    expect(screen.getByText('预览数据')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: '项目运行时状态' })).toHaveTextContent('Mock')
+    expect(screen.getByRole('status', { name: '项目运行时状态' })).toHaveTextContent('健康')
   })
 
   it('switches between English and Chinese without disturbing scene route state and remembers the choice', async () => {
@@ -1355,5 +1360,68 @@ describe('App scene workbench', () => {
     })
 
     expect(await screen.findByRole('heading', { name: 'Asset knowledge' })).toBeInTheDocument()
+  })
+
+  it('keeps the header runtime status stable across scope changes for the mock runtime', async () => {
+    const initialSearch = '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution'
+    const { createTestProjectRuntime } = await import('@/app/project-runtime')
+    const runtime = createTestProjectRuntime({
+      projectId: 'project-status-mock',
+    })
+
+    await renderFreshApp(initialSearch, {
+      runtime,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Mock')
+      expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Healthy')
+    })
+
+    expect(window.location.search).toBe(initialSearch)
+
+    restoreDormantScope('chapter')
+
+    await waitFor(() => {
+      expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Mock')
+      expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Healthy')
+    })
+
+    const params = new URLSearchParams(window.location.search)
+    expect(params.get('scope')).toBe('chapter')
+    expect(params.has('health')).toBe(false)
+  })
+
+  it('shows degraded API runtime status without breaking the workbench shell', async () => {
+    const initialSearch = '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution'
+    const { createFakeApiRuntime } = await import('@/app/project-runtime/fake-api-runtime.test-utils')
+    const { runtime } = createFakeApiRuntime({
+      projectId: 'project-status-api',
+      overrides: [
+        {
+          method: 'GET',
+          path: '/api/projects/project-status-api/runtime-info',
+          error: new ApiRequestError({
+            status: 503,
+            message: 'runtime gateway unavailable',
+          }),
+        },
+      ],
+    })
+
+    await renderFreshApp(initialSearch, {
+      runtime,
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Scene cockpit' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Chapter' })).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('API')
+      expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Unavailable')
+    })
+
+    expect(screen.getByText('Workbench stays available while the runtime health recovers.')).toBeInTheDocument()
+    expect(window.location.search).toBe(initialSearch)
   })
 })

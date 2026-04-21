@@ -1,4 +1,4 @@
-import { useQueries, useQuery } from '@tanstack/react-query'
+import { useQueries } from '@tanstack/react-query'
 
 import {
   getLocaleName,
@@ -86,15 +86,6 @@ function SceneTopCommandBar({
   tab: SceneTab
 }) {
   const { locale, dictionary } = useI18n()
-  const runtime = useProjectRuntime()
-  const runtimeInfo = useQuery({
-    queryKey: sceneQueryKeys.runtimeInfo(locale),
-    queryFn: () => runtime.sceneClient.getRuntimeInfo(),
-  })
-  const runtimeBadge = runtimeInfo.data ?? {
-    source: 'mock-fallback' as const,
-    label: dictionary.common.previewData,
-  }
 
   return (
     <div className="flex h-full flex-wrap items-center justify-between gap-3">
@@ -120,7 +111,6 @@ function SceneTopCommandBar({
         <LanguageToggle />
         <Badge tone="neutral">{getWorkbenchLensLabel(locale, lens)}</Badge>
         <Badge tone="neutral">{getSceneTabLabel(locale, tab)}</Badge>
-        <Badge tone={runtimeBadge.source === 'preload-bridge' ? 'success' : 'accent'}>{runtimeBadge.label}</Badge>
       </div>
     </div>
   )

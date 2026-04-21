@@ -36,7 +36,7 @@ PR20 的前端运行路径统一收敛到 `/api/projects/{projectId}/...`。
 | Review | `GET` | `/api/projects/{projectId}/books/{bookId}/review-fix-actions` | `ReviewIssueFixActionRecord[]` |
 | Review | `PUT` | `/api/projects/{projectId}/books/{bookId}/review-fix-actions/{issueId}` | `ReviewIssueFixActionRecord` |
 | Review | `DELETE` | `/api/projects/{projectId}/books/{bookId}/review-fix-actions/{issueId}` | 空响应 / `204` |
-| Scene | `GET` | `/api/projects/{projectId}/runtime-info` | `SceneRuntimeInfo` |
+| Project Session | `GET` | `/api/projects/{projectId}/runtime-info` | `ProjectRuntimeInfoRecord` |
 | Scene | `GET` | `/api/projects/{projectId}/scenes/{sceneId}/workspace` | `SceneWorkspaceViewModel` |
 | Scene | `GET` | `/api/projects/{projectId}/scenes/{sceneId}/setup` | `SceneSetupViewModel` |
 | Scene | `PATCH` | `/api/projects/{projectId}/scenes/{sceneId}/setup` | 空响应 / `204` |
@@ -63,6 +63,7 @@ PR20 的前端运行路径统一收敛到 `/api/projects/{projectId}/...`。
 - 明细接口在“对象不存在”时返回 `null`，不抛前端自定义空对象。
 - Book / Chapter / Asset 的结构类接口返回的是“记录对象”，通常保留双语文本结构，例如 `{ en, 'zh-CN' }`，由前端再按 locale 映射。
 - Scene 相关接口返回的是更贴近 UI 的 view model，默认可以直接驱动工作台渲染，不要求前端再拼装底层持久化结构。
+- `/runtime-info` 返回的是项目级 runtime health / source / capability 记录；旧的 scene 顶栏如果仍消费这一路径，应视为 client adaptation，而不是这条合同的主语义。
 
 ### 3.2 写接口
 
@@ -102,6 +103,90 @@ PR20 的前端运行路径统一收敛到 `/api/projects/{projectId}/...`。
 - `/api/projects/...` 默认视为受保护资源。
 - 鉴权失败时返回 `401/403`，并遵守统一错误体。
 - 前端不会在本 PR 内实现 token 刷新、会话续期、权限模型；这些由后续 auth 方案补齐。
+
+## PR24 Project Session / API Health Boundary
+
+### 合同目标
+
+- `GET /api/projects/{projectId}/runtime-info` 是项目级 session / runtime health 读取面，不属于 scene route，也不携带 scene/chapter/book/asset 选择状态。
+- 这条读取面用于 workbench 级运行时边界展示，让 header 能统一表达当前项目连接的是 mock 还是 API，以及当前健康状态是否可继续信任。
+- 它不是完整 auth 流，也不替代 feature 级错误处理。
+
+### `ProjectRuntimeInfoRecord` 结构
+
+```json
+{
+  "projectId": "project-signal-arc",
+  "projectTitle": "Signal Arc",
+  "source": "api",
+  "status": "healthy",
+  "summary": "Connected to runtime gateway.",
+  "checkedAtLabel": "2026-04-21 09:30",
+  "apiBaseUrl": "/api",
+  "versionLabel": "runtime-gateway-2026.04.21",
+  "capabilities": {
+    "read": true,
+    "write": true,
+    "runEvents": true,
+    "runEventPolling": true,
+    "runEventStream": false,
+    "reviewDecisions": true,
+    "contextPacketRefs": true,
+    "proposalSetRefs": true
+  }
+}
+```
+
+字段语义：
+
+- `projectId` / `projectTitle`：当前 project session 的标识与展示标题。
+- `source`: `mock | api`。
+  - `mock` 表示当前客户端运行在测试 / Storybook / 演示用 mock runtime 上。
+  - `api` 表示当前客户端正在通过 `/api/projects/{projectId}/...` 合同读写真实产品路径。
+- `status`：`healthy | checking | unavailable | unauthorized | forbidden | not_found | unknown`。
+- `summary`：给 workbench 级 runtime boundary 直接展示的简短说明，强调当前连接状态，而不是 feature 细节。
+- `checkedAtLabel` / `apiBaseUrl` / `versionLabel`：可选展示字段，不要求所有实现都返回。
+- `capabilities`：项目级能力开关，不是 route state，也不是 UI 权限缓存。
+
+### health status enum 语义
+
+- `healthy`：runtime-info 读取成功，且当前 source/session 可以继续提供 project 级能力信息。
+- `checking`：客户端正在首轮检查或手动重试，允许 workbench 继续渲染。
+- `unavailable`：服务暂不可用、网络失败、或返回 malformed JSON 等导致当前 health 读取不可用。
+- `unauthorized`：返回 `401`，说明当前 runtime 读取需要认证，但本合同不定义后续登录/刷新动作。
+- `forbidden`：返回 `403`，说明当前 project session 已被拒绝访问。
+- `not_found`：返回 `404`，说明 project runtime session 不存在或路径不可达。
+- `unknown`：其他未映射错误，保留给客户端统一降级。
+
+### capabilities 语义
+
+- `read` / `write`：表示项目读写面是否可用，供 workbench header 或 feature 级提示引用。
+- `runEvents` / `runEventPolling` / `runEventStream`：表示当前运行事件能力是否开放，以及是 polling 还是 stream。
+- `reviewDecisions` / `contextPacketRefs` / `proposalSetRefs`：表示 review/source-trace 相关能力是否可用。
+- `capabilities` 只表达当前 runtime session 暴露出的能力，不表示某个具体 feature 已经成功读取完成。
+
+### 错误映射
+
+- `401` -> `unauthorized`
+- `403` -> `forbidden`
+- `404` -> `not_found`
+- `5xx` -> `unavailable`
+- network error / fetch failure -> `unavailable`
+- malformed JSON -> `unavailable`
+- 其他落空错误 -> `unknown`
+
+这里的错误映射只服务于 project-level health boundary：
+
+- 它不替代后续完整 auth/session 设计。
+- 它不把 route 改写为某种 “health mode”。
+- 它不应该吞掉 feature 自己的 `404 / 500 / malformed JSON` 处理。
+
+### 非目标 / 边界
+
+- health state 不属于 route；禁止把 `status`、`source`、`capabilities` 或 retry 次数塞进 URL。
+- project health boundary 不替代 scene/chapter/book/asset 的 feature-level error handling；各 feature 仍要对自己的查询失败单独降级。
+- `runtime-info` 是项目级边界，不是完整 auth flow，也不负责登录页跳转、token 刷新或 session 恢复。
+- mock 与 api 的区分是 client runtime source distinction，不表示 mock 变成产品合同来源；产品合同仍以 `/api/projects/{projectId}/...` 为准。
 
 ## 6. SSE / 运行事件占位
 

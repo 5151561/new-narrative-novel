@@ -15,6 +15,10 @@ import type {
   ChapterStructureView,
   WorkbenchLens,
 } from '@/features/workbench/types/workbench-route'
+import type {
+  ProjectRuntimeHealthStatus,
+  ProjectRuntimeSource,
+} from '@/app/project-runtime/project-runtime-info'
 
 type InspectorTabId = 'context' | 'versions' | 'traceability' | 'runtime'
 
@@ -264,6 +268,38 @@ const readinessLabels: Record<Locale, Record<'not-ready' | 'draftable' | 'ready'
   },
 }
 
+const projectRuntimeSourceLabels: Record<Locale, Record<ProjectRuntimeSource, string>> = {
+  en: {
+    mock: 'Mock',
+    api: 'API',
+  },
+  'zh-CN': {
+    mock: 'Mock',
+    api: 'API',
+  },
+}
+
+const projectRuntimeHealthStatusLabels: Record<Locale, Record<ProjectRuntimeHealthStatus, string>> = {
+  en: {
+    healthy: 'Healthy',
+    checking: 'Checking',
+    unavailable: 'Unavailable',
+    unauthorized: 'Unauthorized',
+    forbidden: 'Forbidden',
+    not_found: 'Not found',
+    unknown: 'Unknown',
+  },
+  'zh-CN': {
+    healthy: '健康',
+    checking: '检查中',
+    unavailable: '不可用',
+    unauthorized: '未授权',
+    forbidden: '禁止访问',
+    not_found: '未找到',
+    unknown: '未知',
+  },
+}
+
 const beatStatusLabels: Record<Locale, Record<'todo' | 'running' | 'review' | 'accepted' | 'blocked', string>> = {
   en: {
     todo: 'todo',
@@ -449,6 +485,10 @@ const dictionaries = {
         'Events, trace, consistency, problems, and cost stay docked below the run.',
       dockReadyTitle: 'Dock ready',
       dockReadyMessage: 'Trace, warnings, and cost stay visible without pulling attention off the run.',
+      projectRuntimeStatusLabel: 'Project runtime status',
+      projectRuntimeRetry: 'Retry',
+      projectRuntimeRetryLabel: 'Retry runtime check',
+      projectRuntimeDegradedHint: 'Workbench stays available while the runtime health recovers.',
     },
   },
   'zh-CN': {
@@ -554,6 +594,10 @@ const dictionaries = {
       bottomDockDescription: '事件、追踪、一致性、问题与成本都停靠在主流程下方。',
       dockReadyTitle: '底部面板已就绪',
       dockReadyMessage: '追踪、警告和成本都会保持可见，但不会把注意力从主流程上拉走。',
+      projectRuntimeStatusLabel: '项目运行时状态',
+      projectRuntimeRetry: '重试',
+      projectRuntimeRetryLabel: '重试运行时检查',
+      projectRuntimeDegradedHint: '即使运行时健康检查异常，工作台也会继续保持可用。',
     },
   },
 } as const
@@ -653,6 +697,14 @@ export function getAssetKindLabel(locale: Locale, kind: 'character' | 'location'
 
 export function getSceneTabLabel(locale: Locale, tab: SceneTab) {
   return sceneTabLabels[locale][tab]
+}
+
+export function getProjectRuntimeSourceLabel(locale: Locale, source: ProjectRuntimeSource) {
+  return projectRuntimeSourceLabels[locale][source]
+}
+
+export function getProjectRuntimeHealthStatusLabel(locale: Locale, status: ProjectRuntimeHealthStatus) {
+  return projectRuntimeHealthStatusLabels[locale][status]
 }
 
 export function getChapterStructureViewLabel(locale: Locale, view: ChapterStructureView) {

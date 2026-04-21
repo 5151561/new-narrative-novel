@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
 import { createFakeApiRuntime } from '@/app/project-runtime/fake-api-runtime.test-utils'
+import { apiRouteContract } from '@/app/project-runtime/api-route-contract'
 import { resetMockBookExportArtifactDb } from '@/features/book/api/mock-book-export-artifact-db'
 import { BookDraftWorkspace } from '@/features/book/containers/BookDraftWorkspace'
 import { resetMockReviewDecisionDb } from '@/features/review/api/mock-review-decision-db'
@@ -133,7 +134,15 @@ describe('api read-slice contract', () => {
       query: normalizeRequestQuery(request.query as Record<string, unknown> | undefined),
     }))
 
-    const expectedRequests = buildApiReadSliceExpectedRequests(API_READ_SLICE_PROJECT_ID)
+    const expectedRequests = [
+      {
+        method: 'GET' as const,
+        path: apiRouteContract.projectRuntimeInfo({
+          projectId: API_READ_SLICE_PROJECT_ID,
+        }),
+      },
+      ...buildApiReadSliceExpectedRequests(API_READ_SLICE_PROJECT_ID),
+    ]
     expect(requests.every((request) => request.method === 'GET')).toBe(true)
     expect(normalizedRequests).toHaveLength(expectedRequests.length)
     expect(normalizedRequests.map(serializeRequest).sort()).toEqual(
@@ -141,7 +150,10 @@ describe('api read-slice contract', () => {
     )
 
     const queryKeys = queryClient.getQueryCache().getAll().map((query) => query.queryKey)
-    const expectedQueryKeys = buildApiReadSliceExpectedQueryKeys()
+    const expectedQueryKeys = [
+      ['project-runtime', API_READ_SLICE_PROJECT_ID, 'health'],
+      ...buildApiReadSliceExpectedQueryKeys(),
+    ]
 
     expect(queryKeys).toHaveLength(expectedQueryKeys.length)
     for (const expectedQueryKey of expectedQueryKeys) {

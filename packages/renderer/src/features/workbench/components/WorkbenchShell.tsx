@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { useI18n } from '@/app/i18n'
+import { ProjectRuntimeStatusBoundary } from '@/app/project-runtime'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Pane } from '@/components/ui/Pane'
 import { PaneHeader } from '@/components/ui/PaneHeader'
@@ -27,7 +28,10 @@ export function WorkbenchShell({
   return (
     <div className="grid min-h-screen grid-rows-[minmax(72px,auto)_minmax(0,1fr)_196px] bg-app text-text-main">
       <header className="border-b border-line-soft bg-surface-1/90 px-5 py-3 backdrop-blur">
-        {topBar}
+        <div className="flex flex-col gap-2">
+          {topBar}
+          <ProjectRuntimeStatusBoundary />
+        </div>
       </header>
       <div className="grid min-h-0 grid-cols-[68px_240px_minmax(0,1fr)_280px] gap-3 px-3 py-3">
         <Pane muted className="min-h-0">{modeRail}</Pane>
