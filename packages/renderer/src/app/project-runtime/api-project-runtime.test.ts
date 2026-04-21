@@ -4,9 +4,11 @@ import type { BuildBookExportArtifactInput } from '@/features/book/api/book-expo
 import type { ChapterStructureWorkspaceRecord } from '@/features/chapter/api/chapter-records'
 import type { ReviewIssueDecisionRecord } from '@/features/review/api/review-decision-records'
 import type { ReviewIssueFixActionRecord } from '@/features/review/api/review-fix-action-records'
+import type { RunEventsPageRecord, RunRecord } from '@/features/run/api/run-records'
 import type { SceneExecutionViewModel, ScenePatchPreviewViewModel } from '@/features/scene/types/scene-view-models'
 
 import { createApiProjectRuntime } from './api-project-runtime'
+import { ApiRequestError } from './api-transport'
 
 function createTransportMock() {
   return vi.fn(async ({ path, method, body }: { path: string; method: string; body?: unknown }) => {
@@ -325,5 +327,161 @@ describe('api project runtime', () => {
       method: 'GET',
       path: '/api/projects/project-1/scenes/scene-1/patch-preview',
     })
+  })
+
+  it('uses the run contract transport routes and omits duplicated ids from write bodies', async () => {
+    const transport = vi.fn(async ({ method, path }: { method: string; path: string }) => {
+      if (method === 'POST' && path === '/api/projects/project-1/scenes/scene-midnight-platform/runs') {
+        return {
+          id: 'run-scene-midnight-platform-002',
+          scope: 'scene',
+          scopeId: 'scene-midnight-platform',
+          status: 'waiting_review',
+          title: 'Midnight Platform run',
+          summary: 'Waiting for review.',
+          pendingReviewId: 'review-scene-midnight-platform-002',
+          latestEventId: 'run-event-scene-midnight-platform-002-005',
+          eventCount: 5,
+        } satisfies RunRecord
+      }
+
+      if (method === 'GET' && path === '/api/projects/project-1/runs/run-scene-midnight-platform-002') {
+        return {
+          id: 'run-scene-midnight-platform-002',
+          scope: 'scene',
+          scopeId: 'scene-midnight-platform',
+          status: 'waiting_review',
+          title: 'Midnight Platform run',
+          summary: 'Waiting for review.',
+          pendingReviewId: 'review-scene-midnight-platform-002',
+          latestEventId: 'run-event-scene-midnight-platform-002-005',
+          eventCount: 5,
+        } satisfies RunRecord
+      }
+
+      if (method === 'GET' && path === '/api/projects/project-1/runs/run-scene-midnight-platform-002/events') {
+        return {
+          runId: 'run-scene-midnight-platform-002',
+          events: [],
+          nextCursor: 'run-event-scene-midnight-platform-002-005',
+        } satisfies RunEventsPageRecord
+      }
+
+      if (method === 'POST' && path === '/api/projects/project-1/runs/run-scene-midnight-platform-002/review-decisions') {
+        return {
+          id: 'run-scene-midnight-platform-002',
+          scope: 'scene',
+          scopeId: 'scene-midnight-platform',
+          status: 'completed',
+          title: 'Midnight Platform run',
+          summary: 'Accepted and applied.',
+          latestEventId: 'run-event-scene-midnight-platform-002-009',
+          eventCount: 9,
+        } satisfies RunRecord
+      }
+
+      return null
+    })
+    const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })
+
+    await expect(
+      runtime.runClient.startSceneRun({
+        sceneId: 'scene-midnight-platform',
+        mode: 'rewrite',
+        note: 'Push the stakes harder.',
+      }),
+    ).resolves.toMatchObject<Partial<RunRecord>>({
+      id: 'run-scene-midnight-platform-002',
+    })
+    await expect(runtime.runClient.getRun({ runId: 'run-scene-midnight-platform-002' })).resolves.toMatchObject<Partial<RunRecord>>({
+      id: 'run-scene-midnight-platform-002',
+    })
+    await expect(
+      runtime.runClient.getRunEvents({
+        runId: 'run-scene-midnight-platform-002',
+        cursor: 'run-event-scene-midnight-platform-002-004',
+      }),
+    ).resolves.toMatchObject<Partial<RunEventsPageRecord>>({
+      runId: 'run-scene-midnight-platform-002',
+      nextCursor: 'run-event-scene-midnight-platform-002-005',
+    })
+    await expect(
+      runtime.runClient.submitRunReviewDecision({
+        runId: 'run-scene-midnight-platform-002',
+        reviewId: 'review-scene-midnight-platform-002',
+        decision: 'accept',
+        note: 'Accept this draft.',
+        patchId: 'patch-1',
+      }),
+    ).resolves.toMatchObject<Partial<RunRecord>>({
+      status: 'completed',
+    })
+
+    expect(transport).toHaveBeenNthCalledWith(1, {
+      method: 'POST',
+      path: '/api/projects/project-1/scenes/scene-midnight-platform/runs',
+      body: {
+        mode: 'rewrite',
+        note: 'Push the stakes harder.',
+      },
+    })
+    expect(transport).toHaveBeenNthCalledWith(2, {
+      method: 'GET',
+      path: '/api/projects/project-1/runs/run-scene-midnight-platform-002',
+    })
+    expect(transport).toHaveBeenNthCalledWith(3, {
+      method: 'GET',
+      path: '/api/projects/project-1/runs/run-scene-midnight-platform-002/events',
+      query: {
+        cursor: 'run-event-scene-midnight-platform-002-004',
+      },
+    })
+    expect(transport).toHaveBeenNthCalledWith(4, {
+      method: 'POST',
+      path: '/api/projects/project-1/runs/run-scene-midnight-platform-002/review-decisions',
+      body: {
+        reviewId: 'review-scene-midnight-platform-002',
+        decision: 'accept',
+        note: 'Accept this draft.',
+        patchId: 'patch-1',
+      },
+    })
+  })
+
+  it('passes through run query cursors, including undefined, and does not swallow ApiRequestError', async () => {
+    const requestError = new ApiRequestError({
+      status: 409,
+      message: 'Run review conflict',
+      code: 'run-review-conflict',
+    })
+    const transport = vi.fn(async ({ method, path, query }: { method: string; path: string; query?: unknown }) => {
+      if (method === 'GET' && path === '/api/projects/project-1/runs/run-scene-midnight-platform-002/events') {
+        expect(query).toEqual({ cursor: undefined })
+        return {
+          runId: 'run-scene-midnight-platform-002',
+          events: [],
+        } satisfies RunEventsPageRecord
+      }
+
+      if (method === 'POST' && path === '/api/projects/project-1/runs/run-scene-midnight-platform-002/review-decisions') {
+        throw requestError
+      }
+
+      return null
+    })
+    const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })
+
+    await runtime.runClient.getRunEvents({
+      runId: 'run-scene-midnight-platform-002',
+      cursor: undefined,
+    })
+
+    await expect(
+      runtime.runClient.submitRunReviewDecision({
+        runId: 'run-scene-midnight-platform-002',
+        reviewId: 'review-scene-midnight-platform-002',
+        decision: 'accept',
+      }),
+    ).rejects.toBe(requestError)
   })
 })

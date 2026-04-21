@@ -9,6 +9,7 @@ import { resetMockBookExportArtifactDb } from '@/features/book/api/mock-book-exp
 import { resetMockChapterDb } from '@/features/chapter/api/mock-chapter-db'
 import { resetMockReviewDecisionDb } from '@/features/review/api/mock-review-decision-db'
 import { resetMockReviewFixActionDb } from '@/features/review/api/mock-review-fix-action-db'
+import { resetMockRunDb } from '@/features/run/api/mock-run-db'
 
 import { createMockProjectRuntime, type CreateMockProjectRuntimeOptions } from './mock-project-runtime'
 import type { ProjectPersistedSnapshotV1, ProjectPersistencePort } from './project-persistence'
@@ -105,6 +106,7 @@ export function resetProjectRuntimeMockState() {
   resetMockChapterDb()
   resetMockReviewDecisionDb()
   resetMockReviewFixActionDb()
+  resetMockRunDb()
 }
 
 export function createStoryProjectRuntimeEnvironment(options: CreateMockProjectRuntimeOptions = {}) {

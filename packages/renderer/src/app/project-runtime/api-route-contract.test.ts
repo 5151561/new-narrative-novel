@@ -70,4 +70,38 @@ describe('api route contract', () => {
     )
     expect(apiRouteContract.sceneRuntimeInfo({ projectId: 'project-1' })).toBe('/api/projects/project-1/runtime-info')
   })
+
+  it('builds the run contract routes', () => {
+    expect(apiRouteContract.sceneRuns({ projectId: 'project-1', sceneId: 'scene-3' })).toBe(
+      '/api/projects/project-1/scenes/scene-3/runs',
+    )
+    expect(apiRouteContract.run({ projectId: 'project-1', runId: 'run-7' })).toBe(
+      '/api/projects/project-1/runs/run-7',
+    )
+    expect(apiRouteContract.runEvents({ projectId: 'project-1', runId: 'run-7' })).toBe(
+      '/api/projects/project-1/runs/run-7/events',
+    )
+    expect(apiRouteContract.runEventsStream({ projectId: 'project-1', runId: 'run-7' })).toBe(
+      '/api/projects/project-1/runs/run-7/events/stream',
+    )
+    expect(apiRouteContract.runReviewDecisions({ projectId: 'project-1', runId: 'run-7' })).toBe(
+      '/api/projects/project-1/runs/run-7/review-decisions',
+    )
+  })
+
+  it('escapes run contract path segments', () => {
+    expect(
+      apiRouteContract.sceneRuns({
+        projectId: 'project / one',
+        sceneId: 'scene / midnight platform',
+      }),
+    ).toBe('/api/projects/project%20%2F%20one/scenes/scene%20%2F%20midnight%20platform/runs')
+
+    expect(
+      apiRouteContract.runEvents({
+        projectId: 'project / one',
+        runId: 'run / review 1',
+      }),
+    ).toBe('/api/projects/project%20%2F%20one/runs/run%20%2F%20review%201/events')
+  })
 })

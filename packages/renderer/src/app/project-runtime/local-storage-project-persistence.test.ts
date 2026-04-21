@@ -77,6 +77,8 @@ function createSnapshot(): ProjectPersistedSnapshotV1 {
         },
       ],
     },
+    runStatesByProjectId: {},
+    runSceneSequencesByProjectId: {},
     chapterRecordsById: {
       'chapter-signals-in-rain': {
         chapterId: 'chapter-signals-in-rain',
@@ -157,6 +159,19 @@ describe('localStorage project persistence', () => {
     )
 
     await expect(persistence.loadProjectSnapshot(projectId)).resolves.toBeNull()
+  })
+
+  it('loads an older schemaVersion 1 snapshot that does not include run persistence fields', async () => {
+    const persistence = createLocalStorageProjectPersistence()
+    const snapshot = createSnapshot()
+    const { runStatesByProjectId: _runStatesByProjectId, runSceneSequencesByProjectId: _runSceneSequencesByProjectId, ...legacySnapshot } = snapshot
+    window.localStorage.setItem(storageKey, JSON.stringify(legacySnapshot))
+
+    await expect(persistence.loadProjectSnapshot(projectId)).resolves.toEqual({
+      ...snapshot,
+      runStatesByProjectId: {},
+      runSceneSequencesByProjectId: {},
+    })
   })
 
   it('falls back to in-memory persistence when window is unavailable', async () => {

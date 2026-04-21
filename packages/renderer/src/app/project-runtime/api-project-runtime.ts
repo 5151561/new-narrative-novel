@@ -14,6 +14,8 @@ import type { ChapterStructureWorkspaceRecord } from '@/features/chapter/api/cha
 import type { ReviewClient } from '@/features/review/api/review-client'
 import type { ReviewIssueDecisionRecord } from '@/features/review/api/review-decision-records'
 import type { ReviewIssueFixActionRecord } from '@/features/review/api/review-fix-action-records'
+import type { RunClient } from '@/features/run/api/run-client'
+import type { RunEventsPageRecord, RunRecord, StartSceneRunInput, SubmitRunReviewDecisionInput } from '@/features/run/api/run-records'
 import type { SceneClient } from '@/features/scene/api/scene-client'
 import type {
   ProposalActionInput,
@@ -188,6 +190,48 @@ function createReviewClient(projectId: string, transport: ApiTransport): ReviewC
   }
 }
 
+export function createRunClient(projectId: string, transport: ApiTransport): RunClient {
+  return {
+    async startSceneRun(input) {
+      return transport.requestJson<RunRecord, Omit<StartSceneRunInput, 'sceneId'>>({
+        method: 'POST',
+        path: apiRouteContract.sceneRuns({ projectId, sceneId: input.sceneId }),
+        body: {
+          mode: input.mode,
+          note: input.note,
+        },
+      })
+    },
+    async getRun({ runId }) {
+      return transport.requestJson<RunRecord | null>({
+        method: 'GET',
+        path: apiRouteContract.run({ projectId, runId }),
+      })
+    },
+    async getRunEvents({ runId, cursor }) {
+      return transport.requestJson<RunEventsPageRecord>({
+        method: 'GET',
+        path: apiRouteContract.runEvents({ projectId, runId }),
+        query: {
+          cursor: cursor ?? undefined,
+        },
+      })
+    },
+    async submitRunReviewDecision(input) {
+      return transport.requestJson<RunRecord, Omit<SubmitRunReviewDecisionInput, 'runId'>>({
+        method: 'POST',
+        path: apiRouteContract.runReviewDecisions({ projectId, runId: input.runId }),
+        body: {
+          reviewId: input.reviewId,
+          decision: input.decision,
+          note: input.note,
+          patchId: input.patchId,
+        },
+      })
+    },
+  }
+}
+
 function createSceneClient(projectId: string, transport: ApiTransport): SceneClient {
   async function getSceneJson<TResponse>(path: string) {
     return transport.requestJson<TResponse>({
@@ -284,6 +328,7 @@ export function createApiProjectRuntime({ projectId, transport }: CreateApiProje
     chapterClient: createChapterClient(projectId, transport),
     assetClient: createAssetClient(projectId, transport),
     reviewClient: createReviewClient(projectId, transport),
+    runClient: createRunClient(projectId, transport),
     sceneClient,
     traceabilitySceneClient: createTraceabilitySceneClient(sceneClient),
   }

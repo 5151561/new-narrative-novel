@@ -28,6 +28,10 @@ function sceneBase(projectId: string, sceneId: string) {
   return `${projectBase(projectId)}/scenes/${segment(sceneId)}`
 }
 
+function runBase(projectId: string, runId: string) {
+  return `${projectBase(projectId)}/runs/${segment(runId)}`
+}
+
 function bookManuscriptCheckpointsPath(projectId: string, bookId: string) {
   return `${bookBase(projectId, bookId)}/manuscript-checkpoints`
 }
@@ -157,6 +161,9 @@ export const apiRouteContract = {
   sceneExecution({ projectId, sceneId }: { projectId: string; sceneId: string }) {
     return `${sceneBase(projectId, sceneId)}/execution`
   },
+  sceneRuns({ projectId, sceneId }: { projectId: string; sceneId: string }) {
+    return `${sceneBase(projectId, sceneId)}/runs`
+  },
   sceneProse({ projectId, sceneId }: { projectId: string; sceneId: string }) {
     return `${sceneBase(projectId, sceneId)}/prose`
   },
@@ -195,5 +202,17 @@ export const apiRouteContract = {
   },
   sceneProposalReject({ projectId, sceneId }: { projectId: string; sceneId: string }) {
     return `${sceneBase(projectId, sceneId)}/proposals/reject`
+  },
+  run({ projectId, runId }: { projectId: string; runId: string }) {
+    return runBase(projectId, runId)
+  },
+  runEvents({ projectId, runId }: { projectId: string; runId: string }) {
+    return `${runBase(projectId, runId)}/events`
+  },
+  runEventsStream({ projectId, runId }: { projectId: string; runId: string }) {
+    return `${runBase(projectId, runId)}/events/stream`
+  },
+  runReviewDecisions({ projectId, runId }: { projectId: string; runId: string }) {
+    return `${runBase(projectId, runId)}/review-decisions`
   },
 }

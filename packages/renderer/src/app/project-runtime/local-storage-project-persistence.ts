@@ -30,6 +30,10 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function isObjectRecordOrUndefined(value: unknown): value is Record<string, unknown> | undefined {
+  return value === undefined || isObjectRecord(value)
+}
+
 function isPersistedSnapshotV1(value: unknown): value is ProjectPersistedSnapshotV1 {
   if (!isObjectRecord(value)) {
     return false
@@ -43,8 +47,18 @@ function isPersistedSnapshotV1(value: unknown): value is ProjectPersistedSnapsho
     isObjectRecord(candidate.reviewDecisionsByBookId) &&
     isObjectRecord(candidate.reviewFixActionsByBookId) &&
     isObjectRecord(candidate.bookExportArtifactsByBookId) &&
+    isObjectRecordOrUndefined(candidate.runStatesByProjectId) &&
+    isObjectRecordOrUndefined(candidate.runSceneSequencesByProjectId) &&
     isObjectRecord(candidate.chapterRecordsById)
   )
+}
+
+function normalizePersistedSnapshotV1(snapshot: ProjectPersistedSnapshotV1): ProjectPersistedSnapshotV1 {
+  return {
+    ...snapshot,
+    runStatesByProjectId: snapshot.runStatesByProjectId ?? {},
+    runSceneSequencesByProjectId: snapshot.runSceneSequencesByProjectId ?? {},
+  }
 }
 
 export function createLocalStorageProjectPersistence(): ProjectPersistencePort {
@@ -73,7 +87,7 @@ export function createLocalStorageProjectPersistence(): ProjectPersistencePort {
 
       try {
         const parsedSnapshot = JSON.parse(rawSnapshot) as unknown
-        return isPersistedSnapshotV1(parsedSnapshot) ? parsedSnapshot : null
+        return isPersistedSnapshotV1(parsedSnapshot) ? normalizePersistedSnapshotV1(parsedSnapshot) : null
       } catch {
         return null
       }

@@ -31,6 +31,14 @@ import {
   importMockReviewFixActionSnapshot,
 } from '@/features/review/api/mock-review-fix-action-db'
 import {
+  createRunClient,
+  type RunClient,
+} from '@/features/run/api/run-client'
+import {
+  exportMockRunSnapshot,
+  importMockRunSnapshot,
+} from '@/features/run/api/mock-run-db'
+import {
   createSceneClient,
   type SceneClient,
 } from '@/features/scene/api/scene-client'
@@ -46,6 +54,7 @@ export interface CreateMockProjectRuntimeOptions {
   chapterClient?: ChapterClient
   assetClient?: AssetClient
   reviewClient?: ReviewClient
+  runClient?: RunClient
   sceneClient?: SceneClient
   traceabilitySceneClient?: TraceabilitySceneClient
   persistence?: ProjectPersistencePort
@@ -59,6 +68,17 @@ function withProjectBucket<T>(projectId: string, snapshot: Record<string, T[]>):
 
   return {
     [projectId]: bucket,
+  }
+}
+
+function withProjectRecord<T>(projectId: string, snapshot: Record<string, T>): Record<string, T> {
+  const bucket = snapshot[projectId]
+  if (!bucket) {
+    return {}
+  }
+
+  return {
+    [projectId]: structuredClone(bucket),
   }
 }
 
@@ -83,6 +103,7 @@ function pickProjectChapterRecords(
 
 async function buildProjectScopedMockSnapshot(projectId: string, bookClient: BookClient): Promise<ProjectPersistedSnapshotV1> {
   const chapterIds = await resolveProjectChapterIds(projectId, bookClient)
+  const runSnapshot = exportMockRunSnapshot()
 
   return {
     schemaVersion: 1,
@@ -91,6 +112,8 @@ async function buildProjectScopedMockSnapshot(projectId: string, bookClient: Boo
     reviewDecisionsByBookId: withProjectBucket(projectId, exportMockReviewDecisionSnapshot()),
     reviewFixActionsByBookId: withProjectBucket(projectId, exportMockReviewFixActionSnapshot()),
     bookExportArtifactsByBookId: withProjectBucket(projectId, exportMockBookExportArtifactSnapshot()),
+    runStatesByProjectId: withProjectBucket(projectId, runSnapshot.runStatesByProjectId),
+    runSceneSequencesByProjectId: withProjectRecord(projectId, runSnapshot.runSceneSequencesByProjectId),
     chapterRecordsById: pickProjectChapterRecords(exportMockChapterSnapshot(), chapterIds),
   }
 }
@@ -103,12 +126,15 @@ async function restoreProjectScopedMockSnapshot(
   const currentReviewDecisions = exportMockReviewDecisionSnapshot()
   const currentReviewFixActions = exportMockReviewFixActionSnapshot()
   const currentBookExportArtifacts = exportMockBookExportArtifactSnapshot()
+  const currentRunSnapshot = exportMockRunSnapshot()
   const currentChapterRecords = exportMockChapterSnapshot()
   const projectChapterIds = await resolveProjectChapterIds(projectId, bookClient)
 
   const projectReviewDecisions = snapshot.reviewDecisionsByBookId[projectId]
   const projectReviewFixActions = snapshot.reviewFixActionsByBookId[projectId]
   const projectBookExportArtifacts = snapshot.bookExportArtifactsByBookId[projectId]
+  const projectRunStates = snapshot.runStatesByProjectId?.[projectId]
+  const projectRunSequences = snapshot.runSceneSequencesByProjectId?.[projectId]
 
   if (projectReviewDecisions && projectReviewDecisions.length > 0) {
     currentReviewDecisions[projectId] = projectReviewDecisions
@@ -128,6 +154,18 @@ async function restoreProjectScopedMockSnapshot(
     delete currentBookExportArtifacts[projectId]
   }
 
+  if (projectRunStates && projectRunStates.length > 0) {
+    currentRunSnapshot.runStatesByProjectId[projectId] = projectRunStates
+  } else {
+    delete currentRunSnapshot.runStatesByProjectId[projectId]
+  }
+
+  if (projectRunSequences && Object.keys(projectRunSequences).length > 0) {
+    currentRunSnapshot.runSceneSequencesByProjectId[projectId] = projectRunSequences
+  } else {
+    delete currentRunSnapshot.runSceneSequencesByProjectId[projectId]
+  }
+
   for (const chapterId of projectChapterIds) {
     delete currentChapterRecords[chapterId]
   }
@@ -137,6 +175,7 @@ async function restoreProjectScopedMockSnapshot(
   importMockReviewDecisionSnapshot(currentReviewDecisions)
   importMockReviewFixActionSnapshot(currentReviewFixActions)
   importMockBookExportArtifactSnapshot(currentBookExportArtifacts)
+  importMockRunSnapshot(currentRunSnapshot)
   importMockChapterSnapshot(currentChapterRecords)
 }
 
@@ -150,6 +189,7 @@ export function createMockProjectRuntime({
   chapterClient: runtimeChapterClient,
   assetClient: runtimeAssetClient,
   reviewClient: runtimeReviewClient,
+  runClient: runtimeRunClient,
   sceneClient: runtimeSceneClient,
   traceabilitySceneClient: runtimeTraceabilitySceneClient,
   persistence = createLocalStorageProjectPersistence(),
@@ -158,6 +198,7 @@ export function createMockProjectRuntime({
   const baseChapterClient = runtimeChapterClient ?? createChapterClient()
   const baseAssetClient = runtimeAssetClient ?? createAssetClient()
   const baseReviewClient = runtimeReviewClient ?? createReviewClient()
+  const baseRunClient = runtimeRunClient ?? createRunClient({ projectId })
   const baseSceneClient = runtimeSceneClient ?? createSceneClient()
   const baseTraceabilitySceneClient = runtimeTraceabilitySceneClient ?? baseSceneClient
 
@@ -260,6 +301,22 @@ export function createMockProjectRuntime({
       },
       async clearReviewIssueFixAction(input) {
         await persistAfterMutation(() => baseReviewClient.clearReviewIssueFixAction(input))
+      },
+    },
+    runClient: {
+      async startSceneRun(input) {
+        return persistAfterMutation(() => baseRunClient.startSceneRun(input))
+      },
+      async getRun(input) {
+        await ensureHydrated()
+        return baseRunClient.getRun(input)
+      },
+      async getRunEvents(input) {
+        await ensureHydrated()
+        return baseRunClient.getRunEvents(input)
+      },
+      async submitRunReviewDecision(input) {
+        return persistAfterMutation(() => baseRunClient.submitRunReviewDecision(input))
       },
     },
     sceneClient: baseSceneClient,
