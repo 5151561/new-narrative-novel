@@ -489,6 +489,9 @@ const dictionaries = {
       projectRuntimeRetry: 'Retry',
       projectRuntimeRetryLabel: 'Retry runtime check',
       projectRuntimeDegradedHint: 'Workbench stays available while the runtime health recovers.',
+      projectRuntimeReadOnly: 'Read-only',
+      projectRuntimeNoRunEvents: 'No run events',
+      projectRuntimeNoReviewDecisions: 'No review decisions',
     },
   },
   'zh-CN': {
@@ -598,6 +601,9 @@ const dictionaries = {
       projectRuntimeRetry: '重试',
       projectRuntimeRetryLabel: '重试运行时检查',
       projectRuntimeDegradedHint: '即使运行时健康检查异常，工作台也会继续保持可用。',
+      projectRuntimeReadOnly: '只读',
+      projectRuntimeNoRunEvents: '无运行事件',
+      projectRuntimeNoReviewDecisions: '无审阅决策',
     },
   },
 } as const

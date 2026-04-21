@@ -39,6 +39,8 @@ export function ProjectRuntimeStatusBadge({
   const { locale, dictionary } = useI18n()
   const visibleStatus: ProjectRuntimeHealthStatus = isChecking ? 'checking' : info.status
   const showRetry = !isChecking && retryableStatuses.has(info.status) && onRetry
+  const showCapabilityLimitations = !isChecking && info.status === 'healthy'
+  const capabilityLimitations = showCapabilityLimitations ? getCapabilityLimitations(info, dictionary) : []
 
   return (
     <div
@@ -54,6 +56,11 @@ export function ProjectRuntimeStatusBadge({
         <Badge tone={statusToneMap[visibleStatus]}>
           {getProjectRuntimeHealthStatusLabel(locale, visibleStatus)}
         </Badge>
+        {capabilityLimitations.map((limitation) => (
+          <Badge key={limitation} tone="neutral">
+            {limitation}
+          </Badge>
+        ))}
         <span className="min-w-0 flex-1 text-xs leading-5 text-text-muted">{info.summary}</span>
       </div>
       {showRetry ? (
@@ -68,4 +75,25 @@ export function ProjectRuntimeStatusBadge({
       ) : null}
     </div>
   )
+}
+
+function getCapabilityLimitations(
+  info: ProjectRuntimeInfoRecord,
+  dictionary: ReturnType<typeof useI18n>['dictionary'],
+) {
+  const limitations: string[] = []
+
+  if (info.capabilities.read && !info.capabilities.write) {
+    limitations.push(dictionary.shell.projectRuntimeReadOnly)
+  }
+
+  if (!info.capabilities.runEvents) {
+    limitations.push(dictionary.shell.projectRuntimeNoRunEvents)
+  }
+
+  if (!info.capabilities.reviewDecisions) {
+    limitations.push(dictionary.shell.projectRuntimeNoReviewDecisions)
+  }
+
+  return limitations
 }

@@ -42,6 +42,7 @@ describe('ProjectRuntimeStatusBadge', () => {
 
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Mock')
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Healthy')
+    expect(screen.queryByText('Read-only')).not.toBeInTheDocument()
   })
 
   it('renders healthy API runtime status', () => {
@@ -63,10 +64,36 @@ describe('ProjectRuntimeStatusBadge', () => {
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Healthy')
   })
 
+  it('surfaces notable capability limitations for a healthy but limited runtime', () => {
+    renderBadge({
+      info: createProjectRuntimeInfoRecord({
+        projectId: 'project-status-badge',
+        projectTitle: 'Signal Arc',
+        source: 'api',
+        status: 'healthy',
+        summary: 'Connected to limited runtime gateway.',
+        capabilities: {
+          read: true,
+          write: false,
+          runEvents: false,
+          reviewDecisions: false,
+        },
+      }),
+    })
+
+    const status = screen.getByRole('status', { name: 'Project runtime status' })
+    expect(status).toHaveTextContent('Read-only')
+    expect(status).toHaveTextContent('No run events')
+    expect(status).toHaveTextContent('No review decisions')
+  })
+
   it('shows checking while the health query is in flight', () => {
     renderBadge({ isChecking: true })
 
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Checking')
+    expect(screen.queryByText('Read-only')).not.toBeInTheDocument()
+    expect(screen.queryByText('No run events')).not.toBeInTheDocument()
+    expect(screen.queryByText('No review decisions')).not.toBeInTheDocument()
   })
 
   it('shows retry for unavailable runtime status', async () => {
@@ -90,6 +117,9 @@ describe('ProjectRuntimeStatusBadge', () => {
 
     await user.click(screen.getByRole('button', { name: 'Retry runtime check' }))
 
+    expect(screen.queryByText('Read-only')).not.toBeInTheDocument()
+    expect(screen.queryByText('No run events')).not.toBeInTheDocument()
+    expect(screen.queryByText('No review decisions')).not.toBeInTheDocument()
     expect(onRetry).toHaveBeenCalledTimes(1)
   })
 

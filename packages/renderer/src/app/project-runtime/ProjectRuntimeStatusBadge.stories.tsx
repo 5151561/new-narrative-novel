@@ -47,6 +47,24 @@ type Story = StoryObj<typeof meta>
 
 export const HealthyMock: Story = {}
 
+export const HealthyLimited: Story = {
+  args: {
+    info: createProjectRuntimeInfoRecord({
+      projectId: 'project-story-runtime',
+      projectTitle: 'Signal Arc',
+      source: 'api',
+      status: 'healthy',
+      summary: 'Connected to limited runtime gateway.',
+      capabilities: {
+        read: true,
+        write: false,
+        runEvents: false,
+        reviewDecisions: false,
+      },
+    }),
+  },
+}
+
 export const AllStates: Story = {
   render: () => {
     const statuses = [
@@ -97,6 +115,24 @@ export const AllStates: Story = {
             },
           }),
           isChecking: true,
+        },
+      },
+      {
+        title: 'Healthy limited',
+        props: {
+          info: createProjectRuntimeInfoRecord({
+            projectId: 'project-story-runtime',
+            projectTitle: 'Signal Arc',
+            source: 'api',
+            status: 'healthy',
+            summary: 'Connected to limited runtime gateway.',
+            capabilities: {
+              read: true,
+              write: false,
+              runEvents: false,
+              reviewDecisions: false,
+            },
+          }),
         },
       },
       {
