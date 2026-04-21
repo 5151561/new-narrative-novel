@@ -35,3 +35,57 @@ export interface ProjectRuntimeInfoRecord {
 export interface ProjectRuntimeInfoClient {
   getProjectRuntimeInfo(): Promise<ProjectRuntimeInfoRecord>
 }
+
+const defaultProjectRuntimeCapabilities: ProjectRuntimeCapabilitiesRecord = {
+  read: false,
+  write: false,
+  runEvents: false,
+  runEventPolling: false,
+  runEventStream: false,
+  reviewDecisions: false,
+  contextPacketRefs: false,
+  proposalSetRefs: false,
+}
+
+export function createProjectRuntimeCapabilitiesRecord(
+  overrides: Partial<ProjectRuntimeCapabilitiesRecord> = {},
+): ProjectRuntimeCapabilitiesRecord {
+  return {
+    ...defaultProjectRuntimeCapabilities,
+    ...overrides,
+  }
+}
+
+export function createProjectRuntimeInfoRecord({
+  projectId,
+  projectTitle = projectId,
+  source,
+  status,
+  summary,
+  checkedAtLabel,
+  apiBaseUrl,
+  versionLabel,
+  capabilities,
+}: {
+  projectId: string
+  projectTitle?: string
+  source: ProjectRuntimeSource
+  status: ProjectRuntimeHealthStatus
+  summary: string
+  checkedAtLabel?: string
+  apiBaseUrl?: string
+  versionLabel?: string
+  capabilities?: Partial<ProjectRuntimeCapabilitiesRecord>
+}): ProjectRuntimeInfoRecord {
+  return {
+    projectId,
+    projectTitle,
+    source,
+    status,
+    summary,
+    checkedAtLabel,
+    apiBaseUrl,
+    versionLabel,
+    capabilities: createProjectRuntimeCapabilitiesRecord(capabilities),
+  }
+}

@@ -159,6 +159,139 @@ function expectRecordedRequest(
 }
 
 describe('createFakeApiRuntime override matching', () => {
+  it('serves runtime-info through the API contract by default', async () => {
+    const { requests, runtime } = createFakeApiRuntime({
+      projectId: 'project-runtime-info',
+    })
+
+    await expect(runtime.runtimeInfoClient.getProjectRuntimeInfo()).resolves.toEqual({
+      projectId: 'project-runtime-info',
+      projectTitle: 'project-runtime-info',
+      source: 'api',
+      status: 'healthy',
+      summary: 'Connected to fake API runtime.',
+      checkedAtLabel: 'Static fake API runtime',
+      apiBaseUrl: '/api',
+      versionLabel: 'fake-api-runtime',
+      capabilities: {
+        read: true,
+        write: true,
+        runEvents: true,
+        runEventPolling: true,
+        runEventStream: false,
+        reviewDecisions: true,
+        contextPacketRefs: true,
+        proposalSetRefs: true,
+      },
+    })
+    expectRecordedRequest(requests, {
+      method: 'GET',
+      path: '/api/projects/project-runtime-info/runtime-info',
+    })
+  })
+
+  it('supports runtime-info overrides for auth, availability, and malformed-json style failures', async () => {
+    const unauthorizedRuntime = createFakeApiRuntime({
+      projectId: 'project-unauthorized',
+      overrides: [
+        {
+          method: 'GET',
+          path: '/api/projects/project-unauthorized/runtime-info',
+          error: new ApiRequestError({
+            status: 401,
+            message: 'unauthorized',
+          }),
+        },
+      ],
+    })
+    const forbiddenRuntime = createFakeApiRuntime({
+      projectId: 'project-forbidden',
+      overrides: [
+        {
+          method: 'GET',
+          path: '/api/projects/project-forbidden/runtime-info',
+          error: new ApiRequestError({
+            status: 403,
+            message: 'forbidden',
+          }),
+        },
+      ],
+    })
+    const unavailableRuntime = createFakeApiRuntime({
+      projectId: 'project-unavailable',
+      overrides: [
+        {
+          method: 'GET',
+          path: '/api/projects/project-unavailable/runtime-info',
+          error: new ApiRequestError({
+            status: 503,
+            message: 'gateway unavailable',
+          }),
+        },
+      ],
+    })
+    const notFoundRuntime = createFakeApiRuntime({
+      projectId: 'project-not-found',
+      overrides: [
+        {
+          method: 'GET',
+          path: '/api/projects/project-not-found/runtime-info',
+          error: new ApiRequestError({
+            status: 404,
+            message: 'project runtime not found',
+          }),
+        },
+      ],
+    })
+    const malformedRuntime = createFakeApiRuntime({
+      projectId: 'project-malformed',
+      overrides: [
+        {
+          method: 'GET',
+          path: '/api/projects/project-malformed/runtime-info',
+          error: new ApiRequestError({
+            status: 200,
+            message: 'Malformed JSON response',
+            detail: '<html>not-json</html>',
+          }),
+        },
+      ],
+    })
+    const networkRuntime = createFakeApiRuntime({
+      projectId: 'project-network',
+      overrides: [
+        {
+          method: 'GET',
+          path: '/api/projects/project-network/runtime-info',
+          error: new Error('fetch failed'),
+        },
+      ],
+    })
+
+    await expect(unauthorizedRuntime.runtime.runtimeInfoClient.getProjectRuntimeInfo()).rejects.toMatchObject({
+      status: 401,
+      message: 'unauthorized',
+    })
+    await expect(forbiddenRuntime.runtime.runtimeInfoClient.getProjectRuntimeInfo()).rejects.toMatchObject({
+      status: 403,
+      message: 'forbidden',
+    })
+    await expect(unavailableRuntime.runtime.runtimeInfoClient.getProjectRuntimeInfo()).rejects.toMatchObject({
+      status: 503,
+      message: 'gateway unavailable',
+    })
+    await expect(notFoundRuntime.runtime.runtimeInfoClient.getProjectRuntimeInfo()).rejects.toMatchObject({
+      status: 404,
+      message: 'project runtime not found',
+    })
+    await expect(malformedRuntime.runtime.runtimeInfoClient.getProjectRuntimeInfo()).rejects.toMatchObject({
+      status: 200,
+      message: 'Malformed JSON response',
+      detail: '<html>not-json</html>',
+    })
+    await expect(networkRuntime.runtime.runtimeInfoClient.getProjectRuntimeInfo()).rejects.toThrow('fetch failed')
+  })
+
   it('matches override queries regardless of key insertion order', async () => {
     const { runtime } = createFakeApiRuntime({
       overrides: [

@@ -4,6 +4,7 @@ import {
 } from './mock-project-runtime'
 import type { ApiQueryValue, ApiRequestOptions } from './api-transport'
 import { createApiProjectRuntime } from './api-project-runtime'
+import { createProjectRuntimeInfoRecord } from './project-runtime-info'
 
 export interface FakeApiRequest<TBody = unknown> extends ApiRequestOptions<TBody> {}
 
@@ -176,6 +177,29 @@ async function handleFakeApiRequest<TResponse, TBody>(
 ): Promise<TResponse> {
   const { method, path, body, query } = options
   const projectBasePattern = `^/api/projects/${escapeRegExp(encodeURIComponent(projectId))}`
+
+  if (method === 'GET' && path === `/api/projects/${encodeURIComponent(projectId)}/runtime-info`) {
+    return createProjectRuntimeInfoRecord({
+      projectId,
+      projectTitle: projectId,
+      source: 'api',
+      status: 'healthy',
+      summary: 'Connected to fake API runtime.',
+      checkedAtLabel: 'Static fake API runtime',
+      apiBaseUrl: '/api',
+      versionLabel: 'fake-api-runtime',
+      capabilities: {
+        read: true,
+        write: true,
+        runEvents: true,
+        runEventPolling: true,
+        runEventStream: false,
+        reviewDecisions: true,
+        contextPacketRefs: true,
+        proposalSetRefs: true,
+      },
+    }) as TResponse
+  }
 
   const bookStructureMatch = path.match(new RegExp(`${projectBasePattern}/books/([^/]+)/structure$`))
   if (method === 'GET' && bookStructureMatch) {
