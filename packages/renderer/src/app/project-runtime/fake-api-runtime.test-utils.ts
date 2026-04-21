@@ -282,6 +282,52 @@ async function handleFakeApiRequest<TResponse, TBody>(
     }) as Promise<TResponse>
   }
 
+  const reviewFixActionMatch = path.match(new RegExp(`${projectBasePattern}/books/([^/]+)/review-fix-actions/([^/]+)$`))
+  if (method === 'PUT' && reviewFixActionMatch) {
+    return mockRuntime.reviewClient.setReviewIssueFixAction(
+      body as Parameters<typeof mockRuntime.reviewClient.setReviewIssueFixAction>[0],
+    ) as Promise<TResponse>
+  }
+
+  if (method === 'DELETE' && reviewFixActionMatch) {
+    await mockRuntime.reviewClient.clearReviewIssueFixAction({
+      bookId: decodeSegment(reviewFixActionMatch[1]!),
+      issueId: decodeSegment(reviewFixActionMatch[2]!),
+    })
+    return undefined as TResponse
+  }
+
+  if (method === 'POST' && bookExportArtifactsMatch) {
+    return mockRuntime.bookClient.buildBookExportArtifact(
+      body as Parameters<typeof mockRuntime.bookClient.buildBookExportArtifact>[0],
+    ) as Promise<TResponse>
+  }
+
+  const chapterSceneReorderMatch = path.match(
+    new RegExp(`${projectBasePattern}/chapters/([^/]+)/scenes/([^/]+)/reorder$`),
+  )
+  if (method === 'POST' && chapterSceneReorderMatch) {
+    const reorderBody = body as { targetIndex: number }
+    return mockRuntime.chapterClient.reorderChapterScene({
+      chapterId: decodeSegment(chapterSceneReorderMatch[1]!),
+      sceneId: decodeSegment(chapterSceneReorderMatch[2]!),
+      targetIndex: reorderBody.targetIndex,
+    }) as Promise<TResponse>
+  }
+
+  const chapterSceneStructureMatch = path.match(
+    new RegExp(`${projectBasePattern}/chapters/([^/]+)/scenes/([^/]+)/structure$`),
+  )
+  if (method === 'PATCH' && chapterSceneStructureMatch) {
+    const structureBody = body as { locale: 'en' | 'zh-CN'; patch: unknown }
+    return mockRuntime.chapterClient.updateChapterSceneStructure({
+      chapterId: decodeSegment(chapterSceneStructureMatch[1]!),
+      sceneId: decodeSegment(chapterSceneStructureMatch[2]!),
+      locale: structureBody.locale,
+      patch: structureBody.patch as Parameters<typeof mockRuntime.chapterClient.updateChapterSceneStructure>[0]['patch'],
+    }) as Promise<TResponse>
+  }
+
   const sceneExecutionMatch = path.match(new RegExp(`${projectBasePattern}/scenes/([^/]+)/execution$`))
   if (method === 'GET' && sceneExecutionMatch) {
     return mockRuntime.sceneClient.getSceneExecution(decodeSegment(sceneExecutionMatch[1]!)) as Promise<TResponse>

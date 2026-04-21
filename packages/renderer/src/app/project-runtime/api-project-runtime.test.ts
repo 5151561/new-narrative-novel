@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { BuildBookExportArtifactInput } from '@/features/book/api/book-export-artifact-records'
 import type { ChapterStructureWorkspaceRecord } from '@/features/chapter/api/chapter-records'
 import type { ReviewIssueDecisionRecord } from '@/features/review/api/review-decision-records'
+import type { ReviewIssueFixActionRecord } from '@/features/review/api/review-fix-action-records'
 import type { SceneExecutionViewModel, ScenePatchPreviewViewModel } from '@/features/scene/types/scene-view-models'
 
 import { createApiProjectRuntime } from './api-project-runtime'
@@ -65,6 +66,23 @@ function createTransportMock() {
         issueSignature: 'sig-1',
         status: 'reviewed',
         updatedAtLabel: '2026-04-20 12:00',
+        updatedByLabel: 'Editor',
+      }
+    }
+
+    if (method === 'PUT' && path === '/api/projects/project-1/books/book-1/review-fix-actions/issue-2') {
+      return {
+        id: 'book-1::issue-2',
+        bookId: 'book-1',
+        issueId: 'issue-2',
+        issueSignature: 'sig-2',
+        sourceHandoffId: 'handoff-2',
+        sourceHandoffLabel: 'Source handoff',
+        targetScope: 'scene',
+        status: 'checked',
+        note: 'Validated in source scene.',
+        startedAtLabel: '2026-04-20 12:00',
+        updatedAtLabel: '2026-04-20 12:05',
         updatedByLabel: 'Editor',
       }
     }
@@ -229,6 +247,51 @@ describe('api project runtime', () => {
     expect(transport).toHaveBeenNthCalledWith(2, {
       method: 'DELETE',
       path: '/api/projects/project-1/books/book-1/review-decisions/issue-1',
+    })
+  })
+
+  it('uses PUT and DELETE for review issue fix actions', async () => {
+    const transport = createTransportMock()
+    const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })
+
+    await expect(
+      runtime.reviewClient.setReviewIssueFixAction({
+        bookId: 'book-1',
+        issueId: 'issue-2',
+        issueSignature: 'sig-2',
+        sourceHandoffId: 'handoff-2',
+        sourceHandoffLabel: 'Source handoff',
+        targetScope: 'scene',
+        status: 'checked',
+        note: 'Validated in source scene.',
+      }),
+    ).resolves.toMatchObject<Partial<ReviewIssueFixActionRecord>>({
+      issueId: 'issue-2',
+      status: 'checked',
+    })
+
+    await runtime.reviewClient.clearReviewIssueFixAction({
+      bookId: 'book-1',
+      issueId: 'issue-2',
+    })
+
+    expect(transport).toHaveBeenNthCalledWith(1, {
+      method: 'PUT',
+      path: '/api/projects/project-1/books/book-1/review-fix-actions/issue-2',
+      body: {
+        bookId: 'book-1',
+        issueId: 'issue-2',
+        issueSignature: 'sig-2',
+        sourceHandoffId: 'handoff-2',
+        sourceHandoffLabel: 'Source handoff',
+        targetScope: 'scene',
+        status: 'checked',
+        note: 'Validated in source scene.',
+      },
+    })
+    expect(transport).toHaveBeenNthCalledWith(2, {
+      method: 'DELETE',
+      path: '/api/projects/project-1/books/book-1/review-fix-actions/issue-2',
     })
   })
 

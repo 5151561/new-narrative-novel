@@ -19,6 +19,22 @@ describe('api route contract', () => {
     ).toBe('/api/projects/project-1/chapters/chapter-1/scenes/scene-2/reorder')
   })
 
+  it('builds the chapter structure write route', () => {
+    expect(
+      apiRouteContract.chapterSceneStructure({
+        projectId: 'project-1',
+        chapterId: 'chapter-1',
+        sceneId: 'scene-2',
+      }),
+    ).toBe('/api/projects/project-1/chapters/chapter-1/scenes/scene-2/structure')
+  })
+
+  it('builds the book export artifact write route', () => {
+    expect(apiRouteContract.bookExportArtifacts({ projectId: 'project-1', bookId: 'book-1' })).toBe(
+      '/api/projects/project-1/books/book-1/export-artifacts',
+    )
+  })
+
   it('builds the corrected asset knowledge route with the /api prefix', () => {
     expect(apiRouteContract.assetKnowledge({ projectId: 'project-1', assetId: 'asset-7' })).toBe(
       '/api/projects/project-1/assets/asset-7/knowledge',
