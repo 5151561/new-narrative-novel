@@ -149,8 +149,11 @@ export const apiRouteContract = {
   }) {
     return `${bookBase(projectId, bookId)}/review-fix-actions/${segment(issueId)}`
   },
-  sceneRuntimeInfo({ projectId }: { projectId: string }) {
+  projectRuntimeInfo({ projectId }: { projectId: string }) {
     return `${projectBase(projectId)}/runtime-info`
+  },
+  sceneRuntimeInfo({ projectId }: { projectId: string }) {
+    return apiRouteContract.projectRuntimeInfo({ projectId })
   },
   sceneWorkspace({ projectId, sceneId }: { projectId: string; sceneId: string }) {
     return `${sceneBase(projectId, sceneId)}/workspace`

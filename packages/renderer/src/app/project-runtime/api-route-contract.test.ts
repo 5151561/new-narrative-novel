@@ -68,6 +68,7 @@ describe('api route contract', () => {
     expect(apiRouteContract.scenePatchPreview({ projectId: 'project-1', sceneId: 'scene-3' })).toBe(
       '/api/projects/project-1/scenes/scene-3/patch-preview',
     )
+    expect(apiRouteContract.projectRuntimeInfo({ projectId: 'project-1' })).toBe('/api/projects/project-1/runtime-info')
     expect(apiRouteContract.sceneRuntimeInfo({ projectId: 'project-1' })).toBe('/api/projects/project-1/runtime-info')
   })
 
@@ -103,5 +104,14 @@ describe('api route contract', () => {
         runId: 'run / review 1',
       }),
     ).toBe('/api/projects/project%20%2F%20one/runs/run%20%2F%20review%201/events')
+  })
+
+  it('escapes the project runtime info project id and preserves the scene alias path', () => {
+    expect(apiRouteContract.projectRuntimeInfo({ projectId: 'project / one' })).toBe(
+      '/api/projects/project%20%2F%20one/runtime-info',
+    )
+    expect(apiRouteContract.sceneRuntimeInfo({ projectId: 'project / one' })).toBe(
+      '/api/projects/project%20%2F%20one/runtime-info',
+    )
   })
 })

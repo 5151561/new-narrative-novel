@@ -5,13 +5,38 @@ import type { ChapterStructureWorkspaceRecord } from '@/features/chapter/api/cha
 import type { ReviewIssueDecisionRecord } from '@/features/review/api/review-decision-records'
 import type { ReviewIssueFixActionRecord } from '@/features/review/api/review-fix-action-records'
 import type { RunEventsPageRecord, RunRecord } from '@/features/run/api/run-records'
+import { sceneRuntimeCapabilities, type SceneRuntimeInfo } from '@/features/scene/api/scene-runtime'
 import type { SceneExecutionViewModel, ScenePatchPreviewViewModel } from '@/features/scene/types/scene-view-models'
+import type { ProjectRuntimeInfoRecord } from './project-runtime-info'
 
 import { createApiProjectRuntime } from './api-project-runtime'
 import { ApiRequestError } from './api-transport'
 
 function createTransportMock() {
   return vi.fn(async ({ path, method, body }: { path: string; method: string; body?: unknown }) => {
+    if (method === 'GET' && path === '/api/projects/project-1/runtime-info') {
+      return {
+        projectId: 'project-1',
+        projectTitle: 'Signal Arc',
+        source: 'api',
+        status: 'healthy',
+        summary: 'Connected to runtime gateway.',
+        checkedAtLabel: '2026-04-21 09:30',
+        apiBaseUrl: 'https://runtime.example.test',
+        versionLabel: 'runtime-v24',
+        capabilities: {
+          read: true,
+          write: true,
+          runEvents: true,
+          runEventPolling: true,
+          runEventStream: true,
+          reviewDecisions: true,
+          contextPacketRefs: true,
+          proposalSetRefs: true,
+        },
+      } satisfies ProjectRuntimeInfoRecord
+    }
+
     if (method === 'GET' && path === '/api/projects/project-1/books/book-1/structure') {
       return { bookId: 'book-1', title: { en: 'Signal Arc', 'zh-CN': '信号弧' }, chapterIds: [] }
     }
@@ -131,6 +156,52 @@ function createBuildInput(): BuildBookExportArtifactInput {
 }
 
 describe('api project runtime', () => {
+  it('uses the project runtime info endpoint and preserves runClient exposure', async () => {
+    const transport = createTransportMock()
+    const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })
+
+    await expect(runtime.runtimeInfoClient.getProjectRuntimeInfo()).resolves.toEqual<ProjectRuntimeInfoRecord>({
+      projectId: 'project-1',
+      projectTitle: 'Signal Arc',
+      source: 'api',
+      status: 'healthy',
+      summary: 'Connected to runtime gateway.',
+      checkedAtLabel: '2026-04-21 09:30',
+      apiBaseUrl: 'https://runtime.example.test',
+      versionLabel: 'runtime-v24',
+      capabilities: {
+        read: true,
+        write: true,
+        runEvents: true,
+        runEventPolling: true,
+        runEventStream: true,
+        reviewDecisions: true,
+        contextPacketRefs: true,
+        proposalSetRefs: true,
+      },
+    })
+    expect(runtime.runClient).toBeDefined()
+    expect(transport).toHaveBeenCalledWith({
+      method: 'GET',
+      path: '/api/projects/project-1/runtime-info',
+    })
+  })
+
+  it('adapts project runtime info into the legacy scene runtime info contract', async () => {
+    const transport = createTransportMock()
+    const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })
+
+    await expect(runtime.sceneClient.getRuntimeInfo()).resolves.toEqual<SceneRuntimeInfo>({
+      source: 'preload-bridge',
+      label: 'runtime-v24',
+      capabilities: Object.fromEntries(sceneRuntimeCapabilities.map((capability) => [capability, true])) as SceneRuntimeInfo['capabilities'],
+    })
+    expect(transport).toHaveBeenCalledWith({
+      method: 'GET',
+      path: '/api/projects/project-1/runtime-info',
+    })
+  })
+
   it('uses the book structure endpoint', async () => {
     const transport = createTransportMock()
     const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })

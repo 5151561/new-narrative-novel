@@ -7,6 +7,7 @@ import type { SceneClient } from '@/features/scene/api/scene-client'
 import type { TraceabilitySceneClient } from '@/features/traceability/hooks/useTraceabilitySceneSources'
 
 import type { ProjectPersistencePort } from './project-persistence'
+import type { ProjectRuntimeInfoClient } from './project-runtime-info'
 
 export interface ProjectRuntime {
   projectId: string
@@ -15,6 +16,7 @@ export interface ProjectRuntime {
   assetClient: AssetClient
   reviewClient: ReviewClient
   runClient: RunClient
+  runtimeInfoClient: ProjectRuntimeInfoClient
   sceneClient: SceneClient
   traceabilitySceneClient: TraceabilitySceneClient
   // Mock-only preview/dev/test capability. API runtimes intentionally omit persistence.

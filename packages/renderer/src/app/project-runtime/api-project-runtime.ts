@@ -30,11 +30,12 @@ import type {
 } from '@/features/scene/types/scene-view-models'
 import type { TraceabilitySceneClient } from '@/features/traceability/hooks/useTraceabilitySceneSources'
 import type { AssetKnowledgeWorkspaceRecord } from '@/features/asset/api/asset-records'
-import type { SceneRuntimeInfo } from '@/features/scene/api/scene-runtime'
+import { sceneRuntimeCapabilities, type SceneRuntimeInfo } from '@/features/scene/api/scene-runtime'
 
 import type { ApiTransport } from './api-transport'
 import { apiRouteContract } from './api-route-contract'
 import type { ProjectRuntime } from './project-runtime'
+import type { ProjectRuntimeInfoClient, ProjectRuntimeInfoRecord } from './project-runtime-info'
 
 export interface CreateApiProjectRuntimeOptions {
   projectId: string
@@ -190,6 +191,52 @@ function createReviewClient(projectId: string, transport: ApiTransport): ReviewC
   }
 }
 
+function createProjectRuntimeInfoClient(projectId: string, transport: ApiTransport): ProjectRuntimeInfoClient {
+  return {
+    async getProjectRuntimeInfo() {
+      return requestProjectRuntimeInfo(projectId, transport)
+    },
+  }
+}
+
+async function requestProjectRuntimeInfo(projectId: string, transport: ApiTransport) {
+  return transport.requestJson<ProjectRuntimeInfoRecord>({
+    method: 'GET',
+    path: apiRouteContract.projectRuntimeInfo({ projectId }),
+  })
+}
+
+function adaptProjectRuntimeInfoToSceneRuntimeInfo(projectRuntimeInfo: ProjectRuntimeInfoRecord): SceneRuntimeInfo {
+  const readableSceneCapabilities = new Set([
+    'getSceneWorkspace',
+    'getSceneSetup',
+    'getSceneExecution',
+    'getSceneProse',
+    'getSceneInspector',
+    'getSceneDockSummary',
+    'getSceneDockTab',
+    'previewAcceptedPatch',
+  ] as const)
+  const writableSceneCapabilities = new Set(
+    sceneRuntimeCapabilities.filter((capability) => !readableSceneCapabilities.has(capability)),
+  )
+
+  return {
+    source: projectRuntimeInfo.source === 'mock' ? 'mock-fallback' : 'preload-bridge',
+    label: projectRuntimeInfo.versionLabel ?? projectRuntimeInfo.checkedAtLabel ?? projectRuntimeInfo.projectTitle,
+    capabilities: Object.fromEntries(
+      sceneRuntimeCapabilities.map((capability) => [
+        capability,
+        readableSceneCapabilities.has(capability)
+          ? projectRuntimeInfo.capabilities.read
+          : writableSceneCapabilities.has(capability)
+            ? projectRuntimeInfo.capabilities.write
+            : false,
+      ]),
+    ) as SceneRuntimeInfo['capabilities'],
+  }
+}
+
 export function createRunClient(projectId: string, transport: ApiTransport): RunClient {
   return {
     async startSceneRun(input) {
@@ -250,7 +297,7 @@ function createSceneClient(projectId: string, transport: ApiTransport): SceneCli
 
   return {
     async getRuntimeInfo() {
-      return getSceneJson<SceneRuntimeInfo>(apiRouteContract.sceneRuntimeInfo({ projectId }))
+      return adaptProjectRuntimeInfoToSceneRuntimeInfo(await requestProjectRuntimeInfo(projectId, transport))
     },
     async getSceneWorkspace(sceneId) {
       return getSceneJson<SceneWorkspaceViewModel>(apiRouteContract.sceneWorkspace({ projectId, sceneId }))
@@ -329,6 +376,7 @@ export function createApiProjectRuntime({ projectId, transport }: CreateApiProje
     assetClient: createAssetClient(projectId, transport),
     reviewClient: createReviewClient(projectId, transport),
     runClient: createRunClient(projectId, transport),
+    runtimeInfoClient: createProjectRuntimeInfoClient(projectId, transport),
     sceneClient,
     traceabilitySceneClient: createTraceabilitySceneClient(sceneClient),
   }

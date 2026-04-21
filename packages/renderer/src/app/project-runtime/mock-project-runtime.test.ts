@@ -111,6 +111,29 @@ describe('mock project runtime', () => {
     expect(persistence.loadCalls).toEqual([projectId])
   })
 
+  it('exposes deterministic project runtime info for the mock runtime', async () => {
+    const runtime = createMockProjectRuntime({ projectId, persistence: createMemoryPersistence() })
+
+    await expect(runtime.runtimeInfoClient.getProjectRuntimeInfo()).resolves.toEqual({
+      projectId,
+      projectTitle: 'book-signal-arc',
+      source: 'mock',
+      status: 'healthy',
+      summary: 'Using in-memory mock project runtime.',
+      checkedAtLabel: 'Static mock runtime',
+      capabilities: {
+        read: true,
+        write: true,
+        runEvents: true,
+        runEventPolling: true,
+        runEventStream: false,
+        reviewDecisions: true,
+        contextPacketRefs: true,
+        proposalSetRefs: true,
+      },
+    })
+  })
+
   it('exposes an injected asset client without changing mock persistence behavior', async () => {
     const assetWorkspace = { assetId: 'asset-lantern', asset: { id: 'asset-lantern' } } as Awaited<
       ReturnType<AssetClient['getAssetKnowledgeWorkspace']>

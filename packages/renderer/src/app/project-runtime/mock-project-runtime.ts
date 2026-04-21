@@ -47,6 +47,7 @@ import type { TraceabilitySceneClient } from '@/features/traceability/hooks/useT
 import { createLocalStorageProjectPersistence } from './local-storage-project-persistence'
 import type { ProjectPersistedSnapshotV1, ProjectPersistencePort } from './project-persistence'
 import type { ProjectRuntime } from './project-runtime'
+import type { ProjectRuntimeInfoRecord } from './project-runtime-info'
 
 export interface CreateMockProjectRuntimeOptions {
   projectId?: string
@@ -183,6 +184,27 @@ async function persistCurrentMockSnapshot(projectId: string, persistence: Projec
   await persistence.saveProjectSnapshot(projectId, await buildProjectScopedMockSnapshot(projectId, bookClient))
 }
 
+function buildMockProjectRuntimeInfo(projectId: string): ProjectRuntimeInfoRecord {
+  return {
+    projectId,
+    projectTitle: projectId,
+    source: 'mock',
+    status: 'healthy',
+    summary: 'Using in-memory mock project runtime.',
+    checkedAtLabel: 'Static mock runtime',
+    capabilities: {
+      read: true,
+      write: true,
+      runEvents: true,
+      runEventPolling: true,
+      runEventStream: false,
+      reviewDecisions: true,
+      contextPacketRefs: true,
+      proposalSetRefs: true,
+    },
+  }
+}
+
 export function createMockProjectRuntime({
   projectId = 'book-signal-arc',
   bookClient: runtimeBookClient,
@@ -317,6 +339,11 @@ export function createMockProjectRuntime({
       },
       async submitRunReviewDecision(input) {
         return persistAfterMutation(() => baseRunClient.submitRunReviewDecision(input))
+      },
+    },
+    runtimeInfoClient: {
+      async getProjectRuntimeInfo() {
+        return buildMockProjectRuntimeInfo(projectId)
       },
     },
     sceneClient: baseSceneClient,
