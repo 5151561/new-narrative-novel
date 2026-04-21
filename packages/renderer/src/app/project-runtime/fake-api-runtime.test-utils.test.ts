@@ -7,6 +7,8 @@ import type { ChapterStructureWorkspaceRecord } from '@/features/chapter/api/cha
 import type { ReviewClient } from '@/features/review/api/review-client'
 import type { ReviewIssueDecisionRecord } from '@/features/review/api/review-decision-records'
 import type { ReviewIssueFixActionRecord, SetReviewIssueFixActionInput } from '@/features/review/api/review-fix-action-records'
+import type { RunClient } from '@/features/run/api/run-client'
+import type { RunEventsPageRecord, RunRecord, StartSceneRunInput, SubmitRunReviewDecisionInput } from '@/features/run/api/run-records'
 
 import { ApiRequestError } from './api-transport'
 import { createFakeApiRuntime } from './fake-api-runtime.test-utils'
@@ -75,6 +77,47 @@ function createReviewDecisionRecord(): ReviewIssueDecisionRecord {
     status: 'reviewed',
     updatedAtLabel: '2026-04-21 09:00',
     updatedByLabel: 'Editor',
+  }
+}
+
+function createRunRecord(overrides: Partial<RunRecord> = {}): RunRecord {
+  return {
+    id: 'run-scene-midnight-platform-002',
+    scope: 'scene',
+    scopeId: 'scene-midnight-platform',
+    status: 'waiting_review',
+    title: 'Scene run',
+    summary: 'Waiting for review.',
+    startedAtLabel: '2026-04-21 10:00',
+    pendingReviewId: 'review-scene-midnight-platform-002',
+    latestEventId: 'run-event-scene-midnight-platform-002-005',
+    eventCount: 5,
+    ...overrides,
+  }
+}
+
+function createRunEventsPage(overrides: Partial<RunEventsPageRecord> = {}): RunEventsPageRecord {
+  return {
+    runId: 'run-scene-midnight-platform-002',
+    events: [
+      {
+        id: 'run-event-scene-midnight-platform-002-005',
+        runId: 'run-scene-midnight-platform-002',
+        order: 5,
+        kind: 'review_requested',
+        label: 'Review requested',
+        summary: 'Waiting for editorial review.',
+        createdAtLabel: '2026-04-21 10:05',
+        refs: [
+          {
+            kind: 'review',
+            id: 'review-scene-midnight-platform-002',
+          },
+        ],
+      },
+    ],
+    nextCursor: undefined,
+    ...overrides,
   }
 }
 
@@ -447,5 +490,227 @@ describe('createFakeApiRuntime override matching', () => {
       message: 'export-unavailable',
       code: 'EXPORT_DOWN',
     })
+  })
+
+  it('records POST scene runs and GET run events with cursor and forwards run endpoints to mock runtime.runClient', async () => {
+    const startedRun = createRunRecord()
+    const runEventsPage = createRunEventsPage({
+      nextCursor: 'run-event-scene-midnight-platform-002-005',
+    })
+    const completedRun = createRunRecord({
+      status: 'completed',
+      pendingReviewId: undefined,
+      completedAtLabel: '2026-04-21 10:09',
+      latestEventId: 'run-event-scene-midnight-platform-002-009',
+      eventCount: 9,
+      summary: 'Accepted and applied.',
+    })
+    const startSceneRun = vi.fn(async (_input: StartSceneRunInput) => startedRun)
+    const getRun = vi.fn(async (_input: { runId: string }) => startedRun)
+    const getRunEvents = vi.fn(async (_input: { runId: string; cursor?: string }) => runEventsPage)
+    const submitRunReviewDecision = vi.fn(async (_input: SubmitRunReviewDecisionInput) => completedRun)
+    const pushStateSpy = vi.spyOn(window.history, 'pushState')
+    const replaceStateSpy = vi.spyOn(window.history, 'replaceState')
+    const initialHref = window.location.href
+
+    const runClient: RunClient = {
+      startSceneRun,
+      getRun,
+      getRunEvents,
+      submitRunReviewDecision,
+    }
+
+    const { requests, runtime } = createFakeApiRuntime({
+      projectId: 'project-1',
+      mockRuntimeOptions: {
+        projectId: 'project-1',
+        runClient,
+      },
+    })
+
+    await expect(
+      runtime.runClient.startSceneRun({
+        sceneId: 'scene-midnight-platform',
+        mode: 'rewrite',
+        note: 'Tighten the ending beat.',
+      }),
+    ).resolves.toEqual(startedRun)
+
+    await expect(
+      runtime.runClient.getRun({
+        runId: startedRun.id,
+      }),
+    ).resolves.toEqual(startedRun)
+
+    await expect(
+      runtime.runClient.getRunEvents({
+        runId: startedRun.id,
+        cursor: 'run-event-scene-midnight-platform-002-004',
+      }),
+    ).resolves.toEqual(runEventsPage)
+
+    await expect(
+      runtime.runClient.submitRunReviewDecision({
+        runId: startedRun.id,
+        reviewId: startedRun.pendingReviewId!,
+        decision: 'accept',
+        note: 'Ship it.',
+      }),
+    ).resolves.toEqual(completedRun)
+
+    expect(startSceneRun).toHaveBeenCalledWith({
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+      note: 'Tighten the ending beat.',
+    })
+    expect(getRun).toHaveBeenCalledWith({
+      runId: startedRun.id,
+    })
+    expect(getRunEvents).toHaveBeenCalledWith({
+      runId: startedRun.id,
+      cursor: 'run-event-scene-midnight-platform-002-004',
+    })
+    expect(submitRunReviewDecision).toHaveBeenCalledWith({
+      runId: startedRun.id,
+      reviewId: startedRun.pendingReviewId,
+      decision: 'accept',
+      note: 'Ship it.',
+    })
+    expectRecordedRequest(requests, {
+      method: 'POST',
+      path: '/api/projects/project-1/scenes/scene-midnight-platform/runs',
+      body: {
+        mode: 'rewrite',
+        note: 'Tighten the ending beat.',
+      },
+    })
+    expectRecordedRequest(requests, {
+      method: 'GET',
+      path: '/api/projects/project-1/runs/run-scene-midnight-platform-002',
+    })
+    expect(requests).toContainEqual({
+      method: 'GET',
+      path: '/api/projects/project-1/runs/run-scene-midnight-platform-002/events',
+      query: {
+        cursor: 'run-event-scene-midnight-platform-002-004',
+      },
+    })
+    expectRecordedRequest(requests, {
+      method: 'POST',
+      path: '/api/projects/project-1/runs/run-scene-midnight-platform-002/review-decisions',
+      body: {
+        reviewId: 'review-scene-midnight-platform-002',
+        decision: 'accept',
+        note: 'Ship it.',
+      },
+    })
+    expect(window.location.href).toBe(initialHref)
+    expect(pushStateSpy).not.toHaveBeenCalled()
+    expect(replaceStateSpy).not.toHaveBeenCalled()
+  })
+
+  it('allows run overrides to force 409 conflict on startSceneRun and 422 validation on submitRunReviewDecision', async () => {
+    const { runtime } = createFakeApiRuntime({
+      projectId: 'project-1',
+      overrides: [
+        {
+          method: 'POST',
+          path: '/api/projects/project-1/scenes/scene-midnight-platform/runs',
+          body: {
+            mode: 'rewrite',
+            note: 'Tighten the ending beat.',
+          },
+          error: new ApiRequestError({
+            status: 409,
+            message: 'run-conflict',
+            code: 'RUN_CONFLICT',
+          }),
+        },
+        {
+          method: 'POST',
+          path: '/api/projects/project-1/runs/run-scene-midnight-platform-002/review-decisions',
+          body: {
+            reviewId: 'review-scene-midnight-platform-002',
+            decision: 'accept-with-edit',
+            note: 'Need a patch id.',
+          },
+          error: new ApiRequestError({
+            status: 422,
+            message: 'run-review-invalid',
+            code: 'RUN_REVIEW_INVALID',
+          }),
+        },
+      ],
+    })
+
+    await expect(
+      runtime.runClient.startSceneRun({
+        sceneId: 'scene-midnight-platform',
+        mode: 'rewrite',
+        note: 'Tighten the ending beat.',
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      message: 'run-conflict',
+      code: 'RUN_CONFLICT',
+    })
+
+    await expect(
+      runtime.runClient.submitRunReviewDecision({
+        runId: 'run-scene-midnight-platform-002',
+        reviewId: 'review-scene-midnight-platform-002',
+        decision: 'accept-with-edit',
+        note: 'Need a patch id.',
+      }),
+    ).rejects.toMatchObject({
+      status: 422,
+      message: 'run-review-invalid',
+      code: 'RUN_REVIEW_INVALID',
+    })
+  })
+
+  it('clones run responses from injected run clients so later reads do not alias shared fixtures', async () => {
+    const sharedRun = createRunRecord()
+    const sharedPage = createRunEventsPage({
+      nextCursor: 'run-event-scene-midnight-platform-002-005',
+    })
+    const startSceneRun = vi.fn(async (_input: StartSceneRunInput) => sharedRun)
+    const getRun = vi.fn(async (_input: { runId: string }) => sharedRun)
+    const getRunEvents = vi.fn(async (_input: { runId: string; cursor?: string }) => sharedPage)
+    const submitRunReviewDecision = vi.fn(async (_input: SubmitRunReviewDecisionInput) => sharedRun)
+
+    const { runtime } = createFakeApiRuntime({
+      projectId: 'project-1',
+      mockRuntimeOptions: {
+        projectId: 'project-1',
+        runClient: {
+          startSceneRun,
+          getRun,
+          getRunEvents,
+          submitRunReviewDecision,
+        },
+      },
+    })
+
+    const startedRun = await runtime.runClient.startSceneRun({
+      sceneId: 'scene-midnight-platform',
+    })
+    startedRun.summary = 'mutated started run'
+
+    const readRun = await runtime.runClient.getRun({ runId: sharedRun.id })
+    expect(readRun).toEqual(sharedRun)
+    expect(readRun).not.toBe(sharedRun)
+    expect(readRun?.summary).toBe('Waiting for review.')
+    expect(sharedRun.summary).toBe('Waiting for review.')
+
+    const firstPage = await runtime.runClient.getRunEvents({ runId: sharedRun.id })
+    firstPage.events[0]!.summary = 'mutated first page'
+
+    const secondPage = await runtime.runClient.getRunEvents({ runId: sharedRun.id })
+    expect(secondPage).toEqual(sharedPage)
+    expect(secondPage).not.toBe(sharedPage)
+    expect(secondPage.events[0]).not.toBe(sharedPage.events[0])
+    expect(secondPage.events[0]?.summary).toBe('Waiting for editorial review.')
+    expect(sharedPage.events[0]?.summary).toBe('Waiting for editorial review.')
   })
 })

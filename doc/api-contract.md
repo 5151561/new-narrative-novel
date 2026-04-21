@@ -336,3 +336,210 @@ Export artifact build:
 - SSE / 运行事件流
 - Temporal / backend orchestration
 - 真实 backend server、auth server、session server
+
+## 10. PR23 Run / Event Stream API Surface
+
+### 10.1 Endpoint graph
+
+```text
+POST /api/projects/{projectId}/scenes/{sceneId}/runs
+  -> RunRecord
+
+GET /api/projects/{projectId}/runs/{runId}
+  -> RunRecord | null
+
+GET /api/projects/{projectId}/runs/{runId}/events?cursor={eventId}
+  -> RunEventsPageRecord
+
+POST /api/projects/{projectId}/runs/{runId}/review-decisions
+  -> RunRecord
+
+GET /api/projects/{projectId}/runs/{runId}/events/stream
+  -> PR23 只保留合同占位，不在 renderer/runtime 内实现 SSE
+```
+
+当前 renderer 只通过 `ProjectRuntime.runClient` 消费以上边界；renderer 不 import Temporal SDK，也不直接读取 workflow engine 内部 history。
+
+### 10.2 Request examples
+
+Start scene run:
+
+```json
+{
+  "mode": "rewrite",
+  "note": "Tighten the ending beat."
+}
+```
+
+Get run events with cursor:
+
+```http
+GET /api/projects/project-run-contract/runs/run-scene-midnight-platform-002/events?cursor=run-event-scene-midnight-platform-002-004
+```
+
+Submit run review decision:
+
+```json
+{
+  "reviewId": "review-scene-midnight-platform-002",
+  "decision": "accept-with-edit",
+  "note": "Keep the bridge line but trim the ending.",
+  "patchId": "canon-patch-scene-midnight-platform-002"
+}
+```
+
+### 10.3 Response examples
+
+Run detail:
+
+```json
+{
+  "id": "run-scene-midnight-platform-002",
+  "scope": "scene",
+  "scopeId": "scene-midnight-platform",
+  "status": "waiting_review",
+  "title": "scene-midnight-platform run",
+  "summary": "Waiting for review: Tighten the ending beat.",
+  "startedAtLabel": "2026-04-21 10:01",
+  "pendingReviewId": "review-scene-midnight-platform-002",
+  "latestEventId": "run-event-scene-midnight-platform-002-005",
+  "eventCount": 5
+}
+```
+
+Run events page:
+
+```json
+{
+  "runId": "run-scene-midnight-platform-002",
+  "events": [
+    {
+      "id": "run-event-scene-midnight-platform-002-003",
+      "runId": "run-scene-midnight-platform-002",
+      "order": 3,
+      "kind": "context_packet_built",
+      "label": "Context packet built",
+      "summary": "Runtime assembled the scene context packet.",
+      "createdAtLabel": "2026-04-21 10:03",
+      "refs": [
+        {
+          "kind": "context-packet",
+          "id": "ctx-scene-midnight-platform-run-002"
+        }
+      ]
+    },
+    {
+      "id": "run-event-scene-midnight-platform-002-004",
+      "runId": "run-scene-midnight-platform-002",
+      "order": 4,
+      "kind": "proposal_created",
+      "label": "Proposal set created",
+      "summary": "A proposal set is ready for review.",
+      "createdAtLabel": "2026-04-21 10:04",
+      "refs": [
+        {
+          "kind": "proposal-set",
+          "id": "proposal-set-scene-midnight-platform-run-002"
+        }
+      ]
+    }
+  ],
+  "nextCursor": "run-event-scene-midnight-platform-002-004"
+}
+```
+
+Review decision result:
+
+```json
+{
+  "id": "run-scene-midnight-platform-002",
+  "scope": "scene",
+  "scopeId": "scene-midnight-platform",
+  "status": "completed",
+  "title": "scene-midnight-platform run",
+  "summary": "Proposal set accepted with editor adjustments applied to canon and prose.",
+  "startedAtLabel": "2026-04-21 10:01",
+  "completedAtLabel": "2026-04-21 10:09",
+  "latestEventId": "run-event-scene-midnight-platform-002-009",
+  "eventCount": 9
+}
+```
+
+### 10.4 Cursor semantics
+
+- `cursor` 是最后一个已消费 `RunEventRecord.id`，不是 offset，也不是 page number。
+- 不带 `cursor` 表示读取头页。
+- 带 `cursor` 时，服务端返回该事件之后的下一页。
+- `nextCursor` 表示当前页最后一条 event 的 id；没有更多数据时返回 `undefined` / 省略字段。
+- `cursor` 不存在、属于别的 run、或已失效时，应返回 `409`，并遵守统一错误体。
+- PR23 renderer 只消费分页 / polling 合同，不打开 SSE，也不把 cursor 写进 route。
+
+### 10.5 Run event payload rules
+
+必须遵守以下规则：
+
+1. `RunEventRecord` never embeds large prompt/context/prose payloads.
+2. Context/prompt/prose/debug payloads are referenced by artifact or context-packet refs.
+3. `proposal_created` references `proposal-set`, not a single immutable proposal.
+4. Product run events are not Temporal history and not raw LLM token stream.
+
+补充说明：
+
+- `RunEventRecord.summary` 只放产品级摘要，不放长 prompt、长上下文、长 prose、raw token stream、Temporal event history payload。
+- 大 payload 一律通过 `refs` 指向外部对象；`RunEventRecord` 只携带轻量引用和可读摘要。
+- 允许的 refs 语义位当前包括：`context-packet`、`agent-invocation`、`proposal-set`、`review`、`canon-patch`、`prose-draft`、`artifact`。
+- 即使后续接真实 orchestration backend，也不能把 workflow engine 内部事件直接当产品事件流暴露给 renderer。
+
+### 10.6 `context_packet_built` and `context-packet` ref semantics
+
+- `context_packet_built` 表示一次产品级上下文装配完成，可以用于后续 Context Packet Inspector、Prompt Trace、Asset Activation Trace。
+- 该 event 自身只表达“上下文包已建立”，不内联完整 prompt 或拼装后的大文本。
+- `refs.kind = "context-packet"` 指向外部 context packet 资源，例如：
+
+```json
+{
+  "kind": "context-packet",
+  "id": "ctx-scene-midnight-platform-run-002",
+  "label": "Scene context packet"
+}
+```
+
+- PR23 不定义 context packet 详情 endpoint，只固定事件语义与 ref 位置。
+
+### 10.7 `proposal_created` references `proposal-set`
+
+- `proposal_created` 必须引用 `proposal-set`，不能把模型输出固化成单一 immutable proposal id。
+- 这是为了给未来 proposal variants / swipe / regenerate 保留承载位。
+- PR23 只固定 `proposal-set` ref 语义，不定义 variants UI，也不引入新的 route state。
+
+### 10.8 Review decision rules
+
+- review decision write path 为 `POST /runs/{runId}/review-decisions`。
+- 请求体必须包含 `reviewId` 与 `decision`；`note`、`patchId` 视具体 decision 需要可选携带。
+- 当前 decision 值为：`accept`、`accept-with-edit`、`request-rewrite`、`reject`。
+- `reviewId` 与 run 当前 `pendingReviewId` 不匹配时返回 `409`。
+- `422` 保留为 API / override 可用的 validation 错误语义；PR23 默认 mock contract 只内建 conflict 校验，不额外强制 review decision 字段规则。
+- 成功后返回最新 `RunRecord`，并由事件页补充 `review_decision_submitted`、`canon_patch_applied`、`prose_generated`、`run_completed` 等产品事件。
+- run review write 只更新 run/event query data；它不写 route，不直接修改 scene/chapter/book UI 状态。
+
+### 10.9 SSE and engine boundary
+
+- `GET /runs/{runId}/events/stream` 在 PR23 只是合同占位，供未来 SSE / stream transport 接入。
+- 本 PR 的 fake runtime、API runtime、hooks、tests 都只走 REST request + polling/page contract。
+- renderer 不 import Temporal SDK，不感知 worker engine 是 Temporal、in-process worker、fixture backend，还是未来其他实现。
+- 产品 run events 不是 Temporal history；它们是 renderer 可以稳定消费的产品级 event records。
+
+### 10.10 Future affordances
+
+以下能力是未来扩展位，不属于 PR23 当前实现范围：
+
+- context packet inspection
+- proposal variants
+- run debug dock
+- asset activation trace
+
+这些未来能力都必须建立在当前 PR23 合同之上：
+
+- 大 payload 继续通过 artifact / context-packet refs 暴露，不能回退成 event 内联。
+- `proposal_created` 继续以 `proposal-set` 为中心，而不是单 proposal。
+- debug / trace UI 应消费产品级 run events，而不是直接消费 Temporal history。

@@ -333,6 +333,56 @@ async function handleFakeApiRequest<TResponse, TBody>(
     return mockRuntime.sceneClient.getSceneExecution(decodeSegment(sceneExecutionMatch[1]!)) as Promise<TResponse>
   }
 
+  const sceneRunsMatch = path.match(new RegExp(`${projectBasePattern}/scenes/([^/]+)/runs$`))
+  if (method === 'POST' && sceneRunsMatch) {
+    const runBody = body as { mode?: 'continue' | 'rewrite' | 'from-scratch'; note?: string }
+    return cloneFakeApiResponse(
+      await mockRuntime.runClient.startSceneRun({
+        sceneId: decodeSegment(sceneRunsMatch[1]!),
+        mode: runBody.mode,
+        note: runBody.note,
+      }),
+    ) as TResponse
+  }
+
+  const runMatch = path.match(new RegExp(`${projectBasePattern}/runs/([^/]+)$`))
+  if (method === 'GET' && runMatch) {
+    return cloneFakeApiResponse(
+      await mockRuntime.runClient.getRun({
+        runId: decodeSegment(runMatch[1]!),
+      }),
+    ) as TResponse
+  }
+
+  const runEventsMatch = path.match(new RegExp(`${projectBasePattern}/runs/([^/]+)/events$`))
+  if (method === 'GET' && runEventsMatch) {
+    return cloneFakeApiResponse(
+      await mockRuntime.runClient.getRunEvents({
+        runId: decodeSegment(runEventsMatch[1]!),
+        cursor: typeof query?.cursor === 'string' ? query.cursor : undefined,
+      }),
+    ) as TResponse
+  }
+
+  const runReviewDecisionsMatch = path.match(new RegExp(`${projectBasePattern}/runs/([^/]+)/review-decisions$`))
+  if (method === 'POST' && runReviewDecisionsMatch) {
+    const reviewBody = body as {
+      reviewId: string
+      decision: 'accept' | 'accept-with-edit' | 'request-rewrite' | 'reject'
+      note?: string
+      patchId?: string
+    }
+    return cloneFakeApiResponse(
+      await mockRuntime.runClient.submitRunReviewDecision({
+        runId: decodeSegment(runReviewDecisionsMatch[1]!),
+        reviewId: reviewBody.reviewId,
+        decision: reviewBody.decision,
+        note: reviewBody.note,
+        patchId: reviewBody.patchId,
+      }),
+    ) as TResponse
+  }
+
   const sceneProseMatch = path.match(new RegExp(`${projectBasePattern}/scenes/([^/]+)/prose$`))
   if (method === 'GET' && sceneProseMatch) {
     return mockRuntime.sceneClient.getSceneProse(decodeSegment(sceneProseMatch[1]!)) as Promise<TResponse>
