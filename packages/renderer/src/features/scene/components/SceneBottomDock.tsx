@@ -8,6 +8,8 @@ import { TimelineList } from '@/components/ui/TimelineList'
 
 import { cn } from '@/lib/cn'
 
+import type { RunEventRecord, RunRecord } from '@/features/run/api/run-records'
+
 import type { SceneDockTabId, SceneDockViewModel } from '../types/scene-view-models'
 
 const dockTabs: Array<{ id: SceneDockTabId; label: string }> = [
@@ -61,6 +63,209 @@ function EventsTab({ items }: { items: SceneDockViewModel['events'] }) {
             : 'Structured event summaries will appear here when execution emits them.'
         }
       />
+    </div>
+  )
+}
+
+const runStatusTone: Record<RunRecord['status'], 'neutral' | 'accent' | 'warn' | 'success' | 'danger'> = {
+  queued: 'neutral',
+  running: 'accent',
+  waiting_review: 'warn',
+  completed: 'success',
+  failed: 'danger',
+  cancelled: 'neutral',
+}
+
+const runSeverityTone = {
+  info: 'neutral',
+  warning: 'warn',
+  error: 'danger',
+} as const
+
+const runStatusLabels: Record<Locale, Record<RunRecord['status'], string>> = {
+  en: {
+    queued: 'Queued',
+    running: 'Running',
+    waiting_review: 'Waiting Review',
+    completed: 'Completed',
+    failed: 'Failed',
+    cancelled: 'Cancelled',
+  },
+  'zh-CN': {
+    queued: '已排队',
+    running: '运行中',
+    waiting_review: '待评审',
+    completed: '已完成',
+    failed: '失败',
+    cancelled: '已取消',
+  },
+}
+
+const runSeverityLabels: Record<Locale, Record<keyof typeof runSeverityTone, string>> = {
+  en: {
+    info: 'Info',
+    warning: 'Warning',
+    error: 'Error',
+  },
+  'zh-CN': {
+    info: '提示',
+    warning: '警告',
+    error: '错误',
+  },
+}
+
+interface SceneBottomDockRunSupport {
+  run: RunRecord | null
+  events: RunEventRecord[]
+  isLoading: boolean
+  error: Error | null
+  isReviewPending: boolean
+}
+
+const dockProductMilestoneKinds = new Set<RunEventRecord['kind']>([
+  'proposal_created',
+  'review_requested',
+  'review_decision_submitted',
+  'canon_patch_applied',
+  'prose_generated',
+  'run_completed',
+  'run_failed',
+])
+
+function formatRunRefLabel(ref: NonNullable<RunEventRecord['refs']>[number]) {
+  return ref.kind
+}
+
+function ActiveRunSupport({
+  run,
+  events,
+  isLoading,
+  error,
+  isReviewPending,
+}: SceneBottomDockRunSupport) {
+  const { locale } = useI18n()
+  const recentEvents = events.filter((event) => dockProductMilestoneKinds.has(event.kind)).slice(-4)
+  const hasRunSupport = Boolean(run) || isLoading || Boolean(error) || recentEvents.length > 0
+
+  if (!hasRunSupport) {
+    return null
+  }
+
+  return (
+    <SectionCard
+      eyebrow={locale === 'zh-CN' ? '当前运行支持' : 'Active Run Support'}
+      title={run?.title ?? (locale === 'zh-CN' ? '当前没有活动运行' : 'No active run')}
+      actions={run ? <Badge tone={runStatusTone[run.status]}>{runStatusLabels[locale][run.status]}</Badge> : null}
+    >
+      <div className="space-y-4">
+        <p className="text-sm leading-6 text-text-muted">
+          {run
+            ? run.summary
+            : locale === 'zh-CN'
+              ? '当前场景一旦产生运行，会在这里显示最近一次产品级里程碑。'
+              : 'Recent product-level run milestones will appear here once the scene has an active run.'}
+        </p>
+        {run ? (
+          <div className="flex flex-wrap gap-2">
+            {isReviewPending ? <Badge tone="warn">{locale === 'zh-CN' ? '待评审' : 'Pending review'}</Badge> : null}
+            {run.status === 'completed' ? <Badge tone="success">{locale === 'zh-CN' ? '已完成' : 'Completed'}</Badge> : null}
+            {run.status === 'failed' ? <Badge tone="danger">{locale === 'zh-CN' ? '运行失败' : 'Run failed'}</Badge> : null}
+          </div>
+        ) : null}
+        {isLoading ? (
+          <EmptyState
+            title={locale === 'zh-CN' ? '正在加载最近运行事件' : 'Loading recent run events'}
+            message={
+              locale === 'zh-CN'
+                ? '正在为底部支持面板拉取当前场景最近一次运行的产品级事件。'
+                : 'Fetching recent product-level events for the current scene run.'
+            }
+          />
+        ) : error ? (
+          <EmptyState
+            title={locale === 'zh-CN' ? '运行时间线不可用' : 'Run timeline unavailable'}
+            message={
+              locale === 'zh-CN'
+                ? '运行支持区域暂时无法读取最近事件。'
+                : 'The run support area cannot load recent events right now.'
+            }
+          />
+        ) : recentEvents.length > 0 ? (
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-[0.08em] text-text-soft">{locale === 'zh-CN' ? '最近运行事件' : 'Recent Run Events'}</p>
+            <TimelineList
+              items={recentEvents.map((event) => {
+                const severity = event.severity ?? 'info'
+
+                return {
+                  id: event.id,
+                  title: event.label,
+                  detail: event.summary,
+                  meta: event.createdAtLabel,
+                  tone: runSeverityTone[severity],
+                  trailing:
+                    event.refs?.length || severity ? (
+                      <div className="flex max-w-[180px] flex-wrap justify-end gap-1">
+                        <Badge tone={runSeverityTone[severity]}>{runSeverityLabels[locale][severity]}</Badge>
+                        {event.refs?.map((ref) => (
+                          <Badge key={`${event.id}-${ref.kind}-${ref.id}`} title={ref.label ?? ref.id}>
+                            {formatRunRefLabel(ref)}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null,
+                }
+              })}
+            />
+          </div>
+        ) : (
+          <EmptyState
+            title={locale === 'zh-CN' ? '还没有运行事件' : 'No run events yet'}
+            message={
+              locale === 'zh-CN'
+                ? '当运行记录到产品级里程碑后，这里会显示最近几条事件。'
+                : 'Recent run milestones will appear here once the active scene run advances.'
+            }
+          />
+        )}
+      </div>
+    </SectionCard>
+  )
+}
+
+function EventsSupportArea({
+  items,
+  runSupport,
+}: {
+  items: SceneDockViewModel['events']
+  runSupport?: SceneBottomDockRunSupport
+}) {
+  const { locale } = useI18n()
+  const supportBlock = runSupport ? <ActiveRunSupport {...runSupport} /> : null
+
+  if (!supportBlock && items.length === 0) {
+    return <EventsTab items={items} />
+  }
+
+  return (
+    <div className="grid gap-4 p-4">
+      {supportBlock}
+      {items.length > 0 ? (
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.08em] text-text-soft">{locale === 'zh-CN' ? '场景支持事件' : 'Scene Support Events'}</p>
+          <TimelineList items={items} />
+        </div>
+      ) : null}
+      {!supportBlock && items.length === 0 ? (
+        <EmptyState
+          title={locale === 'zh-CN' ? '还没有事件' : 'No events yet'}
+          message={
+            locale === 'zh-CN'
+              ? '当执行流程产出结构化事件摘要时，它们会出现在这里。'
+              : 'Structured event summaries will appear here when execution emits them.'
+          }
+        />
+      ) : null}
     </div>
   )
 }
@@ -187,10 +392,11 @@ interface SceneBottomDockProps {
   data: SceneDockViewModel
   activeTab: SceneDockTabId
   isHydratingTab?: boolean
+  runSupport?: SceneBottomDockRunSupport
   onTabChange: (tab: SceneDockTabId) => void
 }
 
-export function SceneBottomDock({ data, activeTab, isHydratingTab = false, onTabChange }: SceneBottomDockProps) {
+export function SceneBottomDock({ data, activeTab, isHydratingTab = false, runSupport, onTabChange }: SceneBottomDockProps) {
   const { locale } = useI18n()
 
   return (
@@ -219,7 +425,7 @@ export function SceneBottomDock({ data, activeTab, isHydratingTab = false, onTab
             />
           </div>
         ) : activeTab === 'events' ? (
-          <EventsTab items={data.events} />
+          <EventsSupportArea items={data.events} runSupport={runSupport} />
         ) : activeTab === 'trace' ? (
           <TraceTab items={data.trace} />
         ) : activeTab === 'consistency' ? (

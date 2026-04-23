@@ -20,8 +20,7 @@ describe('SceneExecutionContainer', () => {
     vi.unmock('../hooks/useSceneExecutionQuery')
     vi.unmock('../hooks/useProposalActions')
     vi.unmock('../components/SceneExecutionTab')
-    vi.unmock('@/features/run/hooks/useSceneRunSession')
-    vi.unmock('../hooks/useSceneWorkspaceQuery')
+    vi.unmock('./scene-run-session-context')
     vi.unmock('../hooks/useSceneWorkspaceActions')
   })
 
@@ -29,7 +28,7 @@ describe('SceneExecutionContainer', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const startRun = vi.fn()
     const continueRun = vi.fn()
-    const useSceneRunSession = vi.fn(() => ({
+    const useSharedSceneRunSession = vi.fn(() => ({
       run: null,
       events: [],
       pendingReviewId: null,
@@ -69,13 +68,6 @@ describe('SceneExecutionContainer', () => {
         error: null,
       }),
     }))
-    vi.doMock('../hooks/useSceneWorkspaceQuery', () => ({
-      useSceneWorkspaceQuery: () => ({
-        scene: {
-          latestRunId: 'run-from-workspace-surface',
-        },
-      }),
-    }))
     vi.doMock('../hooks/useProposalActions', () => ({
       useProposalActions: () => ({
         accept: vi.fn(),
@@ -93,8 +85,8 @@ describe('SceneExecutionContainer', () => {
         openTab: vi.fn(),
       }),
     }))
-    vi.doMock('@/features/run/hooks/useSceneRunSession', () => ({
-      useSceneRunSession,
+    vi.doMock('./scene-run-session-context', () => ({
+      useSharedSceneRunSession,
     }))
     vi.doMock('../components/SceneExecutionTab', () => ({
       SceneExecutionTab: (props: Record<string, unknown>) => {
@@ -121,11 +113,7 @@ describe('SceneExecutionContainer', () => {
     ).not.toThrow()
     expect(screen.getByText('execution tab')).toBeInTheDocument()
     expect(consoleError.mock.calls.some((call) => String(call[0]).includes('Maximum update depth exceeded'))).toBe(false)
-    expect(useSceneRunSession).toHaveBeenCalledWith({
-      sceneId: 'scene-midnight-platform',
-      runId: 'run-from-execution-surface',
-      latestRunId: 'run-from-workspace-surface',
-    })
+    expect(useSharedSceneRunSession).toHaveBeenCalled()
     expect(sceneExecutionTabProps).toMatchObject({
       runSession: expect.objectContaining({
         run: null,
@@ -148,15 +136,8 @@ describe('SceneExecutionContainer', () => {
 
     window.history.replaceState({}, '', '/workbench?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
     vi.doUnmock('../components/SceneExecutionTab')
-    vi.doMock('../hooks/useSceneWorkspaceQuery', () => ({
-      useSceneWorkspaceQuery: () => ({
-        scene: {
-          latestRunId: 'run-from-workspace-surface',
-        },
-      }),
-    }))
-    vi.doMock('@/features/run/hooks/useSceneRunSession', () => ({
-      useSceneRunSession: () => ({
+    vi.doMock('./scene-run-session-context', () => ({
+      useSharedSceneRunSession: () => ({
         run: {
           id: 'run-from-execution-surface',
           scope: 'scene',

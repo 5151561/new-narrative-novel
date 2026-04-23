@@ -2,15 +2,14 @@ import { useEffect, useMemo } from 'react'
 
 import { useI18n } from '@/app/i18n'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { useSceneRunSession } from '@/features/run/hooks/useSceneRunSession'
 
 import { SceneExecutionTab } from '../components/SceneExecutionTab'
 import { useProposalActions } from '../hooks/useProposalActions'
 import { useProposalFilters } from '../hooks/useProposalFilters'
 import { useSceneRouteState } from '../hooks/useSceneRouteState'
 import { useSceneExecutionQuery } from '../hooks/useSceneExecutionQuery'
-import { useSceneWorkspaceQuery } from '../hooks/useSceneWorkspaceQuery'
 import { useSceneWorkspaceActions } from '../hooks/useSceneWorkspaceActions'
+import { useSharedSceneRunSession } from './scene-run-session-context'
 
 interface SceneExecutionContainerProps {
   sceneId: string
@@ -19,14 +18,9 @@ interface SceneExecutionContainerProps {
 export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProps) {
   const { locale } = useI18n()
   const execution = useSceneExecutionQuery(sceneId)
-  const workspaceQuery = useSceneWorkspaceQuery(sceneId)
   const actions = useProposalActions(sceneId)
   const workspaceActions = useSceneWorkspaceActions({ sceneId })
-  const runSession = useSceneRunSession({
-    sceneId,
-    runId: execution.runId,
-    latestRunId: workspaceQuery.scene?.latestRunId ?? null,
-  })
+  const runSession = useSharedSceneRunSession()
   const { route, setRoute } = useSceneRouteState()
   const { filters, setFilters, resetFilters } = useProposalFilters()
 

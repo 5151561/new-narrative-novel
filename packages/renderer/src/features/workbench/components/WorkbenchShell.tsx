@@ -64,7 +64,12 @@ export function WorkbenchShell({
           )}
         </Pane>
       </div>
-      <Pane muted className="mx-3 mb-3 min-h-0">
+      <Pane
+        muted
+        className="mx-3 mb-3 min-h-0"
+        role="region"
+        aria-label={dictionary.shell.bottomDockTitle}
+      >
         {bottomDock ?? (
           <>
             <PaneHeader title={dictionary.shell.bottomDockTitle} description={dictionary.shell.bottomDockDescription} />

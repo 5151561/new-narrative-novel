@@ -18,7 +18,9 @@ import { ChapterWorkbench } from '@/features/chapter/containers/ChapterWorkbench
 import { BookWorkbench } from '@/features/book/containers/BookWorkbench'
 import { SceneDockContainer } from '@/features/scene/containers/SceneDockContainer'
 import { SceneInspectorContainer } from '@/features/scene/containers/SceneInspectorContainer'
+import { SceneRunSessionProvider } from '@/features/scene/containers/scene-run-session-context'
 import { SceneWorkspace } from '@/features/scene/containers/SceneWorkspace'
+import { useSceneExecutionQuery } from '@/features/scene/hooks/useSceneExecutionQuery'
 import { sceneQueryKeys } from '@/features/scene/hooks/scene-query-keys'
 import { useSceneWorkspaceQuery } from '@/features/scene/hooks/useSceneWorkspaceQuery'
 import type { SceneTab, SceneWorkspaceViewModel } from '@/features/scene/types/scene-view-models'
@@ -272,6 +274,7 @@ function SceneWorkbench({
   const runtime = useProjectRuntime()
   const sceneId = route.sceneId
   const activeSceneQuery = useSceneWorkspaceQuery(sceneId)
+  const sceneExecutionQuery = useSceneExecutionQuery(sceneId)
   const navigatorChapterId = activeSceneQuery.scene?.chapterId ?? getSceneFixtureChapterId(sceneId)
   const navigatorChapterRecord = navigatorChapterId ? getMockChapterRecordById(navigatorChapterId) : null
   const navigatorSceneIds = navigatorChapterRecord?.scenes.map((scene) => scene.id) ?? []
@@ -307,47 +310,53 @@ function SceneWorkbench({
   const activeScene = activeSceneQuery.scene ?? navigatorQueries.find((query) => query.data?.id === sceneId)?.data
 
   return (
-    <WorkbenchShell
-      topBar={<SceneTopCommandBar activeScene={activeScene} lens={route.lens} tab={route.tab} />}
-      modeRail={
-        <ModeRail
-          activeScope="scene"
-          activeLens={route.lens}
-          onSelectScope={(scope) => {
-            if (scope === 'scene') {
-              return
-            }
-            replaceRoute({ scope })
-          }}
-          onSelectLens={(lens, tab) => {
-            patchSceneRoute({
-              lens,
-              tab,
-              beatId: undefined,
-              proposalId: undefined,
-              modal: undefined,
-            })
-          }}
-        />
-      }
-      navigator={
-        <NavigatorPane
-          items={navigatorItems}
-          activeSceneId={sceneId}
-          onSelectScene={(nextSceneId) => {
-            patchSceneRoute({
-              sceneId: nextSceneId,
-              beatId: undefined,
-              proposalId: undefined,
-              modal: undefined,
-            })
-          }}
-        />
-      }
-      mainStage={<SceneWorkspace sceneId={sceneId} defaultTab="execution" />}
-      inspector={<SceneInspectorContainer sceneId={sceneId} />}
-      bottomDock={<SceneDockContainer sceneId={sceneId} />}
-    />
+    <SceneRunSessionProvider
+      sceneId={sceneId}
+      runId={sceneExecutionQuery.runId}
+      latestRunId={activeSceneQuery.scene?.latestRunId ?? null}
+    >
+      <WorkbenchShell
+        topBar={<SceneTopCommandBar activeScene={activeScene} lens={route.lens} tab={route.tab} />}
+        modeRail={
+          <ModeRail
+            activeScope="scene"
+            activeLens={route.lens}
+            onSelectScope={(scope) => {
+              if (scope === 'scene') {
+                return
+              }
+              replaceRoute({ scope })
+            }}
+            onSelectLens={(lens, tab) => {
+              patchSceneRoute({
+                lens,
+                tab,
+                beatId: undefined,
+                proposalId: undefined,
+                modal: undefined,
+              })
+            }}
+          />
+        }
+        navigator={
+          <NavigatorPane
+            items={navigatorItems}
+            activeSceneId={sceneId}
+            onSelectScene={(nextSceneId) => {
+              patchSceneRoute({
+                sceneId: nextSceneId,
+                beatId: undefined,
+                proposalId: undefined,
+                modal: undefined,
+              })
+            }}
+          />
+        }
+        mainStage={<SceneWorkspace sceneId={sceneId} defaultTab="execution" />}
+        inspector={<SceneInspectorContainer sceneId={sceneId} />}
+        bottomDock={<SceneDockContainer sceneId={sceneId} />}
+      />
+    </SceneRunSessionProvider>
   )
 }
 

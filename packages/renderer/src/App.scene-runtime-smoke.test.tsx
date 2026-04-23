@@ -1,0 +1,131 @@
+import { QueryClient } from '@tanstack/react-query'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import { AppProviders } from '@/app/providers'
+import { createApiProjectRuntime } from '@/app/project-runtime'
+import { createApiTransport } from '@/app/project-runtime/api-transport'
+
+import { createTestServer } from '../../api/src/test/support/test-server'
+
+const originalNavigatorLanguage = window.navigator.language
+const projectId = 'book-signal-arc'
+const sceneRoute = '/workbench?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution'
+
+vi.mock('@/features/scene/containers/SceneInspectorContainer', () => ({
+  SceneInspectorContainer: ({ sceneId }: { sceneId: string }) => <div data-testid="scene-inspector">{sceneId}</div>,
+}))
+
+function setNavigatorLanguage(language: string) {
+  Object.defineProperty(window.navigator, 'language', {
+    configurable: true,
+    value: language,
+  })
+}
+
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 30_000,
+        retry: false,
+        refetchOnWindowFocus: false,
+      },
+      mutations: {
+        retry: false,
+      },
+    },
+  })
+}
+
+async function renderSceneApp(baseUrl: string) {
+  window.history.replaceState({}, '', sceneRoute)
+  const runtime = createApiProjectRuntime({
+    projectId,
+    transport: createApiTransport({ baseUrl }),
+  })
+  const { default: App } = await import('./App')
+
+  return render(
+    <AppProviders runtime={runtime} queryClient={createQueryClient()}>
+      <App />
+    </AppProviders>,
+  )
+}
+
+describe('App scene runtime smoke', () => {
+  const servers: Array<ReturnType<typeof createTestServer>> = []
+
+  beforeEach(() => {
+    setNavigatorLanguage('en-US')
+    window.localStorage.clear()
+  })
+
+  afterEach(async () => {
+    setNavigatorLanguage(originalNavigatorLanguage)
+    window.localStorage.clear()
+
+    while (servers.length > 0) {
+      await servers.pop()?.app.close()
+    }
+  })
+
+  it('drives the HTTP runtime through start, waiting review, accept, and scene refresh surfaces', async () => {
+    const user = userEvent.setup()
+    const server = createTestServer()
+    servers.push(server)
+
+    await server.app.listen({
+      host: server.config.host,
+      port: 0,
+    })
+
+    const address = server.app.server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Expected a TCP address from the test API server.')
+    }
+
+    await renderSceneApp(`http://${server.config.host}:${address.port}`)
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+
+    await user.click(screen.getAllByRole('button', { name: 'Rewrite Run' })[0]!)
+
+    const bottomDock = screen.getByRole('region', { name: 'Bottom Dock' })
+
+    await waitFor(() => {
+      expect(within(bottomDock).getByText('Active Run Support')).toBeInTheDocument()
+      expect(within(bottomDock).getByText('scene-midnight-platform run')).toBeInTheDocument()
+    })
+
+    await waitFor(() => {
+      expect(within(bottomDock).getByText('Waiting Review')).toBeInTheDocument()
+      expect(within(bottomDock).getByText('Review requested')).toBeInTheDocument()
+    })
+
+    const runReviewGate = screen.getAllByText('Run Review Gate')[0]?.closest('section')
+    if (!runReviewGate) {
+      throw new Error('Expected the run review gate to be visible before submitting acceptance.')
+    }
+
+    await user.click(within(runReviewGate).getByRole('button', { name: 'Accept' }))
+
+    await waitFor(() => {
+      expect(within(bottomDock).queryByText('Pending review')).not.toBeInTheDocument()
+      expect(within(bottomDock).getAllByText('Completed').length).toBeGreaterThan(0)
+      expect(within(bottomDock).getByText('Review decision submitted')).toBeInTheDocument()
+      expect(within(bottomDock).getByText('Run completed')).toBeInTheDocument()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Open Prose' })).toBeEnabled()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Open Prose' }))
+
+    expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
+    expect(within(bottomDock).getByText('Active Run Support')).toBeInTheDocument()
+    expect(within(bottomDock).getAllByText('Proposal set accepted and applied to canon and prose.').length).toBeGreaterThan(0)
+  }, 20000)
+})

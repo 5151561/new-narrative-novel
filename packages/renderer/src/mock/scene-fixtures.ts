@@ -90,7 +90,7 @@ const midnightPlatform: SceneRecord = {
     objective: 'Force Ren to bargain for the ledger before the train departs.',
     castIds: ['ren', 'mei', 'conductor'],
     locationId: 'glass-platform',
-    latestRunId: 'run-07',
+    latestRunId: 'run-scene-midnight-platform-001',
     pendingProposalCount: 3,
     warningCount: 2,
     currentVersionLabel: 'Run 07',
@@ -175,7 +175,7 @@ const midnightPlatform: SceneRecord = {
     },
   },
   execution: {
-    runId: 'run-07',
+    runId: 'run-scene-midnight-platform-001',
     objective: {
       goal: 'Corner Mei into revealing whether the ledger is bait or leverage.',
       tensionLabel: 'Escalating',
