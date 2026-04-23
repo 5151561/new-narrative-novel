@@ -130,6 +130,51 @@ describe('useSceneRunSession', () => {
       },
     )
 
+    queryClient.setQueryData(sceneQueryKeys.workspace('scene-midnight-platform', 'en'), {
+      id: 'scene-midnight-platform',
+      title: 'Midnight platform',
+      chapterId: 'chapter-signals-in-rain',
+      chapterTitle: 'Signals in Rain',
+      status: 'review' as const,
+      runStatus: 'paused' as const,
+      objective: 'Keep the ledger closed.',
+      castIds: ['ren', 'mei'],
+      latestRunId: 'run-scene-midnight-platform-001',
+      pendingProposalCount: 2,
+      warningCount: 1,
+      currentVersionLabel: 'Run 07',
+      activeThreadId: 'thread-main',
+      availableThreads: [{ id: 'thread-main', label: 'Mainline' }],
+    })
+    queryClient.setQueryData(sceneQueryKeys.execution('scene-midnight-platform', 'en'), {
+      runId: 'run-scene-midnight-platform-001',
+      objective: {
+        goal: 'Keep the ledger closed.',
+        warningsCount: 1,
+        unresolvedCount: 0,
+        cast: [],
+        constraintSummary: [],
+      },
+      beats: [],
+      proposals: [],
+      acceptedSummary: {
+        sceneSummary: '',
+        acceptedFacts: [],
+        readiness: 'not-ready' as const,
+        pendingProposalCount: 0,
+        warningCount: 0,
+        patchCandidateCount: 0,
+      },
+      runtimeSummary: {
+        runHealth: 'stable' as const,
+        latencyLabel: '',
+        tokenLabel: '',
+        costLabel: '',
+      },
+      canContinueRun: true,
+      canOpenProse: false,
+    })
+
     expect(hook.result.current.activeRunId).toBeNull()
 
     await act(async () => {
@@ -147,6 +192,78 @@ describe('useSceneRunSession', () => {
       sceneId: 'scene-midnight-platform',
       mode: 'rewrite',
       note: 'Tighten the ending beat.',
+    })
+    expect(queryClient.getQueryData(sceneQueryKeys.workspace('scene-midnight-platform', 'en'))).toMatchObject({
+      runStatus: 'running',
+      latestRunId: startedRun.id,
+    })
+    expect(queryClient.getQueryData(sceneQueryKeys.execution('scene-midnight-platform', 'en'))).toMatchObject({
+      runId: startedRun.id,
+      canContinueRun: false,
+    })
+  })
+
+  it('switches to the newly started run when stale scene surfaces still point at an older run id', async () => {
+    const queryClient = createQueryClient()
+    const staleRun = createRun({
+      id: 'run-scene-midnight-platform-001',
+      status: 'waiting_review',
+      summary: 'Older run still pinned in scene surfaces.',
+      pendingReviewId: 'review-scene-midnight-platform-001',
+    })
+    const startedRun = createRun({
+      id: 'run-scene-midnight-platform-002',
+      status: 'running',
+      summary: 'Rewrite run is now active.',
+    })
+    const getRun = vi.fn(async ({ runId }) => {
+      if (runId === startedRun.id) {
+        return startedRun
+      }
+
+      return staleRun
+    })
+    const getRunEvents = vi.fn(async ({ runId }) => createEventsPage({ runId }))
+    const runClient = createRunClient({
+      startSceneRun: vi.fn(async (_input: StartSceneRunInput) => startedRun),
+      getRun,
+      getRunEvents,
+    })
+
+    const hook = renderHook(
+      () =>
+        useSceneRunSession({
+          sceneId: 'scene-midnight-platform',
+          runId: staleRun.id,
+          latestRunId: staleRun.id,
+        }),
+      {
+        wrapper: createWrapper(runClient, queryClient),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.activeRunId).toBe(staleRun.id)
+      expect(hook.result.current.run?.summary).toBe(staleRun.summary)
+    })
+
+    await act(async () => {
+      await hook.result.current.startRun({
+        mode: 'from-scratch',
+      })
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.activeRunId).toBe(startedRun.id)
+      expect(hook.result.current.run?.summary).toBe(startedRun.summary)
+    })
+
+    expect(runClient.startSceneRun).toHaveBeenCalledWith({
+      sceneId: 'scene-midnight-platform',
+      mode: 'from-scratch',
+    })
+    expect(getRun).toHaveBeenCalledWith({
+      runId: startedRun.id,
     })
   })
 

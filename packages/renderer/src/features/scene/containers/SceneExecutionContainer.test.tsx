@@ -20,14 +20,32 @@ describe('SceneExecutionContainer', () => {
     vi.unmock('../hooks/useSceneExecutionQuery')
     vi.unmock('../hooks/useProposalActions')
     vi.unmock('../components/SceneExecutionTab')
+    vi.unmock('@/features/run/hooks/useSceneRunSession')
+    vi.unmock('../hooks/useSceneWorkspaceQuery')
     vi.unmock('../hooks/useSceneWorkspaceActions')
   })
 
   it('stays stable when execution loads without any visible proposals', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const startRun = vi.fn()
+    const continueRun = vi.fn()
+    const useSceneRunSession = vi.fn(() => ({
+      run: null,
+      events: [],
+      pendingReviewId: null,
+      isReviewPending: false,
+      isLoading: false,
+      error: null,
+      isStartingRun: false,
+      isSubmittingDecision: false,
+      startRun,
+      submitDecision: vi.fn(),
+    }))
+    let sceneExecutionTabProps: Record<string, unknown> | undefined
 
     vi.doMock('../hooks/useSceneExecutionQuery', () => ({
       useSceneExecutionQuery: () => ({
+        runId: 'run-from-execution-surface',
         objective: {
           goal: '',
           warningsCount: 0,
@@ -51,6 +69,13 @@ describe('SceneExecutionContainer', () => {
         error: null,
       }),
     }))
+    vi.doMock('../hooks/useSceneWorkspaceQuery', () => ({
+      useSceneWorkspaceQuery: () => ({
+        scene: {
+          latestRunId: 'run-from-workspace-surface',
+        },
+      }),
+    }))
     vi.doMock('../hooks/useProposalActions', () => ({
       useProposalActions: () => ({
         accept: vi.fn(),
@@ -62,14 +87,20 @@ describe('SceneExecutionContainer', () => {
     }))
     vi.doMock('../hooks/useSceneWorkspaceActions', () => ({
       useSceneWorkspaceActions: () => ({
-        continueRun: vi.fn(),
+        continueRun,
         openPatchPreview: vi.fn(),
         openProse: vi.fn(),
         openTab: vi.fn(),
       }),
     }))
+    vi.doMock('@/features/run/hooks/useSceneRunSession', () => ({
+      useSceneRunSession,
+    }))
     vi.doMock('../components/SceneExecutionTab', () => ({
-      SceneExecutionTab: () => <div>execution tab</div>,
+      SceneExecutionTab: (props: Record<string, unknown>) => {
+        sceneExecutionTabProps = props
+        return <div>execution tab</div>
+      },
     }))
 
     const { SceneExecutionContainer } = await import('./SceneExecutionContainer')
@@ -90,6 +121,26 @@ describe('SceneExecutionContainer', () => {
     ).not.toThrow()
     expect(screen.getByText('execution tab')).toBeInTheDocument()
     expect(consoleError.mock.calls.some((call) => String(call[0]).includes('Maximum update depth exceeded'))).toBe(false)
+    expect(useSceneRunSession).toHaveBeenCalledWith({
+      sceneId: 'scene-midnight-platform',
+      runId: 'run-from-execution-surface',
+      latestRunId: 'run-from-workspace-surface',
+    })
+    expect(sceneExecutionTabProps).toMatchObject({
+      runSession: expect.objectContaining({
+        run: null,
+        events: [],
+      }),
+    })
+
+    await waitFor(async () => {
+      await (sceneExecutionTabProps?.onContinueRun as (() => Promise<void> | void) | undefined)?.()
+    })
+
+    expect(startRun).toHaveBeenCalledWith({
+      mode: 'continue',
+    })
+    expect(continueRun).not.toHaveBeenCalled()
   })
 
   it('filters proposals through the execution review controls', async () => {
@@ -97,9 +148,54 @@ describe('SceneExecutionContainer', () => {
 
     window.history.replaceState({}, '', '/workbench?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
     vi.doUnmock('../components/SceneExecutionTab')
+    vi.doMock('../hooks/useSceneWorkspaceQuery', () => ({
+      useSceneWorkspaceQuery: () => ({
+        scene: {
+          latestRunId: 'run-from-workspace-surface',
+        },
+      }),
+    }))
+    vi.doMock('@/features/run/hooks/useSceneRunSession', () => ({
+      useSceneRunSession: () => ({
+        run: {
+          id: 'run-from-execution-surface',
+          scope: 'scene',
+          scopeId: 'scene-midnight-platform',
+          status: 'waiting_review',
+          title: 'Midnight platform scene run',
+          summary: 'Planner and writer output are ready for review.',
+          startedAtLabel: '2026-04-21 10:00',
+          pendingReviewId: 'review-scene-midnight-platform-001',
+          latestEventId: 'run-event-001',
+          eventCount: 1,
+        },
+        events: [
+          {
+            id: 'run-event-001',
+            runId: 'run-from-execution-surface',
+            order: 1,
+            kind: 'review_requested',
+            label: 'Review requested',
+            summary: 'Editorial review is waiting on the proposal set.',
+            createdAtLabel: '2026-04-21 10:09',
+            severity: 'warning' as const,
+            refs: [{ kind: 'review' as const, id: 'review-scene-midnight-platform-001' }],
+          },
+        ],
+        pendingReviewId: 'review-scene-midnight-platform-001',
+        isReviewPending: true,
+        isLoading: false,
+        error: null,
+        isStartingRun: false,
+        isSubmittingDecision: false,
+        startRun: vi.fn(),
+        submitDecision: vi.fn(),
+      }),
+    }))
 
     vi.doMock('../hooks/useSceneExecutionQuery', () => ({
       useSceneExecutionQuery: () => ({
+        runId: 'run-from-execution-surface',
         objective: {
           goal: 'Keep the ledger closed while forcing Mei to show her leverage.',
           warningsCount: 2,
@@ -210,6 +306,8 @@ describe('SceneExecutionContainer', () => {
     expect(await screen.findByText('Pending conflict proposal')).toBeInTheDocument()
     expect(screen.getByText('Accepted dialogue proposal')).toBeInTheDocument()
     expect(screen.getByText('Rewrite state-change proposal')).toBeInTheDocument()
+    expect(screen.getAllByText('Midnight platform scene run').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Review requested').length).toBeGreaterThan(0)
 
     await user.selectOptions(screen.getByLabelText('Status'), 'accepted')
 

@@ -21,6 +21,7 @@ export function useSceneExecutionQuery(sceneId: string, client?: SceneClient) {
   })
 
   return {
+    runId: query.data?.runId,
     objective: query.data?.objective ?? {
       goal: '',
       warningsCount: 0,

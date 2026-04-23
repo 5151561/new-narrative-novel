@@ -2,12 +2,14 @@ import { useEffect, useMemo } from 'react'
 
 import { useI18n } from '@/app/i18n'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { useSceneRunSession } from '@/features/run/hooks/useSceneRunSession'
 
 import { SceneExecutionTab } from '../components/SceneExecutionTab'
 import { useProposalActions } from '../hooks/useProposalActions'
 import { useProposalFilters } from '../hooks/useProposalFilters'
 import { useSceneRouteState } from '../hooks/useSceneRouteState'
 import { useSceneExecutionQuery } from '../hooks/useSceneExecutionQuery'
+import { useSceneWorkspaceQuery } from '../hooks/useSceneWorkspaceQuery'
 import { useSceneWorkspaceActions } from '../hooks/useSceneWorkspaceActions'
 
 interface SceneExecutionContainerProps {
@@ -17,8 +19,14 @@ interface SceneExecutionContainerProps {
 export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProps) {
   const { locale } = useI18n()
   const execution = useSceneExecutionQuery(sceneId)
+  const workspaceQuery = useSceneWorkspaceQuery(sceneId)
   const actions = useProposalActions(sceneId)
   const workspaceActions = useSceneWorkspaceActions({ sceneId })
+  const runSession = useSceneRunSession({
+    sceneId,
+    runId: execution.runId,
+    latestRunId: workspaceQuery.scene?.latestRunId ?? null,
+  })
   const { route, setRoute } = useSceneRouteState()
   const { filters, setFilters, resetFilters } = useProposalFilters()
 
@@ -122,10 +130,24 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
       selectedProposalId={selectedProposalId}
       filters={activeFilters}
       acceptedSummary={execution.acceptedSummary}
-      canContinueRun={execution.canContinueRun}
+      runSession={{
+        run: runSession.run,
+        events: runSession.events,
+        pendingReviewId: runSession.pendingReviewId,
+        isReviewPending: runSession.isReviewPending,
+        isLoading: runSession.isLoading,
+        error: runSession.error,
+        isStartingRun: runSession.isStartingRun,
+        isSubmittingDecision: runSession.isSubmittingDecision,
+        onStartRun: async (mode) => {
+          await runSession.startRun({ mode })
+        },
+        onSubmitDecision: runSession.submitDecision,
+      }}
+      canContinueRun={execution.canContinueRun && !runSession.isStartingRun && !runSession.isSubmittingDecision}
       canOpenProse={execution.canOpenProse}
       onOpenSetup={() => workspaceActions.openTab('setup')}
-      onContinueRun={() => void workspaceActions.continueRun()}
+      onContinueRun={() => void runSession.startRun({ mode: 'continue' })}
       onOpenPatchPreview={workspaceActions.openPatchPreview}
       onOpenProse={workspaceActions.openProse}
       onSelectBeat={(beatId) => {

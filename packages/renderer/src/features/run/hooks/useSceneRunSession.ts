@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { sceneQueryKeys } from '@/features/scene/hooks/scene-query-keys'
+import type { SceneExecutionViewModel, SceneWorkspaceViewModel } from '@/features/scene/types/scene-view-models'
 
 import type { RunRecord, RunStatus, StartSceneRunInput, SubmitRunReviewDecisionInput } from '../api/run-records'
 
@@ -39,6 +40,36 @@ async function invalidateSceneRunQueryFamilies(queryClient: ReturnType<typeof us
   ])
 }
 
+function syncSceneRunViewCaches(
+  queryClient: ReturnType<typeof useQueryClient>,
+  sceneId: string,
+  run: RunRecord,
+) {
+  queryClient.setQueriesData<SceneWorkspaceViewModel | undefined>(
+    { queryKey: sceneQueryKeys.workspace(sceneId) },
+    (current) =>
+      current
+        ? {
+            ...current,
+            runStatus: run.status === 'completed' ? 'completed' : run.status === 'failed' ? 'failed' : 'running',
+            latestRunId: run.id,
+          }
+        : current,
+  )
+
+  queryClient.setQueriesData<SceneExecutionViewModel | undefined>(
+    { queryKey: sceneQueryKeys.execution(sceneId) },
+    (current) =>
+      current
+        ? {
+            ...current,
+            runId: run.id,
+            canContinueRun: false,
+          }
+        : current,
+  )
+}
+
 export function useSceneRunSession({ sceneId, runId, latestRunId }: UseSceneRunSessionInput) {
   const queryClient = useQueryClient()
   const startSceneRun = useStartSceneRunMutation()
@@ -50,7 +81,7 @@ export function useSceneRunSession({ sceneId, runId, latestRunId }: UseSceneRunS
   }, [sceneId])
 
   const sceneSessionStartedRun = sessionStartedRun?.sceneId === sceneId ? sessionStartedRun.run : null
-  const activeRunId = runId ?? latestRunId ?? sceneSessionStartedRun?.id ?? null
+  const activeRunId = sceneSessionStartedRun?.id ?? runId ?? latestRunId ?? null
   const runQuery = useRunQuery(activeRunId)
   const timelineQuery = useRunEventTimelineQuery(activeRunId)
   const refetchRunRef = useRef(runQuery.refetch)
@@ -113,6 +144,7 @@ export function useSceneRunSession({ sceneId, runId, latestRunId }: UseSceneRunS
         sceneId,
         run: startedRun,
       })
+      syncSceneRunViewCaches(queryClient, sceneId, startedRun)
       return startedRun
     },
     isStartingRun: startSceneRun.isPending,
