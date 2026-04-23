@@ -67,7 +67,7 @@ export function createCanonPatchArtifact(input: SceneRunArtifactBaseInput): Scen
     sceneId: input.sceneId,
     title: 'Canon patch',
     summary: 'Accepted canon patch for the scene run.',
-    status: 'pending',
+    status: 'applied',
   }
 }
 
@@ -79,6 +79,6 @@ export function createProseDraftArtifact(input: SceneRunArtifactBaseInput): Scen
     sceneId: input.sceneId,
     title: 'Prose draft',
     summary: 'Generated prose draft for the scene run.',
-    status: 'pending',
+    status: 'generated',
   }
 }

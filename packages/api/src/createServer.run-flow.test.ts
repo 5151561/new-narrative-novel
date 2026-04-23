@@ -16,10 +16,14 @@ describe('fixture API server run flow', () => {
       expect(startResponse.statusCode).toBe(200)
       const startedRun = startResponse.json()
       expect(startedRun).toMatchObject({
+        id: 'run-scene-midnight-platform-002',
         status: 'waiting_review',
+        summary: 'Waiting for review: Tighten the ending beat.',
+        startedAtLabel: '2026-04-23 10:01',
+        pendingReviewId: 'review-scene-midnight-platform-002',
+        latestEventId: 'run-event-scene-midnight-platform-002-009',
+        eventCount: 9,
       })
-      expect(startedRun.id).toBeTruthy()
-      expect(startedRun.pendingReviewId).toBeTruthy()
 
       const detailResponse = await app.inject({
         method: 'GET',
@@ -28,9 +32,10 @@ describe('fixture API server run flow', () => {
       expect(detailResponse.statusCode).toBe(200)
       expect(detailResponse.json()).toMatchObject({
         id: startedRun.id,
+        pendingReviewId: 'review-scene-midnight-platform-002',
+        latestEventId: 'run-event-scene-midnight-platform-002-009',
         eventCount: 9,
       })
-      expect(detailResponse.json().latestEventId).toBeTruthy()
 
       const sceneAfterStart = await app.inject({
         method: 'GET',
@@ -64,7 +69,7 @@ describe('fixture API server run flow', () => {
       expect(firstEventsResponse.statusCode).toBe(200)
       const firstEventsPage = firstEventsResponse.json()
       expect(firstEventsPage.runId).toBe(startedRun.id)
-      expect(firstEventsPage.nextCursor).toBeTruthy()
+      expect(firstEventsPage.nextCursor).toBe('run-event-scene-midnight-platform-002-004')
       expect(firstEventsPage.events.map((event: { kind: string }) => event.kind)).toEqual([
         'run_created',
         'run_started',
@@ -79,7 +84,7 @@ describe('fixture API server run flow', () => {
       expect(nextEventsResponse.statusCode).toBe(200)
       const nextEventsPage = nextEventsResponse.json()
       expect(nextEventsPage.runId).toBe(startedRun.id)
-      expect(nextEventsPage.nextCursor).toBeTruthy()
+      expect(nextEventsPage.nextCursor).toBe('run-event-scene-midnight-platform-002-008')
       expect(nextEventsPage.events.map((event: { kind: string }) => event.kind)).toEqual([
         'agent_invocation_completed',
         'agent_invocation_started',
@@ -111,6 +116,9 @@ describe('fixture API server run flow', () => {
         id: startedRun.id,
         status: 'completed',
         summary: 'Proposal set accepted and applied to canon and prose.',
+        completedAtLabel: '2026-04-23 10:13',
+        latestEventId: 'run-event-scene-midnight-platform-002-013',
+        eventCount: 13,
       })
       expect(reviewResponse.json()).not.toHaveProperty('pendingReviewId')
 
@@ -184,10 +192,11 @@ describe('fixture API server run flow', () => {
       expect(startResponse.statusCode).toBe(200)
       const startedRun = startResponse.json()
       expect(startedRun).toMatchObject({
+        id: 'run-scene-midnight-platform-002',
         status: 'waiting_review',
+        pendingReviewId: 'review-scene-midnight-platform-002',
+        latestEventId: 'run-event-scene-midnight-platform-002-009',
       })
-      expect(startedRun.id).toBeTruthy()
-      expect(startedRun.pendingReviewId).toBeTruthy()
 
       const reviewResponse = await app.inject({
         method: 'POST',
@@ -203,6 +212,8 @@ describe('fixture API server run flow', () => {
         id: startedRun.id,
         status: 'running',
         summary: 'Rewrite requested and the run returned to execution.',
+        latestEventId: 'run-event-scene-midnight-platform-002-010',
+        eventCount: 10,
       })
       expect(reviewResponse.json()).not.toHaveProperty('pendingReviewId')
       expect(reviewResponse.json()).not.toHaveProperty('completedAtLabel')

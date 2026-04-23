@@ -37,11 +37,13 @@ describe('applySceneRunReviewDecisionTransition', () => {
         kind: 'canon-patch',
         id: 'canon-patch-scene-midnight-platform-002',
         runId: 'run-scene-midnight-platform-002',
+        status: 'applied',
       }),
       expect.objectContaining({
         kind: 'prose-draft',
         id: 'prose-draft-scene-midnight-platform-002',
         runId: 'run-scene-midnight-platform-002',
+        status: 'generated',
       }),
     ])
     expect(transition.nextRun).toEqual({
@@ -79,6 +81,7 @@ describe('applySceneRunReviewDecisionTransition', () => {
       expect.objectContaining({
         kind: 'canon-patch',
         id: 'canon-patch-custom-777',
+        status: 'applied',
       }),
     )
     expect(transition.nextRun).toEqual({
