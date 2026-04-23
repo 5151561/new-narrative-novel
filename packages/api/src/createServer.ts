@@ -4,6 +4,13 @@ import Fastify from 'fastify'
 import { getApiServerConfig, type ApiServerConfig } from './config.js'
 import { notFound, registerGlobalErrorHandler } from './http/errors.js'
 import { createFixtureRepository } from './repositories/fixtureRepository.js'
+import { registerAssetRoutes } from './routes/asset.js'
+import { registerBookRoutes } from './routes/book.js'
+import { registerChapterRoutes } from './routes/chapter.js'
+import { registerProjectRuntimeRoutes } from './routes/project-runtime.js'
+import { registerReviewRoutes } from './routes/review.js'
+import { registerRunRoutes } from './routes/run.js'
+import { registerSceneRoutes } from './routes/scene.js'
 
 export interface CreateServerOptions {
   config?: ApiServerConfig
@@ -36,10 +43,19 @@ export function createServer(options: CreateServerOptions = {}) {
     ok: true,
   }))
 
-  app.get(`${config.apiBasePath}/projects/:projectId/runtime-info`, async (request) => {
-    const { projectId } = request.params as { projectId: string }
-    return repository.getProjectRuntimeInfo(projectId)
-  })
+  const routeContext = {
+    app,
+    apiBasePath: config.apiBasePath,
+    repository,
+  }
+
+  registerProjectRuntimeRoutes(routeContext)
+  registerBookRoutes(routeContext)
+  registerChapterRoutes(routeContext)
+  registerAssetRoutes(routeContext)
+  registerReviewRoutes(routeContext)
+  registerSceneRoutes(routeContext)
+  registerRunRoutes(routeContext)
 
   return {
     app,

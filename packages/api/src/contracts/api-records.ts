@@ -44,90 +44,801 @@ export interface LocalizedTextRecord {
   'zh-CN': string
 }
 
+export type BookStructureView = 'sequence' | 'outliner' | 'signals'
+export type ChapterStructureView = 'sequence' | 'outliner' | 'assembly'
+export type AssetKnowledgeView = 'profile' | 'mentions' | 'relations'
+export type ChapterLens = 'structure' | 'draft'
+export type SceneLens = 'structure' | 'orchestrate' | 'draft'
+
 export interface BookStructureRecord {
   bookId: string
   title: LocalizedTextRecord
   summary: LocalizedTextRecord
   chapterIds: string[]
+  viewsMeta?: {
+    availableViews: BookStructureView[]
+  }
 }
 
-export interface ChapterSceneRecord {
-  id: string
+export interface BookManuscriptCheckpointSceneRecord {
+  sceneId: string
   order: number
   title: LocalizedTextRecord
   summary: LocalizedTextRecord
+  proseDraft?: string
+  draftWordCount?: number
+  warningsCount: number
+  traceReady: boolean
 }
 
-export interface ChapterStructureRecord {
+export interface BookManuscriptCheckpointChapterRecord {
   chapterId: string
+  order: number
   title: LocalizedTextRecord
   summary: LocalizedTextRecord
-  scenes: ChapterSceneRecord[]
+  scenes: BookManuscriptCheckpointSceneRecord[]
 }
 
-export interface SceneRecord {
-  sceneId: string
-  chapterId: string
+export interface BookManuscriptCheckpointRecord {
+  checkpointId: string
   bookId: string
   title: LocalizedTextRecord
-  status: string
-}
-
-export interface AssetRecord {
-  assetId: string
-  kind: 'character' | 'location' | 'object'
-  title: LocalizedTextRecord
+  createdAtLabel: LocalizedTextRecord
   summary: LocalizedTextRecord
+  chapters: BookManuscriptCheckpointChapterRecord[]
 }
 
-export interface ReviewDecisionRecord {
-  id: string
-  bookId: string
-  issueId: string
-  status: 'accepted' | 'deferred' | 'rejected'
-  note?: string
+export type BookExportProfileKind = 'review_packet' | 'submission_preview' | 'archive_snapshot'
+
+export interface BookExportProfileIncludesRecord {
+  manuscriptBody: boolean
+  chapterSummaries: boolean
+  sceneHeadings: boolean
+  traceAppendix: boolean
+  compareSummary: boolean
+  readinessChecklist: boolean
+}
+
+export interface BookExportProfileRulesRecord {
+  requireAllScenesDrafted: boolean
+  requireTraceReady: boolean
+  allowWarnings: boolean
+  allowDraftMissing: boolean
 }
 
 export interface BookExportProfileRecord {
-  id: string
+  exportProfileId: string
   bookId: string
+  kind: BookExportProfileKind
   title: LocalizedTextRecord
-  format: 'docx' | 'pdf'
+  summary: LocalizedTextRecord
+  createdAtLabel: LocalizedTextRecord
+  includes: BookExportProfileIncludesRecord
+  rules: BookExportProfileRulesRecord
+}
+
+export type BookExportArtifactFormat = 'markdown' | 'plain_text'
+export type BookExportArtifactBuildStatus = 'ready'
+
+export interface BookExportArtifactReadinessSnapshot {
+  status: 'ready' | 'attention' | 'blocked'
+  blockerCount: number
+  warningCount: number
+  infoCount: number
+}
+
+export interface BookExportArtifactReviewGateSnapshot {
+  openBlockerCount: number
+  checkedFixCount: number
+  blockedFixCount: number
+  staleFixCount: number
 }
 
 export interface BookExportArtifactRecord {
   id: string
   bookId: string
   exportProfileId: string
-  label: string
-  status: 'ready' | 'queued'
+  checkpointId?: string
+  format: BookExportArtifactFormat
+  status: BookExportArtifactBuildStatus
+  filename: string
+  mimeType: string
+  title: string
+  summary: string
+  content: string
+  sourceSignature: string
+  chapterCount: number
+  sceneCount: number
+  wordCount: number
+  readinessSnapshot: BookExportArtifactReadinessSnapshot
+  reviewGateSnapshot: BookExportArtifactReviewGateSnapshot
+  createdAtLabel: string
+  createdByLabel: string
+}
+
+export interface BuildBookExportArtifactInput {
+  bookId: string
+  exportProfileId: string
+  checkpointId?: string
+  format: BookExportArtifactFormat
+  filename: string
+  mimeType: string
+  title: string
+  summary: string
+  content: string
+  sourceSignature: string
+  chapterCount: number
+  sceneCount: number
+  wordCount: number
+  readinessSnapshot: BookExportArtifactReadinessSnapshot
+  reviewGateSnapshot: BookExportArtifactReviewGateSnapshot
+}
+
+export type BookExperimentBranchStatus = 'active' | 'review' | 'archived'
+
+export interface BookExperimentBranchSceneRecord {
+  sceneId: string
+  title: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  proseDraft?: LocalizedTextRecord
+  draftWordCount?: number
+  traceReady: boolean
+  warningsCount: number
+  sourceProposalCount: number
+}
+
+export interface BookExperimentBranchChapterRecord {
+  chapterId: string
+  title: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  sceneSnapshots: BookExperimentBranchSceneRecord[]
 }
 
 export interface BookExperimentBranchRecord {
-  id: string
+  branchId: string
   bookId: string
-  label: string
-  baseline: 'current' | 'checkpoint'
+  title: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  rationale: LocalizedTextRecord
+  createdAtLabel: LocalizedTextRecord
+  basedOnCheckpointId?: string
+  status: BookExperimentBranchStatus
+  chapterSnapshots: BookExperimentBranchChapterRecord[]
 }
 
-export interface BookManuscriptCheckpointRecord {
+export interface ChapterStructureProblemSummaryRecord {
+  id: string
+  label: LocalizedTextRecord
+  detail: LocalizedTextRecord
+}
+
+export interface ChapterStructureAssemblyHintRecord {
+  id: string
+  label: LocalizedTextRecord
+  detail: LocalizedTextRecord
+}
+
+export interface ChapterStructureSceneRecord {
+  id: string
+  order: number
+  title: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  purpose: LocalizedTextRecord
+  pov: LocalizedTextRecord
+  location: LocalizedTextRecord
+  conflict: LocalizedTextRecord
+  reveal: LocalizedTextRecord
+  statusLabel: LocalizedTextRecord
+  proseStatusLabel: LocalizedTextRecord
+  runStatusLabel: LocalizedTextRecord
+  unresolvedCount: number
+  lastRunLabel: LocalizedTextRecord
+}
+
+export interface ChapterStructureInspectorRecord {
+  chapterNotes: LocalizedTextRecord[]
+  problemsSummary: ChapterStructureProblemSummaryRecord[]
+  assemblyHints: ChapterStructureAssemblyHintRecord[]
+}
+
+export interface ChapterStructureWorkspaceRecord {
+  chapterId: string
+  title: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  scenes: ChapterStructureSceneRecord[]
+  inspector: ChapterStructureInspectorRecord
+  viewsMeta?: {
+    availableViews: ChapterStructureView[]
+  }
+}
+
+export type ChapterSceneStructureField = 'summary' | 'purpose' | 'pov' | 'location' | 'conflict' | 'reveal'
+export type ChapterSceneStructurePatch = Partial<Record<ChapterSceneStructureField, string>>
+
+export type StoredReviewDecisionStatus = 'reviewed' | 'deferred' | 'dismissed'
+
+export interface ReviewIssueDecisionRecord {
   id: string
   bookId: string
+  issueId: string
+  issueSignature: string
+  status: StoredReviewDecisionStatus
+  note?: string
+  updatedAtLabel: string
+  updatedByLabel: string
+}
+
+export interface SetReviewIssueDecisionInput {
+  bookId: string
+  issueId: string
+  issueSignature: string
+  status: StoredReviewDecisionStatus
+  note?: string
+}
+
+export type ReviewFixActionStatus = 'started' | 'checked' | 'blocked'
+export type ReviewFixActionTargetScope = 'book' | 'chapter' | 'scene' | 'asset'
+
+export interface ReviewIssueFixActionRecord {
+  id: string
+  bookId: string
+  issueId: string
+  issueSignature: string
+  sourceHandoffId: string
+  sourceHandoffLabel: string
+  targetScope: ReviewFixActionTargetScope
+  status: ReviewFixActionStatus
+  note?: string
+  startedAtLabel: string
+  updatedAtLabel: string
+  updatedByLabel: string
+}
+
+export interface SetReviewIssueFixActionInput {
+  bookId: string
+  issueId: string
+  issueSignature: string
+  sourceHandoffId: string
+  sourceHandoffLabel: string
+  targetScope: ReviewFixActionTargetScope
+  status: ReviewFixActionStatus
+  note?: string
+}
+
+export type AssetKind = 'character' | 'location' | 'rule'
+export type AssetMentionBackingKind = 'canon' | 'draft_context' | 'unlinked'
+
+export interface AssetProfileFactRecord {
+  id: string
+  label: LocalizedTextRecord
+  value: LocalizedTextRecord
+}
+
+export interface AssetProfileSectionRecord {
+  id: string
+  title: LocalizedTextRecord
+  facts: AssetProfileFactRecord[]
+}
+
+export interface AssetProfileRecord {
+  sections: AssetProfileSectionRecord[]
+}
+
+export interface AssetMentionBackingRecord {
+  kind: AssetMentionBackingKind
+  sceneId?: string
+  acceptedFactIds?: string[]
+  proposalIds?: string[]
+  patchId?: string
+}
+
+interface AssetMentionRecordBase {
+  id: string
+  targetScope: 'scene' | 'chapter'
+  targetId: string
+  targetLabel: LocalizedTextRecord
+  relationLabel: LocalizedTextRecord
+  excerpt: LocalizedTextRecord
+  backing?: AssetMentionBackingRecord
+}
+
+export interface AssetSceneMentionRecord extends AssetMentionRecordBase {
+  targetScope: 'scene'
+  chapterId?: string
+  sceneId: string
+  recommendedLens?: Extract<SceneLens, 'draft' | 'orchestrate'>
+}
+
+export interface AssetChapterMentionRecord extends AssetMentionRecordBase {
+  targetScope: 'chapter'
+  chapterId: string
+  sceneId?: undefined
+  recommendedLens?: Extract<ChapterLens, 'structure' | 'draft'>
+}
+
+export type AssetMentionRecord = AssetSceneMentionRecord | AssetChapterMentionRecord
+
+export interface AssetRelationRecord {
+  id: string
+  targetAssetId: string
+  relationLabel: LocalizedTextRecord
+  summary: LocalizedTextRecord
+}
+
+export interface AssetRecord {
+  id: string
+  kind: AssetKind
+  title: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  profile: AssetProfileRecord
+  mentions: AssetMentionRecord[]
+  relations: AssetRelationRecord[]
+  warnings?: LocalizedTextRecord[]
+  notes?: LocalizedTextRecord[]
+}
+
+export interface AssetKnowledgeWorkspaceRecord {
+  assetId: string
+  assets: AssetRecord[]
+  viewsMeta: {
+    availableViews: AssetKnowledgeView[]
+  }
+}
+
+export type SceneTab = 'setup' | 'execution' | 'prose'
+export type SceneStatus = 'draft' | 'running' | 'review' | 'ready' | 'committed'
+export type SceneRunStatus = 'idle' | 'running' | 'paused' | 'failed' | 'completed'
+export type ProposalStatus = 'pending' | 'accepted' | 'rejected' | 'rewrite-requested'
+export type ProposalKind = 'action' | 'intent' | 'conflict' | 'state-change' | 'dialogue'
+export type ProposalSeverity = 'info' | 'warn' | 'high'
+export type SceneDockTabId = 'events' | 'trace' | 'consistency' | 'problems' | 'cost'
+
+export interface SceneWorkspaceViewModel {
+  id: string
+  title: string
+  chapterId: string
+  chapterTitle: string
+  status: SceneStatus
+  runStatus: SceneRunStatus
+  objective: string
+  castIds: string[]
+  locationId?: string
+  latestRunId?: string
+  pendingProposalCount: number
+  warningCount: number
+  currentVersionLabel?: string
+  activeThreadId?: string
+  availableThreads: Array<{ id: string; label: string }>
+}
+
+export interface SceneObjectiveModel {
+  goal: string
+  tensionLabel?: string
+  pacingLabel?: string
+  cast: Array<{ id: string; name: string; role?: string }>
+  location?: { id: string; name: string }
+  warningsCount: number
+  unresolvedCount: number
+  constraintSummary: string[]
+}
+
+export interface BeatRailItemModel {
+  id: string
+  index: number
+  title: string
+  status: 'todo' | 'running' | 'review' | 'accepted' | 'blocked'
+  proposalCount: number
+  warningCount: number
+  summary?: string
+}
+
+export interface ProposalFilters {
+  status?: ProposalStatus
+  kind?: ProposalKind
+  beatId?: string
+  actorId?: string
+  severity?: ProposalSeverity
+}
+
+export interface ProposalCardModel {
+  id: string
+  beatId?: string
+  actor: {
+    id: string
+    name: string
+    type: 'scene-manager' | 'character' | 'system'
+  }
+  kind: ProposalKind
+  title: string
+  summary: string
+  detail?: string
+  status: ProposalStatus
+  impactTags: string[]
+  affects: Array<{
+    path: string
+    label: string
+    deltaSummary: string
+  }>
+  risks?: Array<{
+    severity: ProposalSeverity
+    message: string
+  }>
+  evidencePeek?: string[]
+  sourceTraceId?: string
+}
+
+export interface SceneTraceProposalRefModel {
+  proposalId: string
+  title?: string
+  sourceTraceId?: string
+}
+
+export interface SceneTraceAssetRefModel {
+  assetId: string
+  title: string
+  kind?: AssetKind
+}
+
+export interface SceneAcceptedFactModel {
+  id: string
   label: string
-  sceneCount: number
+  value: string
+  sourceProposals?: SceneTraceProposalRefModel[]
+  relatedAssets?: SceneTraceAssetRefModel[]
+}
+
+export interface SceneAcceptedSummaryModel {
+  sceneSummary: string
+  acceptedFacts: SceneAcceptedFactModel[]
+  readiness: 'not-ready' | 'draftable' | 'ready'
+  pendingProposalCount: number
+  warningCount: number
+  patchCandidateCount?: number
+}
+
+export interface SceneRuntimeSummaryModel {
+  runHealth: 'stable' | 'attention' | 'blocked'
+  latencyLabel: string
+  tokenLabel: string
+  costLabel: string
+  latestFailureSummary?: string
+}
+
+export interface SceneConsistencySummaryModel {
+  warningsCount: number
+  topIssues: string[]
+}
+
+export interface SceneExecutionViewModel {
+  runId?: string
+  objective: SceneObjectiveModel
+  beats: BeatRailItemModel[]
+  proposals: ProposalCardModel[]
+  acceptedSummary: SceneAcceptedSummaryModel
+  runtimeSummary: SceneRuntimeSummaryModel
+  consistencySummary?: SceneConsistencySummaryModel
+  canContinueRun: boolean
+  canOpenProse: boolean
+}
+
+export interface SceneProseViewModel {
+  sceneId: string
+  proseDraft?: string
+  revisionModes: Array<'rewrite' | 'compress' | 'expand' | 'tone_adjust' | 'continuity_fix'>
+  latestDiffSummary?: string
+  warningsCount: number
+  focusModeAvailable: boolean
+  revisionQueueCount?: number
+  draftWordCount?: number
+  statusLabel?: string
+  traceSummary?: {
+    sourcePatchId?: string
+    sourceProposals?: SceneTraceProposalRefModel[]
+    acceptedFactIds?: string[]
+    relatedAssets?: SceneTraceAssetRefModel[]
+    missingLinks?: string[]
+  }
+}
+
+export interface ProposalActionInput {
+  proposalId: string
+  note?: string
+  editedSummary?: string
+  editedFields?: Record<string, unknown>
+}
+
+export interface SceneSetupIdentityModel {
+  title: string
+  chapterLabel: string
+  locationLabel: string
+  povCharacterId: string
+  timeboxLabel: string
+  summary: string
+}
+
+export interface SceneSetupObjectiveModel {
+  externalGoal: string
+  emotionalGoal: string
+  successSignal: string
+  failureCost: string
+}
+
+export interface SceneSetupCastMemberModel {
+  id: string
+  name: string
+  role: string
+  agenda: string
+  selected: boolean
+}
+
+export interface SceneSetupConstraintModel {
+  id: string
+  label: string
+  kind: 'canon' | 'staging' | 'tone' | 'timing'
+  summary: string
+}
+
+export interface SceneKnowledgeBoundaryModel {
+  id: string
+  label: string
+  summary: string
+  status: 'known' | 'guarded' | 'open-question'
+}
+
+export interface SceneRuntimePresetOptionModel {
+  id: string
+  label: string
+  focus: string
+  intensity: string
+  summary: string
+}
+
+export interface SceneRuntimePresetModel {
+  selectedPresetId: string
+  presetOptions: SceneRuntimePresetOptionModel[]
+}
+
+export interface SceneSetupViewModel {
+  sceneId: string
+  identity: SceneSetupIdentityModel
+  objective: SceneSetupObjectiveModel
+  cast: SceneSetupCastMemberModel[]
+  constraints: SceneSetupConstraintModel[]
+  knowledgeBoundaries: SceneKnowledgeBoundaryModel[]
+  runtimePreset: SceneRuntimePresetModel
+}
+
+export interface SceneInspectorContextModel {
+  acceptedFacts: SceneAcceptedFactModel[]
+  privateInfoGuard: {
+    summary: string
+    items: Array<{
+      id: string
+      label: string
+      summary: string
+      status: 'guarded' | 'watching' | 'clear'
+    }>
+  }
+  actorKnowledgeBoundaries: Array<{
+    actor: {
+      id: string
+      name: string
+      role?: string
+    }
+    boundaries: SceneKnowledgeBoundaryModel[]
+  }>
+  localState: Array<{ id: string; label: string; value: string }>
+  overrides: Array<{
+    id: string
+    label: string
+    summary: string
+    status: 'active' | 'watching' | 'cleared'
+  }>
+}
+
+export interface SceneInspectorVersionsModel {
+  checkpoints: Array<{
+    id: string
+    label: string
+    summary: string
+    status: 'accepted' | 'review' | 'watch'
+  }>
+  acceptanceTimeline: Array<{
+    id: string
+    title: string
+    detail: string
+    meta: string
+    tone: 'neutral' | 'accent' | 'success' | 'warn'
+  }>
+  patchCandidates: Array<{
+    id: string
+    label: string
+    summary: string
+    status: 'ready_for_commit' | 'needs_review' | 'deferred'
+  }>
+}
+
+export interface SceneInspectorRuntimeModel {
+  profile: {
+    label: string
+    summary: string
+  }
+  runHealth: 'stable' | 'attention' | 'blocked'
+  metrics: {
+    latencyLabel: string
+    tokenLabel: string
+    costLabel: string
+  }
+  latestFailure?: string
+}
+
+export interface SceneInspectorViewModel {
+  context: SceneInspectorContextModel
+  versions: SceneInspectorVersionsModel
+  runtime: SceneInspectorRuntimeModel
+}
+
+export interface SceneDockEntry {
+  id: string
+  title: string
+  detail: string
+  meta?: string
+  tone?: 'neutral' | 'accent' | 'success' | 'warn' | 'danger'
+}
+
+export interface SceneDockConsistencyModel {
+  summary: string
+  checks: Array<{
+    id: string
+    label: string
+    status: 'pass' | 'warn' | 'blocked'
+    detail: string
+  }>
+}
+
+export interface SceneDockProblemsModel {
+  summary: string
+  items: Array<{
+    id: string
+    title: string
+    severity: 'warn' | 'high'
+    recommendation: string
+  }>
+}
+
+export interface SceneDockCostModel {
+  currentWindowLabel: string
+  trendLabel: string
+  breakdown: Array<{ id: string; label: string; value: string }>
+}
+
+export interface SceneDockViewModel {
+  events: SceneDockEntry[]
+  trace: SceneDockEntry[]
+  consistency: SceneDockConsistencyModel
+  problems: SceneDockProblemsModel
+  cost: SceneDockCostModel
+}
+
+export interface ScenePatchPreviewViewModel {
+  patchId: string
+  label: string
+  summary: string
+  status: 'ready_for_commit' | 'needs_review' | 'deferred'
+  sceneSummary: string
+  acceptedFacts: SceneAcceptedFactModel[]
+  changes: Array<{
+    id: string
+    label: string
+    detail: string
+    sourceProposals?: SceneTraceProposalRefModel[]
+    relatedAssets?: SceneTraceAssetRefModel[]
+  }>
+}
+
+export interface SceneFixtureRecord {
+  workspace: SceneWorkspaceViewModel
+  setup: SceneSetupViewModel
+  execution: SceneExecutionViewModel
+  prose: SceneProseViewModel
+  inspector: SceneInspectorViewModel
+  dock: SceneDockViewModel
+  patchPreview: ScenePatchPreviewViewModel | null
+}
+
+export type RunMode = 'continue' | 'rewrite' | 'from-scratch'
+export type RunScope = 'scene' | 'chapter' | 'book'
+export type RunStatus = 'queued' | 'running' | 'waiting_review' | 'completed' | 'failed' | 'cancelled'
+
+export interface StartSceneRunInput {
+  sceneId: string
+  mode?: RunMode
+  note?: string
+}
+
+export interface RunRecord {
+  id: string
+  scope: RunScope
+  scopeId: string
+  status: RunStatus
+  title: string
+  summary: string
+  startedAtLabel?: string
+  completedAtLabel?: string
+  pendingReviewId?: string
+  latestEventId?: string
+  eventCount: number
+}
+
+export type RunEventKind =
+  | 'run_created'
+  | 'run_started'
+  | 'context_packet_built'
+  | 'agent_invocation_started'
+  | 'agent_invocation_completed'
+  | 'proposal_created'
+  | 'review_requested'
+  | 'review_decision_submitted'
+  | 'canon_patch_applied'
+  | 'prose_generated'
+  | 'run_completed'
+  | 'run_failed'
+
+export type RunEventRefKind =
+  | 'context-packet'
+  | 'agent-invocation'
+  | 'proposal-set'
+  | 'review'
+  | 'canon-patch'
+  | 'prose-draft'
+  | 'artifact'
+
+export interface RunEventRefRecord {
+  kind: RunEventRefKind
+  id: string
+  label?: string
+}
+
+export interface RunEventRecord {
+  id: string
+  runId: string
+  order: number
+  kind: RunEventKind
+  label: string
+  summary: string
+  createdAtLabel: string
+  severity?: 'info' | 'warning' | 'error'
+  refs?: RunEventRefRecord[]
+}
+
+export interface RunEventsPageRecord {
+  runId: string
+  events: RunEventRecord[]
+  nextCursor?: string
+}
+
+export type RunReviewDecisionKind = 'accept' | 'accept-with-edit' | 'request-rewrite' | 'reject'
+
+export interface SubmitRunReviewDecisionInput {
+  runId: string
+  reviewId: string
+  decision: RunReviewDecisionKind
+  note?: string
+  patchId?: string
 }
 
 export interface FixtureProjectData {
   runtimeInfo: ProjectRuntimeInfoRecord
   books: Record<string, BookStructureRecord>
-  chapters: Record<string, ChapterStructureRecord>
-  scenes: Record<string, SceneRecord>
-  assets: Record<string, AssetRecord>
-  reviewDecisions: Record<string, ReviewDecisionRecord[]>
+  manuscriptCheckpoints: Record<string, BookManuscriptCheckpointRecord[]>
   exportProfiles: Record<string, BookExportProfileRecord[]>
   exportArtifacts: Record<string, BookExportArtifactRecord[]>
   experimentBranches: Record<string, BookExperimentBranchRecord[]>
-  manuscriptCheckpoints: Record<string, BookManuscriptCheckpointRecord[]>
+  chapters: Record<string, ChapterStructureWorkspaceRecord>
+  assets: Record<string, AssetKnowledgeWorkspaceRecord>
+  reviewDecisions: Record<string, ReviewIssueDecisionRecord[]>
+  reviewFixActions: Record<string, ReviewIssueFixActionRecord[]>
+  scenes: Record<string, SceneFixtureRecord>
 }
 
 export interface FixtureDataSnapshot {
