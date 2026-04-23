@@ -1,6 +1,7 @@
 import type {
   RunEventRecord,
   RunRecord,
+  RunReviewDecisionKind,
   StartSceneRunInput,
 } from '../../contracts/api-records.js'
 
@@ -38,4 +39,32 @@ export interface SceneRunWorkflowState {
   run: RunRecord
   events: RunEventRecord[]
   artifacts: SceneRunArtifactRecord[]
+}
+
+export interface SceneRunReviewTransitionInput {
+  runId: string
+  sceneId: string
+  sequence: number
+  priorEventCount: number
+  reviewId: string
+  decision: RunReviewDecisionKind
+  note?: string
+  patchId?: string
+}
+
+export interface SceneRunReviewTransitionOptions {
+  buildTimelineLabel?: SceneRunTimelineLabelBuilder
+}
+
+export interface SceneRunReviewTransitionNextRunState {
+  status: RunRecord['status']
+  summary: string
+  completedAtLabel?: string
+  pendingReviewId?: string
+}
+
+export interface SceneRunReviewTransitionState {
+  appendedEvents: RunEventRecord[]
+  generatedArtifacts: SceneRunArtifactRecord[]
+  nextRun: SceneRunReviewTransitionNextRunState
 }
