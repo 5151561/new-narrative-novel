@@ -136,29 +136,29 @@ constraint -> proposal -> review -> accepted canon -> prose
 
 ## 当前项目状态
 
-当前仓库仍以 **renderer 原型** 为主。
+当前仓库现在由两个直接可用的工作包组成：
+
+- `@narrative-novel/renderer`：Workbench / Storybook / mock runtime 原型
+- `@narrative-novel/api`：fixture-backed API server skeleton，兑现 `/api/projects/{projectId}/...` 合同
 
 根脚本当前暴露了：
 
+- `pnpm dev:api`
+- `pnpm dev:renderer`
 - `pnpm typecheck`
 - `pnpm test`
 - `pnpm build`
 - `pnpm storybook`
 
-这些脚本都指向 `@narrative-novel/renderer` 包。fileciteturn2file0
+其中：
 
-`@narrative-novel/renderer` 包本身提供：
-
-- `dev`
-- `build`
-- `typecheck`
-- `test`
-- `storybook`
-- `build-storybook`
+- `pnpm typecheck` / `pnpm test` 同时覆盖 `api + renderer`
+- `pnpm build` 仍只构建 `renderer`
+- `pnpm storybook` 仍只启动 `renderer` 的 Storybook
 
 所以目前最适合把它理解为：
 
-**一个围绕 renderer / Storybook 推进的交互与状态流原型仓库。** fileciteturn4file0
+**一个以 renderer / Storybook 为主舞台，并带有可联调 fixture API server 的叙事工作台原型仓库。**
 
 从当前 `App.tsx` 来看，workbench 已经不再只服务 Scene：
 
@@ -166,7 +166,7 @@ constraint -> proposal -> review -> accepted canon -> prose
 - Scene 侧已接入完整 workbench：top bar / mode rail / navigator / main stage / inspector / bottom dock
 - Chapter 侧已经接进 workbench，但当前仍以 `structure` 和 placeholder 骨架为主
 
-这意味着仓库已经进入 **“用第二个 scope 验证 workbench 架构”** 的阶段。fileciteturn6file0
+这意味着仓库已经进入 **“用第二个 scope 验证 workbench 架构”** 的阶段。
 
 ---
 
@@ -213,10 +213,31 @@ pnpm install
 pnpm storybook
 ```
 
+### 启动 fixture API server
+
+```bash
+pnpm dev:api
+```
+
+默认地址：
+
+```txt
+http://127.0.0.1:4174
+```
+
+### 配置 renderer 走 API runtime
+
+`packages/renderer/.env.example` 提供了最小联调变量：
+
+```bash
+VITE_NARRATIVE_API_BASE_URL=http://localhost:4174
+VITE_NARRATIVE_PROJECT_ID=book-signal-arc
+```
+
 ### 启动 renderer 开发环境
 
 ```bash
-pnpm --filter @narrative-novel/renderer dev
+pnpm dev:renderer
 ```
 
 ### 类型检查
@@ -231,11 +252,15 @@ pnpm typecheck
 pnpm test
 ```
 
+这会同时运行 `@narrative-novel/api` 与 `@narrative-novel/renderer` 的测试。
+
 ### 构建
 
 ```bash
 pnpm build
 ```
+
+当前仍只构建 `renderer` 包。
 
 ---
 

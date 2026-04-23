@@ -3,8 +3,10 @@
   "private": true,
   "packageManager": "pnpm@10.8.0",
   "scripts": {
-    "typecheck": "pnpm --filter @narrative-novel/renderer typecheck",
-    "test": "pnpm --filter @narrative-novel/renderer test",
+    "dev:api": "pnpm --filter @narrative-novel/api dev",
+    "dev:renderer": "pnpm --filter @narrative-novel/renderer dev",
+    "typecheck": "pnpm -r --filter @narrative-novel/api --filter @narrative-novel/renderer typecheck",
+    "test": "pnpm -r --filter @narrative-novel/api --filter @narrative-novel/renderer test",
     "build": "pnpm --filter @narrative-novel/renderer build",
     "storybook": "pnpm --filter @narrative-novel/renderer storybook"
   }

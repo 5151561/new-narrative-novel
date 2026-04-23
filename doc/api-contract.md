@@ -11,6 +11,20 @@ PR20 的前端运行路径统一收敛到 `/api/projects/{projectId}/...`。
 - mock runtime 仍然保留，但它只用于开发、测试、Storybook、临时演示；它不是产品持久化路径，也不是后续真实数据接入的终态。
 - 这保证了前端后续接真实后端时，只需要兑现本文档里的路由、返回体和错误体，不需要再回退到“页面直接读 mock 数据”的模式。
 
+## 1.1 BE-PR1 fixture API server 基线
+
+当前仓库已经提供 `@narrative-novel/api` 作为 BE-PR1 的 fixture-backed API server skeleton。
+
+本地联调基线：
+
+- 启动 API：`pnpm dev:api`
+- renderer 侧环境变量：
+  - `VITE_NARRATIVE_API_BASE_URL=http://localhost:4174`
+  - `VITE_NARRATIVE_PROJECT_ID=book-signal-arc`
+- 当前固定 fixture project：`book-signal-arc`
+
+这条基线的目标是让 `createApiProjectRuntime -> createApiTransport -> /api/projects/{projectId}/...` 能通过真实 HTTP 直接消费同一套合同。
+
 ## 2. 当前 API 边界矩阵
 
 以下矩阵描述的是当前已经落地、被 `api-route-contract.ts` 和 `createApiProjectRuntime` 消费的边界。
@@ -197,6 +211,8 @@ PR20 的前端运行路径统一收敛到 `/api/projects/{projectId}/...`。
 - 长任务状态推送
 
 建议把这类能力作为新增事件流端点处理，而不是修改现有查询接口的返回体结构。
+
+BE-PR1 当前对 `GET /api/projects/{projectId}/runs/{runId}/events/stream` 的行为是返回 `501` 与 `RUN_EVENT_STREAM_UNIMPLEMENTED` 占位错误；这证明 stream 能力尚未开放，但不会影响现有 polling 合同。
 
 ## 7. 关于 mock runtime 的位置
 
