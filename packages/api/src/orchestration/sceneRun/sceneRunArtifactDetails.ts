@@ -8,6 +8,7 @@ import type {
   ProseDraftArtifactDetailRecord,
   RunArtifactGeneratedRefRecord,
   RunReviewDecisionKind,
+  RunSelectedProposalVariantRecord,
 } from '../../contracts/api-records.js'
 import {
   buildAgentInvocationId,
@@ -42,18 +43,21 @@ export interface BuildAgentInvocationDetailInput extends BuildArtifactDetailBase
 export interface BuildProposalSetDetailInput extends BuildArtifactDetailBaseInput {
   reviewId?: string
   sourceInvocationIds?: string[]
+  selectedVariants?: RunSelectedProposalVariantRecord[]
 }
 
 export interface BuildCanonPatchDetailInput extends BuildArtifactDetailBaseInput {
   decision: CanonPatchArtifactDetailRecord['decision']
   sourceProposalSetId?: string
   acceptedProposalIds?: string[]
+  selectedVariants?: RunSelectedProposalVariantRecord[]
   traceLinkIds?: string[]
 }
 
 export interface BuildProseDraftDetailInput extends BuildArtifactDetailBaseInput {
   sourceCanonPatchId?: string
   sourceProposalIds?: string[]
+  selectedVariants?: RunSelectedProposalVariantRecord[]
   traceLinkIds?: string[]
 }
 
@@ -371,11 +375,14 @@ function buildDefaultGeneratedRefs(artifact: SceneRunArtifactRecord): RunArtifac
 
 function buildDefaultProposalSetProposals(
   artifact: SceneRunArtifactRecord,
+  selectedVariants: RunSelectedProposalVariantRecord[] = [],
 ): ProposalSetArtifactDetailRecord['proposals'] {
   const sceneName = formatSceneName(artifact.sceneId)
   const leadAsset = buildLeadAsset(artifact.sceneId, sceneName)
   const settingAsset = buildSettingAsset(artifact.sceneId, sceneName)
   const [proposalOneId, proposalTwoId] = buildProposalIds(artifact)
+  const proposalOneDefaultVariantId = `${proposalOneId}-variant-arrival-first`
+  const selectedProposalOneVariantId = selectedVariants.find((variant) => variant.proposalId === proposalOneId)?.variantId
 
   return [
     {
@@ -388,6 +395,40 @@ function buildDefaultProposalSetProposals(
       changeKind: 'action',
       riskLabel: localize('Low continuity risk', '连续性风险低'),
       relatedAssets: [leadAsset],
+      variants: [
+        {
+          id: proposalOneDefaultVariantId,
+          label: localize('Arrival-first', '先抵达'),
+          summary: localize(
+            `Keep ${sceneName} grounded in the lead character's arrival before escalating the reveal.`,
+            `先通过主角抵达让 ${sceneName} 稳住，再升级揭示。`,
+          ),
+          rationale: localize(
+            'Preserves continuity while still giving the scene a clear forward beat.',
+            '在保住连续性的同时，让场景拥有清晰的推进节拍。',
+          ),
+          tradeoffLabel: localize('Slower escalation', '升级较慢'),
+          riskLabel: localize('Low continuity risk', '连续性风险低'),
+          relatedAssets: [leadAsset],
+        },
+        {
+          id: `${proposalOneId}-variant-reveal-pressure`,
+          label: localize('Reveal pressure', '揭示加压'),
+          summary: localize(
+            `Let the reveal intrude earlier while ${sceneName} is still settling.`,
+            `在 ${sceneName} 尚未完全落定时提前压入揭示。`,
+          ),
+          rationale: localize(
+            'Creates a sharper hook, but asks review to accept a faster continuity turn.',
+            '制造更强钩子，但需要审阅接受更快的连续性转折。',
+          ),
+          tradeoffLabel: localize('Sharper hook', '钩子更强'),
+          riskLabel: localize('Higher continuity risk', '连续性风险较高'),
+          relatedAssets: [leadAsset, settingAsset],
+        },
+      ],
+      defaultVariantId: proposalOneDefaultVariantId,
+      ...(selectedProposalOneVariantId ? { selectedVariantId: selectedProposalOneVariantId } : {}),
     },
     {
       id: proposalTwoId,
@@ -463,19 +504,36 @@ function buildAcceptedFactAssets(sceneId: string, sceneName: string, proposalId:
     : [buildLeadAsset(sceneId, sceneName)]
 }
 
+function normalizeSelectedVariants(selectedVariants?: RunSelectedProposalVariantRecord[]) {
+  return selectedVariants && selectedVariants.length > 0 ? selectedVariants : undefined
+}
+
+function filterSelectedVariantsForProposals(
+  selectedVariants: RunSelectedProposalVariantRecord[] | undefined,
+  proposalIds: string[],
+) {
+  return selectedVariants?.filter((variant) => proposalIds.includes(variant.proposalId))
+}
+
 function buildDefaultAcceptedFacts(
   artifact: SceneRunArtifactRecord,
   acceptedProposalIds: string[],
+  selectedVariants: RunSelectedProposalVariantRecord[] = [],
 ): CanonPatchArtifactDetailRecord['acceptedFacts'] {
   const sceneName = formatSceneName(artifact.sceneId)
 
-  return acceptedProposalIds.map((proposalId, index) => ({
-    id: `${artifact.id}-fact-${padSequence(index + 1)}`,
-    label: localize(`Accepted fact ${index + 1}`, `接受事实 ${index + 1}`),
-    value: buildAcceptedFactValue(sceneName, proposalId),
-    sourceProposalIds: [proposalId],
-    relatedAssets: buildAcceptedFactAssets(artifact.sceneId, sceneName, proposalId),
-  }))
+  return acceptedProposalIds.map((proposalId, index) => {
+    const selectedProposalVariants = selectedVariants.filter((variant) => variant.proposalId === proposalId)
+
+    return {
+      id: `${artifact.id}-fact-${padSequence(index + 1)}`,
+      label: localize(`Accepted fact ${index + 1}`, `接受事实 ${index + 1}`),
+      value: buildAcceptedFactValue(sceneName, proposalId),
+      sourceProposalIds: [proposalId],
+      ...(selectedProposalVariants.length > 0 ? { selectedVariants: selectedProposalVariants } : {}),
+      relatedAssets: buildAcceptedFactAssets(artifact.sceneId, sceneName, proposalId),
+    }
+  })
 }
 
 function buildDefaultTraceLinkIds(
@@ -569,7 +627,7 @@ export function buildProposalSetDetail(
       buildAgentInvocationId(input.artifact.sceneId, sequence, 1),
       buildAgentInvocationId(input.artifact.sceneId, sequence, 2),
     ],
-    proposals: buildDefaultProposalSetProposals(input.artifact),
+    proposals: buildDefaultProposalSetProposals(input.artifact, input.selectedVariants),
     reviewOptions: buildDefaultReviewOptions(),
   }
 }
@@ -584,7 +642,10 @@ export function buildCanonPatchDetail(
     ?? (input.sourceProposalSetId
       ? buildAcceptedProposalIdsFromSource(input.sourceProposalSetId, input.decision)
       : buildDefaultAcceptedProposalIds(input.artifact, input.decision))
-  const acceptedFacts = buildDefaultAcceptedFacts(input.artifact, acceptedProposalIds)
+  const selectedVariants = normalizeSelectedVariants(
+    filterSelectedVariantsForProposals(input.selectedVariants, acceptedProposalIds),
+  )
+  const acceptedFacts = buildDefaultAcceptedFacts(input.artifact, acceptedProposalIds, selectedVariants)
 
   return {
     ...buildArtifactSummary(input),
@@ -592,6 +653,7 @@ export function buildCanonPatchDetail(
     decision: input.decision,
     sourceProposalSetId,
     acceptedProposalIds,
+    ...(selectedVariants ? { selectedVariants } : {}),
     acceptedFacts,
     traceLinkIds: input.traceLinkIds ?? buildDefaultCanonPatchTraceLinkIds(input.artifact, acceptedFacts),
   }
@@ -611,6 +673,9 @@ export function buildProseDraftDetail(
     kind: 'prose-draft',
     sourceCanonPatchId: input.sourceCanonPatchId ?? buildCanonPatchId(input.artifact.sceneId, sequence),
     sourceProposalIds: input.sourceProposalIds ?? [buildProposalIds(input.artifact)[0]],
+    ...(input.selectedVariants && input.selectedVariants.length > 0
+      ? { selectedVariants: input.selectedVariants }
+      : {}),
     excerpt: localize(
       `${sceneName} settles into view before the next reveal turns visible.`,
       `${sceneName} 先稳稳落入视野，随后下一段揭示才开始显形。`,

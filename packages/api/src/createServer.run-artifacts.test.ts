@@ -66,14 +66,29 @@ describe('fixture API server run artifact read surfaces', () => {
         url: `/api/projects/book-signal-arc/runs/${run.id}/artifacts/${proposalSetRef!.id}`,
       })
       expect(proposalSetResponse.statusCode).toBe(200)
+      const selectedVariant = {
+        proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+        variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-reveal-pressure',
+      }
+      const proposalSetArtifact = proposalSetResponse.json().artifact
       expect(proposalSetResponse.json()).toMatchObject({
         artifact: {
           id: proposalSetRef!.id,
           kind: 'proposal-set',
           proposals: expect.arrayContaining([
             expect.objectContaining({
-              id: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+              id: selectedVariant.proposalId,
               changeKind: 'action',
+              defaultVariantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-arrival-first',
+              variants: expect.arrayContaining([
+                expect.objectContaining({
+                  id: selectedVariant.variantId,
+                  riskLabel: {
+                    en: 'Higher continuity risk',
+                    'zh-CN': '连续性风险较高',
+                  },
+                }),
+              ]),
             }),
             expect.objectContaining({
               id: 'proposal-set-scene-midnight-platform-run-002-proposal-002',
@@ -82,6 +97,7 @@ describe('fixture API server run artifact read surfaces', () => {
           ]),
         },
       })
+      expect(proposalSetArtifact.proposals[1]).not.toHaveProperty('variants')
 
       const artifactListBeforeReviewResponse = await app.inject({
         method: 'GET',
@@ -104,6 +120,7 @@ describe('fixture API server run artifact read surfaces', () => {
         payload: {
           reviewId: run.pendingReviewId,
           decision: 'accept',
+          selectedVariants: [selectedVariant],
         },
       })
       expect(reviewResponse.statusCode).toBe(200)
@@ -114,6 +131,14 @@ describe('fixture API server run artifact read surfaces', () => {
       })
       expect(postReviewEventsResponse.statusCode).toBe(200)
       const postReviewEvents = postReviewEventsResponse.json().events
+      const reviewDecisionEvent = postReviewEvents.find((event: { kind: string }) => event.kind === 'review_decision_submitted')
+      expect(reviewDecisionEvent).toMatchObject({
+        metadata: {
+          selectedVariantCount: 1,
+        },
+      })
+      expect(reviewDecisionEvent).not.toHaveProperty('selectedVariants')
+      expect(JSON.stringify(reviewDecisionEvent)).not.toContain(selectedVariant.variantId)
 
       const canonPatchRef = findEventRef(postReviewEvents, 'canon_patch_applied', 'canon-patch')
       const proseDraftRef = findEventRef(postReviewEvents, 'prose_generated', 'prose-draft')
@@ -130,6 +155,12 @@ describe('fixture API server run artifact read surfaces', () => {
           id: canonPatchRef!.id,
           kind: 'canon-patch',
           acceptedProposalIds: ['proposal-set-scene-midnight-platform-run-002-proposal-001'],
+          selectedVariants: [selectedVariant],
+          acceptedFacts: [
+            expect.objectContaining({
+              selectedVariants: [selectedVariant],
+            }),
+          ],
         },
       })
 
@@ -143,6 +174,7 @@ describe('fixture API server run artifact read surfaces', () => {
           id: proseDraftRef!.id,
           kind: 'prose-draft',
           sourceCanonPatchId: canonPatchRef!.id,
+          selectedVariants: [selectedVariant],
         },
       })
 

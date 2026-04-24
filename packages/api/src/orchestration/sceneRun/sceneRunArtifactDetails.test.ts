@@ -212,6 +212,56 @@ describe('sceneRunArtifactDetails', () => {
             kind: 'character',
           },
         ],
+        variants: [
+          {
+            id: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-arrival-first',
+            label: text('Arrival-first', '先抵达'),
+            summary: text(
+              "Keep Midnight Platform grounded in the lead character's arrival before escalating the reveal.",
+              '先通过主角抵达让 Midnight Platform 稳住，再升级揭示。',
+            ),
+            rationale: text(
+              'Preserves continuity while still giving the scene a clear forward beat.',
+              '在保住连续性的同时，让场景拥有清晰的推进节拍。',
+            ),
+            tradeoffLabel: text('Slower escalation', '升级较慢'),
+            riskLabel: text('Low continuity risk', '连续性风险低'),
+            relatedAssets: [
+              {
+                assetId: 'asset-scene-midnight-platform-lead',
+                label: text('Midnight Platform lead', 'Midnight Platform 主角'),
+                kind: 'character',
+              },
+            ],
+          },
+          {
+            id: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-reveal-pressure',
+            label: text('Reveal pressure', '揭示加压'),
+            summary: text(
+              'Let the reveal intrude earlier while Midnight Platform is still settling.',
+              '在 Midnight Platform 尚未完全落定时提前压入揭示。',
+            ),
+            rationale: text(
+              'Creates a sharper hook, but asks review to accept a faster continuity turn.',
+              '制造更强钩子，但需要审阅接受更快的连续性转折。',
+            ),
+            tradeoffLabel: text('Sharper hook', '钩子更强'),
+            riskLabel: text('Higher continuity risk', '连续性风险较高'),
+            relatedAssets: [
+              {
+                assetId: 'asset-scene-midnight-platform-lead',
+                label: text('Midnight Platform lead', 'Midnight Platform 主角'),
+                kind: 'character',
+              },
+              {
+                assetId: 'asset-scene-midnight-platform-setting',
+                label: text('Midnight Platform setting', 'Midnight Platform 场景地点'),
+                kind: 'location',
+              },
+            ],
+          },
+        ],
+        defaultVariantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-arrival-first',
       },
       {
         id: 'proposal-set-scene-midnight-platform-run-002-proposal-002',
@@ -231,6 +281,7 @@ describe('sceneRunArtifactDetails', () => {
         ],
       },
     ])
+    expect(detail.proposals[1]).not.toHaveProperty('variants')
     expect(detail.reviewOptions).toEqual([
       {
         decision: 'accept',
@@ -253,6 +304,31 @@ describe('sceneRunArtifactDetails', () => {
         description: text('Close the run without producing canon or prose artifacts.', '关闭本次运行，不产出 canon 或 prose artifact。'),
       },
     ])
+  })
+
+  it('marks selected proposal variants when review provenance is supplied', () => {
+    const artifact = createProposalSetArtifact({
+      runId,
+      sceneId,
+      sequence: 2,
+    })
+
+    const selectedVariant = {
+      proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+      variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-reveal-pressure',
+    }
+
+    const detail = buildProposalSetDetail({
+      artifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-008'],
+      selectedVariants: [selectedVariant],
+    })
+
+    expect(detail.proposals[0]).toMatchObject({
+      id: selectedVariant.proposalId,
+      defaultVariantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-arrival-first',
+      selectedVariantId: selectedVariant.variantId,
+    })
   })
 
   it('parameterizes proposal wording for non-platform scenes', () => {
@@ -338,6 +414,45 @@ describe('sceneRunArtifactDetails', () => {
       'trace-link-scene-midnight-platform-002-accepted_into-001',
       'trace-link-scene-midnight-platform-002-accepted_into-002',
     ])
+  })
+
+  it('carries selected variant provenance into canon patch and prose details', () => {
+    const selectedVariant = {
+      proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+      variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-reveal-pressure',
+    }
+    const canonPatchArtifact = createCanonPatchArtifact({
+      runId,
+      sceneId,
+      sequence: 2,
+    })
+
+    const canonPatchDetail = buildCanonPatchDetail({
+      artifact: canonPatchArtifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-011'],
+      decision: 'accept',
+      acceptedProposalIds: [selectedVariant.proposalId],
+      selectedVariants: [selectedVariant],
+    })
+
+    expect(canonPatchDetail.selectedVariants).toEqual([selectedVariant])
+    expect(canonPatchDetail.acceptedFacts[0]?.selectedVariants).toEqual([selectedVariant])
+
+    const proseDraftArtifact = createProseDraftArtifact({
+      runId,
+      sceneId,
+      sequence: 2,
+    })
+
+    const proseDraftDetail = buildProseDraftDetail({
+      artifact: proseDraftArtifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-012'],
+      sourceCanonPatchId: canonPatchDetail.id,
+      sourceProposalIds: canonPatchDetail.acceptedProposalIds,
+      selectedVariants: canonPatchDetail.selectedVariants,
+    })
+
+    expect(proseDraftDetail.selectedVariants).toEqual([selectedVariant])
   })
 
   it('uses explicit backreference metadata for custom canon patch and prose draft ids', () => {

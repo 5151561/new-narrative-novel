@@ -1,10 +1,44 @@
 import { ApiHttpError, badRequest } from '../http/errors.js'
 
+import type { RunSelectedProposalVariantRecord } from '../contracts/api-records.js'
 import type { ApiRouteContext } from './route-context.js'
 import { assertEnumValue, assertOptionalString, assertRequiredString } from './validation.js'
 
 const RUN_MODES = ['continue', 'rewrite', 'from-scratch'] as const
 const RUN_REVIEW_DECISIONS = ['accept', 'accept-with-edit', 'request-rewrite', 'reject'] as const
+
+function assertOptionalSelectedVariants(
+  value: unknown,
+  body: unknown,
+): RunSelectedProposalVariantRecord[] | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (!Array.isArray(value)) {
+    throw badRequest('selectedVariants must be an array when provided.', {
+      code: 'INVALID_RUN_REVIEW_SELECTED_VARIANTS',
+      detail: { body },
+    })
+  }
+
+  return value.map((item, index) => {
+    const detail = { body, index }
+    const proposalId = assertRequiredString((item as { proposalId?: unknown } | undefined)?.proposalId, 'selectedVariants.proposalId', {
+      code: 'INVALID_RUN_REVIEW_SELECTED_VARIANTS',
+      detail,
+    })
+    const variantId = assertRequiredString((item as { variantId?: unknown } | undefined)?.variantId, 'selectedVariants.variantId', {
+      code: 'INVALID_RUN_REVIEW_SELECTED_VARIANTS',
+      detail,
+    })
+
+    return {
+      proposalId,
+      variantId,
+    }
+  })
+}
 
 export function registerRunRoutes({ app, apiBasePath, repository }: ApiRouteContext) {
   const projectBase = `${apiBasePath}/projects/:projectId`
@@ -57,6 +91,7 @@ export function registerRunRoutes({ app, apiBasePath, repository }: ApiRouteCont
       decision?: unknown
       note?: unknown
       patchId?: unknown
+      selectedVariants?: unknown
     }
 
     const reviewId = assertRequiredString(body?.reviewId, 'reviewId', {
@@ -77,6 +112,7 @@ export function registerRunRoutes({ app, apiBasePath, repository }: ApiRouteCont
       detail: { body },
       allowEmpty: false,
     })
+    const selectedVariants = assertOptionalSelectedVariants(body?.selectedVariants, body)
 
     return repository.submitRunReviewDecision(projectId, {
       runId,
@@ -84,6 +120,7 @@ export function registerRunRoutes({ app, apiBasePath, repository }: ApiRouteCont
       decision,
       note,
       patchId,
+      selectedVariants,
     })
   })
 }

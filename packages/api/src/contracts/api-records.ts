@@ -827,6 +827,16 @@ export interface RunArtifactGeneratedRefRecord {
   label: LocalizedTextRecord
 }
 
+export interface ProposalVariantRecord {
+  id: string
+  label: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  rationale: LocalizedTextRecord
+  tradeoffLabel?: LocalizedTextRecord
+  riskLabel?: LocalizedTextRecord
+  relatedAssets?: RunArtifactRelatedAssetRecord[]
+}
+
 export interface ProposalSetArtifactProposalRecord {
   id: string
   title: LocalizedTextRecord
@@ -834,6 +844,9 @@ export interface ProposalSetArtifactProposalRecord {
   changeKind: ProposalChangeKind
   riskLabel: LocalizedTextRecord
   relatedAssets: RunArtifactRelatedAssetRecord[]
+  variants?: ProposalVariantRecord[]
+  defaultVariantId?: string
+  selectedVariantId?: string
 }
 
 export interface ProposalSetReviewOptionRecord {
@@ -847,6 +860,7 @@ export interface CanonPatchAcceptedFactRecord {
   label: LocalizedTextRecord
   value: LocalizedTextRecord
   sourceProposalIds: string[]
+  selectedVariants?: RunSelectedProposalVariantRecord[]
   relatedAssets: RunArtifactRelatedAssetRecord[]
 }
 
@@ -885,6 +899,7 @@ export interface CanonPatchArtifactDetailRecord extends RunArtifactSummaryRecord
   decision: Extract<RunReviewDecisionKind, 'accept' | 'accept-with-edit'>
   sourceProposalSetId: string
   acceptedProposalIds: string[]
+  selectedVariants?: RunSelectedProposalVariantRecord[]
   acceptedFacts: CanonPatchAcceptedFactRecord[]
   traceLinkIds: string[]
 }
@@ -893,6 +908,7 @@ export interface ProseDraftArtifactDetailRecord extends RunArtifactSummaryRecord
   kind: 'prose-draft'
   sourceCanonPatchId: string
   sourceProposalIds: string[]
+  selectedVariants?: RunSelectedProposalVariantRecord[]
   excerpt: LocalizedTextRecord
   wordCount: number
   relatedAssets: RunArtifactRelatedAssetRecord[]
@@ -945,6 +961,7 @@ export interface RunEventRecord {
   createdAtLabel: string
   severity?: 'info' | 'warning' | 'error'
   refs?: RunEventRefRecord[]
+  metadata?: Record<string, string | number | boolean | null>
 }
 
 export interface RunEventsPageRecord {
@@ -954,6 +971,11 @@ export interface RunEventsPageRecord {
 }
 
 export type RunReviewDecisionKind = 'accept' | 'accept-with-edit' | 'request-rewrite' | 'reject'
+
+export interface RunSelectedProposalVariantRecord {
+  proposalId: string
+  variantId: string
+}
 
 export type RunTraceNodeKind =
   | 'context-packet'
@@ -1022,6 +1044,7 @@ export interface SubmitRunReviewDecisionInput {
   decision: RunReviewDecisionKind
   note?: string
   patchId?: string
+  selectedVariants?: RunSelectedProposalVariantRecord[]
 }
 
 export interface FixtureProjectData {

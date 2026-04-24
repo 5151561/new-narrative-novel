@@ -96,6 +96,149 @@ describe('runFixtureStore', () => {
     })
   })
 
+  it('persists selected variants and exposes lightweight review provenance after acceptance', () => {
+    const store = createRunFixtureStore()
+    const run = store.startSceneRun('project-selected-variants', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+    })
+    const selectedVariant = {
+      proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+      variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-reveal-pressure',
+    }
+
+    store.submitRunReviewDecision('project-selected-variants', {
+      runId: run.id,
+      reviewId: run.pendingReviewId!,
+      decision: 'accept',
+      selectedVariants: [selectedVariant],
+    })
+
+    const events = store.getRunEvents('project-selected-variants', {
+      runId: run.id,
+      cursor: run.latestEventId,
+    })
+    const reviewEvent = events.events.find((event) => event.kind === 'review_decision_submitted')
+    expect(reviewEvent).toMatchObject({
+      metadata: {
+        selectedVariantCount: 1,
+      },
+    })
+    expect(reviewEvent).not.toHaveProperty('selectedVariants')
+    expect(JSON.stringify(reviewEvent)).not.toContain(selectedVariant.variantId)
+
+    expect(store.getRunArtifact('project-selected-variants', run.id, 'proposal-set-scene-midnight-platform-run-001')).toMatchObject({
+      kind: 'proposal-set',
+      proposals: [
+        expect.objectContaining({
+          id: selectedVariant.proposalId,
+          selectedVariantId: selectedVariant.variantId,
+        }),
+        expect.any(Object),
+      ],
+    })
+    expect(store.getRunArtifact('project-selected-variants', run.id, 'canon-patch-scene-midnight-platform-001')).toMatchObject({
+      kind: 'canon-patch',
+      selectedVariants: [selectedVariant],
+      acceptedFacts: [
+        expect.objectContaining({
+          selectedVariants: [selectedVariant],
+        }),
+      ],
+    })
+    expect(store.getRunArtifact('project-selected-variants', run.id, 'prose-draft-scene-midnight-platform-001')).toMatchObject({
+      kind: 'prose-draft',
+      selectedVariants: [selectedVariant],
+    })
+  })
+
+  it('rejects invalid selected variants before mutating run state', () => {
+    const invalidCases = [
+      {
+        name: 'duplicate proposal ids',
+        selectedVariants: [
+          {
+            proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+            variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-arrival-first',
+          },
+          {
+            proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+            variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-reveal-pressure',
+          },
+        ],
+        message: 'selectedVariants proposalId proposal-set-scene-midnight-platform-run-001-proposal-001 must be unique.',
+      },
+      {
+        name: 'unknown proposal id',
+        selectedVariants: [
+          {
+            proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-missing',
+            variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-missing-variant-001',
+          },
+        ],
+        message: 'selectedVariants proposalId proposal-set-scene-midnight-platform-run-001-proposal-missing does not exist in the run proposal set.',
+      },
+      {
+        name: 'unknown variant id',
+        selectedVariants: [
+          {
+            proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+            variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-missing',
+          },
+        ],
+        message: 'selectedVariants variantId proposal-set-scene-midnight-platform-run-001-proposal-001-variant-missing does not exist for proposal proposal-set-scene-midnight-platform-run-001-proposal-001.',
+      },
+      {
+        name: 'proposal with no variants',
+        selectedVariants: [
+          {
+            proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-002',
+            variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-002-variant-missing',
+          },
+        ],
+        message: 'selectedVariants variantId proposal-set-scene-midnight-platform-run-001-proposal-002-variant-missing does not exist for proposal proposal-set-scene-midnight-platform-run-001-proposal-002.',
+      },
+    ]
+
+    for (const invalidCase of invalidCases) {
+      const store = createRunFixtureStore()
+      const projectId = `project-invalid-selected-variants-${invalidCase.name.replaceAll(' ', '-')}`
+      const run = store.startSceneRun(projectId, {
+        sceneId: 'scene-midnight-platform',
+        mode: 'rewrite',
+      })
+      const beforeRun = store.getRun(projectId, run.id)
+      const beforeEvents = store.getRunEvents(projectId, {
+        runId: run.id,
+        cursor: run.latestEventId,
+      })
+      const beforeArtifacts = store.listRunArtifacts(projectId, run.id)
+
+      try {
+        store.submitRunReviewDecision(projectId, {
+          runId: run.id,
+          reviewId: run.pendingReviewId!,
+          decision: 'accept',
+          selectedVariants: invalidCase.selectedVariants,
+        })
+        throw new Error(`expected invalid selectedVariants to throw for ${invalidCase.name}`)
+      } catch (error) {
+        expect(error).toMatchObject({
+          status: 400,
+          code: 'INVALID_RUN_REVIEW_SELECTED_VARIANTS',
+          message: invalidCase.message,
+        })
+      }
+
+      expect(store.getRun(projectId, run.id)).toEqual(beforeRun)
+      expect(store.getRunEvents(projectId, {
+        runId: run.id,
+        cursor: run.latestEventId,
+      })).toEqual(beforeEvents)
+      expect(store.listRunArtifacts(projectId, run.id)).toEqual(beforeArtifacts)
+    }
+  })
+
   it('rejects custom patch ids that collide with an existing artifact id and preserves current read surfaces', () => {
     const store = createRunFixtureStore()
     const run = store.startSceneRun('project-patchid-collision', {

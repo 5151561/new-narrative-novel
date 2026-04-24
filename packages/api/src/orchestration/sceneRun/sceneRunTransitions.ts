@@ -76,6 +76,11 @@ function appendTransitionEvent(
       buildTimelineLabel: options?.buildTimelineLabel ?? buildDefaultSceneRunTimelineLabel,
     },
   )
+  if (kind === 'review_decision_submitted') {
+    event.metadata = {
+      selectedVariantCount: input.selectedVariants?.length ?? 0,
+    }
+  }
   events.push(event)
   return event
 }
@@ -275,6 +280,7 @@ export function applySceneRunReviewDecisionTransition(
     reviewId: input.reviewId,
     note: input.note,
     patchId: input.patchId,
+    selectedVariants: input.selectedVariants,
   }
 
   switch (input.decision) {

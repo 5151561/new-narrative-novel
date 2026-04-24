@@ -2,6 +2,7 @@ import type {
   RunEventRecord,
   RunRecord,
   RunReviewDecisionKind,
+  RunSelectedProposalVariantRecord,
   StartSceneRunInput,
 } from '../../contracts/api-records.js'
 
@@ -50,6 +51,7 @@ export interface SceneRunReviewTransitionInput {
   decision: RunReviewDecisionKind
   note?: string
   patchId?: string
+  selectedVariants?: RunSelectedProposalVariantRecord[]
 }
 
 export interface SceneRunReviewTransitionOptions {

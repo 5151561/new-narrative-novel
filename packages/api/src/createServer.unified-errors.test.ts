@@ -146,6 +146,119 @@ describe('fixture API server unified errors', () => {
         },
       })
 
+      const invalidRunReviewSelectedVariantsResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/runs/run-scene-midnight-platform-002/review-decisions',
+        payload: {
+          reviewId: 'review-scene-midnight-platform-002',
+          decision: 'accept',
+          selectedVariants: [
+            {
+              proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+              variantId: '',
+            },
+          ],
+        },
+      })
+      expect(invalidRunReviewSelectedVariantsResponse.statusCode).toBe(400)
+      expect(invalidRunReviewSelectedVariantsResponse.json()).toEqual({
+        status: 400,
+        message: 'selectedVariants.variantId must not be empty.',
+        code: 'INVALID_RUN_REVIEW_SELECTED_VARIANTS',
+        detail: {
+          body: {
+            reviewId: 'review-scene-midnight-platform-002',
+            decision: 'accept',
+            selectedVariants: [
+              {
+                proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+                variantId: '',
+              },
+            ],
+          },
+          index: 0,
+        },
+      })
+
+      const invalidSelectedVariantSemanticCases = [
+        {
+          payload: {
+            reviewId: 'review-scene-midnight-platform-002',
+            decision: 'accept',
+            selectedVariants: [
+              {
+                proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+                variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-arrival-first',
+              },
+              {
+                proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+                variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-reveal-pressure',
+              },
+            ],
+          },
+          message: 'selectedVariants proposalId proposal-set-scene-midnight-platform-run-002-proposal-001 must be unique.',
+          detail: {
+            proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+            index: 1,
+          },
+        },
+        {
+          payload: {
+            reviewId: 'review-scene-midnight-platform-002',
+            decision: 'accept',
+            selectedVariants: [
+              {
+                proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-missing',
+                variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-missing-variant-001',
+              },
+            ],
+          },
+          message: 'selectedVariants proposalId proposal-set-scene-midnight-platform-run-002-proposal-missing does not exist in the run proposal set.',
+          detail: {
+            proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-missing',
+            index: 0,
+          },
+        },
+        {
+          payload: {
+            reviewId: 'review-scene-midnight-platform-002',
+            decision: 'accept',
+            selectedVariants: [
+              {
+                proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+                variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-missing',
+              },
+            ],
+          },
+          message: 'selectedVariants variantId proposal-set-scene-midnight-platform-run-002-proposal-001-variant-missing does not exist for proposal proposal-set-scene-midnight-platform-run-002-proposal-001.',
+          detail: {
+            proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+            variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-missing',
+            index: 0,
+          },
+        },
+      ]
+
+      for (const invalidCase of invalidSelectedVariantSemanticCases) {
+        const response = await app.inject({
+          method: 'POST',
+          url: '/api/projects/book-signal-arc/runs/run-scene-midnight-platform-002/review-decisions',
+          payload: invalidCase.payload,
+        })
+        expect(response.statusCode).toBe(400)
+        expect(response.json()).toMatchObject({
+          status: 400,
+          message: invalidCase.message,
+          code: 'INVALID_RUN_REVIEW_SELECTED_VARIANTS',
+          detail: {
+            projectId: 'book-signal-arc',
+            runId: 'run-scene-midnight-platform-002',
+            reviewId: 'review-scene-midnight-platform-002',
+            ...invalidCase.detail,
+          },
+        })
+      }
+
       const runAfterInvalidReviewNote = await app.inject({
         method: 'GET',
         url: '/api/projects/book-signal-arc/runs/run-scene-midnight-platform-002',

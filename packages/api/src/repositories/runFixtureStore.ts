@@ -3,8 +3,10 @@ import type {
   RunArtifactSummaryRecord,
   RunEventRecord,
   RunEventsPageRecord,
+  ProposalSetArtifactDetailRecord,
   RunRecord,
   RunReviewDecisionKind,
+  RunSelectedProposalVariantRecord,
   RunTraceLinkRecord,
   RunTraceNodeRecord,
   RunTraceResponse,
@@ -41,6 +43,7 @@ interface RunState {
   artifactDetailsById: Map<string, RunArtifactDetailRecord>
   artifactSummaries: RunArtifactSummaryRecord[]
   latestReviewDecision?: RunReviewDecisionKind
+  selectedVariants: RunSelectedProposalVariantRecord[]
   traceLinksById: Map<string, RunTraceLinkRecord>
   traceNodesById: Map<string, RunTraceNodeRecord>
   traceSummary: RunTraceResponse['summary']
@@ -53,6 +56,93 @@ function trimNote(note?: string) {
 
 function clone<T>(value: T): T {
   return structuredClone(value)
+}
+
+function cloneSelectedVariants(selectedVariants?: RunSelectedProposalVariantRecord[]) {
+  return selectedVariants ? clone(selectedVariants) : []
+}
+
+function findProposalSetDetail(state: RunState): ProposalSetArtifactDetailRecord | undefined {
+  for (const detail of state.artifactDetailsById.values()) {
+    if (detail.kind === 'proposal-set') {
+      return detail
+    }
+  }
+
+  return undefined
+}
+
+function assertValidSelectedVariants(
+  input: {
+    projectId: string
+    runId: string
+    reviewId: string
+    selectedVariants?: RunSelectedProposalVariantRecord[]
+  },
+  proposalSet?: ProposalSetArtifactDetailRecord,
+) {
+  if (!input.selectedVariants?.length) {
+    return
+  }
+
+  if (!proposalSet) {
+    throw badRequest('selectedVariants cannot be submitted because the run has no proposal set.', {
+      code: 'INVALID_RUN_REVIEW_SELECTED_VARIANTS',
+      detail: {
+        projectId: input.projectId,
+        runId: input.runId,
+        reviewId: input.reviewId,
+      },
+    })
+  }
+
+  const proposalsById = new Map(proposalSet.proposals.map((proposal) => [proposal.id, proposal]))
+  const seenProposalIds = new Set<string>()
+
+  input.selectedVariants.forEach((selectedVariant, index) => {
+    if (seenProposalIds.has(selectedVariant.proposalId)) {
+      throw badRequest(`selectedVariants proposalId ${selectedVariant.proposalId} must be unique.`, {
+        code: 'INVALID_RUN_REVIEW_SELECTED_VARIANTS',
+        detail: {
+          projectId: input.projectId,
+          runId: input.runId,
+          reviewId: input.reviewId,
+          proposalId: selectedVariant.proposalId,
+          index,
+        },
+      })
+    }
+
+    seenProposalIds.add(selectedVariant.proposalId)
+
+    const proposal = proposalsById.get(selectedVariant.proposalId)
+    if (!proposal) {
+      throw badRequest(`selectedVariants proposalId ${selectedVariant.proposalId} does not exist in the run proposal set.`, {
+        code: 'INVALID_RUN_REVIEW_SELECTED_VARIANTS',
+        detail: {
+          projectId: input.projectId,
+          runId: input.runId,
+          reviewId: input.reviewId,
+          proposalId: selectedVariant.proposalId,
+          index,
+        },
+      })
+    }
+
+    if (!proposal.variants?.some((variant) => variant.id === selectedVariant.variantId)) {
+      throw badRequest(`selectedVariants variantId ${selectedVariant.variantId} does not exist for proposal ${selectedVariant.proposalId}.`, {
+        code: 'INVALID_RUN_REVIEW_SELECTED_VARIANTS',
+        detail: {
+          projectId: input.projectId,
+          runId: input.runId,
+          reviewId: input.reviewId,
+          proposalId: selectedVariant.proposalId,
+          variantId: selectedVariant.variantId,
+          index,
+        },
+      })
+    }
+  })
 }
 
 function toArtifactSummary(detail: RunArtifactDetailRecord): RunArtifactSummaryRecord {
@@ -149,6 +239,7 @@ function indexRunReadSurfaces(state: RunState) {
         sourceEventIds: collectArtifactSourceEventIds(state.events, proposalSetArtifact),
         reviewId: findReviewId(state.events),
         sourceInvocationIds: agentInvocationDetails.map((detail) => detail.id),
+        selectedVariants: state.selectedVariants,
       })
     : undefined
 
@@ -165,6 +256,7 @@ function indexRunReadSurfaces(state: RunState) {
         sourceEventIds: collectArtifactSourceEventIds(state.events, canonPatchArtifact),
         decision: acceptedDecision,
         sourceProposalSetId: proposalSetDetail.id,
+        selectedVariants: state.selectedVariants,
       })
     : undefined
 
@@ -180,6 +272,7 @@ function indexRunReadSurfaces(state: RunState) {
         sourceEventIds: collectArtifactSourceEventIds(state.events, proseDraftArtifact),
         sourceCanonPatchId: canonPatchDetail.id,
         sourceProposalIds: canonPatchDetail.acceptedProposalIds,
+        selectedVariants: canonPatchDetail.selectedVariants,
       })
     : undefined
 
@@ -333,6 +426,7 @@ export function createRunFixtureStore(): RunFixtureStore {
     events: RunEventRecord[],
     artifacts: SceneRunArtifactRecord[],
     latestReviewDecision?: RunReviewDecisionKind,
+    selectedVariants?: RunSelectedProposalVariantRecord[],
   ) {
     const state: RunState = {
       sequence,
@@ -342,6 +436,7 @@ export function createRunFixtureStore(): RunFixtureStore {
       artifactDetailsById: new Map<string, RunArtifactDetailRecord>(),
       artifactSummaries: [],
       latestReviewDecision,
+      selectedVariants: cloneSelectedVariants(selectedVariants),
       traceLinksById: new Map<string, RunTraceLinkRecord>(),
       traceNodesById: new Map<string, RunTraceNodeRecord>(),
       traceSummary: {
@@ -465,6 +560,12 @@ export function createRunFixtureStore(): RunFixtureStore {
           detail: { projectId, runId: input.runId, reviewId: input.reviewId },
         })
       }
+      assertValidSelectedVariants({
+        projectId,
+        runId: input.runId,
+        reviewId: input.reviewId,
+        selectedVariants: input.selectedVariants,
+      }, findProposalSetDetail(state))
 
       const note = trimNote(input.note)
       const transition = applySceneRunReviewDecisionTransition({
@@ -476,6 +577,7 @@ export function createRunFixtureStore(): RunFixtureStore {
         decision: input.decision,
         note,
         patchId: input.patchId,
+        selectedVariants: input.selectedVariants,
       }, {
         buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
       })
@@ -494,6 +596,7 @@ export function createRunFixtureStore(): RunFixtureStore {
       state.run.latestEventId = state.events.at(-1)?.id
       state.run.eventCount = state.events.length
       state.latestReviewDecision = input.decision
+      state.selectedVariants = cloneSelectedVariants(input.selectedVariants)
       indexRunReadSurfaces(state)
 
       return clone(state.run)
