@@ -1,203 +1,144 @@
 # new-narrative-novel
 
-> 一个面向叙事编排（orchestration）的 Narrative IDE / Workbench 原型。
+> 面向叙事编排的 Narrative IDE / Workbench 原型。当前仓库已经从早期单一 Scene UI，推进到四个 scope、项目级 runtime 边界、fixture API server、scene run 时间线、artifact / trace 读面的联调阶段。
 
 ## 项目是什么
 
 `new-narrative-novel` 不是传统小说编辑器，也不是 chat-first 的 AI 写作页面集合。
 
-它更像一个 **面向叙事创作的工作台**：
+它更像一个 **面向叙事创作的工作台**：作者在 `Book / Chapter / Scene / Asset` 等对象之间切换，用结构、编排、草稿、知识、审阅等工作视角，把 AI 参与的中间过程显式化。
 
-- 用户可以在不同对象之间切换：`Book / Chapter / Scene / Asset`
-- 用户可以在不同工作视角之间切换：`Structure / Orchestrate / Draft / Knowledge`
-- 系统把叙事生成拆成一条可审阅、可回放、可追踪的状态流：
-  - `constraint -> proposal -> review -> accepted canon -> prose`
+项目关心的核心问题是：
 
-这个项目要解决的问题，不是“让 AI 写一段文本”，而是：
+**如何让作者像导演或主编一样，组织、审阅、追踪并落盘叙事生成过程，而不是只收到一段不可解释的文本。**
 
-**如何让作者像导演或主编一样，对叙事生成过程进行组织、审阅、吸收与落盘。**
+## 当前状态
 
----
+截至 2026-04-24，仓库由两个主要 workspace 包组成：
 
-## 为什么要做这个
+- `@narrative-novel/renderer`：React + Vite + Tailwind 的 workbench 前端、Storybook、mock runtime、UI/feature tests。
+- `@narrative-novel/api`：Fastify fixture-backed API server，兑现 `/api/projects/{projectId}/...` 合同，支持 read/write/run/artifact/trace 的产品级接口骨架。
 
-常见 AI 写作产品通常有几个问题：
+当前最准确的理解是：
 
-- 章节、场景、设定、正文都被揉进同一种页面心智里
-- 用户只能看到生成结果，难以判断来源与采纳过程
-- 大纲、结构、知识、正文经常分散在不同页面甚至不同工具中
-- 世界观资料和真实叙事状态脱节
-- 复杂创作过程最后被压缩成一个聊天窗口
+**这是一个以 renderer / Storybook 为主要评审面、以 fixture API server 验证真实 HTTP runtime 合同的叙事工作台原型。**
 
-`new-narrative-novel` 的目标，是把这些问题拆开：
+已经落地的主线包括：
 
-1. 先明确当前在处理哪个对象
-2. 再明确当前用什么工作方式处理它
-3. 把 AI 参与的中间状态前台化
-4. 让最终正文可以追溯到被接受的提案与状态变化
+- 四个 workbench scope：`scene`、`chapter`、`asset`、`book`。
+- route-first 的 scope/lens/view 状态管理，深链以 `/workbench?...` 查询参数承载。
+- `ProjectRuntime` 前端 client/provider 边界，产品路径收敛到 `createApiProjectRuntime -> /api/projects/...`。
+- mock runtime 仍用于 Storybook、测试、演示；不再被描述为产品持久化终态。
+- project-level runtime health 边界：`GET /api/projects/{projectId}/runtime-info`。
+- Scene / Orchestrate 的 run 纵切：start run、polling events、waiting review、submit review decision、刷新 scene/chapter read model。
+- Run artifact / trace read surfaces：事件只携带轻量 `refs`，大 payload 通过 artifact/trace 读取。
 
----
+## 产品模型
 
-## 核心产品模型
+### Scope：正在处理哪个对象
 
-### 1. Scope：当前在处理什么对象
+当前 route 类型已经支持：
 
-长期围绕四类对象展开：
-
-- `Book`
-- `Chapter`
 - `Scene`
+- `Chapter`
 - `Asset`
+- `Book`
 
-### 2. Lens：当前在用什么工作视角
+### Lens / View：用什么工作视角处理
 
-同一个对象可以用不同 lens 去处理：
+当前落地的主要组合：
 
-- `Structure`：结构、顺序、节奏、拼接
-- `Orchestrate`：运行、proposal、review、accept / rewrite / reject
-- `Draft`：正文、diff、来源追踪
-- `Knowledge`：资产、关系、引用、canon 事实
+- `Scene`
+  - `structure`
+  - `orchestrate`
+  - `draft`
+- `Chapter`
+  - `structure`
+  - `draft`
+- `Asset`
+  - `knowledge`
+- `Book`
+  - `structure`
+  - `draft`
 
-### 3. State Flow：系统当前在哪个状态
+其中 Book draft 继续细分为：
 
-项目中的 AI 参与不应直接跳到 prose，而应经过可审阅的中间层：
+- `read`
+- `compare`
+- `export`
+- `branch`
+- `review`
+
+### State Flow：AI 参与过程如何被审阅
+
+系统不把 AI 生成直接压成 prose，而是把中间过程拆成可审阅、可追踪的状态流：
 
 ```text
 constraint -> proposal -> review -> accepted canon -> prose
 ```
 
-这样一来：
+近期 run/event/artifact/trace 工作把这条链进一步产品化：
 
-- proposal 可以被审阅
-- accepted state 可以被追踪
-- prose 可以被解释“来自哪些已接受变化”
+- run events 只保留产品级摘要和轻量 refs。
+- context packet、agent invocation、proposal set、canon patch、prose draft 等大对象走 artifact detail。
+- proposal -> canon -> prose 的关系走 trace read surface。
+- `events/stream` 仍是 501 占位；当前 renderer 使用 REST + polling/page contract。
 
----
+## Workbench 壳子
 
-## 交互壳子：为什么是 Workbench
+项目采用稳定的 **Workbench shell**，而不是一次性固定页面：
 
-项目当前采用的是 **Workbench shell**，而不是固定三栏页面：
-
-1. **Mode Rail**：一级模式 / scope / lens 入口
+1. **Mode Rail**：scope / lens 入口
 2. **Navigator**：对象导航与层级选择
-3. **Main Stage**：真正做事的主舞台
-4. **Inspector**：摘要、上下文、版本、引用等辅助判断区
-5. **Bottom Dock / Panel**：问题、活动、运行诊断等支持信息
+3. **Main Stage**：当前主任务
+4. **Inspector**：上下文、版本、引用、trace 等辅助判断区
+5. **Bottom Dock**：问题、活动、运行状态、支持信息
 
-这背后的交互纪律是：
+交互纪律：
 
-- 中间只承载一个一级任务
-- 右侧只做支持判断
-- 底部只放问题与运行信息
-- 左侧只做对象导航，不做动作堆叠
+- 中间只承载一个一级任务。
+- 右侧只做辅助判断。
+- 底部只放问题、活动和运行支持信息。
+- 左侧负责对象导航，不堆叠主动作。
 
----
+## 已落地能力概览
 
-## 设计借鉴
+### Scene
 
-这个项目不会照搬某一个产品，而是有选择地借鉴多种成熟原型：
+- Scene workspace：setup / execution / prose。
+- Proposal review、patch preview、commit、prose revision 等 mock/API 合同。
+- Scene run session：start、detail、event timeline、review gate。
+- Run artifact inspector 与 trace panel 作为 Scene / Orchestrate 的支持面。
 
-### VS Code
+### Chapter
 
-借它的 workbench 空间纪律：
+- Chapter structure workspace：sequence / outliner / assembly。
+- Chapter draft workspace。
+- Chapter -> Scene handoff。
+- Chapter scene reorder、structure patch 的 API-backed mutation 与 optimistic rollback 规则。
 
-- mode rail / side bar / panel / status bar
-- tabs / split / layout persistence
-- 主舞台与辅助面板的分工
+### Asset
 
-不照搬它的程序员噪音和技术化压迫感。
+- Asset knowledge workspace。
+- profile / mentions / relations 视图。
+- asset not-found 与 Storybook/mock fixture 场景。
 
-### AppFlowy
+### Book
 
-借“一份数据，多种视图”的方法。
+- Book structure workspace：sequence / outliner / signals。
+- Book draft workspace：read / compare / export / branch / review。
+- Manuscript checkpoints、export profiles、export artifacts、experiment branches。
+- Review inbox、review decisions、source-fix actions、trace gap / export readiness / branch readiness 等读写面。
 
-这会体现在：
+### API / Runtime
 
-- Chapter 的 `Sequence / Outliner / Assembly`
-- 未来 Knowledge 的多视图资产工作面
-
-### Outline
-
-借它安静、清晰、可阅读的知识工作体验。
-
-### BookStack
-
-借它显式层级与顺序组织心智。
-
-### Wiki.js
-
-借它路径化定位与导航方式分离的思路。
-
-### Logseq
-
-借它链接意识、反向引用、references 的组织方式，但不把 graph 做成主入口。
-
----
-
-## 当前项目状态
-
-当前仓库现在由两个直接可用的工作包组成：
-
-- `@narrative-novel/renderer`：Workbench / Storybook / mock runtime 原型
-- `@narrative-novel/api`：fixture-backed API server skeleton，兑现 `/api/projects/{projectId}/...` 合同
-
-根脚本当前暴露了：
-
-- `pnpm dev:api`
-- `pnpm dev:renderer`
-- `pnpm typecheck`
-- `pnpm test`
-- `pnpm build`
-- `pnpm storybook`
-
-其中：
-
-- `pnpm typecheck` / `pnpm test` 同时覆盖 `api + renderer`
-- `pnpm build` 仍只构建 `renderer`
-- `pnpm storybook` 仍只启动 `renderer` 的 Storybook
-
-所以目前最适合把它理解为：
-
-**一个以 renderer / Storybook 为主舞台，并带有可联调 fixture API server 的叙事工作台原型仓库。**
-
-从当前 `App.tsx` 来看，workbench 已经不再只服务 Scene：
-
-- 已支持 `scene` 与 `chapter` 两个 scope
-- Scene 侧已接入完整 workbench：top bar / mode rail / navigator / main stage / inspector / bottom dock
-- Chapter 侧已经接进 workbench，但当前仍以 `structure` 和 placeholder 骨架为主
-
-这意味着仓库已经进入 **“用第二个 scope 验证 workbench 架构”** 的阶段。
-
----
-
-## 当前重点方向
-
-当前最重要的前端方向不是继续堆更多 Scene 页面，而是：
-
-### 1. 把 Chapter / Structure 做成真正的数据驱动工作面
-
-重点包括：
-
-- Binder
-- Sequence
-- Outliner
-- Assembly
-- Inspector / Problems
-- Chapter → Scene 的平滑 handoff
-
-### 2. 继续巩固 workbench 的多 scope 承载能力
-
-也就是验证：
-
-- route 是否足够稳定
-- 同一壳子是否能承载不同对象层级
-- 视图切换是否真正建立在统一模型之上
-
-### 3. 为未来 Asset / Knowledge 留出入口
-
-但暂时不急着把 graph、wiki、story bible 一次性铺满。
-
----
+- Fastify fixture API server。
+- 统一 JSON error body。
+- Book / Chapter / Asset / Review / Scene read surfaces。
+- Review decision、review fix action、chapter mutation、export artifact build 等写路径。
+- Project runtime health：`runtime-info`。
+- Scene run REST 合同：start run、get run、paginated events、submit review decision。
+- Run artifact / trace read surfaces。
 
 ## 本地开发
 
@@ -205,12 +146,6 @@ constraint -> proposal -> review -> accepted canon -> prose
 
 ```bash
 pnpm install
-```
-
-### 启动 Storybook
-
-```bash
-pnpm storybook
 ```
 
 ### 启动 fixture API server
@@ -225,93 +160,128 @@ pnpm dev:api
 http://127.0.0.1:4174
 ```
 
-### Fixture API contract notes
+### 配置 renderer 使用 API runtime
 
-- Run events stay lightweight and use `refs` to point at run artifacts instead of inlining large context, proposal, canon, or prose payloads.
-- `GET /api/projects/:projectId/runs/:runId/artifacts` and `GET /api/projects/:projectId/runs/:runId/artifacts/:artifactId` expose product read models for context packet, agent invocation, proposal set, canon patch, and prose draft details.
-- `GET /api/projects/:projectId/runs/:runId/trace` is a product read surface for explicit proposal -> canon -> prose links; it is not a raw workflow, Temporal, or model transcript dump.
-- `GET /api/projects/:projectId/runs/:runId/events/stream` remains unimplemented in the fixture API. Use paginated run events for now.
-
-### 配置 renderer 走 API runtime
-
-`packages/renderer/.env.example` 提供了最小联调变量：
+`packages/renderer/.env.example` 提供最小联调变量：
 
 ```bash
 VITE_NARRATIVE_API_BASE_URL=http://localhost:4174
 VITE_NARRATIVE_PROJECT_ID=book-signal-arc
 ```
 
-### 启动 renderer 开发环境
+不配置 `VITE_NARRATIVE_API_BASE_URL` 时，renderer 使用 mock runtime，适合 Storybook、测试和静态演示。
+
+### 启动 renderer
 
 ```bash
 pnpm dev:renderer
 ```
 
-### 类型检查
+如需固定 host/port，可直接运行 renderer 包脚本：
 
 ```bash
+pnpm --filter @narrative-novel/renderer dev --host 127.0.0.1 --port 4173
+```
+
+### 启动 Storybook
+
+```bash
+pnpm storybook
+```
+
+默认端口由 renderer 包脚本指定为 `6006`：
+
+```txt
+http://127.0.0.1:6006
+```
+
+Storybook 是前端规范层和评审层。涉及前端组件、页面、fixtures 的改动，应同步更新对应 story，并用结构化页面快照验证关键 story。
+
+## 常用命令
+
+根脚本当前暴露：
+
+```bash
+pnpm dev:api
+pnpm dev:renderer
 pnpm typecheck
-```
-
-### 运行测试
-
-```bash
 pnpm test
+pnpm build
+pnpm storybook
 ```
 
-这会同时运行 `@narrative-novel/api` 与 `@narrative-novel/renderer` 的测试。
+说明：
 
-### 构建
+- `pnpm typecheck` 同时覆盖 `@narrative-novel/api` 与 `@narrative-novel/renderer`。
+- `pnpm test` 同时覆盖 `@narrative-novel/api` 与 `@narrative-novel/renderer`。
+- `pnpm build` 当前只构建 renderer。
+- `pnpm storybook` 当前只启动 renderer Storybook。
+
+包级命令：
 
 ```bash
-pnpm build
+pnpm --filter @narrative-novel/api typecheck
+pnpm --filter @narrative-novel/api test
+pnpm --filter @narrative-novel/renderer typecheck
+pnpm --filter @narrative-novel/renderer test
+pnpm --filter @narrative-novel/renderer build-storybook
 ```
 
-当前仍只构建 `renderer` 包。
+## API 合同速览
 
----
+产品态前端边界统一是：
 
-## 推荐阅读顺序
+```text
+/api/projects/{projectId}/...
+```
 
-如果你第一次进入这个仓库，建议按这个顺序理解项目：
+当前固定 fixture project：
 
-1. 先看本 README，理解项目目标与交互模型
-2. 再看前端设计 / 计划文档，理解 workbench、scope、lens 的落地方式
-3. 然后进入 `packages/renderer`，从 workbench shell、scene、chapter 三层去看当前实现
-4. 最后再看分阶段 PR 计划，理解项目接下来如何推进
+```txt
+book-signal-arc
+```
 
----
+关键端点族：
 
-## 项目原则
+- `GET /api/projects/{projectId}/runtime-info`
+- `GET /api/projects/{projectId}/books/{bookId}/structure`
+- `GET /api/projects/{projectId}/chapters/{chapterId}/structure`
+- `GET /api/projects/{projectId}/assets/{assetId}/knowledge`
+- `GET /api/projects/{projectId}/books/{bookId}/review-decisions`
+- `PUT /api/projects/{projectId}/books/{bookId}/review-decisions/{issueId}`
+- `GET /api/projects/{projectId}/books/{bookId}/review-fix-actions`
+- `PUT /api/projects/{projectId}/books/{bookId}/review-fix-actions/{issueId}`
+- `POST /api/projects/{projectId}/scenes/{sceneId}/runs`
+- `GET /api/projects/{projectId}/runs/{runId}`
+- `GET /api/projects/{projectId}/runs/{runId}/events`
+- `POST /api/projects/{projectId}/runs/{runId}/review-decisions`
+- `GET /api/projects/{projectId}/runs/{runId}/artifacts`
+- `GET /api/projects/{projectId}/runs/{runId}/artifacts/{artifactId}`
+- `GET /api/projects/{projectId}/runs/{runId}/trace`
+- `GET /api/projects/{projectId}/runs/{runId}/events/stream`：当前保持 `501` 占位
 
-- Chat 只是辅助，不是主舞台
-- 审阅比生成更重要
-- Objects first, views second
-- 可追溯性必须前台化
-- 结构、正文、知识必须分层
-- 视觉上更像安静的专业工作台，而不是炫技控制台
+详细合同见 [doc/api-contract.md](doc/api-contract.md)。
 
----
+## 文档入口
 
-## 近期路线
+当前更可靠的文档入口：
 
-### 已经成立的方向
+- [doc/project-positioning-and-design-principles.md](doc/project-positioning-and-design-principles.md)：产品定位与设计原则。
+- [doc/odd-frontend-comprehensive-design.md](doc/odd-frontend-comprehensive-design.md)：Workbench 交互和前端信息架构。
+- [doc/api-contract.md](doc/api-contract.md)：API/runtime 合同。
+- [packages/renderer/README.md](packages/renderer/README.md)：renderer 包、Storybook 与前端交付约定。
+- [doc/BE-PR1-fixture-backed-api-server-skeleton-execution-plan.md](doc/BE-PR1-fixture-backed-api-server-skeleton-execution-plan.md)：fixture API server 基线。
+- [doc/BE-PR2-scene-run-workflow-skeleton-execution-plan.md](doc/BE-PR2-scene-run-workflow-skeleton-execution-plan.md)：scene run workflow skeleton。
+- [doc/BE-PR3-run-artifact-trace-read-surfaces-execution-plan.md](doc/BE-PR3-run-artifact-trace-read-surfaces-execution-plan.md)：run artifact / trace API 读面。
+- [doc/PR25-backend-orchestration-integration-ui-execution-plan.md](doc/PR25-backend-orchestration-integration-ui-execution-plan.md)：Scene / Orchestrate 接入真实 HTTP run runtime。
+- [doc/PR26-run-artifact-trace-inspector-execution-plan.md](doc/PR26-run-artifact-trace-inspector-execution-plan.md)：renderer artifact inspector / trace panel 接入。
 
-- Scene workbench 已经是第一条核心纵切
-- Workbench shell 已经从 scene-only 往 multi-scope 扩展
-- Chapter / Structure 已经作为第二个 scope 接入
+## 当前边界
 
-### 接下来最重要的事
+不要把当前仓库误读为已经完成的生产后端或全功能小说编辑器：
 
-1. 把 Chapter 从 scaffold 做成真正的数据驱动结构台
-2. 完成 `Sequence / Outliner / Assembly` 三视图共享模型
-3. 补结构编辑动作与 inspector / dock 逻辑
-4. 为未来 `Asset / Knowledge` 预留 story graph 入口
-
----
-
-## 一句话总结
-
-`new-narrative-novel` 最值得坚持的方向，不是“做更多 AI 页面”，而是把它打造成：
-
-**一个围绕 scope、lens 与 review flow 组织叙事工作的 Narrative IDE。**
+- fixture API server 是合同验证和前后端联调骨架，不是真实持久化后端。
+- mock runtime 是 Storybook、测试和演示 fallback，不是产品数据来源终态。
+- `events/stream` 尚未开放，当前运行事件消费方式是 REST polling/page contract。
+- run artifact / trace 是产品 read surface，不是 raw workflow history、Temporal history 或 LLM token stream。
+- 目前的重点仍是把 scope/lens/workbench/runtime/API 合同跑稳，再继续扩真实后端、auth、SSE、持久化和更深的编排引擎。
