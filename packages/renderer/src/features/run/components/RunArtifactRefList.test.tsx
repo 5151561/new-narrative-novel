@@ -37,6 +37,16 @@ describe('RunArtifactRefList', () => {
     expect(screen.getByText('Editorial review')).toBeInTheDocument()
   })
 
+  it('does not expose raw ref ids through chip titles', () => {
+    renderRefs({ onSelectArtifact: vi.fn() })
+
+    expect(screen.getByRole('button', { name: 'Open Scene context packet' })).not.toHaveAttribute(
+      'title',
+      'ctx-scene-midnight-platform-run-001',
+    )
+    expect(screen.getByText('Editorial review')).not.toHaveAttribute('title', 'review-scene-midnight-platform-001')
+  })
+
   it('calls onSelectArtifact when a context packet ref is clicked', async () => {
     const user = userEvent.setup()
     const onSelectArtifact = vi.fn()

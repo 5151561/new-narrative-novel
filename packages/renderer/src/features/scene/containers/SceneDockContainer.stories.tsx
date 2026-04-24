@@ -30,6 +30,38 @@ export const Default: Story = {
   },
 }
 
+export const EventsWithClickableRefs: Story = {
+  args: {
+    sceneId: 'scene-midnight-platform',
+    initialSelectedArtifactId: 'ctx-scene-midnight-platform-run-001',
+    initialInspectorMode: 'artifact',
+  },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution',
+      uiState: {
+        dockTab: 'events',
+      },
+    },
+  },
+}
+
+export const EventsTraceInspector: Story = {
+  args: {
+    sceneId: 'scene-midnight-platform',
+    initialSelectedArtifactId: 'proposal-set-scene-midnight-platform-run-001',
+    initialInspectorMode: 'trace',
+  },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution',
+      uiState: {
+        dockTab: 'events',
+      },
+    },
+  },
+}
+
 export const Trace: Story = {
   args: {
     sceneId: 'scene-midnight-platform',

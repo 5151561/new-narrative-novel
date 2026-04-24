@@ -36,7 +36,7 @@ export function RunArtifactRefList({ refs, selectedArtifactId, onSelectArtifact 
 
         if (!clickable) {
           return (
-            <Badge key={`${ref.kind}-${ref.id}`} title={ref.id} tone={selected ? 'accent' : 'neutral'}>
+            <Badge key={`${ref.kind}-${ref.id}`} title={label} tone={selected ? 'accent' : 'neutral'}>
               {label}
             </Badge>
           )
@@ -48,7 +48,7 @@ export function RunArtifactRefList({ refs, selectedArtifactId, onSelectArtifact 
             type="button"
             aria-label={`Open ${label}`}
             aria-pressed={selected}
-            title={ref.id}
+            title={label}
             onClick={(event) => {
               event.stopPropagation()
               onSelectArtifact?.(ref.id)

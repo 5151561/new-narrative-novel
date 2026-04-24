@@ -8,7 +8,11 @@ import { TimelineList } from '@/components/ui/TimelineList'
 
 import { cn } from '@/lib/cn'
 
+import type { RunArtifactDetailRecord, RunArtifactSummaryRecord } from '@/features/run/api/run-artifact-records'
 import type { RunEventRecord, RunRecord } from '@/features/run/api/run-records'
+import type { RunTraceResponse } from '@/features/run/api/run-trace-records'
+import { RunEventInspectorPanel, type RunEventInspectorMode } from '@/features/run/components/RunEventInspectorPanel'
+import { RunEventStreamPanel } from '@/features/run/components/RunEventStreamPanel'
 
 import type { SceneDockTabId, SceneDockViewModel } from '../types/scene-view-models'
 
@@ -76,12 +80,6 @@ const runStatusTone: Record<RunRecord['status'], 'neutral' | 'accent' | 'warn' |
   cancelled: 'neutral',
 }
 
-const runSeverityTone = {
-  info: 'neutral',
-  warning: 'warn',
-  error: 'danger',
-} as const
-
 const runStatusLabels: Record<Locale, Record<RunRecord['status'], string>> = {
   en: {
     queued: 'Queued',
@@ -101,28 +99,30 @@ const runStatusLabels: Record<Locale, Record<RunRecord['status'], string>> = {
   },
 }
 
-const runSeverityLabels: Record<Locale, Record<keyof typeof runSeverityTone, string>> = {
-  en: {
-    info: 'Info',
-    warning: 'Warning',
-    error: 'Error',
-  },
-  'zh-CN': {
-    info: '提示',
-    warning: '警告',
-    error: '错误',
-  },
-}
-
 interface SceneBottomDockRunSupport {
+  activeRunId?: string | null
   run: RunRecord | null
   events: RunEventRecord[]
   isLoading: boolean
   error: Error | null
   isReviewPending: boolean
+  artifacts: RunArtifactSummaryRecord[]
+  artifactsError?: Error | null
+  isArtifactsLoading?: boolean
+  selectedArtifactId?: string | null
+  selectedArtifact?: RunArtifactDetailRecord | null
+  artifactError?: Error | null
+  isArtifactLoading?: boolean
+  trace: RunTraceResponse | null
+  traceError?: Error | null
+  isTraceLoading?: boolean
+  inspectorMode?: RunEventInspectorMode
+  onInspectorModeChange?: (mode: RunEventInspectorMode) => void
+  onSelectArtifact?: (artifactId: string) => void
 }
 
 const dockProductMilestoneKinds = new Set<RunEventRecord['kind']>([
+  'context_packet_built',
   'proposal_created',
   'review_requested',
   'review_decision_submitted',
@@ -132,19 +132,28 @@ const dockProductMilestoneKinds = new Set<RunEventRecord['kind']>([
   'run_failed',
 ])
 
-function formatRunRefLabel(ref: NonNullable<RunEventRecord['refs']>[number]) {
-  return ref.kind
-}
-
 function ActiveRunSupport({
   run,
   events,
   isLoading,
   error,
   isReviewPending,
+  artifacts,
+  artifactsError,
+  isArtifactsLoading = false,
+  selectedArtifactId,
+  selectedArtifact,
+  artifactError,
+  isArtifactLoading = false,
+  trace,
+  traceError,
+  isTraceLoading = false,
+  inspectorMode,
+  onInspectorModeChange,
+  onSelectArtifact,
 }: SceneBottomDockRunSupport) {
   const { locale } = useI18n()
-  const recentEvents = events.filter((event) => dockProductMilestoneKinds.has(event.kind)).slice(-4)
+  const recentEvents = events.filter((event) => dockProductMilestoneKinds.has(event.kind))
   const hasRunSupport = Boolean(run) || isLoading || Boolean(error) || recentEvents.length > 0
 
   if (!hasRunSupport) {
@@ -152,84 +161,57 @@ function ActiveRunSupport({
   }
 
   return (
-    <SectionCard
-      eyebrow={locale === 'zh-CN' ? '当前运行支持' : 'Active Run Support'}
-      title={run?.title ?? (locale === 'zh-CN' ? '当前没有活动运行' : 'No active run')}
-      actions={run ? <Badge tone={runStatusTone[run.status]}>{runStatusLabels[locale][run.status]}</Badge> : null}
-    >
-      <div className="space-y-4">
-        <p className="text-sm leading-6 text-text-muted">
-          {run
-            ? run.summary
-            : locale === 'zh-CN'
-              ? '当前场景一旦产生运行，会在这里显示最近一次产品级里程碑。'
-              : 'Recent product-level run milestones will appear here once the scene has an active run.'}
-        </p>
-        {run ? (
-          <div className="flex flex-wrap gap-2">
-            {isReviewPending ? <Badge tone="warn">{locale === 'zh-CN' ? '待评审' : 'Pending review'}</Badge> : null}
-            {run.status === 'completed' ? <Badge tone="success">{locale === 'zh-CN' ? '已完成' : 'Completed'}</Badge> : null}
-            {run.status === 'failed' ? <Badge tone="danger">{locale === 'zh-CN' ? '运行失败' : 'Run failed'}</Badge> : null}
-          </div>
-        ) : null}
-        {isLoading ? (
-          <EmptyState
-            title={locale === 'zh-CN' ? '正在加载最近运行事件' : 'Loading recent run events'}
-            message={
-              locale === 'zh-CN'
-                ? '正在为底部支持面板拉取当前场景最近一次运行的产品级事件。'
-                : 'Fetching recent product-level events for the current scene run.'
-            }
-          />
-        ) : error ? (
-          <EmptyState
-            title={locale === 'zh-CN' ? '运行时间线不可用' : 'Run timeline unavailable'}
-            message={
-              locale === 'zh-CN'
-                ? '运行支持区域暂时无法读取最近事件。'
-                : 'The run support area cannot load recent events right now.'
-            }
-          />
-        ) : recentEvents.length > 0 ? (
-          <div className="space-y-3">
-            <p className="text-xs uppercase tracking-[0.08em] text-text-soft">{locale === 'zh-CN' ? '最近运行事件' : 'Recent Run Events'}</p>
-            <TimelineList
-              items={recentEvents.map((event) => {
-                const severity = event.severity ?? 'info'
-
-                return {
-                  id: event.id,
-                  title: event.label,
-                  detail: event.summary,
-                  meta: event.createdAtLabel,
-                  tone: runSeverityTone[severity],
-                  trailing:
-                    event.refs?.length || severity ? (
-                      <div className="flex max-w-[180px] flex-wrap justify-end gap-1">
-                        <Badge tone={runSeverityTone[severity]}>{runSeverityLabels[locale][severity]}</Badge>
-                        {event.refs?.map((ref) => (
-                          <Badge key={`${event.id}-${ref.kind}-${ref.id}`} title={ref.label ?? ref.id}>
-                            {formatRunRefLabel(ref)}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : null,
-                }
-              })}
-            />
-          </div>
-        ) : (
-          <EmptyState
-            title={locale === 'zh-CN' ? '还没有运行事件' : 'No run events yet'}
-            message={
-              locale === 'zh-CN'
-                ? '当运行记录到产品级里程碑后，这里会显示最近几条事件。'
-                : 'Recent run milestones will appear here once the active scene run advances.'
-            }
-          />
-        )}
+    <div className="grid gap-4">
+      <SectionCard
+        eyebrow={locale === 'zh-CN' ? '当前运行支持' : 'Active Run Support'}
+        title={run?.title ?? (locale === 'zh-CN' ? '当前没有活动运行' : 'No active run')}
+        actions={run ? <Badge tone={runStatusTone[run.status]}>{runStatusLabels[locale][run.status]}</Badge> : null}
+      >
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-text-muted">
+            {run
+              ? run.summary
+              : locale === 'zh-CN'
+                ? '当前场景一旦产生运行，会在这里显示最近一次产品级里程碑。'
+                : 'Recent product-level run milestones will appear here once the scene has an active run.'}
+          </p>
+          {run ? (
+            <div className="flex flex-wrap gap-2">
+              {isReviewPending ? <Badge tone="warn">{locale === 'zh-CN' ? '待评审' : 'Pending review'}</Badge> : null}
+              {run.status === 'completed' ? <Badge tone="success">{locale === 'zh-CN' ? '已完成' : 'Completed'}</Badge> : null}
+              {run.status === 'failed' ? <Badge tone="danger">{locale === 'zh-CN' ? '运行失败' : 'Run failed'}</Badge> : null}
+              {artifactsError ? (
+                <Badge tone="warn">{locale === 'zh-CN' ? '产物列表不可用' : 'Artifacts unavailable'}</Badge>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </SectionCard>
+      <div className="grid min-h-[360px] gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.95fr)]">
+        <RunEventStreamPanel
+          events={recentEvents}
+          isLoading={isLoading}
+          error={error}
+          selectedArtifactId={selectedArtifactId}
+          onSelectArtifact={onSelectArtifact}
+        />
+        <RunEventInspectorPanel
+          artifacts={artifacts}
+          artifactsError={artifactsError ?? null}
+          isArtifactsLoading={isArtifactsLoading}
+          selectedArtifactId={selectedArtifactId}
+          selectedArtifact={selectedArtifact ?? null}
+          artifactError={artifactError ?? null}
+          isArtifactLoading={isArtifactLoading}
+          trace={trace}
+          traceError={traceError}
+          isTraceLoading={isTraceLoading}
+          mode={inspectorMode}
+          onModeChange={onInspectorModeChange}
+          onSelectArtifact={onSelectArtifact}
+        />
       </div>
-    </SectionCard>
+    </div>
   )
 }
 

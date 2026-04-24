@@ -5,6 +5,7 @@ import { render, screen } from '@testing-library/react'
 import { SceneBottomDock } from './SceneBottomDock'
 import type { SceneDockViewModel } from '../types/scene-view-models'
 import type { RunEventRecord, RunRecord } from '@/features/run/api/run-records'
+import { getMockRunArtifact, resetMockRunDb } from '@/features/run/api/mock-run-db'
 
 const dockData: SceneDockViewModel = {
   events: [{ id: 'event-1', title: 'Beat review opened', detail: 'Execution promoted Beat 2 into review.' }],
@@ -103,6 +104,10 @@ describe('SceneBottomDock', () => {
           isLoading: false,
           error: null,
           isReviewPending: true,
+          artifacts: [],
+          selectedArtifactId: null,
+          selectedArtifact: null,
+          trace: null,
         },
       }),
     )
@@ -110,11 +115,46 @@ describe('SceneBottomDock', () => {
     expect(screen.getByText('Active Run Support')).toBeInTheDocument()
     expect(screen.getByText('Midnight platform rewrite run')).toBeInTheDocument()
     expect(screen.getByText('Waiting Review')).toBeInTheDocument()
-    expect(screen.getByText('Recent Run Events')).toBeInTheDocument()
+    expect(screen.getByText('Run Timeline')).toBeInTheDocument()
+    expect(screen.getByText('Run Inspector')).toBeInTheDocument()
+    expect(screen.getByText('Context packet built')).toBeInTheDocument()
     expect(screen.getByText('Review requested')).toBeInTheDocument()
-    expect(screen.queryByText('Context packet built')).not.toBeInTheDocument()
     expect(screen.queryByText('Planner invocation started')).not.toBeInTheDocument()
     expect(screen.queryByText('run-scene-midnight-platform-002')).not.toBeInTheDocument()
     expect(screen.queryByText('review-scene-midnight-platform-002')).not.toBeInTheDocument()
+  })
+
+  it('does not let artifact list errors mask selected artifact detail', () => {
+    resetMockRunDb()
+    const artifactId = 'ctx-scene-midnight-platform-run-001'
+    const selectedArtifact = getMockRunArtifact({
+      runId: 'run-scene-midnight-platform-001',
+      artifactId,
+    }).artifact
+
+    render(
+      createElement(SceneBottomDock as unknown as typeof SceneBottomDock, {
+        data: dockData,
+        activeTab: 'events',
+        onTabChange: vi.fn(),
+        runSupport: {
+          run: activeRun,
+          events: activeRunEvents,
+          isLoading: false,
+          error: null,
+          isReviewPending: true,
+          artifacts: [],
+          artifactsError: new Error('list unavailable'),
+          selectedArtifactId: artifactId,
+          selectedArtifact,
+          artifactError: null,
+          trace: null,
+        },
+      }),
+    )
+
+    expect(screen.getAllByText('Artifacts unavailable').length).toBeGreaterThan(0)
+    expect(screen.getByRole('heading', { name: 'Scene context packet' })).toBeInTheDocument()
+    expect(screen.queryByText('Artifact not found')).not.toBeInTheDocument()
   })
 })

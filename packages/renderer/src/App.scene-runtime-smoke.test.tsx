@@ -101,7 +101,15 @@ describe('App scene runtime smoke', () => {
 
     await waitFor(() => {
       expect(within(bottomDock).getByText('Waiting Review')).toBeInTheDocument()
+      expect(within(bottomDock).getByText('Context packet built')).toBeInTheDocument()
+      expect(within(bottomDock).getByText('Proposal set created')).toBeInTheDocument()
       expect(within(bottomDock).getByText('Review requested')).toBeInTheDocument()
+    })
+
+    await user.click(within(bottomDock).getByRole('button', { name: 'Open Scene proposal set' }))
+    await waitFor(() => {
+      expect(within(bottomDock).getAllByText('Proposals').length).toBeGreaterThan(0)
+      expect(within(bottomDock).getAllByText('Review Options').length).toBeGreaterThan(0)
     })
 
     const runReviewGate = screen.getAllByText('Run Review Gate')[0]?.closest('section')
@@ -109,13 +117,26 @@ describe('App scene runtime smoke', () => {
       throw new Error('Expected the run review gate to be visible before submitting acceptance.')
     }
 
-    await user.click(within(runReviewGate).getByRole('button', { name: 'Accept' }))
+    await user.click(within(runReviewGate).getByRole('button', { name: 'Accept With Edit' }))
+    await user.click(within(runReviewGate).getByRole('button', { name: 'Submit Accept With Edit' }))
 
     await waitFor(() => {
       expect(within(bottomDock).queryByText('Pending review')).not.toBeInTheDocument()
       expect(within(bottomDock).getAllByText('Completed').length).toBeGreaterThan(0)
       expect(within(bottomDock).getByText('Review decision submitted')).toBeInTheDocument()
+      expect(within(bottomDock).getByText('Canon patch applied')).toBeInTheDocument()
+      expect(within(bottomDock).getByText('Prose generated')).toBeInTheDocument()
       expect(within(bottomDock).getByText('Run completed')).toBeInTheDocument()
+    })
+
+    const inspector = within(bottomDock).getByRole('region', { name: 'Run Inspector' })
+    await user.click(within(inspector).getByRole('button', { name: 'Trace' }))
+
+    await waitFor(() => {
+      expect(within(inspector).getByText('Canon patches')).toBeInTheDocument()
+      expect(within(inspector).getByText('Prose drafts')).toBeInTheDocument()
+      expect(within(inspector).getByText('Accepted into canon')).toBeInTheDocument()
+      expect(within(inspector).getByText('Rendered as prose')).toBeInTheDocument()
     })
 
     await waitFor(() => {
@@ -126,6 +147,6 @@ describe('App scene runtime smoke', () => {
 
     expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
     expect(within(bottomDock).getByText('Active Run Support')).toBeInTheDocument()
-    expect(within(bottomDock).getAllByText('Proposal set accepted and applied to canon and prose.').length).toBeGreaterThan(0)
+    expect(within(bottomDock).getAllByText('Proposal set accepted with editor adjustments applied to canon and prose.').length).toBeGreaterThan(0)
   }, 20000)
 })

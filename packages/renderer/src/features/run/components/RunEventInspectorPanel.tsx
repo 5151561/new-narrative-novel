@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { useI18n, type Locale } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
@@ -16,6 +16,8 @@ export type RunEventInspectorMode = 'artifact' | 'trace'
 
 export interface RunEventInspectorPanelProps {
   artifacts: RunArtifactSummaryRecord[]
+  artifactsError?: Error | null
+  isArtifactsLoading?: boolean
   selectedArtifactId?: string | null
   selectedArtifact?: RunArtifactDetailRecord | null
   artifactError?: Error | null
@@ -34,14 +36,40 @@ function t(value: LocalizedTextRecord, locale: Locale) {
 
 function ArtifactList({
   artifacts,
+  isLoading = false,
+  error = null,
   selectedArtifactId,
   onSelectArtifact,
 }: {
   artifacts: RunArtifactSummaryRecord[]
+  isLoading?: boolean
+  error?: Error | null
   selectedArtifactId?: string | null
   onSelectArtifact?: (artifactId: string) => void
 }) {
   const { locale } = useI18n()
+
+  if (isLoading) {
+    return (
+      <EmptyState
+        title={locale === 'zh-CN' ? '正在加载运行产物' : 'Loading run artifacts'}
+        message={locale === 'zh-CN' ? '正在读取这次运行的产物列表。' : 'Reading the artifact list for this run.'}
+      />
+    )
+  }
+
+  if (error) {
+    return (
+      <EmptyState
+        title={locale === 'zh-CN' ? '产物列表不可用' : 'Artifacts unavailable'}
+        message={
+          locale === 'zh-CN'
+            ? '产物列表暂时无法读取。事件时间线与已选产物详情仍可继续查看。'
+            : 'The artifact list could not be loaded. The event timeline and selected artifact detail remain available.'
+        }
+      />
+    )
+  }
 
   if (artifacts.length === 0) {
     return (
@@ -80,6 +108,8 @@ function ArtifactList({
 
 export function RunEventInspectorPanel({
   artifacts,
+  artifactsError = null,
+  isArtifactsLoading = false,
   selectedArtifactId,
   selectedArtifact,
   artifactError = null,
@@ -105,14 +135,12 @@ export function RunEventInspectorPanel({
     onModeChange?.(nextMode)
   }
 
-  useEffect(() => {
-    if (selectedArtifactId && activeMode !== 'artifact') {
-      setMode('artifact')
-    }
-  }, [activeMode, selectedArtifactId])
-
   return (
-    <section className="flex min-h-0 flex-col overflow-hidden rounded-md border border-line-soft bg-surface-1 shadow-ringwarm">
+    <section
+      role="region"
+      aria-label={locale === 'zh-CN' ? '运行检查器' : 'Run Inspector'}
+      className="flex min-h-0 flex-col overflow-hidden rounded-md border border-line-soft bg-surface-1 shadow-ringwarm"
+    >
       <PaneHeader
         title={locale === 'zh-CN' ? '运行检查器' : 'Run Inspector'}
         description={locale === 'zh-CN' ? '审阅事件产物与来源链。' : 'Inspect event artifacts and grouped trace links.'}
@@ -139,25 +167,34 @@ export function RunEventInspectorPanel({
       <div className="min-h-0 flex-1 overflow-y-auto bg-app/40 p-4">
         {activeMode === 'trace' ? (
           <RunTracePanel trace={trace} isLoading={isTraceLoading} error={traceError} />
-        ) : selectedArtifactId ? (
-          selectedArtifact || isArtifactLoading || artifactError ? (
-            <RunArtifactInspectorPanel artifact={selectedArtifact ?? null} isLoading={isArtifactLoading} error={artifactError} />
-          ) : (
-            <EmptyState
-              title={locale === 'zh-CN' ? '产物详情待加载' : 'Artifact detail pending'}
-              message={
-                selectedSummary
-                  ? locale === 'zh-CN'
-                    ? '已选择产物，等待容器传入详情。'
-                    : 'The artifact is selected and waiting for container-provided detail.'
-                  : locale === 'zh-CN'
-                    ? '请选择一个运行产物。'
-                    : 'Select a run artifact.'
-              }
-            />
-          )
         ) : (
-          <ArtifactList artifacts={artifacts} selectedArtifactId={selectedArtifactId} onSelectArtifact={onSelectArtifact} />
+          <div className="grid gap-4">
+            <ArtifactList
+              artifacts={artifacts}
+              isLoading={isArtifactsLoading}
+              error={artifactsError}
+              selectedArtifactId={selectedArtifactId}
+              onSelectArtifact={onSelectArtifact}
+            />
+            {selectedArtifactId ? (
+              selectedArtifact || isArtifactLoading || artifactError ? (
+                <RunArtifactInspectorPanel artifact={selectedArtifact ?? null} isLoading={isArtifactLoading} error={artifactError} />
+              ) : (
+                <EmptyState
+                  title={locale === 'zh-CN' ? '产物详情待加载' : 'Artifact detail pending'}
+                  message={
+                    selectedSummary
+                      ? locale === 'zh-CN'
+                        ? '已选择产物，等待容器传入详情。'
+                        : 'The artifact is selected and waiting for container-provided detail.'
+                      : locale === 'zh-CN'
+                        ? '请选择一个运行产物。'
+                        : 'Select a run artifact.'
+                  }
+                />
+              )
+            ) : null}
+          </div>
         )}
       </div>
     </section>
