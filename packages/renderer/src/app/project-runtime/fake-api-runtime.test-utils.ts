@@ -423,6 +423,10 @@ async function handleFakeApiRequest<TResponse, TBody>(
       decision: 'accept' | 'accept-with-edit' | 'request-rewrite' | 'reject'
       note?: string
       patchId?: string
+      selectedVariants?: Array<{
+        proposalId: string
+        variantId: string
+      }>
     }
     return cloneFakeApiResponse(
       await mockRuntime.runClient.submitRunReviewDecision({
@@ -431,6 +435,7 @@ async function handleFakeApiRequest<TResponse, TBody>(
         decision: reviewBody.decision,
         note: reviewBody.note,
         patchId: reviewBody.patchId,
+        selectedVariants: reviewBody.selectedVariants,
       }),
     ) as TResponse
   }

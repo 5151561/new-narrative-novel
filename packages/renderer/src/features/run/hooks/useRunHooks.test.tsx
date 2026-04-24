@@ -331,15 +331,30 @@ describe('run hooks', () => {
       }),
     })
 
+    const selectedVariants = [
+      {
+        proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+        variantId: 'variant-midnight-platform-raise-conflict',
+      },
+    ]
+
     await act(async () => {
       await hook.result.current.mutateAsync({
         runId: previousRun.id,
         reviewId: 'review-scene-midnight-platform-001',
         decision: 'accept',
         note: 'Ship it.',
+        selectedVariants,
       })
     })
 
+    expect(runClient.submitRunReviewDecision).toHaveBeenCalledWith({
+      runId: previousRun.id,
+      reviewId: 'review-scene-midnight-platform-001',
+      decision: 'accept',
+      note: 'Ship it.',
+      selectedVariants,
+    })
     expect(queryClient.getQueryData(runQueryKeys.detail('book-signal-arc', previousRun.id))).toEqual(completedRun)
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: runQueryKeys.events('book-signal-arc', previousRun.id),

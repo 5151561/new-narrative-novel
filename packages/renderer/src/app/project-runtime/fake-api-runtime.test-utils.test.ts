@@ -741,6 +741,12 @@ describe('createFakeApiRuntime override matching', () => {
         reviewId: startedRun.pendingReviewId!,
         decision: 'accept',
         note: 'Ship it.',
+        selectedVariants: [
+          {
+            proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+            variantId: 'variant-midnight-platform-raise-conflict',
+          },
+        ],
       }),
     ).resolves.toEqual(completedRun)
     await expect(runtime.runClient.listRunArtifacts({ runId: startedRun.id })).resolves.toEqual(artifactsResponse)
@@ -769,6 +775,12 @@ describe('createFakeApiRuntime override matching', () => {
       reviewId: startedRun.pendingReviewId,
       decision: 'accept',
       note: 'Ship it.',
+      selectedVariants: [
+        {
+          proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+          variantId: 'variant-midnight-platform-raise-conflict',
+        },
+      ],
     })
     expect(listRunArtifacts).toHaveBeenCalledWith({
       runId: startedRun.id,
@@ -806,6 +818,12 @@ describe('createFakeApiRuntime override matching', () => {
         reviewId: 'review-scene-midnight-platform-002',
         decision: 'accept',
         note: 'Ship it.',
+        selectedVariants: [
+          {
+            proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+            variantId: 'variant-midnight-platform-raise-conflict',
+          },
+        ],
       },
     })
     expectRecordedRequest(requests, {

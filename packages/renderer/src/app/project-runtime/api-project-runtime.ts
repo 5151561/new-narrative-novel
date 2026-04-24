@@ -275,6 +275,7 @@ export function createRunClient(projectId: string, transport: ApiTransport): Run
           decision: input.decision,
           note: input.note,
           patchId: input.patchId,
+          selectedVariants: input.selectedVariants,
         },
       })
     },

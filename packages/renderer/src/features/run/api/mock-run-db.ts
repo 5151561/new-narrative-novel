@@ -19,6 +19,7 @@ import type {
   RunEventsPageRecord,
   RunRecord,
   RunReviewDecisionKind,
+  RunSelectedProposalVariantRecord,
   StartSceneRunInput,
   SubmitRunReviewDecisionInput,
 } from './run-records'
@@ -37,12 +38,14 @@ interface MockRunState {
   run: RunRecord
   events: RunEventRecord[]
   reviewDecisionsByReviewId: Record<string, RunReviewDecisionKind>
+  selectedVariantsByReviewId: Record<string, RunSelectedProposalVariantRecord[]>
 }
 
 export interface MockRunStateSnapshot {
   run: RunRecord
   events: RunEventRecord[]
   reviewDecisionsByReviewId?: Record<string, RunReviewDecisionKind>
+  selectedVariantsByReviewId?: Record<string, RunSelectedProposalVariantRecord[]>
 }
 
 export interface MockRunSnapshot {
@@ -108,6 +111,7 @@ function createEvent(
   label: string,
   summary: string,
   refs?: RunEventRefRecord[],
+  metadata?: RunEventRecord['metadata'],
 ): RunEventRecord {
   return {
     id: buildRunEventId(runId, order),
@@ -118,6 +122,7 @@ function createEvent(
     summary,
     createdAtLabel: buildTimelineLabel(order),
     refs,
+    metadata,
   }
 }
 
@@ -177,12 +182,14 @@ function setRunState(
   run: RunRecord,
   events: RunEventRecord[],
   reviewDecisionsByReviewId: Record<string, RunReviewDecisionKind> = {},
+  selectedVariantsByReviewId: Record<string, RunSelectedProposalVariantRecord[]> = {},
 ) {
   const bucket = getRunBucket(projectId, true)
   bucket!.set(run.id, {
     run: clone(run),
     events: clone(events),
     reviewDecisionsByReviewId: clone(reviewDecisionsByReviewId),
+    selectedVariantsByReviewId: clone(selectedVariantsByReviewId),
   })
 }
 
@@ -199,9 +206,16 @@ function requireRunState(runId: string, projectId = DEFAULT_PROJECT_ID) {
   return state
 }
 
-function appendRunEvent(state: MockRunState, kind: RunEventKind, label: string, summary: string, refs?: RunEventRefRecord[]) {
+function appendRunEvent(
+  state: MockRunState,
+  kind: RunEventKind,
+  label: string,
+  summary: string,
+  refs?: RunEventRefRecord[],
+  metadata?: RunEventRecord['metadata'],
+) {
   const nextOrder = state.events.length + 1
-  const event = createEvent(state.run.id, nextOrder, kind, label, summary, refs)
+  const event = createEvent(state.run.id, nextOrder, kind, label, summary, refs, metadata)
   state.events.push(event)
   state.run.latestEventId = event.id
   state.run.eventCount = state.events.length
@@ -355,9 +369,21 @@ function getReviewDecision(state: MockRunState): CanonPatchArtifactDetailRecord[
   return acceptedDecisions.at(-1) ?? 'accept'
 }
 
+function getReviewId(state: MockRunState) {
+  return state.run.pendingReviewId ?? buildReviewId(state.run.scopeId, extractRunSequence(state.run.id))
+}
+
+function getSelectedVariants(state: MockRunState) {
+  return clone(state.selectedVariantsByReviewId[getReviewId(state)] ?? [])
+}
+
 function getAcceptedProposalIds(state: MockRunState) {
   const proposalSetId = getProposalSetId(state)
   return [getReviewDecision(state) === 'accept-with-edit' ? `${proposalSetId}-proposal-002` : `${proposalSetId}-proposal-001`]
+}
+
+function getSelectedVariantsForProposalIds(state: MockRunState, proposalIds: string[]) {
+  return getSelectedVariants(state).filter((selectedVariant) => proposalIds.includes(selectedVariant.proposalId))
 }
 
 function buildContextPacketDetail(state: MockRunState, entry: MockArtifactEntry): ContextPacketArtifactDetailRecord {
@@ -437,27 +463,64 @@ function buildAgentInvocationDetail(state: MockRunState, entry: MockArtifactEntr
 
 function buildProposalSetDetail(state: MockRunState, entry: MockArtifactEntry): ProposalSetArtifactDetailRecord {
   const [proposalOneId, proposalTwoId] = buildProposalIds(entry.id)
+  const selectedVariantByProposalId = new Map(
+    getSelectedVariants(state).map((selectedVariant) => [selectedVariant.proposalId, selectedVariant.variantId]),
+  )
 
   return {
     ...buildArtifactSummary(state, entry),
     kind: 'proposal-set',
-    reviewId: state.run.pendingReviewId ?? buildReviewId(state.run.scopeId, extractRunSequence(state.run.id)),
+    reviewId: getReviewId(state),
     sourceInvocationIds: getAgentInvocationIds(state),
     proposals: [
       {
         id: proposalOneId,
-        title: text('Anchor the arrival beat'),
-        summary: text('Open on the scene before introducing any new reveal.'),
+        title: text('Anchor the arrival beat', '锚定入场节拍'),
+        summary: text('Open on the scene before introducing any new reveal.', '先打开场景，再引入新的揭示。'),
         changeKind: 'action',
-        riskLabel: text('Low continuity risk'),
+        riskLabel: text('Low continuity risk', '低连续性风险'),
         relatedAssets: [buildLeadAsset(state.run.scopeId)],
+        variants: [
+          {
+            id: 'variant-midnight-platform-default',
+            label: text('Balanced arrival', '平衡入场'),
+            summary: text(
+              'Keep the arrival beat steady and let the reveal wait until the setting is established.',
+              '保持入场节拍稳定，等场景建立后再让揭示出现。',
+            ),
+            rationale: text(
+              'This keeps the accepted canon easy to trace without forcing a high-tension rewrite.',
+              '这能保持已接受 canon 易于追溯，同时不强行推高冲突。',
+            ),
+            tradeoffLabel: text('Slower reveal pressure', '揭示压力较慢'),
+            riskLabel: text('Low continuity risk', '低连续性风险'),
+            relatedAssets: [buildLeadAsset(state.run.scopeId)],
+          },
+          {
+            id: 'variant-midnight-platform-raise-conflict',
+            label: text('Higher conflict', '提高冲突'),
+            summary: text(
+              'Let the lead confront the platform signal immediately and raise the scene pressure.',
+              '让主角立刻面对站台信号，抬高场景压力。',
+            ),
+            rationale: text(
+              'This gives review a sharper alternative while keeping the source proposal unchanged.',
+              '这为审阅提供更锐利的候选版本，同时保持源 proposal 不变。',
+            ),
+            tradeoffLabel: text('Sharper transition cost', '转场更陡'),
+            riskLabel: text('Medium assembly risk', '中等拼接风险'),
+            relatedAssets: [buildLeadAsset(state.run.scopeId), buildSettingAsset(state.run.scopeId)],
+          },
+        ],
+        defaultVariantId: 'variant-midnight-platform-default',
+        selectedVariantId: selectedVariantByProposalId.get(proposalOneId),
       },
       {
         id: proposalTwoId,
-        title: text('Stage the reveal through the setting'),
-        summary: text('Let the setting carry the reveal instead of adding exposition.'),
+        title: text('Stage the reveal through the setting', '通过场景调度揭示'),
+        summary: text('Let the setting carry the reveal instead of adding exposition.', '让环境承载揭示，而不是增加说明。'),
         changeKind: 'reveal',
-        riskLabel: text('Editor check recommended'),
+        riskLabel: text('Editor check recommended', '建议编辑检查'),
         relatedAssets: [buildSettingAsset(state.run.scopeId)],
       },
     ],
@@ -474,15 +537,21 @@ function buildCanonPatchDetail(state: MockRunState, entry: MockArtifactEntry): C
   const proposalSetId = getProposalSetId(state)
   const decision = getReviewDecision(state)
   const acceptedProposalIds = getAcceptedProposalIds(state)
-  const acceptedFacts = acceptedProposalIds.map((proposalId, index) => ({
-    id: `${entry.id}-fact-${toSequenceLabel(index + 1)}`,
-    label: text(`Accepted fact ${index + 1}`),
-    value: proposalId.endsWith('002')
-      ? text('The scene now carries an approved reveal through the environment.')
-      : text('The scene now opens on a stable arrival beat.'),
-    sourceProposalIds: [proposalId],
-    relatedAssets: proposalId.endsWith('002') ? [buildSettingAsset(state.run.scopeId)] : [buildLeadAsset(state.run.scopeId)],
-  }))
+  const selectedVariants = getSelectedVariantsForProposalIds(state, acceptedProposalIds)
+  const acceptedFacts = acceptedProposalIds.map((proposalId, index) => {
+    const factSelectedVariants = getSelectedVariantsForProposalIds(state, [proposalId])
+
+    return {
+      id: `${entry.id}-fact-${toSequenceLabel(index + 1)}`,
+      label: text(`Accepted fact ${index + 1}`),
+      value: proposalId.endsWith('002')
+        ? text('The scene now carries an approved reveal through the environment.')
+        : text('The scene now opens on a stable arrival beat.'),
+      sourceProposalIds: [proposalId],
+      ...(factSelectedVariants.length > 0 ? { selectedVariants: factSelectedVariants } : {}),
+      relatedAssets: proposalId.endsWith('002') ? [buildSettingAsset(state.run.scopeId)] : [buildLeadAsset(state.run.scopeId)],
+    }
+  })
 
   return {
     ...buildArtifactSummary(state, entry),
@@ -490,6 +559,7 @@ function buildCanonPatchDetail(state: MockRunState, entry: MockArtifactEntry): C
     decision,
     sourceProposalSetId: proposalSetId,
     acceptedProposalIds,
+    ...(selectedVariants.length > 0 ? { selectedVariants } : {}),
     acceptedFacts,
     traceLinkIds: [
       buildTraceLinkId(state.run.id, 'accepted_into', 1),
@@ -499,11 +569,15 @@ function buildCanonPatchDetail(state: MockRunState, entry: MockArtifactEntry): C
 }
 
 function buildProseDraftDetail(state: MockRunState, entry: MockArtifactEntry): ProseDraftArtifactDetailRecord {
+  const acceptedProposalIds = getAcceptedProposalIds(state)
+  const selectedVariants = getSelectedVariantsForProposalIds(state, acceptedProposalIds)
+
   return {
     ...buildArtifactSummary(state, entry),
     kind: 'prose-draft',
     sourceCanonPatchId: getCanonPatchId(state),
-    sourceProposalIds: getAcceptedProposalIds(state),
+    sourceProposalIds: acceptedProposalIds,
+    ...(selectedVariants.length > 0 ? { selectedVariants } : {}),
     excerpt: text('The scene settles into view before the next reveal turns visible.'),
     wordCount: 140 + extractRunSequence(state.run.id) * 3,
     relatedAssets: [buildLeadAsset(state.run.scopeId), buildSettingAsset(state.run.scopeId)],
@@ -810,8 +884,9 @@ function updateProjectRunState(
   run: RunRecord,
   events: RunEventRecord[],
   reviewDecisionsByReviewId: Record<string, RunReviewDecisionKind> = {},
+  selectedVariantsByReviewId: Record<string, RunSelectedProposalVariantRecord[]> = {},
 ) {
-  setRunState(projectId, run, events, reviewDecisionsByReviewId)
+  setRunState(projectId, run, events, reviewDecisionsByReviewId, selectedVariantsByReviewId)
   return clone(run)
 }
 
@@ -1011,6 +1086,62 @@ function buildRunSummary(decision: RunReviewDecisionKind) {
   }
 }
 
+function throwSelectedVariantValidationError(message: string, detail?: unknown): never {
+  throw new ApiRequestError({
+    status: 400,
+    message,
+    code: 'run-selected-variant-invalid',
+    detail,
+  })
+}
+
+function validateSelectedVariants(
+  state: MockRunState,
+  selectedVariants?: RunSelectedProposalVariantRecord[],
+): RunSelectedProposalVariantRecord[] {
+  if (!selectedVariants || selectedVariants.length === 0) {
+    return []
+  }
+
+  const proposalSetEntry = getFirstArtifactEntry(state, 'proposal-set') ?? {
+    id: getProposalSetId(state),
+    kind: 'proposal-set' as const,
+    sourceEventIds: [] as string[],
+  }
+  const proposalSet = buildProposalSetDetail(state, proposalSetEntry)
+  const proposalsById = new Map(proposalSet.proposals.map((proposal) => [proposal.id, proposal]))
+  const seenProposalIds = new Set<string>()
+
+  for (const selectedVariant of selectedVariants) {
+    if (seenProposalIds.has(selectedVariant.proposalId)) {
+      throwSelectedVariantValidationError(`Selected variants include duplicate proposal ${selectedVariant.proposalId}.`, {
+        proposalId: selectedVariant.proposalId,
+      })
+    }
+
+    seenProposalIds.add(selectedVariant.proposalId)
+
+    const proposal = proposalsById.get(selectedVariant.proposalId)
+    if (!proposal) {
+      throwSelectedVariantValidationError(`Selected variant proposal ${selectedVariant.proposalId} was not found.`, {
+        proposalId: selectedVariant.proposalId,
+      })
+    }
+
+    if (!proposal.variants?.some((variant) => variant.id === selectedVariant.variantId)) {
+      throwSelectedVariantValidationError(
+        `Selected variant ${selectedVariant.variantId} is not valid for proposal ${selectedVariant.proposalId}.`,
+        {
+          proposalId: selectedVariant.proposalId,
+          variantId: selectedVariant.variantId,
+        },
+      )
+    }
+  }
+
+  return clone(selectedVariants)
+}
+
 export function submitMockRunReviewDecision(
   input: SubmitRunReviewDecisionInput,
   projectId = DEFAULT_PROJECT_ID,
@@ -1024,16 +1155,19 @@ export function submitMockRunReviewDecision(
     })
   }
 
+  const selectedVariants = validateSelectedVariants(state, input.selectedVariants)
   const note = trimNote(input.note)
   const runSequence = extractRunSequence(input.runId)
   const sceneId = state.run.scopeId
   state.reviewDecisionsByReviewId[input.reviewId] = input.decision
+  state.selectedVariantsByReviewId[input.reviewId] = clone(selectedVariants)
   appendRunEvent(
     state,
     'review_decision_submitted',
     'Review decision submitted',
     buildReviewDecisionSummary(input.decision, note),
     [{ kind: 'review', id: input.reviewId }],
+    { selectedVariantCount: selectedVariants.length },
   )
 
   if (input.decision === 'accept' || input.decision === 'accept-with-edit') {
@@ -1070,7 +1204,13 @@ export function submitMockRunReviewDecision(
   state.run.pendingReviewId = undefined
   state.run.summary = buildRunSummary(input.decision)
 
-  return updateProjectRunState(projectId, state.run, state.events, state.reviewDecisionsByReviewId)
+  return updateProjectRunState(
+    projectId,
+    state.run,
+    state.events,
+    state.reviewDecisionsByReviewId,
+    state.selectedVariantsByReviewId,
+  )
 }
 
 export function exportMockRunSnapshot(): MockRunSnapshot {
@@ -1082,6 +1222,7 @@ export function exportMockRunSnapshot(): MockRunSnapshot {
           run: clone(state.run),
           events: clone(state.events),
           reviewDecisionsByReviewId: clone(state.reviewDecisionsByReviewId),
+          selectedVariantsByReviewId: clone(state.selectedVariantsByReviewId),
         })),
       ]),
     ),
@@ -1112,6 +1253,7 @@ export function importMockRunSnapshot(snapshot: MockRunSnapshot): void {
             run: clone(state.run),
             events: clone(state.events),
             reviewDecisionsByReviewId: clone(state.reviewDecisionsByReviewId ?? {}),
+            selectedVariantsByReviewId: clone(state.selectedVariantsByReviewId ?? {}),
           },
         ]),
       ),

@@ -548,6 +548,12 @@ describe('api project runtime', () => {
         decision: 'accept',
         note: 'Accept this draft.',
         patchId: 'patch-1',
+        selectedVariants: [
+          {
+            proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+            variantId: 'variant-midnight-platform-raise-conflict',
+          },
+        ],
       }),
     ).resolves.toMatchObject<Partial<RunRecord>>({
       status: 'completed',
@@ -609,6 +615,12 @@ describe('api project runtime', () => {
         decision: 'accept',
         note: 'Accept this draft.',
         patchId: 'patch-1',
+        selectedVariants: [
+          {
+            proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+            variantId: 'variant-midnight-platform-raise-conflict',
+          },
+        ],
       },
     })
     expect(transport).toHaveBeenNthCalledWith(5, {

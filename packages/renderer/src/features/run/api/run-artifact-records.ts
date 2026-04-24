@@ -1,4 +1,4 @@
-import type { RunReviewDecisionKind } from './run-records'
+import type { RunReviewDecisionKind, RunSelectedProposalVariantRecord } from './run-records'
 
 export interface LocalizedTextRecord {
   en: string
@@ -62,6 +62,16 @@ export interface RunArtifactGeneratedRefRecord {
   label: LocalizedTextRecord
 }
 
+export interface ProposalVariantRecord {
+  id: string
+  label: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  rationale: LocalizedTextRecord
+  tradeoffLabel?: LocalizedTextRecord
+  riskLabel?: LocalizedTextRecord
+  relatedAssets?: RunArtifactRelatedAssetRecord[]
+}
+
 export interface ProposalSetArtifactProposalRecord {
   id: string
   title: LocalizedTextRecord
@@ -69,6 +79,9 @@ export interface ProposalSetArtifactProposalRecord {
   changeKind: ProposalChangeKind
   riskLabel: LocalizedTextRecord
   relatedAssets: RunArtifactRelatedAssetRecord[]
+  variants?: ProposalVariantRecord[]
+  defaultVariantId?: string
+  selectedVariantId?: string
 }
 
 export interface ProposalSetReviewOptionRecord {
@@ -82,6 +95,7 @@ export interface CanonPatchAcceptedFactRecord {
   label: LocalizedTextRecord
   value: LocalizedTextRecord
   sourceProposalIds: string[]
+  selectedVariants?: RunSelectedProposalVariantRecord[]
   relatedAssets: RunArtifactRelatedAssetRecord[]
 }
 
@@ -120,6 +134,7 @@ export interface CanonPatchArtifactDetailRecord extends RunArtifactSummaryRecord
   decision: Extract<RunReviewDecisionKind, 'accept' | 'accept-with-edit'>
   sourceProposalSetId: string
   acceptedProposalIds: string[]
+  selectedVariants?: RunSelectedProposalVariantRecord[]
   acceptedFacts: CanonPatchAcceptedFactRecord[]
   traceLinkIds: string[]
 }
@@ -128,6 +143,7 @@ export interface ProseDraftArtifactDetailRecord extends RunArtifactSummaryRecord
   kind: 'prose-draft'
   sourceCanonPatchId: string
   sourceProposalIds: string[]
+  selectedVariants?: RunSelectedProposalVariantRecord[]
   excerpt: LocalizedTextRecord
   wordCount: number
   relatedAssets: RunArtifactRelatedAssetRecord[]

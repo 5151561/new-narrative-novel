@@ -63,6 +63,7 @@ export interface RunEventRecord {
   createdAtLabel: string
   severity?: 'info' | 'warning' | 'error'
   refs?: RunEventRefRecord[]
+  metadata?: Record<string, string | number | boolean | null>
 }
 
 export interface RunEventsPageRecord {
@@ -73,10 +74,16 @@ export interface RunEventsPageRecord {
 
 export type RunReviewDecisionKind = 'accept' | 'accept-with-edit' | 'request-rewrite' | 'reject'
 
+export interface RunSelectedProposalVariantRecord {
+  proposalId: string
+  variantId: string
+}
+
 export interface SubmitRunReviewDecisionInput {
   runId: string
   reviewId: string
   decision: RunReviewDecisionKind
   note?: string
   patchId?: string
+  selectedVariants?: RunSelectedProposalVariantRecord[]
 }
