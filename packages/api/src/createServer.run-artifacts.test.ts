@@ -1,0 +1,604 @@
+import { describe, expect, it } from 'vitest'
+
+import { withTestServer } from './test/support/test-server.js'
+
+function findEventRef(
+  events: Array<{
+    kind: string
+    refs?: Array<{ kind: string; id: string }>
+  }>,
+  eventKind: string,
+  refKind: string,
+) {
+  return events.find((event) => event.kind === eventKind)?.refs?.find((ref) => ref.kind === refKind)
+}
+
+describe('fixture API server run artifact read surfaces', () => {
+  it('serves artifact summaries, artifact detail, and trace links across review acceptance', async () => {
+    await withTestServer(async ({ app }) => {
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
+          note: 'Tighten the ending beat.',
+        },
+      })
+      expect(startResponse.statusCode).toBe(200)
+      const run = startResponse.json()
+
+      const firstEventsResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/events`,
+      })
+      expect(firstEventsResponse.statusCode).toBe(200)
+      const firstEventsPage = firstEventsResponse.json()
+
+      const secondEventsResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/events?cursor=${firstEventsPage.nextCursor}`,
+      })
+      expect(secondEventsResponse.statusCode).toBe(200)
+      const secondEventsPage = secondEventsResponse.json()
+
+      const allPreReviewEvents = [...firstEventsPage.events, ...secondEventsPage.events]
+      const contextPacketRef = findEventRef(allPreReviewEvents, 'context_packet_built', 'context-packet')
+      const proposalSetRef = findEventRef(allPreReviewEvents, 'proposal_created', 'proposal-set')
+
+      expect(contextPacketRef).toBeTruthy()
+      expect(proposalSetRef).toBeTruthy()
+
+      const contextPacketResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/artifacts/${contextPacketRef!.id}`,
+      })
+      expect(contextPacketResponse.statusCode).toBe(200)
+      expect(contextPacketResponse.json()).toMatchObject({
+        artifact: {
+          id: contextPacketRef!.id,
+          kind: 'context-packet',
+          sceneId: 'scene-midnight-platform',
+        },
+      })
+
+      const proposalSetResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/artifacts/${proposalSetRef!.id}`,
+      })
+      expect(proposalSetResponse.statusCode).toBe(200)
+      expect(proposalSetResponse.json()).toMatchObject({
+        artifact: {
+          id: proposalSetRef!.id,
+          kind: 'proposal-set',
+          proposals: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+              changeKind: 'action',
+            }),
+            expect.objectContaining({
+              id: 'proposal-set-scene-midnight-platform-run-002-proposal-002',
+              changeKind: 'reveal',
+            }),
+          ]),
+        },
+      })
+
+      const artifactListBeforeReviewResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/artifacts`,
+      })
+      expect(artifactListBeforeReviewResponse.statusCode).toBe(200)
+      expect(artifactListBeforeReviewResponse.json()).toMatchObject({
+        runId: run.id,
+        artifacts: [
+          expect.objectContaining({ kind: 'context-packet' }),
+          expect.objectContaining({ kind: 'agent-invocation' }),
+          expect.objectContaining({ kind: 'agent-invocation' }),
+          expect.objectContaining({ kind: 'proposal-set' }),
+        ],
+      })
+
+      const reviewResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/review-decisions`,
+        payload: {
+          reviewId: run.pendingReviewId,
+          decision: 'accept',
+        },
+      })
+      expect(reviewResponse.statusCode).toBe(200)
+
+      const postReviewEventsResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/events?cursor=${run.latestEventId}`,
+      })
+      expect(postReviewEventsResponse.statusCode).toBe(200)
+      const postReviewEvents = postReviewEventsResponse.json().events
+
+      const canonPatchRef = findEventRef(postReviewEvents, 'canon_patch_applied', 'canon-patch')
+      const proseDraftRef = findEventRef(postReviewEvents, 'prose_generated', 'prose-draft')
+      expect(canonPatchRef).toBeTruthy()
+      expect(proseDraftRef).toBeTruthy()
+
+      const canonPatchResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/artifacts/${canonPatchRef!.id}`,
+      })
+      expect(canonPatchResponse.statusCode).toBe(200)
+      expect(canonPatchResponse.json()).toMatchObject({
+        artifact: {
+          id: canonPatchRef!.id,
+          kind: 'canon-patch',
+          acceptedProposalIds: ['proposal-set-scene-midnight-platform-run-002-proposal-001'],
+        },
+      })
+
+      const proseDraftResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/artifacts/${proseDraftRef!.id}`,
+      })
+      expect(proseDraftResponse.statusCode).toBe(200)
+      expect(proseDraftResponse.json()).toMatchObject({
+        artifact: {
+          id: proseDraftRef!.id,
+          kind: 'prose-draft',
+          sourceCanonPatchId: canonPatchRef!.id,
+        },
+      })
+
+      const traceResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/trace`,
+      })
+      expect(traceResponse.statusCode).toBe(200)
+      expect(traceResponse.json()).toMatchObject({
+        runId: run.id,
+        summary: {
+          proposalSetCount: 1,
+          canonPatchCount: 1,
+          proseDraftCount: 1,
+          missingTraceCount: 0,
+        },
+        links: expect.arrayContaining([
+          expect.objectContaining({
+            relation: 'accepted_into',
+            from: {
+              kind: 'proposal',
+              id: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+            },
+            to: {
+              kind: 'canon-fact',
+              id: 'canon-patch-scene-midnight-platform-002-fact-001',
+            },
+          }),
+          expect.objectContaining({
+            relation: 'accepted_into',
+            from: {
+              kind: 'canon-fact',
+              id: 'canon-patch-scene-midnight-platform-002-fact-001',
+            },
+            to: {
+              kind: 'canon-patch',
+              id: canonPatchRef!.id,
+            },
+          }),
+          expect.objectContaining({
+            relation: 'rendered_as',
+            from: {
+              kind: 'canon-patch',
+              id: canonPatchRef!.id,
+            },
+            to: {
+              kind: 'prose-draft',
+              id: proseDraftRef!.id,
+            },
+          }),
+        ]),
+      })
+    })
+  })
+
+  it('keeps rewrite and reject runs free of canon/prose artifacts and canon/prose trace counts', async () => {
+    await withTestServer(async ({ app }) => {
+      const rewriteStartResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: { mode: 'rewrite' },
+      })
+      expect(rewriteStartResponse.statusCode).toBe(200)
+      const rewriteRun = rewriteStartResponse.json()
+
+      const rewriteDecisionResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/book-signal-arc/runs/${rewriteRun.id}/review-decisions`,
+        payload: {
+          reviewId: rewriteRun.pendingReviewId,
+          decision: 'request-rewrite',
+        },
+      })
+      expect(rewriteDecisionResponse.statusCode).toBe(200)
+
+      const rewriteArtifactsResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${rewriteRun.id}/artifacts`,
+      })
+      expect(rewriteArtifactsResponse.statusCode).toBe(200)
+      expect(rewriteArtifactsResponse.json().artifacts.map((artifact: { kind: string }) => artifact.kind)).toEqual([
+        'context-packet',
+        'agent-invocation',
+        'agent-invocation',
+        'proposal-set',
+      ])
+
+      const rewriteTraceResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${rewriteRun.id}/trace`,
+      })
+      expect(rewriteTraceResponse.statusCode).toBe(200)
+      expect(rewriteTraceResponse.json().summary).toEqual({
+        proposalSetCount: 1,
+        canonPatchCount: 0,
+        proseDraftCount: 0,
+        missingTraceCount: 0,
+      })
+
+      const rejectStartResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: { mode: 'rewrite' },
+      })
+      expect(rejectStartResponse.statusCode).toBe(200)
+      const rejectRun = rejectStartResponse.json()
+
+      const rejectDecisionResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/book-signal-arc/runs/${rejectRun.id}/review-decisions`,
+        payload: {
+          reviewId: rejectRun.pendingReviewId,
+          decision: 'reject',
+        },
+      })
+      expect(rejectDecisionResponse.statusCode).toBe(200)
+
+      const rejectArtifactsResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${rejectRun.id}/artifacts`,
+      })
+      expect(rejectArtifactsResponse.statusCode).toBe(200)
+      expect(rejectArtifactsResponse.json().artifacts.map((artifact: { kind: string }) => artifact.kind)).toEqual([
+        'context-packet',
+        'agent-invocation',
+        'agent-invocation',
+        'proposal-set',
+      ])
+
+      const rejectTraceResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${rejectRun.id}/trace`,
+      })
+      expect(rejectTraceResponse.statusCode).toBe(200)
+      expect(rejectTraceResponse.json().summary).toEqual({
+        proposalSetCount: 1,
+        canonPatchCount: 0,
+        proseDraftCount: 0,
+        missingTraceCount: 0,
+      })
+    })
+  })
+
+  it('keeps artifact lookup isolated by project and run over HTTP', async () => {
+    await withTestServer(async ({ app }) => {
+      const [runAResponse, runBResponse] = await Promise.all([
+        app.inject({
+          method: 'POST',
+          url: '/api/projects/project-artifact-a/scenes/scene-midnight-platform/runs',
+          payload: { mode: 'rewrite' },
+        }),
+        app.inject({
+          method: 'POST',
+          url: '/api/projects/project-artifact-b/scenes/scene-midnight-platform/runs',
+          payload: { mode: 'rewrite' },
+        }),
+      ])
+
+      expect(runAResponse.statusCode).toBe(200)
+      expect(runBResponse.statusCode).toBe(200)
+      const runA = runAResponse.json()
+      const runB = runBResponse.json()
+      expect(runA.id).toBe(runB.id)
+
+      const acceptResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/project-artifact-a/runs/${runA.id}/review-decisions`,
+        payload: {
+          reviewId: runA.pendingReviewId,
+          decision: 'accept',
+        },
+      })
+      expect(acceptResponse.statusCode).toBe(200)
+
+      const runBArtifactResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/project-artifact-b/runs/${runB.id}/artifacts/canon-patch-scene-midnight-platform-001`,
+      })
+      expect(runBArtifactResponse.statusCode).toBe(404)
+      expect(runBArtifactResponse.json()).toEqual({
+        status: 404,
+        message: 'Run artifact canon-patch-scene-midnight-platform-001 was not found.',
+        code: 'RUN_ARTIFACT_NOT_FOUND',
+        detail: {
+          projectId: 'project-artifact-b',
+          runId: runB.id,
+          artifactId: 'canon-patch-scene-midnight-platform-001',
+        },
+      })
+
+      const runBTraceResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/project-artifact-b/runs/${runB.id}/trace`,
+      })
+      expect(runBTraceResponse.statusCode).toBe(200)
+      expect(runBTraceResponse.json().summary).toEqual({
+        proposalSetCount: 1,
+        canonPatchCount: 0,
+        proseDraftCount: 0,
+        missingTraceCount: 0,
+      })
+    })
+  })
+
+  it('keeps artifact lookup isolated across different runs in the same project over HTTP', async () => {
+    await withTestServer(async ({ app }) => {
+      const runAResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: { mode: 'rewrite' },
+      })
+      const runBResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: { mode: 'rewrite' },
+      })
+
+      expect(runAResponse.statusCode).toBe(200)
+      expect(runBResponse.statusCode).toBe(200)
+      const runA = runAResponse.json()
+      const runB = runBResponse.json()
+      expect(runA.id).not.toBe(runB.id)
+
+      const acceptResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/book-signal-arc/runs/${runA.id}/review-decisions`,
+        payload: {
+          reviewId: runA.pendingReviewId,
+          decision: 'accept',
+        },
+      })
+      expect(acceptResponse.statusCode).toBe(200)
+
+      const runAPostReviewEventsResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${runA.id}/events?cursor=${runA.latestEventId}`,
+      })
+      expect(runAPostReviewEventsResponse.statusCode).toBe(200)
+      const runAPostReviewEvents = runAPostReviewEventsResponse.json().events
+      const runACanonPatchRef = findEventRef(runAPostReviewEvents, 'canon_patch_applied', 'canon-patch')
+      const runAProseDraftRef = findEventRef(runAPostReviewEvents, 'prose_generated', 'prose-draft')
+      expect(runACanonPatchRef).toBeTruthy()
+      expect(runAProseDraftRef).toBeTruthy()
+
+      const runBArtifactListResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${runB.id}/artifacts`,
+      })
+      expect(runBArtifactListResponse.statusCode).toBe(200)
+      expect(runBArtifactListResponse.json().artifacts.map((artifact: { kind: string }) => artifact.kind)).toEqual([
+        'context-packet',
+        'agent-invocation',
+        'agent-invocation',
+        'proposal-set',
+      ])
+
+      const runBCanonPatchResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${runB.id}/artifacts/${runACanonPatchRef!.id}`,
+      })
+      expect(runBCanonPatchResponse.statusCode).toBe(404)
+      expect(runBCanonPatchResponse.json()).toEqual({
+        status: 404,
+        message: `Run artifact ${runACanonPatchRef!.id} was not found.`,
+        code: 'RUN_ARTIFACT_NOT_FOUND',
+        detail: {
+          projectId: 'book-signal-arc',
+          runId: runB.id,
+          artifactId: runACanonPatchRef!.id,
+        },
+      })
+
+      const runBProseDraftResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${runB.id}/artifacts/${runAProseDraftRef!.id}`,
+      })
+      expect(runBProseDraftResponse.statusCode).toBe(404)
+      expect(runBProseDraftResponse.json()).toEqual({
+        status: 404,
+        message: `Run artifact ${runAProseDraftRef!.id} was not found.`,
+        code: 'RUN_ARTIFACT_NOT_FOUND',
+        detail: {
+          projectId: 'book-signal-arc',
+          runId: runB.id,
+          artifactId: runAProseDraftRef!.id,
+        },
+      })
+
+      const runBTraceResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${runB.id}/trace`,
+      })
+      expect(runBTraceResponse.statusCode).toBe(200)
+      expect(runBTraceResponse.json().summary).toEqual({
+        proposalSetCount: 1,
+        canonPatchCount: 0,
+        proseDraftCount: 0,
+        missingTraceCount: 0,
+      })
+    })
+  })
+
+  it('returns 404 JSON errors for missing runs and missing artifacts', async () => {
+    await withTestServer(async ({ app }) => {
+      const missingArtifactsResponse = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/runs/run-missing/artifacts',
+      })
+      expect(missingArtifactsResponse.statusCode).toBe(404)
+      expect(missingArtifactsResponse.json()).toEqual({
+        status: 404,
+        message: 'Run run-missing was not found.',
+        code: 'RUN_NOT_FOUND',
+        detail: {
+          projectId: 'book-signal-arc',
+          runId: 'run-missing',
+        },
+      })
+
+      const missingTraceResponse = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/runs/run-missing/trace',
+      })
+      expect(missingTraceResponse.statusCode).toBe(404)
+      expect(missingTraceResponse.json()).toEqual({
+        status: 404,
+        message: 'Run run-missing was not found.',
+        code: 'RUN_NOT_FOUND',
+        detail: {
+          projectId: 'book-signal-arc',
+          runId: 'run-missing',
+        },
+      })
+
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: { mode: 'rewrite' },
+      })
+      expect(startResponse.statusCode).toBe(200)
+      const run = startResponse.json()
+
+      const missingArtifactResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/artifacts/artifact-missing`,
+      })
+      expect(missingArtifactResponse.statusCode).toBe(404)
+      expect(missingArtifactResponse.json()).toEqual({
+        status: 404,
+        message: 'Run artifact artifact-missing was not found.',
+        code: 'RUN_ARTIFACT_NOT_FOUND',
+        detail: {
+          projectId: 'book-signal-arc',
+          runId: run.id,
+          artifactId: 'artifact-missing',
+        },
+      })
+    })
+  })
+
+  it('returns 404 when artifact summaries are unavailable for an existing run', async () => {
+    await withTestServer(async ({ app, repository }) => {
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: { mode: 'rewrite' },
+      })
+      expect(startResponse.statusCode).toBe(200)
+      const run = startResponse.json()
+
+      const originalListRunArtifacts = repository.listRunArtifacts
+      repository.listRunArtifacts = () => null
+
+      const artifactListResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/artifacts`,
+      })
+
+      expect(artifactListResponse.statusCode).toBe(404)
+      expect(artifactListResponse.json()).toEqual({
+        status: 404,
+        message: `Run artifacts for ${run.id} were not found.`,
+        code: 'RUN_ARTIFACTS_NOT_FOUND',
+        detail: {
+          projectId: 'book-signal-arc',
+          runId: run.id,
+        },
+      })
+
+      repository.listRunArtifacts = originalListRunArtifacts
+    })
+  })
+
+  it('returns 409 on patchId collision without mutating run events or artifacts', async () => {
+    await withTestServer(async ({ app }) => {
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: { mode: 'rewrite' },
+      })
+      expect(startResponse.statusCode).toBe(200)
+      const run = startResponse.json()
+
+      const beforeRunResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}`,
+      })
+      expect(beforeRunResponse.statusCode).toBe(200)
+      expect(beforeRunResponse.json()).toMatchObject({
+        eventCount: 9,
+      })
+
+      const beforeArtifactsResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/artifacts`,
+      })
+      expect(beforeArtifactsResponse.statusCode).toBe(200)
+
+      const collisionResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/review-decisions`,
+        payload: {
+          reviewId: run.pendingReviewId,
+          decision: 'accept-with-edit',
+          patchId: 'ctx-scene-midnight-platform-run-002',
+        },
+      })
+      expect(collisionResponse.statusCode).toBe(409)
+      expect(collisionResponse.json()).toEqual({
+        status: 409,
+        message: `Run artifact id ctx-scene-midnight-platform-run-002 conflicts within run ${run.id}.`,
+        code: 'RUN_ARTIFACT_ID_CONFLICT',
+        detail: {
+          projectId: 'book-signal-arc',
+          runId: run.id,
+          artifactId: 'ctx-scene-midnight-platform-run-002',
+        },
+      })
+
+      const afterRunResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}`,
+      })
+      expect(afterRunResponse.statusCode).toBe(200)
+      expect(afterRunResponse.json()).toMatchObject({
+        status: 'waiting_review',
+        eventCount: 9,
+        latestEventId: 'run-event-scene-midnight-platform-002-009',
+      })
+
+      const afterArtifactsResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/artifacts`,
+      })
+      expect(afterArtifactsResponse.statusCode).toBe(200)
+      expect(afterArtifactsResponse.json()).toEqual(beforeArtifactsResponse.json())
+    })
+  })
+})

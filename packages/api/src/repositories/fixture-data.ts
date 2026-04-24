@@ -1029,10 +1029,10 @@ function createSceneRecords(): Record<string, SceneFixtureRecord> {
   }
 }
 
-function createSignalArcProject(apiBaseUrl: string): FixtureProjectData {
+function createSignalArcProject(projectId: string, apiBaseUrl: string): FixtureProjectData {
   return {
     runtimeInfo: {
-      projectId: 'book-signal-arc',
+      projectId,
       projectTitle: 'Signal Arc',
       source: 'api',
       status: 'healthy',
@@ -1077,7 +1077,9 @@ function createSignalArcProject(apiBaseUrl: string): FixtureProjectData {
 export function createFixtureDataSnapshot(apiBaseUrl: string): FixtureDataSnapshot {
   return {
     projects: {
-      'book-signal-arc': createSignalArcProject(apiBaseUrl),
+      'book-signal-arc': createSignalArcProject('book-signal-arc', apiBaseUrl),
+      'project-artifact-a': createSignalArcProject('project-artifact-a', apiBaseUrl),
+      'project-artifact-b': createSignalArcProject('project-artifact-b', apiBaseUrl),
     },
   }
 }

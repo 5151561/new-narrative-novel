@@ -45,7 +45,7 @@ export function registerRunRoutes({ app, apiBasePath, repository }: ApiRouteCont
   app.get(`${projectBase}/runs/:runId/events/stream`, async () => {
     throw new ApiHttpError({
       status: 501,
-      message: 'Run event streaming is not implemented in BE-PR1.',
+      message: 'Run event streaming is not implemented in the fixture API. Use paginated events for now.',
       code: 'RUN_EVENT_STREAM_UNIMPLEMENTED',
     })
   })

@@ -225,6 +225,13 @@ pnpm dev:api
 http://127.0.0.1:4174
 ```
 
+### Fixture API contract notes
+
+- Run events stay lightweight and use `refs` to point at run artifacts instead of inlining large context, proposal, canon, or prose payloads.
+- `GET /api/projects/:projectId/runs/:runId/artifacts` and `GET /api/projects/:projectId/runs/:runId/artifacts/:artifactId` expose product read models for context packet, agent invocation, proposal set, canon patch, and prose draft details.
+- `GET /api/projects/:projectId/runs/:runId/trace` is a product read surface for explicit proposal -> canon -> prose links; it is not a raw workflow, Temporal, or model transcript dump.
+- `GET /api/projects/:projectId/runs/:runId/events/stream` remains unimplemented in the fixture API. Use paginated run events for now.
+
 ### 配置 renderer 走 API runtime
 
 `packages/renderer/.env.example` 提供了最小联调变量：

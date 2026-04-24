@@ -17,14 +17,32 @@ describe('fixture API server runtime info surfaces', () => {
 
   it('returns project runtime info from the fixture repository', async () => {
     await withTestServer(async ({ app }) => {
-      const response = await app.inject({
-        method: 'GET',
-        url: '/api/projects/book-signal-arc/runtime-info',
+      const [primaryProjectResponse, clonedProjectResponse] = await Promise.all([
+        app.inject({
+          method: 'GET',
+          url: '/api/projects/book-signal-arc/runtime-info',
+        }),
+        app.inject({
+          method: 'GET',
+          url: '/api/projects/project-artifact-a/runtime-info',
+        }),
+      ])
+
+      expect(primaryProjectResponse.statusCode).toBe(200)
+      expect(primaryProjectResponse.json()).toMatchObject({
+        projectId: 'book-signal-arc',
+        source: 'api',
+        status: 'healthy',
+        capabilities: {
+          read: true,
+          write: true,
+          runEvents: true,
+        },
       })
 
-      expect(response.statusCode).toBe(200)
-      expect(response.json()).toMatchObject({
-        projectId: 'book-signal-arc',
+      expect(clonedProjectResponse.statusCode).toBe(200)
+      expect(clonedProjectResponse.json()).toMatchObject({
+        projectId: 'project-artifact-a',
         source: 'api',
         status: 'healthy',
         capabilities: {

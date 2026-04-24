@@ -10,6 +10,7 @@ import { registerChapterRoutes } from './routes/chapter.js'
 import { registerProjectRuntimeRoutes } from './routes/project-runtime.js'
 import { registerReviewRoutes } from './routes/review.js'
 import { registerRunRoutes } from './routes/run.js'
+import { registerRunArtifactRoutes } from './routes/runArtifacts.js'
 import { registerSceneRoutes } from './routes/scene.js'
 
 export interface CreateServerOptions {
@@ -56,6 +57,7 @@ export function createServer(options: CreateServerOptions = {}) {
   registerReviewRoutes(routeContext)
   registerSceneRoutes(routeContext)
   registerRunRoutes(routeContext)
+  registerRunArtifactRoutes(routeContext)
 
   return {
     app,

@@ -15,8 +15,11 @@ import type {
   ProposalActionInput,
   ReviewIssueDecisionRecord,
   ReviewIssueFixActionRecord,
+  RunArtifactDetailRecord,
+  RunArtifactSummaryRecord,
   RunEventsPageRecord,
   RunRecord,
+  RunTraceResponse,
   SceneDockTabId,
   SceneDockViewModel,
   SceneExecutionViewModel,
@@ -243,6 +246,9 @@ export interface FixtureRepository {
   applySceneProposalAction(projectId: string, sceneId: string, action: 'accept' | 'edit-accept' | 'request-rewrite' | 'reject', input: ProposalActionInput): void
   startSceneRun(projectId: string, input: StartSceneRunInput): RunRecord
   getRun(projectId: string, runId: string): RunRecord | null
+  listRunArtifacts(projectId: string, runId: string): RunArtifactSummaryRecord[] | null
+  getRunArtifact(projectId: string, runId: string, artifactId: string): RunArtifactDetailRecord | null
+  getRunTrace(projectId: string, runId: string): RunTraceResponse | null
   getRunEvents(projectId: string, input: { runId: string; cursor?: string }): RunEventsPageRecord
   submitRunReviewDecision(projectId: string, input: SubmitRunReviewDecisionInput): RunRecord
   exportSnapshot(): FixtureDataSnapshot
@@ -570,6 +576,15 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
     },
     getRun(projectId, runId) {
       return runStore.getRun(projectId, runId)
+    },
+    listRunArtifacts(projectId, runId) {
+      return runStore.listRunArtifacts(projectId, runId)
+    },
+    getRunArtifact(projectId, runId, artifactId) {
+      return runStore.getRunArtifact(projectId, runId, artifactId)
+    },
+    getRunTrace(projectId, runId) {
+      return runStore.getRunTrace(projectId, runId)
     },
     getRunEvents(projectId, input) {
       return runStore.getRunEvents(projectId, input)
