@@ -68,9 +68,66 @@ describe('RunReviewGate', () => {
     })
   })
 
+  it('submits accept with selected variants when provided', async () => {
+    const user = userEvent.setup()
+    const selectedVariants = [
+      {
+        proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+        variantId: 'variant-midnight-platform-raise-conflict',
+      },
+    ]
+    const { onSubmitDecision } = renderGate({
+      selectedVariants,
+      variantSelectionSummary: '1 selected variant will travel with Accept.',
+    })
+
+    expect(screen.getByText('1 selected variant will travel with Accept.')).toBeInTheDocument()
+    expect(screen.getByText('Variant choices still require this review decision and do not write canon on their own.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Accept' }))
+
+    await waitFor(() => {
+      expect(onSubmitDecision).toHaveBeenCalledWith({
+        decision: 'accept',
+        selectedVariants,
+      })
+    })
+  })
+
+  it('submits accept-with-edit with selected variants when provided', async () => {
+    const user = userEvent.setup()
+    const selectedVariants = [
+      {
+        proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+        variantId: 'variant-midnight-platform-raise-conflict',
+      },
+    ]
+    const { onSubmitDecision } = renderGate({ selectedVariants })
+
+    await user.click(screen.getByRole('button', { name: 'Accept With Edit' }))
+    await user.type(screen.getByLabelText('Edited note / patch explanation'), 'Keep the sharper beat but smooth the handoff.')
+    await user.click(screen.getByRole('button', { name: 'Submit Accept With Edit' }))
+
+    await waitFor(() => {
+      expect(onSubmitDecision).toHaveBeenCalledWith({
+        decision: 'accept-with-edit',
+        note: 'Keep the sharper beat but smooth the handoff.',
+        patchId: undefined,
+        selectedVariants,
+      })
+    })
+  })
+
   it('submits request-rewrite with a note', async () => {
     const user = userEvent.setup()
-    const { onSubmitDecision } = renderGate()
+    const { onSubmitDecision } = renderGate({
+      selectedVariants: [
+        {
+          proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+          variantId: 'variant-midnight-platform-raise-conflict',
+        },
+      ],
+    })
 
     await user.click(screen.getByRole('button', { name: 'Request Rewrite' }))
     await user.type(screen.getByLabelText('Review note'), 'Rebuild the witness handoff before the next pass.')
@@ -86,7 +143,14 @@ describe('RunReviewGate', () => {
 
   it('submits reject with a note', async () => {
     const user = userEvent.setup()
-    const { onSubmitDecision } = renderGate()
+    const { onSubmitDecision } = renderGate({
+      selectedVariants: [
+        {
+          proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+          variantId: 'variant-midnight-platform-raise-conflict',
+        },
+      ],
+    })
 
     await user.click(screen.getByRole('button', { name: 'Reject' }))
     await user.type(screen.getByLabelText('Review note'), 'This run drifts too far from the scene contract.')

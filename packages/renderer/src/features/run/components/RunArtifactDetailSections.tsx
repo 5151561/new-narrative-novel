@@ -13,6 +13,9 @@ import type {
   ProseDraftArtifactDetailRecord,
   RunArtifactRelatedAssetRecord,
 } from '../api/run-artifact-records'
+import type { RunSelectedProposalVariantRecord } from '../api/run-records'
+
+import { RunProposalVariantSelector } from './RunProposalVariantSelector'
 
 function t(value: LocalizedTextRecord, locale: Locale) {
   return value[locale] ?? value.en
@@ -50,6 +53,32 @@ function IdList({ ids }: { ids: string[] }) {
       {ids.map((id) => (
         <Badge key={id}>{id}</Badge>
       ))}
+    </div>
+  )
+}
+
+function SelectedVariantList({ selectedVariants }: { selectedVariants?: RunSelectedProposalVariantRecord[] }) {
+  const { locale } = useI18n()
+
+  if (!selectedVariants?.length) {
+    return null
+  }
+
+  return (
+    <div className="mt-3 grid gap-2">
+      <p className="text-xs uppercase tracking-[0.05em] text-text-soft">
+        {locale === 'zh-CN' ? 'Selected variants' : 'Selected variants'}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {selectedVariants.map((selectedVariant, index) => (
+          <Badge
+            key={`${selectedVariant.proposalId}-${selectedVariant.variantId}`}
+            title={`${selectedVariant.proposalId} -> ${selectedVariant.variantId}`}
+          >
+            {locale === 'zh-CN' ? `候选版本 ${index + 1}` : `Selected variant ${index + 1}`}
+          </Badge>
+        ))}
+      </div>
     </div>
   )
 }
@@ -160,7 +189,15 @@ export function AgentInvocationArtifactPanel({ artifact }: { artifact: AgentInvo
   )
 }
 
-export function ProposalSetArtifactPanel({ artifact }: { artifact: ProposalSetArtifactDetailRecord }) {
+export function ProposalSetArtifactPanel({
+  artifact,
+  selectedVariants,
+  onSelectProposalVariant,
+}: {
+  artifact: ProposalSetArtifactDetailRecord
+  selectedVariants?: Record<string, string>
+  onSelectProposalVariant?: (proposalId: string, variantId: string) => void
+}) {
   const { locale } = useI18n()
 
   return (
@@ -197,6 +234,15 @@ export function ProposalSetArtifactPanel({ artifact }: { artifact: ProposalSetAr
               <div className="mt-3">
                 <RelatedAssets assets={proposal.relatedAssets} />
               </div>
+              {proposal.variants?.length ? (
+                <RunProposalVariantSelector
+                  proposalId={proposal.id}
+                  variants={proposal.variants}
+                  selectedVariantId={selectedVariants?.[proposal.id] ?? proposal.selectedVariantId}
+                  defaultVariantId={proposal.defaultVariantId}
+                  onSelectVariant={onSelectProposalVariant}
+                />
+              ) : null}
             </div>
           ))}
         </div>
@@ -228,6 +274,7 @@ export function CanonPatchArtifactPanel({ artifact }: { artifact: CanonPatchArti
             { id: 'accepted-proposals', label: locale === 'zh-CN' ? 'Accepted proposal ids' : 'Accepted proposal ids', value: artifact.acceptedProposalIds.join(', ') },
           ]}
         />
+        <SelectedVariantList selectedVariants={artifact.selectedVariants} />
       </SectionCard>
       <SectionCard eyebrow="Facts" title={locale === 'zh-CN' ? '已采纳事实' : 'Accepted Facts'}>
         <div className="grid gap-3">
@@ -235,6 +282,7 @@ export function CanonPatchArtifactPanel({ artifact }: { artifact: CanonPatchArti
             <div key={fact.id} className="rounded-md border border-line-soft bg-surface-2 px-3 py-3">
               <p className="text-sm font-medium text-text-main">{t(fact.label, locale)}</p>
               <p className="mt-1 text-sm leading-6 text-text-muted">{t(fact.value, locale)}</p>
+              <SelectedVariantList selectedVariants={fact.selectedVariants} />
               <div className="mt-3">
                 <RelatedAssets assets={fact.relatedAssets} />
               </div>
@@ -262,6 +310,7 @@ export function ProseDraftArtifactPanel({ artifact }: { artifact: ProseDraftArti
             { id: 'word-count', label: locale === 'zh-CN' ? '字数' : 'Word count', value: `${artifact.wordCount} words` },
           ]}
         />
+        <SelectedVariantList selectedVariants={artifact.selectedVariants} />
       </SectionCard>
       <SectionCard eyebrow="Excerpt" title={locale === 'zh-CN' ? '正文摘录' : 'Excerpt'}>
         <p className="text-sm leading-6 text-text-main">{t(artifact.excerpt, locale)}</p>

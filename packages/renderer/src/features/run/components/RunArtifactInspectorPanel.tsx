@@ -16,9 +16,17 @@ export interface RunArtifactInspectorPanelProps {
   artifact: RunArtifactDetailRecord | null
   isLoading?: boolean
   error?: Error | null
+  selectedVariants?: Record<string, string>
+  onSelectProposalVariant?: (proposalId: string, variantId: string) => void
 }
 
-export function RunArtifactInspectorPanel({ artifact, isLoading = false, error = null }: RunArtifactInspectorPanelProps) {
+export function RunArtifactInspectorPanel({
+  artifact,
+  isLoading = false,
+  error = null,
+  selectedVariants,
+  onSelectProposalVariant,
+}: RunArtifactInspectorPanelProps) {
   const { locale } = useI18n()
 
   if (isLoading) {
@@ -59,7 +67,13 @@ export function RunArtifactInspectorPanel({ artifact, isLoading = false, error =
       <div className="min-h-0 flex-1 overflow-y-auto">
         {artifact.kind === 'context-packet' ? <ContextPacketArtifactPanel artifact={artifact} /> : null}
         {artifact.kind === 'agent-invocation' ? <AgentInvocationArtifactPanel artifact={artifact} /> : null}
-        {artifact.kind === 'proposal-set' ? <ProposalSetArtifactPanel artifact={artifact} /> : null}
+        {artifact.kind === 'proposal-set' ? (
+          <ProposalSetArtifactPanel
+            artifact={artifact}
+            selectedVariants={selectedVariants}
+            onSelectProposalVariant={onSelectProposalVariant}
+          />
+        ) : null}
         {artifact.kind === 'canon-patch' ? <CanonPatchArtifactPanel artifact={artifact} /> : null}
         {artifact.kind === 'prose-draft' ? <ProseDraftArtifactPanel artifact={artifact} /> : null}
       </div>

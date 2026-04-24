@@ -107,6 +107,7 @@ describe('SceneBottomDock', () => {
   it('surfaces active run support in the events area without turning the dock into a raw debugger', async () => {
     const user = userEvent.setup()
     const onSelectArtifact = vi.fn()
+    const onSubmitReviewDecision = vi.fn()
 
     render(
       createElement(SceneBottomDock as unknown as typeof SceneBottomDock, {
@@ -124,12 +125,14 @@ describe('SceneBottomDock', () => {
           selectedArtifact: null,
           trace: null,
           onSelectArtifact,
+          onSubmitReviewDecision,
         },
       }),
     )
 
     expect(screen.getByText('Active Run Support')).toBeInTheDocument()
-    expect(screen.getByText('Midnight platform rewrite run')).toBeInTheDocument()
+    expect(screen.getAllByText('Midnight platform rewrite run')).toHaveLength(1)
+    expect(screen.getByRole('heading', { name: 'Variant review decision' })).toBeInTheDocument()
     expect(screen.getByText('Waiting Review')).toBeInTheDocument()
     expect(screen.getByText('Run Timeline')).toBeInTheDocument()
     expect(screen.getByText('Run Inspector')).toBeInTheDocument()

@@ -326,6 +326,152 @@ describe('SceneDockContainer', () => {
     expect(screen.getByTestId('inspector-mode')).toHaveTextContent('trace')
   })
 
+  it('submits locally selected proposal variants through the dock review gate accept action', async () => {
+    const user = userEvent.setup()
+    vi.doUnmock('../components/SceneBottomDock')
+    const submitDecision = vi.fn()
+    const runId = 'run-scene-midnight-platform-001'
+    const proposalSetId = 'proposal-set-scene-midnight-platform-run-001'
+    const proposalId = `${proposalSetId}-proposal-001`
+    const useSharedSceneRunSession = vi.fn(() => ({
+      activeRunId: runId,
+      run: {
+        id: runId,
+        scope: 'scene',
+        scopeId: 'scene-midnight-platform',
+        status: 'waiting_review',
+        title: 'Midnight platform rewrite run',
+        summary: 'Waiting for review.',
+        startedAtLabel: '2026-04-23 10:00',
+        pendingReviewId: 'review-scene-midnight-platform-001',
+        latestEventId: 'run-event-002',
+        eventCount: 2,
+      },
+      events: [],
+      pendingReviewId: 'review-scene-midnight-platform-001',
+      isReviewPending: true,
+      canSubmitDecision: true,
+      isPolling: true,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+      startRun: vi.fn(),
+      isStartingRun: false,
+      submitDecision,
+      isSubmittingDecision: false,
+    }))
+
+    vi.doMock('../hooks/useSceneDockData', () => ({
+      useSceneDockData: () => ({
+        events: [],
+        trace: [],
+        consistency: { summary: '', checks: [] },
+        problems: { summary: '', items: [] },
+        cost: { currentWindowLabel: '', trendLabel: '', breakdown: [] },
+        isLoading: false,
+        isHydratingTab: false,
+        error: null,
+      }),
+    }))
+    vi.doMock('./scene-run-session-context', () => ({
+      useSharedSceneRunSession,
+    }))
+    vi.doMock('@/features/run/hooks/useRunArtifactsQuery', () => ({
+      useRunArtifactsQuery: () => ({
+        artifacts: [
+          {
+            id: proposalSetId,
+            runId,
+            kind: 'proposal-set',
+            title: { en: 'Scene proposal set', 'zh-CN': '场景提案集' },
+            summary: { en: 'Proposal candidates are ready.', 'zh-CN': '候选提案已就绪。' },
+            statusLabel: { en: 'Ready for review', 'zh-CN': '待评审' },
+            createdAtLabel: { en: '2026-04-21 10:07', 'zh-CN': '2026-04-21 10:07' },
+            sourceEventIds: [],
+          },
+        ],
+        error: null,
+        isLoading: false,
+      }),
+    }))
+    vi.doMock('@/features/run/hooks/useRunArtifactDetailQuery', () => ({
+      useRunArtifactDetailQuery: () => ({
+        artifact: {
+          id: proposalSetId,
+          runId,
+          kind: 'proposal-set',
+          title: { en: 'Scene proposal set', 'zh-CN': '场景提案集' },
+          summary: { en: 'Proposal candidates are ready.', 'zh-CN': '候选提案已就绪。' },
+          statusLabel: { en: 'Ready for review', 'zh-CN': '待评审' },
+          createdAtLabel: { en: '2026-04-21 10:07', 'zh-CN': '2026-04-21 10:07' },
+          sourceEventIds: [],
+          reviewId: 'review-scene-midnight-platform-001',
+          sourceInvocationIds: [],
+          proposals: [
+            {
+              id: proposalId,
+              title: { en: 'Anchor the arrival beat', 'zh-CN': '锚定入场节拍' },
+              summary: { en: 'Open on the scene first.', 'zh-CN': '先打开场景。' },
+              changeKind: 'action',
+              riskLabel: { en: 'Low continuity risk', 'zh-CN': '低连续性风险' },
+              relatedAssets: [],
+              defaultVariantId: 'variant-midnight-platform-default',
+              variants: [
+                {
+                  id: 'variant-midnight-platform-default',
+                  label: { en: 'Balanced arrival', 'zh-CN': '平衡入场' },
+                  summary: { en: 'Keep the arrival steady.', 'zh-CN': '保持入场稳定。' },
+                  rationale: { en: 'Easy to trace.', 'zh-CN': '易于追溯。' },
+                },
+                {
+                  id: 'variant-midnight-platform-raise-conflict',
+                  label: { en: 'Higher conflict', 'zh-CN': '提高冲突' },
+                  summary: { en: 'Raise pressure immediately.', 'zh-CN': '立刻抬高压力。' },
+                  rationale: { en: 'Sharper alternative.', 'zh-CN': '更锐利的候选。' },
+                },
+              ],
+            },
+          ],
+          reviewOptions: [],
+        },
+        error: null,
+        isLoading: false,
+      }),
+    }))
+    vi.doMock('@/features/run/hooks/useRunTraceQuery', () => ({
+      useRunTraceQuery: () => ({
+        trace: null,
+        error: null,
+        isLoading: false,
+      }),
+    }))
+
+    const { SceneDockContainer } = await import('./SceneDockContainer')
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <I18nProvider>
+          <SceneDockContainer sceneId="scene-midnight-platform" initialSelectedArtifactId={proposalSetId} />
+        </I18nProvider>
+      </QueryClientProvider>,
+    )
+
+    await user.click(await screen.findByRole('radio', { name: /Higher conflict/ }))
+    await user.click(screen.getByRole('button', { name: 'Accept' }))
+
+    await waitFor(() => {
+      expect(submitDecision).toHaveBeenCalledWith({
+        decision: 'accept',
+        selectedVariants: [
+          {
+            proposalId,
+            variantId: 'variant-midnight-platform-raise-conflict',
+          },
+        ],
+      })
+    })
+  })
+
   it('opens run event refs, refreshes accepted artifacts, and exposes trace links inside the events dock', async () => {
     const user = userEvent.setup()
     vi.resetModules()

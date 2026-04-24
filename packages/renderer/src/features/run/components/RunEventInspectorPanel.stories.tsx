@@ -16,9 +16,20 @@ import { RunEventInspectorPanel } from './RunEventInspectorPanel'
 const runId = 'run-scene-midnight-platform-001'
 const reviewId = 'review-scene-midnight-platform-001'
 const contextPacketId = 'ctx-scene-midnight-platform-run-001'
+const proposalSetId = 'proposal-set-scene-midnight-platform-run-001'
 
 resetMockRunDb()
-submitMockRunReviewDecision({ runId, reviewId, decision: 'accept' })
+submitMockRunReviewDecision({
+  runId,
+  reviewId,
+  decision: 'accept',
+  selectedVariants: [
+    {
+      proposalId: `${proposalSetId}-proposal-001`,
+      variantId: 'variant-midnight-platform-raise-conflict',
+    },
+  ],
+})
 const artifacts = getMockRunArtifacts({ runId }).artifacts
 const trace = getMockRunTrace({ runId })
 
@@ -34,6 +45,9 @@ const meta = {
   },
   render: (args) => {
     const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(args.selectedArtifactId ?? null)
+    const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({
+      [`${proposalSetId}-proposal-001`]: 'variant-midnight-platform-default',
+    })
     const selectedArtifact = getArtifactDetail(selectedArtifactId)
 
     return (
@@ -43,6 +57,13 @@ const meta = {
           selectedArtifactId={selectedArtifactId}
           selectedArtifact={selectedArtifact}
           onSelectArtifact={setSelectedArtifactId}
+          selectedVariants={selectedVariants}
+          onSelectProposalVariant={(proposalId, variantId) =>
+            setSelectedVariants((current) => ({
+              ...current,
+              [proposalId]: variantId,
+            }))
+          }
         />
       </div>
     )
@@ -70,5 +91,12 @@ export const TraceSummary: Story = {
     mode: 'trace',
     selectedArtifactId: null,
     selectedArtifact: null,
+  },
+}
+
+export const ProposalVariants: Story = {
+  args: {
+    selectedArtifactId: proposalSetId,
+    selectedArtifact: getArtifactDetail(proposalSetId),
   },
 }

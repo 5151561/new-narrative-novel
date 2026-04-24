@@ -14,11 +14,18 @@ const contextPacketId = 'ctx-scene-midnight-platform-run-001'
 const proposalSetId = 'proposal-set-scene-midnight-platform-run-001'
 const canonPatchId = 'canon-patch-scene-midnight-platform-001'
 const proseDraftId = 'prose-draft-scene-midnight-platform-001'
+const selectedVariants = [
+  {
+    proposalId: `${proposalSetId}-proposal-001`,
+    variantId: 'variant-midnight-platform-raise-conflict',
+  },
+]
 
 resetMockRunDb()
 const contextPacket = getMockRunArtifact({ runId, artifactId: contextPacketId }).artifact
 const proposalSet = getMockRunArtifact({ runId, artifactId: proposalSetId }).artifact
-submitMockRunReviewDecision({ runId, reviewId, decision: 'accept' })
+submitMockRunReviewDecision({ runId, reviewId, decision: 'accept', selectedVariants })
+const submittedProposalSet = getMockRunArtifact({ runId, artifactId: proposalSetId }).artifact
 const canonPatch = getMockRunArtifact({ runId, artifactId: canonPatchId }).artifact
 const proseDraft = getMockRunArtifact({ runId, artifactId: proseDraftId }).artifact
 
@@ -49,6 +56,24 @@ export const ContextPacket: Story = {}
 export const ProposalSet: Story = {
   args: {
     artifact: proposalSet,
+  },
+}
+
+export const ProposalSetWithTwoVariants: Story = {
+  args: {
+    artifact: proposalSet,
+    selectedVariants: {
+      [`${proposalSetId}-proposal-001`]: 'variant-midnight-platform-default',
+    },
+  },
+}
+
+export const SelectedVariantSubmitted: Story = {
+  args: {
+    artifact: submittedProposalSet,
+    selectedVariants: {
+      [`${proposalSetId}-proposal-001`]: 'variant-midnight-platform-raise-conflict',
+    },
   },
 }
 

@@ -4,17 +4,22 @@ import { useI18n } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { SectionCard } from '@/components/ui/SectionCard'
 
-import type { RunReviewDecisionKind } from '../api/run-records'
+import type { RunReviewDecisionKind, RunSelectedProposalVariantRecord } from '../api/run-records'
+
+interface RunReviewGateSubmitInput {
+  decision: RunReviewDecisionKind
+  note?: string
+  patchId?: string
+  selectedVariants?: RunSelectedProposalVariantRecord[]
+}
 
 interface RunReviewGateProps {
   runTitle: string
   pendingReviewId: string
   isSubmitting: boolean
-  onSubmitDecision: (input: {
-    decision: RunReviewDecisionKind
-    note?: string
-    patchId?: string
-  }) => Promise<void> | void
+  selectedVariants?: RunSelectedProposalVariantRecord[]
+  variantSelectionSummary?: string
+  onSubmitDecision: (input: RunReviewGateSubmitInput) => Promise<void> | void
 }
 
 type DraftDecision = Exclude<RunReviewDecisionKind, 'accept'>
@@ -29,6 +34,8 @@ export function RunReviewGate({
   runTitle,
   pendingReviewId,
   isSubmitting,
+  selectedVariants = [],
+  variantSelectionSummary,
   onSubmitDecision,
 }: RunReviewGateProps) {
   const { locale } = useI18n()
@@ -39,18 +46,23 @@ export function RunReviewGate({
 
   const isBusy = isSubmitting || isLocallySubmitting
 
-  async function submitDecision(input: {
-    decision: RunReviewDecisionKind
-    note?: string
-    patchId?: string
-  }) {
+  async function submitDecision(input: RunReviewGateSubmitInput) {
     if (isBusy) {
       return
     }
 
+    const shouldCarryVariants =
+      selectedVariants.length > 0 && (input.decision === 'accept' || input.decision === 'accept-with-edit')
+    const submitInput = shouldCarryVariants
+      ? {
+          ...input,
+          selectedVariants,
+        }
+      : input
+
     setIsLocallySubmitting(true)
     try {
-      await Promise.resolve(onSubmitDecision(input))
+      await Promise.resolve(onSubmitDecision(submitInput))
       setDraftDecision(null)
       setNote('')
       setPatchId('')
@@ -108,6 +120,21 @@ export function RunReviewGate({
             ? '当前运行正等待产品评审决策。选择一个结论，再按需要补充说明。'
             : 'This run is waiting on a product review decision.'}
         </p>
+        {selectedVariants.length > 0 ? (
+          <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-3">
+            <p className="text-sm font-medium text-text-main">
+              {variantSelectionSummary
+                ?? (locale === 'zh-CN'
+                  ? `${selectedVariants.length} 个 variant 将随采纳决策提交。`
+                  : `${selectedVariants.length} selected variant${selectedVariants.length === 1 ? '' : 's'} will travel with Accept.`)}
+            </p>
+            <p className="mt-1 text-sm leading-6 text-text-muted">
+              {locale === 'zh-CN'
+                ? 'Variant 选择仍需要这次 review decision，本身不会直接写入 canon。'
+                : 'Variant choices still require this review decision and do not write canon on their own.'}
+            </p>
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           <button
             type="button"

@@ -28,6 +28,8 @@ export interface RunEventInspectorPanelProps {
   mode?: RunEventInspectorMode
   onModeChange?: (mode: RunEventInspectorMode) => void
   onSelectArtifact?: (artifactId: string) => void
+  selectedVariants?: Record<string, string>
+  onSelectProposalVariant?: (proposalId: string, variantId: string) => void
 }
 
 function t(value: LocalizedTextRecord, locale: Locale) {
@@ -120,6 +122,8 @@ export function RunEventInspectorPanel({
   mode,
   onModeChange,
   onSelectArtifact,
+  selectedVariants,
+  onSelectProposalVariant,
 }: RunEventInspectorPanelProps) {
   const { locale } = useI18n()
   const [internalMode, setInternalMode] = useState<RunEventInspectorMode>('artifact')
@@ -178,7 +182,13 @@ export function RunEventInspectorPanel({
             />
             {selectedArtifactId ? (
               selectedArtifact || isArtifactLoading || artifactError ? (
-                <RunArtifactInspectorPanel artifact={selectedArtifact ?? null} isLoading={isArtifactLoading} error={artifactError} />
+                <RunArtifactInspectorPanel
+                  artifact={selectedArtifact ?? null}
+                  isLoading={isArtifactLoading}
+                  error={artifactError}
+                  selectedVariants={selectedVariants}
+                  onSelectProposalVariant={onSelectProposalVariant}
+                />
               ) : (
                 <EmptyState
                   title={locale === 'zh-CN' ? '产物详情待加载' : 'Artifact detail pending'}

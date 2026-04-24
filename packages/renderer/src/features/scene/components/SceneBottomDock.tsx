@@ -1,4 +1,4 @@
-import { getDockTabLabel, getGenericStatusLabel, useI18n } from '@/app/i18n'
+import { getDockTabLabel, getGenericStatusLabel, useI18n, type Locale } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { FactList } from '@/components/ui/FactList'
@@ -9,10 +9,16 @@ import { TimelineList } from '@/components/ui/TimelineList'
 import { cn } from '@/lib/cn'
 
 import type { RunArtifactDetailRecord, RunArtifactSummaryRecord } from '@/features/run/api/run-artifact-records'
-import type { RunEventRecord, RunRecord } from '@/features/run/api/run-records'
+import type {
+  RunEventRecord,
+  RunRecord,
+  RunReviewDecisionKind,
+  RunSelectedProposalVariantRecord,
+} from '@/features/run/api/run-records'
 import type { RunTraceResponse } from '@/features/run/api/run-trace-records'
 import { RunEventInspectorPanel, type RunEventInspectorMode } from '@/features/run/components/RunEventInspectorPanel'
 import { RunEventStreamPanel } from '@/features/run/components/RunEventStreamPanel'
+import { RunReviewGate } from '@/features/run/components/RunReviewGate'
 
 import type { SceneDockTabId, SceneDockViewModel } from '../types/scene-view-models'
 
@@ -119,6 +125,16 @@ interface SceneBottomDockRunSupport {
   inspectorMode?: RunEventInspectorMode
   onInspectorModeChange?: (mode: RunEventInspectorMode) => void
   onSelectArtifact?: (artifactId: string) => void
+  selectedVariants?: Record<string, string>
+  selectedVariantsForSubmit?: RunSelectedProposalVariantRecord[]
+  onSelectProposalVariant?: (proposalId: string, variantId: string) => void
+  isSubmittingReviewDecision?: boolean
+  onSubmitReviewDecision?: (input: {
+    decision: RunReviewDecisionKind
+    note?: string
+    patchId?: string
+    selectedVariants?: RunSelectedProposalVariantRecord[]
+  }) => Promise<void> | void
 }
 
 const dockProductMilestoneKinds = new Set<RunEventRecord['kind']>([
@@ -152,6 +168,11 @@ function ActiveRunSupport({
   inspectorMode,
   onInspectorModeChange,
   onSelectArtifact,
+  selectedVariants,
+  selectedVariantsForSubmit = [],
+  onSelectProposalVariant,
+  isSubmittingReviewDecision = false,
+  onSubmitReviewDecision,
 }: SceneBottomDockRunSupport) {
   const { locale } = useI18n()
   const recentEvents = events.filter((event) => dockProductMilestoneKinds.has(event.kind))
@@ -188,6 +209,22 @@ function ActiveRunSupport({
           ) : null}
         </div>
       </SectionCard>
+      {run?.status === 'waiting_review' && run.pendingReviewId && onSubmitReviewDecision ? (
+        <RunReviewGate
+          runTitle={locale === 'zh-CN' ? '候选版本评审决策' : 'Variant review decision'}
+          pendingReviewId={run.pendingReviewId}
+          isSubmitting={isSubmittingReviewDecision}
+          selectedVariants={selectedVariantsForSubmit}
+          variantSelectionSummary={
+            selectedVariantsForSubmit.length > 0
+              ? locale === 'zh-CN'
+                ? `${selectedVariantsForSubmit.length} 个 variant 将随采纳决策提交。`
+                : `${selectedVariantsForSubmit.length} selected variant${selectedVariantsForSubmit.length === 1 ? '' : 's'} will travel with Accept.`
+              : undefined
+          }
+          onSubmitDecision={onSubmitReviewDecision}
+        />
+      ) : null}
       <div className="grid min-h-[360px] gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.95fr)]">
         <RunEventStreamPanel
           events={recentEvents}
@@ -210,6 +247,8 @@ function ActiveRunSupport({
           mode={inspectorMode}
           onModeChange={onInspectorModeChange}
           onSelectArtifact={onSelectArtifact}
+          selectedVariants={selectedVariants}
+          onSelectProposalVariant={onSelectProposalVariant}
         />
       </div>
     </div>

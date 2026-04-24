@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
 import {
@@ -31,10 +32,14 @@ function artifact(artifactId: string): RunArtifactDetailRecord {
   return getMockRunArtifact({ runId, artifactId }).artifact
 }
 
-function renderInspector(artifactDetail: RunArtifactDetailRecord | null, error: Error | null = null) {
+function renderInspector(
+  artifactDetail: RunArtifactDetailRecord | null,
+  error: Error | null = null,
+  props: Partial<React.ComponentProps<typeof RunArtifactInspectorPanel>> = {},
+) {
   return render(
     <I18nProvider>
-      <RunArtifactInspectorPanel artifact={artifactDetail} isLoading={false} error={error} />
+      <RunArtifactInspectorPanel artifact={artifactDetail} isLoading={false} error={error} {...props} />
     </I18nProvider>,
   )
 }
@@ -66,14 +71,50 @@ describe('RunArtifactInspectorPanel', () => {
     expect(screen.getByText('Invocation 2')).toBeInTheDocument()
     expect(screen.getByText('agent-invocation-scene-midnight-platform-run-001-001, agent-invocation-scene-midnight-platform-run-001-002')).toBeInTheDocument()
     expect(screen.getByText('Anchor the arrival beat')).toBeInTheDocument()
-    expect(screen.getByText('Low continuity risk')).toBeInTheDocument()
+    expect(screen.getAllByText('Low continuity risk').length).toBeGreaterThan(0)
     expect(screen.getByText('Stage the reveal through the setting')).toBeInTheDocument()
     expect(screen.getByText('Accept with edit')).toBeInTheDocument()
     expect(screen.getByText('Request rewrite')).toBeInTheDocument()
   })
 
+  it('shows proposal variants and forwards selection changes while preserving flat proposals', async () => {
+    const user = userEvent.setup()
+    const onSelectProposalVariant = vi.fn()
+
+    renderInspector(artifact(proposalSetId), null, {
+      selectedVariants: {
+        [`${proposalSetId}-proposal-001`]: 'variant-midnight-platform-default',
+      },
+      onSelectProposalVariant,
+    })
+
+    expect(screen.getByRole('radiogroup', { name: 'Proposal variants' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Balanced arrival/ })).toBeChecked()
+    expect(screen.getByText('Keep the arrival beat steady and let the reveal wait until the setting is established.')).toBeInTheDocument()
+    expect(screen.getByText('Higher conflict')).toBeInTheDocument()
+    expect(screen.getByText('Stage the reveal through the setting')).toBeInTheDocument()
+    expect(screen.queryByText('No proposal variants')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: /Higher conflict/ }))
+
+    expect(onSelectProposalVariant).toHaveBeenCalledWith(
+      `${proposalSetId}-proposal-001`,
+      'variant-midnight-platform-raise-conflict',
+    )
+  })
+
   it('shows canon patch accepted facts', () => {
-    acceptRun()
+    submitMockRunReviewDecision({
+      runId,
+      reviewId,
+      decision: 'accept',
+      selectedVariants: [
+        {
+          proposalId: `${proposalSetId}-proposal-001`,
+          variantId: 'variant-midnight-platform-raise-conflict',
+        },
+      ],
+    })
 
     renderInspector(artifact(canonPatchId))
 
@@ -81,6 +122,10 @@ describe('RunArtifactInspectorPanel', () => {
     expect(screen.getByText('Accepted fact 1')).toBeInTheDocument()
     expect(screen.getByText('The scene now opens on a stable arrival beat.')).toBeInTheDocument()
     expect(screen.getByText('Accepted into canon')).toBeInTheDocument()
+    expect(screen.getAllByText('Selected variants')).not.toHaveLength(0)
+    expect(screen.getAllByText('Selected variant 1').length).toBeGreaterThan(0)
+    expect(screen.queryByText(`${proposalSetId}-proposal-001 -> variant-midnight-platform-raise-conflict`)).not.toBeInTheDocument()
+    expect(screen.getAllByTitle(`${proposalSetId}-proposal-001 -> variant-midnight-platform-raise-conflict`).length).toBeGreaterThan(0)
   })
 
   it('shows prose draft excerpt and source ids', () => {
