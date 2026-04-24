@@ -232,14 +232,6 @@ function buildSettingAsset(sceneId: string, sceneName: string) {
   }
 }
 
-function buildRuleAsset(sceneId: string, sceneName: string) {
-  return {
-    assetId: `asset-${sceneId}-rule`,
-    label: localize(`${sceneName} continuity rule`, `${sceneName} 连续性规则`),
-    kind: 'rule' as const,
-  }
-}
-
 function buildProposalIds(artifact: SceneRunArtifactRecord) {
   const canonicalSequence = parseRunSequenceNumber(artifact.runId)
   const proposalSetId = buildProposalSetId(artifact.sceneId, canonicalSequence)
@@ -313,34 +305,33 @@ function buildDefaultIncludedCanonFacts(
   ]
 }
 
-function buildDefaultIncludedAssets(
-  artifact: SceneRunArtifactRecord,
-): ContextPacketArtifactDetailRecord['includedAssets'] {
-  const sceneName = formatSceneName(artifact.sceneId)
-  const leadAsset = buildLeadAsset(artifact.sceneId, sceneName)
-  const settingAsset = buildSettingAsset(artifact.sceneId, sceneName)
-  const ruleAsset = buildRuleAsset(artifact.sceneId, sceneName)
-
+function buildDefaultIncludedAssets(): ContextPacketArtifactDetailRecord['includedAssets'] {
   return [
     {
-      ...leadAsset,
+      assetId: 'asset-ren-voss',
+      label: localize('Ren Voss', '任·沃斯'),
+      kind: 'character',
       reason: localize(
-        'Carries the primary point of view through the run.',
-        '承担本次运行的主要视角。',
+        'Carries the primary point of view through the platform bargain.',
+        '承担站台谈判中的主要视角。',
       ),
     },
     {
-      ...settingAsset,
+      assetId: 'asset-mei-arden',
+      label: localize('Mei Arden', '美伊·阿登'),
+      kind: 'character',
       reason: localize(
-        `Keeps action blocking and continuity anchored to the ${sceneName} setting.`,
-        `将动作调度和连续性固定在 ${sceneName} 场景内。`,
+        'Supplies the visible counter-pressure for the exchange.',
+        '为交换提供可见的对抗压力。',
       ),
     },
     {
-      ...ruleAsset,
+      assetId: 'asset-midnight-platform',
+      label: localize('Midnight Platform', '午夜站台'),
+      kind: 'location',
       reason: localize(
-        'Prevents the run from violating established scene constraints.',
-        '防止本次运行破坏既有场景约束。',
+        'Keeps witness pressure and staging anchored to the platform.',
+        '将目击压力和场面调度固定在月台上。',
       ),
     },
   ]
@@ -359,6 +350,93 @@ function buildDefaultExcludedPrivateFacts(
       ),
     },
   ]
+}
+
+function buildDefaultAssetActivations(
+  artifact: SceneRunArtifactRecord,
+): NonNullable<ContextPacketArtifactDetailRecord['assetActivations']> {
+  return [
+    {
+      id: `${artifact.id}-activation-ren-voss`,
+      assetId: 'asset-ren-voss',
+      assetTitle: localize('Ren Voss', '任·沃斯'),
+      assetKind: 'character',
+      decision: 'included',
+      reasonKind: 'scene-cast',
+      reasonLabel: localize('Cast member', '登场角色'),
+      visibility: 'character-known',
+      budget: 'selected-facts',
+      targetAgents: ['scene-manager', 'character-agent', 'prose-agent'],
+      policyRuleIds: ['ren-scene-cast'],
+      note: localize('Selected Ren facts entered the packet; private signal notes stayed out.', '筛选后的 Ren 事实进入上下文包；私密暗号备注保持排除。'),
+    },
+    {
+      id: `${artifact.id}-activation-mei-arden`,
+      assetId: 'asset-mei-arden',
+      assetTitle: localize('Mei Arden', '美伊·阿登'),
+      assetKind: 'character',
+      decision: 'included',
+      reasonKind: 'scene-cast',
+      reasonLabel: localize('Cast pressure', '登场压力'),
+      visibility: 'public',
+      budget: 'selected-facts',
+      targetAgents: ['scene-manager', 'character-agent', 'prose-agent'],
+      policyRuleIds: ['mei-scene-cast'],
+    },
+    {
+      id: `${artifact.id}-activation-midnight-platform`,
+      assetId: 'asset-midnight-platform',
+      assetTitle: localize('Midnight Platform', '午夜站台'),
+      assetKind: 'location',
+      decision: 'included',
+      reasonKind: 'scene-location',
+      reasonLabel: localize('Scene location', '场景地点'),
+      visibility: 'public',
+      budget: 'mentions-excerpts',
+      targetAgents: ['scene-manager', 'prose-agent'],
+      policyRuleIds: ['platform-scene-location'],
+    },
+    {
+      id: `${artifact.id}-activation-ledger-stays-shut`,
+      assetId: 'asset-ledger-stays-shut',
+      assetTitle: localize('Ledger Stays Shut', '账本不得打开'),
+      assetKind: 'rule',
+      decision: 'excluded',
+      reasonKind: 'rule-dependency',
+      reasonLabel: localize('Rule dependency', '规则依赖'),
+      visibility: 'spoiler',
+      budget: 'summary-only',
+      targetAgents: ['continuity-reviewer', 'scene-manager'],
+      policyRuleIds: ['ledger-rule-dependency'],
+      note: localize('Spoiler proof contents were excluded from the context packet.', '剧透证明内容已从上下文包排除。'),
+    },
+    {
+      id: `${artifact.id}-activation-departure-bell-timing`,
+      assetId: 'asset-departure-bell-timing',
+      assetTitle: localize('Departure Bell Timing', '发车铃时序'),
+      assetKind: 'rule',
+      decision: 'redacted',
+      reasonKind: 'review-issue',
+      reasonLabel: localize('Editor timing guardrail', '编辑时序护栏'),
+      visibility: 'editor-only',
+      budget: 'summary-only',
+      targetAgents: ['continuity-reviewer'],
+      policyRuleIds: ['bell-editor-guardrail'],
+      note: localize('Exact editor-only timing remained redacted.', '精确的编辑专用时序保持遮蔽。'),
+    },
+  ]
+}
+
+function summarizeDefaultAssetActivations(
+  activations: NonNullable<ContextPacketArtifactDetailRecord['assetActivations']>,
+): ContextPacketArtifactDetailRecord['activationSummary'] {
+  return {
+    includedAssetCount: activations.filter((activation) => activation.decision === 'included').length,
+    excludedAssetCount: activations.filter((activation) => activation.decision === 'excluded').length,
+    redactedAssetCount: activations.filter((activation) => activation.decision === 'redacted').length,
+    targetAgentCount: new Set(activations.flatMap((activation) => activation.targetAgents)).size,
+    warningCount: 1,
+  }
 }
 
 function buildDefaultGeneratedRefs(artifact: SceneRunArtifactRecord): RunArtifactGeneratedRefRecord[] {
@@ -557,6 +635,7 @@ export function buildContextPacketDetail(
 ): ContextPacketArtifactDetailRecord {
   assertArtifactKind(input.artifact, 'context-packet')
   const sequence = parseRunSequenceNumber(input.artifact.runId)
+  const assetActivations = buildDefaultAssetActivations(input.artifact)
 
   return {
     ...buildArtifactSummary(input),
@@ -564,8 +643,10 @@ export function buildContextPacketDetail(
     sceneId: input.artifact.sceneId,
     sections: buildDefaultContextSections(input.artifact),
     includedCanonFacts: buildDefaultIncludedCanonFacts(input.artifact),
-    includedAssets: buildDefaultIncludedAssets(input.artifact),
+    includedAssets: buildDefaultIncludedAssets(),
     excludedPrivateFacts: buildDefaultExcludedPrivateFacts(input.artifact),
+    assetActivations,
+    activationSummary: summarizeDefaultAssetActivations(assetActivations),
     outputSchemaLabel: localize('Scene context packet schema', '场景上下文包结构'),
     tokenBudgetLabel: localize(`Target budget ${1500 + sequence * 100} tokens`, `目标预算 ${1500 + sequence * 100} tokens`),
   }

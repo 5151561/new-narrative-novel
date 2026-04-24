@@ -62,11 +62,52 @@ describe('fixture API server read surfaces', () => {
           availableViews: ['profile', 'mentions', 'relations'],
         },
       })
+      expect(asset.json().viewsMeta.availableViews).not.toContain('context')
       expect(asset.json().assets).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             id: 'asset-ren-voss',
             kind: 'character',
+            contextPolicy: expect.objectContaining({
+              assetId: 'asset-ren-voss',
+              status: 'active',
+              defaultVisibility: 'character-known',
+              defaultBudget: 'selected-facts',
+              activationRules: expect.arrayContaining([
+                expect.objectContaining({
+                  id: 'ren-scene-cast',
+                  reasonKind: 'scene-cast',
+                  visibility: 'character-known',
+                  budget: 'selected-facts',
+                  targetAgents: expect.arrayContaining(['scene-manager', 'character-agent', 'prose-agent']),
+                }),
+                expect.objectContaining({
+                  id: 'ren-proposal-link',
+                  reasonKind: 'proposal-variant',
+                  visibility: 'private',
+                  budget: 'summary-only',
+                }),
+              ]),
+              exclusions: expect.arrayContaining([
+                expect.objectContaining({
+                  id: 'ren-private-signal',
+                }),
+              ]),
+            }),
+          }),
+          expect.objectContaining({
+            id: 'asset-midnight-platform',
+            kind: 'location',
+            contextPolicy: expect.objectContaining({
+              defaultBudget: 'mentions-excerpts',
+            }),
+          }),
+          expect.objectContaining({
+            id: 'asset-ledger-stays-shut',
+            kind: 'rule',
+            contextPolicy: expect.objectContaining({
+              defaultVisibility: 'spoiler',
+            }),
           }),
         ]),
       )
@@ -92,6 +133,30 @@ describe('fixture API server read surfaces', () => {
           }),
         ]),
       )
+    })
+  })
+
+  it('serves missing-policy assets as an explicit empty-state contract without crashing', async () => {
+    await withTestServer(async ({ app }) => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/assets/asset-ticket-window/knowledge',
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toMatchObject({
+        assetId: 'asset-ticket-window',
+        viewsMeta: {
+          availableViews: ['profile', 'mentions', 'relations'],
+        },
+      })
+      expect(response.json().viewsMeta.availableViews).not.toContain('context')
+      const ticketWindow = response.json().assets.find((asset: { id: string }) => asset.id === 'asset-ticket-window')
+      expect(ticketWindow).toMatchObject({
+        id: 'asset-ticket-window',
+        kind: 'location',
+      })
+      expect(ticketWindow).not.toHaveProperty('contextPolicy')
     })
   })
 

@@ -60,6 +60,16 @@ describe('startSceneRunWorkflow', () => {
       'step-008',
       'step-009',
     ])
+    expect(workflow.events[2]).toMatchObject({
+      kind: 'context_packet_built',
+      metadata: {
+        includedAssetCount: 3,
+        excludedAssetCount: 1,
+        redactedAssetCount: 1,
+      },
+    })
+    expect(JSON.stringify(workflow.events[2])).not.toContain('activation-ren-voss')
+    expect(JSON.stringify(workflow.events[2])).not.toContain('ren-scene-cast')
 
     expect(workflow.artifacts).toEqual([
       expect.objectContaining({

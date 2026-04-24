@@ -126,6 +126,14 @@ function createEvent(
   }
 }
 
+function createContextPacketEventMetadata(): RunEventRecord['metadata'] {
+  return {
+    includedAssetCount: 3,
+    excludedAssetCount: 1,
+    redactedAssetCount: 1,
+  }
+}
+
 function text(en: string, zhCN = en): LocalizedTextRecord {
   return {
     en,
@@ -387,12 +395,81 @@ function getSelectedVariantsForProposalIds(state: MockRunState, proposalIds: str
 }
 
 function buildContextPacketDetail(state: MockRunState, entry: MockArtifactEntry): ContextPacketArtifactDetailRecord {
-  const sceneId = state.run.scopeId
+  const assetActivations: NonNullable<ContextPacketArtifactDetailRecord['assetActivations']> = [
+    {
+      id: `${entry.id}-activation-ren-voss`,
+      assetId: 'asset-ren-voss',
+      assetTitle: text('Ren Voss'),
+      assetKind: 'character',
+      decision: 'included',
+      reasonKind: 'scene-cast',
+      reasonLabel: text('Cast member'),
+      visibility: 'character-known',
+      budget: 'selected-facts',
+      targetAgents: ['scene-manager', 'character-agent', 'prose-agent'],
+      policyRuleIds: ['ren-scene-cast'],
+      note: text('Selected Ren facts entered the packet; private signal notes stayed out.'),
+    },
+    {
+      id: `${entry.id}-activation-mei-arden`,
+      assetId: 'asset-mei-arden',
+      assetTitle: text('Mei Arden'),
+      assetKind: 'character',
+      decision: 'included',
+      reasonKind: 'scene-cast',
+      reasonLabel: text('Cast pressure'),
+      visibility: 'public',
+      budget: 'selected-facts',
+      targetAgents: ['scene-manager', 'character-agent', 'prose-agent'],
+      policyRuleIds: ['mei-scene-cast'],
+    },
+    {
+      id: `${entry.id}-activation-midnight-platform`,
+      assetId: 'asset-midnight-platform',
+      assetTitle: text('Midnight Platform'),
+      assetKind: 'location',
+      decision: 'included',
+      reasonKind: 'scene-location',
+      reasonLabel: text('Scene location'),
+      visibility: 'public',
+      budget: 'mentions-excerpts',
+      targetAgents: ['scene-manager', 'prose-agent'],
+      policyRuleIds: ['platform-scene-location'],
+    },
+    {
+      id: `${entry.id}-activation-ledger-stays-shut`,
+      assetId: 'asset-ledger-stays-shut',
+      assetTitle: text('Ledger Stays Shut'),
+      assetKind: 'rule',
+      decision: 'excluded',
+      reasonKind: 'rule-dependency',
+      reasonLabel: text('Rule dependency'),
+      visibility: 'spoiler',
+      budget: 'summary-only',
+      targetAgents: ['continuity-reviewer', 'scene-manager'],
+      policyRuleIds: ['ledger-rule-dependency'],
+      note: text('Spoiler proof contents were excluded from the context packet.'),
+    },
+    {
+      id: `${entry.id}-activation-departure-bell-timing`,
+      assetId: 'asset-departure-bell-timing',
+      assetTitle: text('Departure Bell Timing'),
+      assetKind: 'rule',
+      decision: 'redacted',
+      reasonKind: 'review-issue',
+      reasonLabel: text('Editor timing guardrail'),
+      visibility: 'editor-only',
+      budget: 'summary-only',
+      targetAgents: ['continuity-reviewer'],
+      policyRuleIds: ['bell-editor-guardrail'],
+      note: text('Exact editor-only timing remained redacted.'),
+    },
+  ]
 
   return {
     ...buildArtifactSummary(state, entry),
     kind: 'context-packet',
-    sceneId,
+    sceneId: state.run.scopeId,
     sections: [
       {
         id: `${entry.id}-section-brief`,
@@ -416,12 +493,22 @@ function buildContextPacketDetail(state: MockRunState, entry: MockArtifactEntry)
     ],
     includedAssets: [
       {
-        ...buildLeadAsset(sceneId),
-        reason: text('Carries the primary point of view through the run.'),
+        assetId: 'asset-ren-voss',
+        label: text('Ren Voss'),
+        kind: 'character',
+        reason: text('Carries the primary point of view through the platform bargain.'),
       },
       {
-        ...buildSettingAsset(sceneId),
-        reason: text('Keeps action blocking anchored to the scene setting.'),
+        assetId: 'asset-mei-arden',
+        label: text('Mei Arden'),
+        kind: 'character',
+        reason: text('Supplies the visible counter-pressure for the exchange.'),
+      },
+      {
+        assetId: 'asset-midnight-platform',
+        label: text('Midnight Platform'),
+        kind: 'location',
+        reason: text('Keeps witness pressure and staging anchored to the platform.'),
       },
     ],
     excludedPrivateFacts: [
@@ -431,6 +518,14 @@ function buildContextPacketDetail(state: MockRunState, entry: MockArtifactEntry)
         reason: text('Private reveal notes stay out until review lands.'),
       },
     ],
+    assetActivations,
+    activationSummary: {
+      includedAssetCount: assetActivations.filter((activation) => activation.decision === 'included').length,
+      excludedAssetCount: assetActivations.filter((activation) => activation.decision === 'excluded').length,
+      redactedAssetCount: assetActivations.filter((activation) => activation.decision === 'redacted').length,
+      targetAgentCount: new Set(assetActivations.flatMap((activation) => activation.targetAgents)).size,
+      warningCount: 1,
+    },
     outputSchemaLabel: text('Scene context packet schema'),
     tokenBudgetLabel: text(`Target budget ${1500 + extractRunSequence(state.run.id) * 100} tokens`),
   }
@@ -811,7 +906,7 @@ function buildSeedRun() {
         kind: 'context-packet',
         id: buildContextPacketId(sceneId, sequence),
       },
-    ]),
+    ], createContextPacketEventMetadata()),
     createEvent(runId, 4, 'agent_invocation_started', 'Planner invocation started', 'Planning agent invocation started.', [
       {
         kind: 'agent-invocation',
@@ -1004,7 +1099,7 @@ export function startMockSceneRun(input: StartSceneRunInput, projectId = DEFAULT
         kind: 'context-packet',
         id: buildContextPacketId(input.sceneId, nextSequence),
       },
-    ]),
+    ], createContextPacketEventMetadata()),
     createEvent(runId, 4, 'agent_invocation_started', 'Planner invocation started', 'Planning agent invocation started.', [
       {
         kind: 'agent-invocation',

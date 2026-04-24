@@ -1,4 +1,10 @@
-import type { RunReviewDecisionKind, RunSelectedProposalVariantRecord } from './run-records'
+import type {
+  AssetContextActivationReasonKindRecord,
+  AssetContextBudgetRecord,
+  AssetContextTargetAgentRecord,
+  AssetContextVisibilityRecord,
+} from '@/features/asset/api/asset-records'
+import type { RunEventRefRecord, RunReviewDecisionKind, RunSelectedProposalVariantRecord } from './run-records'
 
 export interface LocalizedTextRecord {
   en: string
@@ -99,6 +105,32 @@ export interface CanonPatchAcceptedFactRecord {
   relatedAssets: RunArtifactRelatedAssetRecord[]
 }
 
+export type RunContextAssetActivationDecisionRecord = 'included' | 'excluded' | 'redacted'
+
+export interface RunContextAssetActivationRecord {
+  id: string
+  assetId: string
+  assetTitle: LocalizedTextRecord
+  assetKind: 'character' | 'location' | 'rule'
+  decision: RunContextAssetActivationDecisionRecord
+  reasonKind: AssetContextActivationReasonKindRecord
+  reasonLabel: LocalizedTextRecord
+  visibility: AssetContextVisibilityRecord
+  budget: AssetContextBudgetRecord
+  targetAgents: AssetContextTargetAgentRecord[]
+  sourceRefs?: RunEventRefRecord[]
+  policyRuleIds?: string[]
+  note?: LocalizedTextRecord
+}
+
+export interface RunContextActivationSummaryRecord {
+  includedAssetCount: number
+  excludedAssetCount: number
+  redactedAssetCount: number
+  targetAgentCount: number
+  warningCount: number
+}
+
 export interface ContextPacketArtifactDetailRecord extends RunArtifactSummaryRecord {
   kind: 'context-packet'
   sceneId: string
@@ -106,6 +138,8 @@ export interface ContextPacketArtifactDetailRecord extends RunArtifactSummaryRec
   includedCanonFacts: RunArtifactCanonFactRecord[]
   includedAssets: RunArtifactIncludedAssetRecord[]
   excludedPrivateFacts: RunArtifactExcludedFactRecord[]
+  assetActivations?: RunContextAssetActivationRecord[]
+  activationSummary?: RunContextActivationSummaryRecord
   outputSchemaLabel: LocalizedTextRecord
   tokenBudgetLabel: LocalizedTextRecord
 }

@@ -506,12 +506,140 @@ const assetSeeds: AssetRecord[] = [
   }),
 ]
 
+const assetContextPolicies: Record<string, NonNullable<AssetRecord['contextPolicy']>> = {
+  'asset-ren-voss': {
+    assetId: 'asset-ren-voss',
+    status: 'active',
+    summary: text(
+      'Ren may enter run context when he is in cast or explicitly linked to a proposal.',
+      '当 Ren 位于登场阵容或被提案显式引用时，可以进入运行上下文。',
+    ),
+    defaultVisibility: 'character-known',
+    defaultBudget: 'selected-facts',
+    activationRules: [
+      {
+        id: 'ren-scene-cast',
+        reasonKind: 'scene-cast',
+        label: text('Cast member', '登场角色'),
+        summary: text('Include selected Ren facts when he is active in the scene cast.', '当 Ren 位于场景登场阵容时纳入筛选事实。'),
+        targetAgents: ['scene-manager', 'character-agent', 'prose-agent'],
+        visibility: 'character-known',
+        budget: 'selected-facts',
+        priorityLabel: text('Primary POV context', '主视角上下文'),
+      },
+      {
+        id: 'ren-proposal-link',
+        reasonKind: 'proposal-variant',
+        label: text('Proposal variant link', '提案变体引用'),
+        summary: text('Attach only the facts needed to evaluate a Ren-facing variant.', '仅附带评估 Ren 相关变体所需事实。'),
+        targetAgents: ['scene-manager', 'continuity-reviewer'],
+        visibility: 'private',
+        budget: 'summary-only',
+        guardrailLabel: text('Do not expose private courier signal notes.', '不要暴露信使暗号私密备注。'),
+      },
+    ],
+    exclusions: [
+      {
+        id: 'ren-private-signal',
+        label: text('Courier signal private key', '信使暗号私钥'),
+        summary: text('Private decoding material stays outside shared scene context.', '私密解码材料不进入共享场景上下文。'),
+      },
+    ],
+  },
+  'asset-mei-arden': {
+    assetId: 'asset-mei-arden',
+    status: 'active',
+    summary: text('Mei enters context as visible counter-pressure for bargaining beats.', 'Mei 作为谈判节拍的可见对抗压力进入上下文。'),
+    defaultVisibility: 'public',
+    defaultBudget: 'selected-facts',
+    activationRules: [
+      {
+        id: 'mei-scene-cast',
+        reasonKind: 'scene-cast',
+        label: text('Cast pressure', '登场压力'),
+        summary: text('Include Mei when the scene needs public bargaining pressure.', '场景需要公开谈判压力时纳入 Mei。'),
+        targetAgents: ['scene-manager', 'character-agent', 'prose-agent'],
+        visibility: 'public',
+        budget: 'selected-facts',
+      },
+    ],
+  },
+  'asset-midnight-platform': {
+    assetId: 'asset-midnight-platform',
+    status: 'limited',
+    summary: text('The platform may provide staging excerpts without copying the full location profile.', '月台可提供调度摘录，但不复制完整地点档案。'),
+    defaultVisibility: 'public',
+    defaultBudget: 'mentions-excerpts',
+    activationRules: [
+      {
+        id: 'platform-scene-location',
+        reasonKind: 'scene-location',
+        label: text('Scene location', '场景地点'),
+        summary: text('Attach location cues when the scene is staged on the platform.', '场景发生在月台时附带地点线索。'),
+        targetAgents: ['scene-manager', 'prose-agent'],
+        visibility: 'public',
+        budget: 'mentions-excerpts',
+      },
+    ],
+  },
+  'asset-ledger-stays-shut': {
+    assetId: 'asset-ledger-stays-shut',
+    status: 'limited',
+    summary: text('The ledger rule can enter continuity review, but spoiler proof stays excluded.', '账本规则可进入连续性审阅，但剧透证明保持排除。'),
+    defaultVisibility: 'spoiler',
+    defaultBudget: 'summary-only',
+    activationRules: [
+      {
+        id: 'ledger-rule-dependency',
+        reasonKind: 'rule-dependency',
+        label: text('Rule dependency', '规则依赖'),
+        summary: text('Use a terse guardrail when a run depends on the closed-ledger rule.', '运行依赖账本关闭规则时只使用简短护栏。'),
+        targetAgents: ['continuity-reviewer', 'scene-manager'],
+        visibility: 'spoiler',
+        budget: 'summary-only',
+        guardrailLabel: text('Never include proof contents in context packets.', '不要在上下文包中包含证明内容。'),
+      },
+    ],
+    exclusions: [
+      {
+        id: 'ledger-proof',
+        label: text('Full ledger proof', '完整账本证明'),
+        summary: text('Proof contents remain excluded from run context.', '证明内容保持排除，不进入运行上下文。'),
+      },
+    ],
+  },
+  'asset-departure-bell-timing': {
+    assetId: 'asset-departure-bell-timing',
+    status: 'draft',
+    summary: text('The bell rule is editor-only until the chapter ending is resolved.', '铃点规则在章节结尾解决前仅供编辑使用。'),
+    defaultVisibility: 'editor-only',
+    defaultBudget: 'summary-only',
+    activationRules: [
+      {
+        id: 'bell-editor-guardrail',
+        reasonKind: 'review-issue',
+        label: text('Editor timing guardrail', '编辑时序护栏'),
+        summary: text('Redact the exact ending cue while preserving the timing warning count.', '隐藏精确结尾提示，仅保留时序警告计数。'),
+        targetAgents: ['continuity-reviewer'],
+        visibility: 'editor-only',
+        budget: 'summary-only',
+      },
+    ],
+    warnings: [text('Exact bell placement remains unresolved.', '精确铃点仍未解决。')],
+  },
+}
+
+const policyAwareAssetSeeds = assetSeeds.map((asset) => ({
+  ...asset,
+  ...(assetContextPolicies[asset.id] ? { contextPolicy: assetContextPolicies[asset.id] } : {}),
+}))
+
 export const mockAssetRecordSeeds: Record<string, AssetRecord> = Object.fromEntries(
-  assetSeeds.map((asset) => [asset.id, asset]),
+  policyAwareAssetSeeds.map((asset) => [asset.id, asset]),
 ) as Record<string, AssetRecord>
 
 export function listMockAssetRecords(): AssetRecord[] {
-  return assetSeeds.map((asset) => structuredClone(asset))
+  return policyAwareAssetSeeds.map((asset) => structuredClone(asset))
 }
 
 export function getMockAssetRecordById(assetId: string): AssetRecord | null {

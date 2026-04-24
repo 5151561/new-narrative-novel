@@ -356,119 +356,294 @@ function createChapterRecords(): Record<string, ChapterStructureWorkspaceRecord>
 }
 
 function createAssetWorkspace(): Record<string, AssetKnowledgeWorkspaceRecord> {
-  const renWorkspace: AssetKnowledgeWorkspaceRecord = {
-    assetId: 'asset-ren-voss',
-    viewsMeta: {
-      availableViews: ['profile', 'mentions', 'relations'],
-    },
-    assets: [
-      {
-        id: 'asset-ren-voss',
-        kind: 'character',
-        title: text('Ren Voss', '任·沃斯'),
-        summary: text(
-          'Courier-side negotiator who keeps the ledger closed while trying to buy time in public.',
-          '站在信使一侧的谈判者，在公开压力里一边拖时间，一边坚持账本不能被翻开。',
-        ),
-        profile: {
-          sections: [
-            {
-              id: 'identity',
-              title: text('Identity', '身份'),
-              facts: [
-                { id: 'role', label: text('Role', '角色'), value: text('Courier negotiator', '信使谈判者') },
-                {
-                  id: 'agenda',
-                  label: text('Agenda', '意图'),
-                  value: text('Lock the bargain before witnesses harden the price.', '在目击者抬高代价前锁定交易。'),
-                },
-              ],
-            },
-          ],
-        },
-        mentions: [
+  const assets: AssetKnowledgeWorkspaceRecord['assets'] = [
+    {
+      id: 'asset-ren-voss',
+      kind: 'character',
+      title: text('Ren Voss', '任·沃斯'),
+      summary: text(
+        'Courier-side negotiator who keeps the ledger closed while trying to buy time in public.',
+        '站在信使一侧的谈判者，在公开压力里一边拖时间，一边坚持账本不能被翻开。',
+      ),
+      profile: {
+        sections: [
           {
-            id: 'mention-ren-midnight-platform',
-            targetScope: 'scene',
-            targetId: 'scene-midnight-platform',
-            sceneId: 'scene-midnight-platform',
-            chapterId: 'chapter-signals-in-rain',
-            targetLabel: text('Midnight Platform', '午夜站台'),
-            relationLabel: text('Primary POV', '主视角'),
-            excerpt: text(
-              'Ren holds the line on the platform and refuses to turn the ledger into a public prop.',
-              'Ren 在月台上顶住局面，拒绝把账本变成公开道具。',
-            ),
-            recommendedLens: 'draft',
-            backing: {
-              kind: 'canon',
-              sceneId: 'scene-midnight-platform',
-              acceptedFactIds: ['fact-ledger-closed'],
-              proposalIds: ['proposal-midnight-platform-001'],
-              patchId: 'patch-midnight-platform-001',
-            },
+            id: 'identity',
+            title: text('Identity', '身份'),
+            facts: [
+              { id: 'role', label: text('Role', '角色'), value: text('Courier negotiator', '信使谈判者') },
+              {
+                id: 'agenda',
+                label: text('Agenda', '意图'),
+                value: text('Lock the bargain before witnesses harden the price.', '在目击者抬高代价前锁定交易。'),
+              },
+            ],
           },
         ],
-        relations: [
-          {
-            id: 'relation-ren-mei',
-            targetAssetId: 'asset-mei-arden',
-            relationLabel: text('Bargains against', '相互谈判'),
-            summary: text(
-              'Ren needs Mei’s timing, but refuses the terms that would make the ledger public.',
-              'Ren 需要 Mei 给出时机，但拒绝接受会让账本公开的条件。',
-            ),
-          },
-        ],
-        warnings: [
-          text(
-            'Public witness pressure can flip Ren’s leverage into liability if the ledger slips open.',
-            '一旦账本松动，公开目击压力会把 Ren 的筹码反转成负担。',
+      },
+      mentions: [
+        {
+          id: 'mention-ren-midnight-platform',
+          targetScope: 'scene',
+          targetId: 'scene-midnight-platform',
+          sceneId: 'scene-midnight-platform',
+          chapterId: 'chapter-signals-in-rain',
+          targetLabel: text('Midnight Platform', '午夜站台'),
+          relationLabel: text('Primary POV', '主视角'),
+          excerpt: text(
+            'Ren holds the line on the platform and refuses to turn the ledger into a public prop.',
+            'Ren 在月台上顶住局面，拒绝把账本变成公开道具。',
           ),
-        ],
-      },
-      {
-        id: 'asset-mei-arden',
-        kind: 'character',
-        title: text('Mei Arden', '美伊·阿登'),
-        summary: text(
-          'Counterparty who keeps raising the visible cost until Ren gives her a usable commitment.',
-          '不断抬高公开代价的对手，直到 Ren 给出她能用的承诺。',
-        ),
-        profile: {
-          sections: [
-            {
-              id: 'identity',
-              title: text('Identity', '身份'),
-              facts: [
-                { id: 'role', label: text('Role', '角色'), value: text('Counterparty broker', '对手方斡旋者') },
-              ],
-            },
-          ],
+          recommendedLens: 'draft',
+          backing: {
+            kind: 'canon',
+            sceneId: 'scene-midnight-platform',
+            acceptedFactIds: ['fact-ledger-closed'],
+            proposalIds: ['proposal-midnight-platform-001'],
+            patchId: 'patch-midnight-platform-001',
+          },
         },
-        mentions: [],
-        relations: [
+      ],
+      relations: [
+        {
+          id: 'relation-ren-mei',
+          targetAssetId: 'asset-mei-arden',
+          relationLabel: text('Bargains against', '相互谈判'),
+          summary: text(
+            'Ren needs Mei’s timing, but refuses the terms that would make the ledger public.',
+            'Ren 需要 Mei 给出时机，但拒绝接受会让账本公开的条件。',
+          ),
+        },
+      ],
+      contextPolicy: {
+        assetId: 'asset-ren-voss',
+        status: 'active',
+        summary: text(
+          'Ren may enter run context when he is in cast or explicitly linked to a proposal.',
+          '当 Ren 位于登场阵容或被提案显式引用时，可以进入运行上下文。',
+        ),
+        defaultVisibility: 'character-known',
+        defaultBudget: 'selected-facts',
+        activationRules: [
           {
-            id: 'relation-mei-ren',
-            targetAssetId: 'asset-ren-voss',
-            relationLabel: text('Pressures', '施压'),
-            summary: text(
-              'Mei keeps widening the public price so Ren’s private timing stops being enough.',
-              'Mei 不断抬高公开代价，让 Ren 的私下时机不再足够。',
-            ),
+            id: 'ren-scene-cast',
+            reasonKind: 'scene-cast',
+            label: text('Cast member', '登场角色'),
+            summary: text('Include selected Ren facts when he is active in the scene cast.', '当 Ren 位于场景登场阵容时纳入筛选事实。'),
+            targetAgents: ['scene-manager', 'character-agent', 'prose-agent'],
+            visibility: 'character-known',
+            budget: 'selected-facts',
+            priorityLabel: text('Primary POV context', '主视角上下文'),
+          },
+          {
+            id: 'ren-proposal-link',
+            reasonKind: 'proposal-variant',
+            label: text('Proposal variant link', '提案变体引用'),
+            summary: text('Attach only the facts needed to evaluate a Ren-facing variant.', '仅附带评估 Ren 相关变体所需事实。'),
+            targetAgents: ['scene-manager', 'continuity-reviewer'],
+            visibility: 'private',
+            budget: 'summary-only',
+            guardrailLabel: text('Do not expose private courier signal notes.', '不要暴露信使暗号私密备注。'),
+          },
+        ],
+        exclusions: [
+          {
+            id: 'ren-private-signal',
+            label: text('Courier signal private key', '信使暗号私钥'),
+            summary: text('Private decoding material stays outside shared scene context.', '私密解码材料不进入共享场景上下文。'),
           },
         ],
       },
-    ],
-  }
-
-  return {
-    'asset-ren-voss': renWorkspace,
-    'asset-mei-arden': {
-      ...renWorkspace,
-      assetId: 'asset-mei-arden',
+      warnings: [
+        text(
+          'Public witness pressure can flip Ren’s leverage into liability if the ledger slips open.',
+          '一旦账本松动，公开目击压力会把 Ren 的筹码反转成负担。',
+        ),
+      ],
     },
-  }
+    {
+      id: 'asset-mei-arden',
+      kind: 'character',
+      title: text('Mei Arden', '美伊·阿登'),
+      summary: text(
+        'Counterparty who keeps raising the visible cost until Ren gives her a usable commitment.',
+        '不断抬高公开代价的对手，直到 Ren 给出她能用的承诺。',
+      ),
+      profile: {
+        sections: [
+          {
+            id: 'identity',
+            title: text('Identity', '身份'),
+            facts: [
+              { id: 'role', label: text('Role', '角色'), value: text('Counterparty broker', '对手方斡旋者') },
+            ],
+          },
+        ],
+      },
+      mentions: [],
+      relations: [
+        {
+          id: 'relation-mei-ren',
+          targetAssetId: 'asset-ren-voss',
+          relationLabel: text('Pressures', '施压'),
+          summary: text(
+            'Mei keeps widening the public price so Ren’s private timing stops being enough.',
+            'Mei 不断抬高公开代价，让 Ren 的私下时机不再足够。',
+          ),
+        },
+      ],
+      contextPolicy: {
+        assetId: 'asset-mei-arden',
+        status: 'active',
+        summary: text('Mei enters context as visible counter-pressure for bargaining beats.', 'Mei 作为谈判节拍的可见对抗压力进入上下文。'),
+        defaultVisibility: 'public',
+        defaultBudget: 'selected-facts',
+        activationRules: [
+          {
+            id: 'mei-scene-cast',
+            reasonKind: 'scene-cast',
+            label: text('Cast pressure', '登场压力'),
+            summary: text('Include Mei when the scene needs public bargaining pressure.', '场景需要公开谈判压力时纳入 Mei。'),
+            targetAgents: ['scene-manager', 'character-agent', 'prose-agent'],
+            visibility: 'public',
+            budget: 'selected-facts',
+          },
+        ],
+      },
+    },
+    {
+      id: 'asset-midnight-platform',
+      kind: 'location',
+      title: text('Midnight Platform', '午夜站台'),
+      summary: text(
+        'Open platform where every hesitation turns into public leverage and witness pressure.',
+        '一个公开暴露的站台，任何犹豫都会被放大成目击压力和公开筹码。',
+      ),
+      profile: {
+        sections: [
+          {
+            id: 'identity',
+            title: text('Identity', '身份'),
+            facts: [
+              { id: 'type', label: text('Type', '类型'), value: text('Transit platform', '交通月台') },
+              { id: 'pressure', label: text('Pressure', '压力'), value: text('Crowd visibility makes secrets expensive.', '人群可见性会让秘密变贵。') },
+            ],
+          },
+        ],
+      },
+      mentions: [],
+      relations: [],
+      contextPolicy: {
+        assetId: 'asset-midnight-platform',
+        status: 'limited',
+        summary: text('The platform may provide staging excerpts without copying the full location profile.', '月台可提供调度摘录，但不复制完整地点档案。'),
+        defaultVisibility: 'public',
+        defaultBudget: 'mentions-excerpts',
+        activationRules: [
+          {
+            id: 'platform-scene-location',
+            reasonKind: 'scene-location',
+            label: text('Scene location', '场景地点'),
+            summary: text('Attach location cues when the scene is staged on the platform.', '场景发生在月台时附带地点线索。'),
+            targetAgents: ['scene-manager', 'prose-agent'],
+            visibility: 'public',
+            budget: 'mentions-excerpts',
+          },
+        ],
+      },
+    },
+    {
+      id: 'asset-ledger-stays-shut',
+      kind: 'rule',
+      title: text('Ledger Stays Shut', '账本不得打开'),
+      summary: text(
+        'Core constraint that keeps the exchange from collapsing into immediate public proof.',
+        '一条核心约束，用来阻止这场交换立刻坍塌成公开证据。',
+      ),
+      profile: { sections: [] },
+      mentions: [],
+      relations: [],
+      contextPolicy: {
+        assetId: 'asset-ledger-stays-shut',
+        status: 'limited',
+        summary: text('The ledger rule can enter continuity review, but spoiler proof stays excluded.', '账本规则可进入连续性审阅，但剧透证明保持排除。'),
+        defaultVisibility: 'spoiler',
+        defaultBudget: 'summary-only',
+        activationRules: [
+          {
+            id: 'ledger-rule-dependency',
+            reasonKind: 'rule-dependency',
+            label: text('Rule dependency', '规则依赖'),
+            summary: text('Use a terse guardrail when a run depends on the closed-ledger rule.', '运行依赖账本关闭规则时只使用简短护栏。'),
+            targetAgents: ['continuity-reviewer', 'scene-manager'],
+            visibility: 'spoiler',
+            budget: 'summary-only',
+            guardrailLabel: text('Never include proof contents in context packets.', '不要在上下文包中包含证明内容。'),
+          },
+        ],
+        exclusions: [
+          {
+            id: 'ledger-proof',
+            label: text('Full ledger proof', '完整账本证明'),
+            summary: text('Proof contents remain excluded from run context.', '证明内容保持排除，不进入运行上下文。'),
+          },
+        ],
+      },
+    },
+    {
+      id: 'asset-departure-bell-timing',
+      kind: 'rule',
+      title: text('Departure Bell Timing', '发车铃时序'),
+      summary: text(
+        'Timing rule that decides when the exit can move without draining witness pressure too early.',
+        '一条时序规则，用来决定何时可以离场，又不至于过早抽干目击压力。',
+      ),
+      profile: { sections: [] },
+      mentions: [],
+      relations: [],
+      contextPolicy: {
+        assetId: 'asset-departure-bell-timing',
+        status: 'draft',
+        summary: text('The bell rule is editor-only until the chapter ending is resolved.', '铃点规则在章节结尾解决前仅供编辑使用。'),
+        defaultVisibility: 'editor-only',
+        defaultBudget: 'summary-only',
+        activationRules: [
+          {
+            id: 'bell-editor-guardrail',
+            reasonKind: 'review-issue',
+            label: text('Editor timing guardrail', '编辑时序护栏'),
+            summary: text('Redact the exact ending cue while preserving the timing warning count.', '隐藏精确结尾提示，仅保留时序警告计数。'),
+            targetAgents: ['continuity-reviewer'],
+            visibility: 'editor-only',
+            budget: 'summary-only',
+          },
+        ],
+        warnings: [text('Exact bell placement remains unresolved.', '精确铃点仍未解决。')],
+      },
+    },
+    {
+      id: 'asset-ticket-window',
+      kind: 'location',
+      title: text('Ticket Window', '售票窗'),
+      summary: text('Narrow exchange point where queue pressure becomes visible.', '一个让队列压力显形的狭窄交换节点。'),
+      profile: { sections: [] },
+      mentions: [],
+      relations: [],
+    },
+  ]
+
+  return Object.fromEntries(
+    assets.map((asset) => [
+      asset.id,
+      {
+        assetId: asset.id,
+        assets,
+        viewsMeta: {
+          availableViews: ['profile', 'mentions', 'relations'],
+        },
+      },
+    ]),
+  )
 }
 
 function createReviewDecisions(): Record<string, ReviewIssueDecisionRecord[]> {

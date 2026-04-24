@@ -9,6 +9,7 @@ import type { SceneRunTimelineLabelBuilder } from './sceneRunRecords.js'
 
 interface SceneRunEventFactoryOptions {
   buildTimelineLabel?: SceneRunTimelineLabelBuilder
+  metadata?: RunEventRecord['metadata']
 }
 
 export function createRunEvent(
@@ -29,6 +30,7 @@ export function createRunEvent(
     summary,
     createdAtLabel: (options?.buildTimelineLabel ?? buildDefaultSceneRunTimelineLabel)(order),
     refs,
+    ...(options?.metadata ? { metadata: options.metadata } : {}),
   }
 }
 

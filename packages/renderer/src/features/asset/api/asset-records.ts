@@ -6,10 +6,57 @@ import type {
 } from '@/features/workbench/types/workbench-route'
 
 export type AssetKind = 'character' | 'location' | 'rule'
+export type AssetContextVisibilityRecord =
+  | 'public'
+  | 'character-known'
+  | 'private'
+  | 'spoiler'
+  | 'editor-only'
+export type AssetContextBudgetRecord =
+  | 'summary-only'
+  | 'selected-facts'
+  | 'mentions-excerpts'
+  | 'full-profile'
+export type AssetContextTargetAgentRecord =
+  | 'scene-manager'
+  | 'character-agent'
+  | 'continuity-reviewer'
+  | 'prose-agent'
+export type AssetContextActivationReasonKindRecord =
+  | 'explicit-link'
+  | 'scene-cast'
+  | 'scene-location'
+  | 'rule-dependency'
+  | 'review-issue'
+  | 'proposal-variant'
+  | 'manual-pin'
 
 export interface AssetLocalizedText {
   en: string
   'zh-CN': string
+}
+
+export interface AssetContextActivationRuleRecord {
+  id: string
+  reasonKind: AssetContextActivationReasonKindRecord
+  label: AssetLocalizedText
+  summary: AssetLocalizedText
+  targetAgents: AssetContextTargetAgentRecord[]
+  visibility: AssetContextVisibilityRecord
+  budget: AssetContextBudgetRecord
+  priorityLabel?: AssetLocalizedText
+  guardrailLabel?: AssetLocalizedText
+}
+
+export interface AssetContextPolicyRecord {
+  assetId: string
+  status: 'active' | 'limited' | 'blocked' | 'draft'
+  summary: AssetLocalizedText
+  defaultVisibility: AssetContextVisibilityRecord
+  defaultBudget: AssetContextBudgetRecord
+  activationRules: AssetContextActivationRuleRecord[]
+  exclusions?: Array<{ id: string; label: AssetLocalizedText; summary: AssetLocalizedText }>
+  warnings?: AssetLocalizedText[]
 }
 
 export interface AssetProfileFactRecord {
@@ -79,6 +126,7 @@ export interface AssetRecord {
   profile: AssetProfileRecord
   mentions: AssetMentionRecord[]
   relations: AssetRelationRecord[]
+  contextPolicy?: AssetContextPolicyRecord
   warnings?: AssetLocalizedText[]
   notes?: AssetLocalizedText[]
 }

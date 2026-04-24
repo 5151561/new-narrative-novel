@@ -189,11 +189,13 @@ const assetKnowledgeViewLabels: Record<Locale, Record<AssetKnowledgeView, string
     profile: 'Profile',
     mentions: 'Mentions',
     relations: 'Relations',
+    context: 'Context',
   },
   'zh-CN': {
     profile: '资料',
     mentions: '提及',
     relations: '关系',
+    context: '上下文',
   },
 }
 

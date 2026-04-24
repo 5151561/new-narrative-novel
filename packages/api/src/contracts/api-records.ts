@@ -46,7 +46,7 @@ export interface LocalizedTextRecord {
 
 export type BookStructureView = 'sequence' | 'outliner' | 'signals'
 export type ChapterStructureView = 'sequence' | 'outliner' | 'assembly'
-export type AssetKnowledgeView = 'profile' | 'mentions' | 'relations'
+export type AssetKnowledgeView = 'profile' | 'mentions' | 'relations' | 'context'
 export type ChapterLens = 'structure' | 'draft'
 export type SceneLens = 'structure' | 'orchestrate' | 'draft'
 
@@ -307,6 +307,53 @@ export interface SetReviewIssueFixActionInput {
 
 export type AssetKind = 'character' | 'location' | 'rule'
 export type AssetMentionBackingKind = 'canon' | 'draft_context' | 'unlinked'
+export type AssetContextVisibilityRecord =
+  | 'public'
+  | 'character-known'
+  | 'private'
+  | 'spoiler'
+  | 'editor-only'
+export type AssetContextBudgetRecord =
+  | 'summary-only'
+  | 'selected-facts'
+  | 'mentions-excerpts'
+  | 'full-profile'
+export type AssetContextTargetAgentRecord =
+  | 'scene-manager'
+  | 'character-agent'
+  | 'continuity-reviewer'
+  | 'prose-agent'
+export type AssetContextActivationReasonKindRecord =
+  | 'explicit-link'
+  | 'scene-cast'
+  | 'scene-location'
+  | 'rule-dependency'
+  | 'review-issue'
+  | 'proposal-variant'
+  | 'manual-pin'
+
+export interface AssetContextActivationRuleRecord {
+  id: string
+  reasonKind: AssetContextActivationReasonKindRecord
+  label: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  targetAgents: AssetContextTargetAgentRecord[]
+  visibility: AssetContextVisibilityRecord
+  budget: AssetContextBudgetRecord
+  priorityLabel?: LocalizedTextRecord
+  guardrailLabel?: LocalizedTextRecord
+}
+
+export interface AssetContextPolicyRecord {
+  assetId: string
+  status: 'active' | 'limited' | 'blocked' | 'draft'
+  summary: LocalizedTextRecord
+  defaultVisibility: AssetContextVisibilityRecord
+  defaultBudget: AssetContextBudgetRecord
+  activationRules: AssetContextActivationRuleRecord[]
+  exclusions?: Array<{ id: string; label: LocalizedTextRecord; summary: LocalizedTextRecord }>
+  warnings?: LocalizedTextRecord[]
+}
 
 export interface AssetProfileFactRecord {
   id: string
@@ -373,6 +420,7 @@ export interface AssetRecord {
   profile: AssetProfileRecord
   mentions: AssetMentionRecord[]
   relations: AssetRelationRecord[]
+  contextPolicy?: AssetContextPolicyRecord
   warnings?: LocalizedTextRecord[]
   notes?: LocalizedTextRecord[]
 }
@@ -864,6 +912,32 @@ export interface CanonPatchAcceptedFactRecord {
   relatedAssets: RunArtifactRelatedAssetRecord[]
 }
 
+export type RunContextAssetActivationDecisionRecord = 'included' | 'excluded' | 'redacted'
+
+export interface RunContextAssetActivationRecord {
+  id: string
+  assetId: string
+  assetTitle: LocalizedTextRecord
+  assetKind: 'character' | 'location' | 'rule'
+  decision: RunContextAssetActivationDecisionRecord
+  reasonKind: AssetContextActivationReasonKindRecord
+  reasonLabel: LocalizedTextRecord
+  visibility: AssetContextVisibilityRecord
+  budget: AssetContextBudgetRecord
+  targetAgents: AssetContextTargetAgentRecord[]
+  sourceRefs?: RunEventRefRecord[]
+  policyRuleIds?: string[]
+  note?: LocalizedTextRecord
+}
+
+export interface RunContextActivationSummaryRecord {
+  includedAssetCount: number
+  excludedAssetCount: number
+  redactedAssetCount: number
+  targetAgentCount: number
+  warningCount: number
+}
+
 export interface ContextPacketArtifactDetailRecord extends RunArtifactSummaryRecord {
   kind: 'context-packet'
   sceneId: string
@@ -871,6 +945,8 @@ export interface ContextPacketArtifactDetailRecord extends RunArtifactSummaryRec
   includedCanonFacts: RunArtifactCanonFactRecord[]
   includedAssets: RunArtifactIncludedAssetRecord[]
   excludedPrivateFacts: RunArtifactExcludedFactRecord[]
+  assetActivations?: RunContextAssetActivationRecord[]
+  activationSummary?: RunContextActivationSummaryRecord
   outputSchemaLabel: LocalizedTextRecord
   tokenBudgetLabel: LocalizedTextRecord
 }

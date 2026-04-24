@@ -116,6 +116,19 @@ function RouteHarness() {
         onClick={() =>
           replaceRoute({
             scope: 'asset',
+            assetId: 'asset-ren-voss',
+            lens: 'knowledge',
+            view: 'context',
+          } satisfies { scope: 'asset' } & Partial<Omit<AssetRouteState, 'scope'>>)
+        }
+      >
+        Asset Context
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          replaceRoute({
+            scope: 'asset',
           } satisfies { scope: 'asset' } & Partial<Omit<AssetRouteState, 'scope'>>)
         }
       >
@@ -493,7 +506,7 @@ describe('useWorkbenchRouteState', () => {
     window.history.replaceState(
       {},
       '',
-      '/workbench?scope=asset&id=asset-ren-voss&lens=invalid&view=mentions&tab=prose&proposalId=proposal-2',
+      '/workbench?scope=asset&id=asset-ren-voss&lens=invalid&view=invalid&tab=prose&proposalId=proposal-2',
     )
 
     render(<RouteHarness />)
@@ -502,7 +515,20 @@ describe('useWorkbenchRouteState', () => {
       scope: 'asset',
       assetId: 'asset-ren-voss',
       lens: 'knowledge',
-      view: 'mentions',
+      view: 'profile',
+    })
+  })
+
+  it('accepts the asset context view in route-first deep links', () => {
+    expect(
+      readWorkbenchRouteState(
+        '?scope=asset&id=asset-ren-voss&lens=knowledge&view=context&sceneId=scene-ignored&chapterId=chapter-ignored',
+      ),
+    ).toEqual({
+      scope: 'asset',
+      assetId: 'asset-ren-voss',
+      lens: 'knowledge',
+      view: 'context',
     })
   })
 
@@ -519,20 +545,20 @@ describe('useWorkbenchRouteState', () => {
 
     await user.click(screen.getByRole('button', { name: 'Chapter Assembly' }))
 
-    await user.click(screen.getByRole('button', { name: 'Asset Relations' }))
+    await user.click(screen.getByRole('button', { name: 'Asset Context' }))
 
     expect(readRoute()).toEqual({
       scope: 'asset',
       assetId: 'asset-ren-voss',
       lens: 'knowledge',
-      view: 'relations',
+      view: 'context',
     })
 
     let params = new URLSearchParams(window.location.search)
     expect(params.get('scope')).toBe('asset')
     expect(params.get('id')).toBe('asset-ren-voss')
     expect(params.get('lens')).toBe('knowledge')
-    expect(params.get('view')).toBe('relations')
+    expect(params.get('view')).toBe('context')
     expect(params.get('tab')).toBeNull()
     expect(params.get('proposalId')).toBeNull()
 
@@ -546,20 +572,31 @@ describe('useWorkbenchRouteState', () => {
       sceneId: 'scene-dawn-slip',
     })
 
+    await user.click(screen.getByRole('button', { name: 'Open Book' }))
+    await user.click(screen.getByRole('button', { name: 'Book Signals' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'structure',
+      view: 'signals',
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+
     await user.click(screen.getByRole('button', { name: 'Open Asset' }))
 
     expect(readRoute()).toEqual({
       scope: 'asset',
       assetId: 'asset-ren-voss',
       lens: 'knowledge',
-      view: 'relations',
+      view: 'context',
     })
 
     params = new URLSearchParams(window.location.search)
     expect(params.get('scope')).toBe('asset')
     expect(params.get('id')).toBe('asset-ren-voss')
     expect(params.get('lens')).toBe('knowledge')
-    expect(params.get('view')).toBe('relations')
+    expect(params.get('view')).toBe('context')
 
     await user.click(screen.getByRole('button', { name: 'Open Scene' }))
 
@@ -569,6 +606,26 @@ describe('useWorkbenchRouteState', () => {
       lens: 'draft',
       tab: 'prose',
       proposalId: 'proposal-2',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Open Chapter' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'chapter',
+      chapterId: 'chapter-open-water-signals',
+      lens: 'structure',
+      view: 'assembly',
+      sceneId: 'scene-dawn-slip',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Open Book' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'book',
+      bookId: 'book-signal-arc',
+      lens: 'structure',
+      view: 'signals',
+      selectedChapterId: 'chapter-open-water-signals',
     })
   })
 

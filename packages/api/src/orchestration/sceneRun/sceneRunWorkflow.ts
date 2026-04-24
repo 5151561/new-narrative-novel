@@ -26,6 +26,14 @@ function createArtifactRef(ref: { kind: RunEventRefRecord['kind']; id: string },
   }
 }
 
+function createContextPacketEventMetadata() {
+  return {
+    includedAssetCount: 3,
+    excludedAssetCount: 1,
+    redactedAssetCount: 1,
+  }
+}
+
 export function startSceneRunWorkflow(
   input: SceneRunWorkflowStartInput,
   options?: SceneRunWorkflowStartOptions,
@@ -75,7 +83,10 @@ export function startSceneRunWorkflow(
   appendRunEvent(events, runId, 'run_started', 'Run started', 'Narrative runtime started the scene run.', undefined, eventOptions)
   appendRunEvent(events, runId, 'context_packet_built', 'Context packet built', 'Runtime assembled the scene context packet.', [
     createArtifactRef(contextPacketArtifact, 'Scene context packet'),
-  ], eventOptions)
+  ], {
+    ...eventOptions,
+    metadata: createContextPacketEventMetadata(),
+  })
   appendRunEvent(events, runId, 'agent_invocation_started', 'Planner invocation started', 'Planning agent invocation started.', [
     createArtifactRef(plannerInvocationArtifact, 'Planner'),
   ], eventOptions)

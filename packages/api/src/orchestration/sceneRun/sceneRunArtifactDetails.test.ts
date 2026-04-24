@@ -98,30 +98,30 @@ describe('sceneRunArtifactDetails', () => {
     ])
     expect(detail.includedAssets).toEqual([
       {
-        assetId: 'asset-scene-midnight-platform-lead',
+        assetId: 'asset-ren-voss',
         kind: 'character',
-        label: text('Midnight Platform lead', 'Midnight Platform 主角'),
+        label: text('Ren Voss', '任·沃斯'),
         reason: text(
-          'Carries the primary point of view through the run.',
-          '承担本次运行的主要视角。',
+          'Carries the primary point of view through the platform bargain.',
+          '承担站台谈判中的主要视角。',
         ),
       },
       {
-        assetId: 'asset-scene-midnight-platform-setting',
+        assetId: 'asset-mei-arden',
+        kind: 'character',
+        label: text('Mei Arden', '美伊·阿登'),
+        reason: text(
+          'Supplies the visible counter-pressure for the exchange.',
+          '为交换提供可见的对抗压力。',
+        ),
+      },
+      {
+        assetId: 'asset-midnight-platform',
         kind: 'location',
-        label: text('Midnight Platform setting', 'Midnight Platform 场景地点'),
+        label: text('Midnight Platform', '午夜站台'),
         reason: text(
-          'Keeps action blocking and continuity anchored to the Midnight Platform setting.',
-          '将动作调度和连续性固定在 Midnight Platform 场景内。',
-        ),
-      },
-      {
-        assetId: 'asset-scene-midnight-platform-rule',
-        kind: 'rule',
-        label: text('Midnight Platform continuity rule', 'Midnight Platform 连续性规则'),
-        reason: text(
-          'Prevents the run from violating established scene constraints.',
-          '防止本次运行破坏既有场景约束。',
+          'Keeps witness pressure and staging anchored to the platform.',
+          '将目击压力和场面调度固定在月台上。',
         ),
       },
     ])
@@ -137,6 +137,46 @@ describe('sceneRunArtifactDetails', () => {
     ])
     expect(detail.outputSchemaLabel).toEqual(text('Scene context packet schema', '场景上下文包结构'))
     expect(detail.tokenBudgetLabel).toEqual(text('Target budget 1700 tokens', '目标预算 1700 tokens'))
+    expect(detail.assetActivations).toEqual([
+      expect.objectContaining({
+        assetId: 'asset-ren-voss',
+        assetKind: 'character',
+        decision: 'included',
+        reasonKind: 'scene-cast',
+        visibility: 'character-known',
+        budget: 'selected-facts',
+        targetAgents: ['scene-manager', 'character-agent', 'prose-agent'],
+        policyRuleIds: ['ren-scene-cast'],
+      }),
+      expect.objectContaining({
+        assetId: 'asset-mei-arden',
+        decision: 'included',
+        visibility: 'public',
+      }),
+      expect.objectContaining({
+        assetId: 'asset-midnight-platform',
+        decision: 'included',
+        reasonKind: 'scene-location',
+        budget: 'mentions-excerpts',
+      }),
+      expect.objectContaining({
+        assetId: 'asset-ledger-stays-shut',
+        decision: 'excluded',
+        visibility: 'spoiler',
+      }),
+      expect.objectContaining({
+        assetId: 'asset-departure-bell-timing',
+        decision: 'redacted',
+        visibility: 'editor-only',
+      }),
+    ])
+    expect(detail.activationSummary).toEqual({
+      includedAssetCount: 3,
+      excludedAssetCount: 1,
+      redactedAssetCount: 1,
+      targetAgentCount: 4,
+      warningCount: 1,
+    })
   })
 
   it('builds agent invocation detail from artifact metadata with deterministic references', () => {
@@ -357,7 +397,7 @@ describe('sceneRunArtifactDetails', () => {
     expect(detail.proposals[1]?.summary['zh-CN']).not.toContain('站台环境')
   })
 
-  it('parameterizes context included asset wording for non-platform scenes', () => {
+  it('keeps context activations on fixture asset identities even for alternate scene ids', () => {
     const artifact = createContextPacketArtifact({
       runId: 'run-scene-sunlit-library-004',
       sceneId: 'scene-sunlit-library',
@@ -369,11 +409,18 @@ describe('sceneRunArtifactDetails', () => {
       sourceEventIds: ['run-event-scene-sunlit-library-004-003'],
     })
 
-    expect(detail.includedAssets[1]?.label).toEqual(text('Sunlit Library setting', 'Sunlit Library 场景地点'))
-    expect(detail.includedAssets[1]?.reason.en).toContain('Sunlit Library')
-    expect(detail.includedAssets[1]?.reason.en).not.toContain('platform')
-    expect(detail.includedAssets[1]?.reason['zh-CN']).toContain('Sunlit Library')
-    expect(detail.includedAssets[1]?.reason['zh-CN']).not.toContain('站台')
+    expect(detail.includedAssets.map((asset) => asset.assetId)).toEqual([
+      'asset-ren-voss',
+      'asset-mei-arden',
+      'asset-midnight-platform',
+    ])
+    expect(detail.assetActivations?.map((activation) => activation.assetId)).toEqual([
+      'asset-ren-voss',
+      'asset-mei-arden',
+      'asset-midnight-platform',
+      'asset-ledger-stays-shut',
+      'asset-departure-bell-timing',
+    ])
   })
 
   it('builds canon patch detail from accepted proposal ids without caller-supplied fact payloads', () => {

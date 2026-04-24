@@ -42,8 +42,26 @@ describe('fixture API server run artifact read surfaces', () => {
       const secondEventsPage = secondEventsResponse.json()
 
       const allPreReviewEvents = [...firstEventsPage.events, ...secondEventsPage.events]
+      const contextPacketEvent = allPreReviewEvents.find((event: { kind: string }) => event.kind === 'context_packet_built')
       const contextPacketRef = findEventRef(allPreReviewEvents, 'context_packet_built', 'context-packet')
       const proposalSetRef = findEventRef(allPreReviewEvents, 'proposal_created', 'proposal-set')
+
+      expect(contextPacketEvent).toMatchObject({
+        refs: [
+          expect.objectContaining({
+            kind: 'context-packet',
+          }),
+        ],
+        metadata: {
+          includedAssetCount: 3,
+          excludedAssetCount: 1,
+          redactedAssetCount: 1,
+        },
+      })
+      expect(contextPacketEvent).not.toHaveProperty('assetActivations')
+      expect(JSON.stringify(contextPacketEvent)).not.toContain('activation-ren-voss')
+      expect(JSON.stringify(contextPacketEvent)).not.toContain('ren-scene-cast')
+      expect(JSON.stringify(contextPacketEvent)).not.toContain('Cast member')
 
       expect(contextPacketRef).toBeTruthy()
       expect(proposalSetRef).toBeTruthy()
@@ -58,6 +76,34 @@ describe('fixture API server run artifact read surfaces', () => {
           id: contextPacketRef!.id,
           kind: 'context-packet',
           sceneId: 'scene-midnight-platform',
+          assetActivations: expect.arrayContaining([
+            expect.objectContaining({
+              assetId: 'asset-ren-voss',
+              assetKind: 'character',
+              decision: 'included',
+              reasonKind: 'scene-cast',
+              visibility: 'character-known',
+              budget: 'selected-facts',
+              policyRuleIds: ['ren-scene-cast'],
+            }),
+            expect.objectContaining({
+              assetId: 'asset-ledger-stays-shut',
+              decision: 'excluded',
+              visibility: 'spoiler',
+            }),
+            expect.objectContaining({
+              assetId: 'asset-departure-bell-timing',
+              decision: 'redacted',
+              visibility: 'editor-only',
+            }),
+          ]),
+          activationSummary: {
+            includedAssetCount: 3,
+            excludedAssetCount: 1,
+            redactedAssetCount: 1,
+            targetAgentCount: 4,
+            warningCount: 1,
+          },
         },
       })
 

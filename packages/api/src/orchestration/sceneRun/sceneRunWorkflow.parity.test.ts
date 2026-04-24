@@ -63,6 +63,11 @@ describe('startSceneRunWorkflow legacy deterministic start contract', () => {
             label: 'Scene context packet',
           },
         ],
+        metadata: {
+          includedAssetCount: 3,
+          excludedAssetCount: 1,
+          redactedAssetCount: 1,
+        },
       },
       {
         id: 'run-event-scene-parity-check-001-004',
