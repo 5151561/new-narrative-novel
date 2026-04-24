@@ -1,0 +1,444 @@
+import { describe, expect, it } from 'vitest'
+
+import type { LocalizedTextRecord } from '../../contracts/api-records.js'
+import {
+  createAgentInvocationArtifact,
+  createCanonPatchArtifact,
+  createContextPacketArtifact,
+  createProposalSetArtifact,
+  createProseDraftArtifact,
+} from './sceneRunArtifacts.js'
+import {
+  buildAgentInvocationDetail,
+  buildCanonPatchDetail,
+  buildContextPacketDetail,
+  buildProposalSetDetail,
+  buildProseDraftDetail,
+} from './sceneRunArtifactDetails.js'
+
+function text(en: string, zhCN = en): LocalizedTextRecord {
+  return {
+    en,
+    'zh-CN': zhCN,
+  }
+}
+
+describe('sceneRunArtifactDetails', () => {
+  const runId = 'run-scene-midnight-platform-002'
+  const sceneId = 'scene-midnight-platform'
+
+  it('builds deterministic context packet product content and accepts localized label overrides', () => {
+    const artifact = createContextPacketArtifact({
+      runId,
+      sceneId,
+      sequence: 2,
+    })
+
+    const detail = buildContextPacketDetail({
+      artifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-003'],
+      labels: {
+        title: text('Context packet', '上下文包'),
+        summary: text('Packed context for editorial review.', '供编辑审阅的上下文包。'),
+        statusLabel: text('Inspectable', '可查看'),
+        createdAtLabel: text('Timeline step 003', '时间线步骤 003'),
+      },
+    })
+
+    expect(detail.title).toEqual(text('Context packet', '上下文包'))
+    expect(detail.summary).toEqual(text('Packed context for editorial review.', '供编辑审阅的上下文包。'))
+    expect(detail.statusLabel).toEqual(text('Inspectable', '可查看'))
+    expect(detail.createdAtLabel).toEqual(text('Timeline step 003', '时间线步骤 003'))
+    expect(detail.sections).toEqual([
+      {
+        id: 'ctx-scene-midnight-platform-run-002-section-brief',
+        title: text('Scene brief', '场景摘要'),
+        summary: text(
+          'Scene setup, continuity, and editorial intent were packed for Midnight Platform.',
+          '已为 Midnight Platform 整理场景设定、连续性和编辑意图。',
+        ),
+        itemCount: 3,
+      },
+      {
+        id: 'ctx-scene-midnight-platform-run-002-section-canon',
+        title: text('Canon anchors', '正典锚点'),
+        summary: text(
+          'Approved canon facts were selected as guardrails for run 002.',
+          '已为第 002 次运行选出作为护栏的正典事实。',
+        ),
+        itemCount: 2,
+      },
+      {
+        id: 'ctx-scene-midnight-platform-run-002-section-assets',
+        title: text('Asset cues', '资产线索'),
+        summary: text(
+          'Characters, locations, and rules were attached for downstream generation.',
+          '已附带角色、地点与规则供后续生成使用。',
+        ),
+        itemCount: 3,
+      },
+    ])
+    expect(detail.includedCanonFacts).toEqual([
+      {
+        id: 'ctx-scene-midnight-platform-run-002-canon-fact-001',
+        label: text('Midnight Platform objective', 'Midnight Platform 目标'),
+        value: text(
+          'This run preserves the next visible beat before any new reveal is introduced.',
+          '本次运行会先保住下一个可见节拍，再引入新的揭示。',
+        ),
+      },
+      {
+        id: 'ctx-scene-midnight-platform-run-002-canon-fact-002',
+        label: text('Run 002 continuity guardrail', '第 002 次运行连续性护栏'),
+        value: text(
+          'Existing scene state must remain stable until review decides what can change.',
+          '在审阅决定可变更内容之前，现有场景状态必须保持稳定。',
+        ),
+      },
+    ])
+    expect(detail.includedAssets).toEqual([
+      {
+        assetId: 'asset-scene-midnight-platform-lead',
+        kind: 'character',
+        label: text('Midnight Platform lead', 'Midnight Platform 主角'),
+        reason: text(
+          'Carries the primary point of view through the run.',
+          '承担本次运行的主要视角。',
+        ),
+      },
+      {
+        assetId: 'asset-scene-midnight-platform-setting',
+        kind: 'location',
+        label: text('Midnight Platform setting', 'Midnight Platform 场景地点'),
+        reason: text(
+          'Keeps action blocking and continuity anchored to the Midnight Platform setting.',
+          '将动作调度和连续性固定在 Midnight Platform 场景内。',
+        ),
+      },
+      {
+        assetId: 'asset-scene-midnight-platform-rule',
+        kind: 'rule',
+        label: text('Midnight Platform continuity rule', 'Midnight Platform 连续性规则'),
+        reason: text(
+          'Prevents the run from violating established scene constraints.',
+          '防止本次运行破坏既有场景约束。',
+        ),
+      },
+    ])
+    expect(detail.excludedPrivateFacts).toEqual([
+      {
+        id: 'ctx-scene-midnight-platform-run-002-excluded-001',
+        label: text('Deferred reveal', '延后揭示'),
+        reason: text(
+          'Private reveal notes stay out of the shared packet until a review decision lands.',
+          '在审阅决定落定前，私有揭示备注不会进入共享上下文包。',
+        ),
+      },
+    ])
+    expect(detail.outputSchemaLabel).toEqual(text('Scene context packet schema', '场景上下文包结构'))
+    expect(detail.tokenBudgetLabel).toEqual(text('Target budget 1700 tokens', '目标预算 1700 tokens'))
+  })
+
+  it('builds agent invocation detail from artifact metadata with deterministic references', () => {
+    const artifact = createAgentInvocationArtifact({
+      runId,
+      sceneId,
+      sequence: 2,
+      index: 1,
+      role: 'planner',
+    })
+
+    const detail = buildAgentInvocationDetail({
+      artifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-005'],
+    })
+
+    expect(detail).toMatchObject({
+      kind: 'agent-invocation',
+      agentRole: 'scene-planner',
+      contextPacketId: 'ctx-scene-midnight-platform-run-002',
+      modelLabel: text('Fixture planner profile', 'Fixture 规划模型'),
+      inputSummary: text(
+        'Consumes the packed scene context and editorial note for Midnight Platform.',
+        '消费 Midnight Platform 的上下文包和编辑备注。',
+      ),
+      outputSummary: text(
+        'Produces structured proposal candidates for editorial review.',
+        '产出供编辑审阅的结构化提案候选。',
+      ),
+      outputSchemaLabel: text('Proposal candidate schema', '提案候选结构'),
+      createdAtLabel: text('Linked event 005', '关联事件 005'),
+    })
+    expect(detail.generatedRefs).toEqual([
+      {
+        kind: 'proposal-set',
+        id: 'proposal-set-scene-midnight-platform-run-002',
+        label: text('Scene proposal set', '场景提案集'),
+      },
+    ])
+  })
+
+  it('builds proposal set detail with deterministic proposals and review options', () => {
+    const artifact = createProposalSetArtifact({
+      runId,
+      sceneId,
+      sequence: 2,
+    })
+
+    const detail = buildProposalSetDetail({
+      artifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-008'],
+    })
+
+    expect(detail.reviewId).toBe('review-scene-midnight-platform-002')
+    expect(detail.sourceInvocationIds).toEqual([
+      'agent-invocation-scene-midnight-platform-run-002-001',
+      'agent-invocation-scene-midnight-platform-run-002-002',
+    ])
+    expect(detail.proposals).toEqual([
+      {
+        id: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+        title: text('Anchor the arrival beat', '固定抵达节拍'),
+        summary: text(
+          'Open on Midnight Platform before introducing any new reveal.',
+          '先在 Midnight Platform 落定开场，再引入新的揭示。',
+        ),
+        changeKind: 'action',
+        riskLabel: text('Low continuity risk', '连续性风险低'),
+        relatedAssets: [
+          {
+            assetId: 'asset-scene-midnight-platform-lead',
+            label: text('Midnight Platform lead', 'Midnight Platform 主角'),
+            kind: 'character',
+          },
+        ],
+      },
+      {
+        id: 'proposal-set-scene-midnight-platform-run-002-proposal-002',
+        title: text('Stage the reveal through the setting', '通过场景地点推进揭示'),
+        summary: text(
+          'Let the Midnight Platform setting carry the reveal instead of adding raw exposition.',
+          '让 Midnight Platform 场景来承载揭示，而不是直接堆叠说明。',
+        ),
+        changeKind: 'reveal',
+        riskLabel: text('Editor check recommended', '建议编辑复核'),
+        relatedAssets: [
+          {
+            assetId: 'asset-scene-midnight-platform-setting',
+            label: text('Midnight Platform setting', 'Midnight Platform 场景地点'),
+            kind: 'location',
+          },
+        ],
+      },
+    ])
+    expect(detail.reviewOptions).toEqual([
+      {
+        decision: 'accept',
+        label: text('Accept', '接受'),
+        description: text('Apply the proposal set without further changes.', '直接应用提案集，不再追加改动。'),
+      },
+      {
+        decision: 'accept-with-edit',
+        label: text('Accept with edit', '接受并编辑'),
+        description: text('Apply the proposal set, then layer editorial adjustments.', '应用提案集后，再叠加编辑调整。'),
+      },
+      {
+        decision: 'request-rewrite',
+        label: text('Request rewrite', '要求重写'),
+        description: text('Return the run to execution with rewrite guidance.', '附带重写指引后退回执行阶段。'),
+      },
+      {
+        decision: 'reject',
+        label: text('Reject', '拒绝'),
+        description: text('Close the run without producing canon or prose artifacts.', '关闭本次运行，不产出 canon 或 prose artifact。'),
+      },
+    ])
+  })
+
+  it('parameterizes proposal wording for non-platform scenes', () => {
+    const artifact = createProposalSetArtifact({
+      runId: 'run-scene-sunlit-library-004',
+      sceneId: 'scene-sunlit-library',
+      sequence: 4,
+    })
+
+    const detail = buildProposalSetDetail({
+      artifact,
+      sourceEventIds: ['run-event-scene-sunlit-library-004-008'],
+    })
+
+    expect(detail.summary).toEqual(text(
+      'Proposal candidates for Sunlit Library are ready for review.',
+      'Sunlit Library 的提案候选已可进入审阅。',
+    ))
+    expect(detail.proposals[0]?.summary).toEqual(text(
+      'Open on Sunlit Library before introducing any new reveal.',
+      '先在 Sunlit Library 落定开场，再引入新的揭示。',
+    ))
+    expect(detail.proposals[1]?.summary.en).toContain('Sunlit Library setting')
+    expect(detail.proposals[1]?.summary.en).not.toContain('platform environment')
+    expect(detail.proposals[1]?.summary['zh-CN']).toContain('Sunlit Library 场景')
+    expect(detail.proposals[1]?.summary['zh-CN']).not.toContain('站台环境')
+  })
+
+  it('parameterizes context included asset wording for non-platform scenes', () => {
+    const artifact = createContextPacketArtifact({
+      runId: 'run-scene-sunlit-library-004',
+      sceneId: 'scene-sunlit-library',
+      sequence: 4,
+    })
+
+    const detail = buildContextPacketDetail({
+      artifact,
+      sourceEventIds: ['run-event-scene-sunlit-library-004-003'],
+    })
+
+    expect(detail.includedAssets[1]?.label).toEqual(text('Sunlit Library setting', 'Sunlit Library 场景地点'))
+    expect(detail.includedAssets[1]?.reason.en).toContain('Sunlit Library')
+    expect(detail.includedAssets[1]?.reason.en).not.toContain('platform')
+    expect(detail.includedAssets[1]?.reason['zh-CN']).toContain('Sunlit Library')
+    expect(detail.includedAssets[1]?.reason['zh-CN']).not.toContain('站台')
+  })
+
+  it('builds canon patch detail from accepted proposal ids without caller-supplied fact payloads', () => {
+    const artifact = createCanonPatchArtifact({
+      runId,
+      sceneId,
+      sequence: 2,
+    })
+
+    const detail = buildCanonPatchDetail({
+      artifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-011'],
+      decision: 'accept-with-edit',
+      acceptedProposalIds: ['proposal-set-scene-midnight-platform-run-002-proposal-002'],
+    })
+
+    expect(detail.sourceProposalSetId).toBe('proposal-set-scene-midnight-platform-run-002')
+    expect(detail.acceptedProposalIds).toEqual(['proposal-set-scene-midnight-platform-run-002-proposal-002'])
+    expect(detail.acceptedFacts).toEqual([
+      {
+        id: 'canon-patch-scene-midnight-platform-002-fact-001',
+        label: text('Accepted fact 1', '接受事实 1'),
+        value: text(
+          'Midnight Platform now carries an approved reveal through the environment.',
+          'Midnight Platform 现在通过环境承载了一条已批准的揭示。',
+        ),
+        sourceProposalIds: ['proposal-set-scene-midnight-platform-run-002-proposal-002'],
+        relatedAssets: [
+          {
+            assetId: 'asset-scene-midnight-platform-setting',
+            label: text('Midnight Platform setting', 'Midnight Platform 场景地点'),
+            kind: 'location',
+          },
+        ],
+      },
+    ])
+    expect(detail.traceLinkIds).toEqual(['trace-link-scene-midnight-platform-002-accepted_into-001'])
+  })
+
+  it('uses explicit backreference metadata for custom canon patch and prose draft ids', () => {
+    const canonPatchArtifact = {
+      ...createCanonPatchArtifact({
+        runId,
+        sceneId,
+        sequence: 2,
+      }),
+      id: 'canon-patch-editorial-777',
+    }
+
+    const canonPatchDefaultDetail = buildCanonPatchDetail({
+      artifact: canonPatchArtifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-011'],
+      decision: 'accept',
+    })
+
+    expect(canonPatchDefaultDetail.sourceProposalSetId).toBe('proposal-set-scene-midnight-platform-run-002')
+
+    const canonPatchDetail = buildCanonPatchDetail({
+      artifact: canonPatchArtifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-011'],
+      decision: 'accept',
+      sourceProposalSetId: 'proposal-set-explicit-777',
+      acceptedProposalIds: ['proposal-set-explicit-777-proposal-001'],
+    })
+
+    expect(canonPatchDetail.sourceProposalSetId).toBe('proposal-set-explicit-777')
+    expect(canonPatchDetail.acceptedProposalIds).toEqual(['proposal-set-explicit-777-proposal-001'])
+    expect(canonPatchDetail.acceptedFacts[0]?.sourceProposalIds).toEqual(['proposal-set-explicit-777-proposal-001'])
+
+    const proseDraftArtifact = {
+      ...createProseDraftArtifact({
+        runId,
+        sceneId,
+        sequence: 2,
+      }),
+      id: 'prose-draft-editorial-777',
+    }
+
+    const proseDraftDetail = buildProseDraftDetail({
+      artifact: proseDraftArtifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-012'],
+      sourceCanonPatchId: 'canon-patch-editorial-777',
+      sourceProposalIds: ['proposal-set-explicit-777-proposal-001'],
+    })
+
+    expect(proseDraftDetail.sourceCanonPatchId).toBe('canon-patch-editorial-777')
+    expect(proseDraftDetail.sourceProposalIds).toEqual(['proposal-set-explicit-777-proposal-001'])
+  })
+
+  it('derives accepted proposal ids consistently from explicit source proposal set id', () => {
+    const artifact = createCanonPatchArtifact({
+      runId,
+      sceneId,
+      sequence: 2,
+    })
+
+    const detail = buildCanonPatchDetail({
+      artifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-011'],
+      decision: 'accept-with-edit',
+      sourceProposalSetId: 'proposal-set-explicit-555',
+    })
+
+    expect(detail.sourceProposalSetId).toBe('proposal-set-explicit-555')
+    expect(detail.acceptedProposalIds).toEqual(['proposal-set-explicit-555-proposal-002'])
+    expect(detail.acceptedFacts[0]?.sourceProposalIds).toEqual(['proposal-set-explicit-555-proposal-002'])
+  })
+
+  it('builds prose draft detail from deterministic canon and proposal links', () => {
+    const artifact = createProseDraftArtifact({
+      runId,
+      sceneId,
+      sequence: 2,
+    })
+
+    const detail = buildProseDraftDetail({
+      artifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-012'],
+    })
+
+    expect(detail).toMatchObject({
+      sourceCanonPatchId: 'canon-patch-scene-midnight-platform-002',
+      sourceProposalIds: ['proposal-set-scene-midnight-platform-run-002-proposal-001'],
+      excerpt: text(
+        'Midnight Platform settles into view before the next reveal turns visible.',
+        'Midnight Platform 先稳稳落入视野，随后下一段揭示才开始显形。',
+      ),
+      wordCount: 146,
+      traceLinkIds: ['trace-link-scene-midnight-platform-002-rendered_as-001'],
+    })
+    expect(detail.relatedAssets).toEqual([
+      {
+        assetId: 'asset-scene-midnight-platform-lead',
+        label: text('Midnight Platform lead', 'Midnight Platform 主角'),
+        kind: 'character',
+      },
+      {
+        assetId: 'asset-scene-midnight-platform-setting',
+        label: text('Midnight Platform setting', 'Midnight Platform 场景地点'),
+        kind: 'location',
+      },
+    ])
+  })
+})

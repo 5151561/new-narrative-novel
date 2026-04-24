@@ -1,0 +1,613 @@
+import type {
+  AgentInvocationArtifactDetailRecord,
+  CanonPatchArtifactDetailRecord,
+  ContextPacketArtifactDetailRecord,
+  LocalizedTextRecord,
+  ProposalSetArtifactDetailRecord,
+  ProposalSetReviewOptionRecord,
+  ProseDraftArtifactDetailRecord,
+  RunArtifactGeneratedRefRecord,
+  RunReviewDecisionKind,
+} from '../../contracts/api-records.js'
+import {
+  buildAgentInvocationId,
+  buildCanonPatchId,
+  buildContextPacketId,
+  buildProposalSetId,
+  buildReviewId,
+  buildTraceLinkId,
+} from './sceneRunIds.js'
+import type { SceneRunArtifactRecord } from './sceneRunRecords.js'
+
+interface ArtifactSummaryLabelOverrides {
+  title?: LocalizedTextRecord
+  summary?: LocalizedTextRecord
+  statusLabel?: LocalizedTextRecord
+  createdAtLabel?: LocalizedTextRecord
+}
+
+interface BuildArtifactDetailBaseInput {
+  artifact: SceneRunArtifactRecord
+  sourceEventIds: string[]
+  labels?: ArtifactSummaryLabelOverrides
+}
+
+export interface BuildContextPacketDetailInput extends BuildArtifactDetailBaseInput {}
+
+export interface BuildAgentInvocationDetailInput extends BuildArtifactDetailBaseInput {
+  contextPacketId?: string
+  generatedRefs?: RunArtifactGeneratedRefRecord[]
+}
+
+export interface BuildProposalSetDetailInput extends BuildArtifactDetailBaseInput {
+  reviewId?: string
+  sourceInvocationIds?: string[]
+}
+
+export interface BuildCanonPatchDetailInput extends BuildArtifactDetailBaseInput {
+  decision: CanonPatchArtifactDetailRecord['decision']
+  sourceProposalSetId?: string
+  acceptedProposalIds?: string[]
+  traceLinkIds?: string[]
+}
+
+export interface BuildProseDraftDetailInput extends BuildArtifactDetailBaseInput {
+  sourceCanonPatchId?: string
+  sourceProposalIds?: string[]
+  traceLinkIds?: string[]
+}
+
+const artifactStatusLabels = {
+  built: localize('Built', '已构建'),
+  completed: localize('Completed', '已完成'),
+  ready: localize('Ready for review', '待审阅'),
+  applied: localize('Applied', '已应用'),
+  generated: localize('Generated', '已生成'),
+} as const satisfies Record<string, LocalizedTextRecord>
+
+function localize(en: string, zhCN = en): LocalizedTextRecord {
+  return {
+    en,
+    'zh-CN': zhCN,
+  }
+}
+
+function padSequence(value: number) {
+  return String(value).padStart(3, '0')
+}
+
+function parseSequenceLabel(id: string) {
+  const match = id.match(/-(\d{3})(?:-\d{3})?$/)
+  return match?.[1] ?? '000'
+}
+
+function parseSequenceNumber(id: string) {
+  return Number.parseInt(parseSequenceLabel(id), 10) || 0
+}
+
+function parseRunSequenceNumber(runId: string) {
+  const match = runId.match(/-(\d{3})$/)
+  return Number.parseInt(match?.[1] ?? '0', 10) || 0
+}
+
+function parseEventOrderLabel(eventId?: string) {
+  const match = eventId?.match(/-(\d{3})$/)
+  return match?.[1] ?? '000'
+}
+
+function formatSceneName(sceneId: string) {
+  return sceneId
+    .replace(/^scene-/, '')
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function assertArtifactKind<TKind extends SceneRunArtifactRecord['kind']>(
+  artifact: SceneRunArtifactRecord,
+  kind: TKind,
+): asserts artifact is SceneRunArtifactRecord & { kind: TKind } {
+  if (artifact.kind !== kind) {
+    throw new Error(`Expected ${kind} artifact, received ${artifact.kind}.`)
+  }
+}
+
+function localizeArtifactStatus(status?: string) {
+  if (!status) {
+    return localize('Available', '可用')
+  }
+
+  if (status in artifactStatusLabels) {
+    return artifactStatusLabels[status as keyof typeof artifactStatusLabels]
+  }
+
+  return localize(status)
+}
+
+function buildDefaultTitle(artifact: SceneRunArtifactRecord): LocalizedTextRecord {
+  switch (artifact.kind) {
+    case 'context-packet':
+      return localize('Scene context packet', '场景上下文包')
+    case 'agent-invocation':
+      return artifact.meta?.role === 'planner'
+        ? localize('Planner invocation', '规划代理调用')
+        : localize('Writer invocation', '写作代理调用')
+    case 'proposal-set':
+      return localize('Scene proposal set', '场景提案集')
+    case 'canon-patch':
+      return localize('Canon patch', '正典补丁')
+    case 'prose-draft':
+      return localize('Prose draft', '正文草稿')
+  }
+}
+
+function buildDefaultSummary(artifact: SceneRunArtifactRecord): LocalizedTextRecord {
+  const sceneName = formatSceneName(artifact.sceneId)
+  const sequenceLabel = parseSequenceLabel(artifact.id)
+
+  switch (artifact.kind) {
+    case 'context-packet':
+      return localize(
+        `Packed context for ${sceneName} run ${sequenceLabel}.`,
+        `已为 ${sceneName} 的第 ${sequenceLabel} 次运行整理上下文。`,
+      )
+    case 'agent-invocation':
+      return artifact.meta?.role === 'planner'
+        ? localize(
+            `Planner fixture output is ready for ${sceneName}.`,
+            `面向 ${sceneName} 的规划 fixture 输出已就绪。`,
+          )
+        : localize(
+            `Writer fixture output is ready for ${sceneName}.`,
+            `面向 ${sceneName} 的写作 fixture 输出已就绪。`,
+          )
+    case 'proposal-set':
+      return localize(
+        `Proposal candidates for ${sceneName} are ready for review.`,
+        `${sceneName} 的提案候选已可进入审阅。`,
+      )
+    case 'canon-patch':
+      return localize(
+        `Accepted proposal changes were compiled into canon for ${sceneName}.`,
+        `已将 ${sceneName} 的获批提案变更编译进正典。`,
+      )
+    case 'prose-draft':
+      return localize(
+        `A fixture prose draft was rendered for ${sceneName}.`,
+        `已为 ${sceneName} 渲染 fixture 正文草稿。`,
+      )
+  }
+}
+
+function buildDefaultCreatedAtLabel(sourceEventIds: string[]) {
+  const orderLabel = parseEventOrderLabel(sourceEventIds[0])
+  return localize(`Linked event ${orderLabel}`, `关联事件 ${orderLabel}`)
+}
+
+function buildArtifactSummary(input: BuildArtifactDetailBaseInput) {
+  return {
+    id: input.artifact.id,
+    runId: input.artifact.runId,
+    kind: input.artifact.kind,
+    title: input.labels?.title ?? buildDefaultTitle(input.artifact),
+    summary: input.labels?.summary ?? buildDefaultSummary(input.artifact),
+    statusLabel: input.labels?.statusLabel ?? localizeArtifactStatus(input.artifact.status),
+    createdAtLabel: input.labels?.createdAtLabel ?? buildDefaultCreatedAtLabel(input.sourceEventIds),
+    sourceEventIds: [...input.sourceEventIds],
+  }
+}
+
+function readAgentRole(artifact: SceneRunArtifactRecord): AgentInvocationArtifactDetailRecord['agentRole'] {
+  const role = artifact.meta?.role
+
+  if (role === 'planner') {
+    return 'scene-planner'
+  }
+
+  if (role === 'writer') {
+    return 'scene-writer'
+  }
+
+  throw new Error(`Agent invocation artifact ${artifact.id} is missing a supported role.`)
+}
+
+function buildLeadAsset(sceneId: string, sceneName: string) {
+  return {
+    assetId: `asset-${sceneId}-lead`,
+    label: localize(`${sceneName} lead`, `${sceneName} 主角`),
+    kind: 'character' as const,
+  }
+}
+
+function buildSettingAsset(sceneId: string, sceneName: string) {
+  return {
+    assetId: `asset-${sceneId}-setting`,
+    label: localize(`${sceneName} setting`, `${sceneName} 场景地点`),
+    kind: 'location' as const,
+  }
+}
+
+function buildRuleAsset(sceneId: string, sceneName: string) {
+  return {
+    assetId: `asset-${sceneId}-rule`,
+    label: localize(`${sceneName} continuity rule`, `${sceneName} 连续性规则`),
+    kind: 'rule' as const,
+  }
+}
+
+function buildProposalIds(artifact: SceneRunArtifactRecord) {
+  const canonicalSequence = parseRunSequenceNumber(artifact.runId)
+  const proposalSetId = buildProposalSetId(artifact.sceneId, canonicalSequence)
+
+  return [
+    `${artifact.kind === 'proposal-set' ? artifact.id : proposalSetId}-proposal-001`,
+    `${artifact.kind === 'proposal-set' ? artifact.id : proposalSetId}-proposal-002`,
+  ]
+}
+
+function buildDefaultContextSections(
+  artifact: SceneRunArtifactRecord,
+): ContextPacketArtifactDetailRecord['sections'] {
+  const sceneName = formatSceneName(artifact.sceneId)
+  const sequenceLabel = parseSequenceLabel(artifact.id)
+
+  return [
+    {
+      id: `${artifact.id}-section-brief`,
+      title: localize('Scene brief', '场景摘要'),
+      summary: localize(
+        `Scene setup, continuity, and editorial intent were packed for ${sceneName}.`,
+        `已为 ${sceneName} 整理场景设定、连续性和编辑意图。`,
+      ),
+      itemCount: 3,
+    },
+    {
+      id: `${artifact.id}-section-canon`,
+      title: localize('Canon anchors', '正典锚点'),
+      summary: localize(
+        `Approved canon facts were selected as guardrails for run ${sequenceLabel}.`,
+        `已为第 ${sequenceLabel} 次运行选出作为护栏的正典事实。`,
+      ),
+      itemCount: 2,
+    },
+    {
+      id: `${artifact.id}-section-assets`,
+      title: localize('Asset cues', '资产线索'),
+      summary: localize(
+        'Characters, locations, and rules were attached for downstream generation.',
+        '已附带角色、地点与规则供后续生成使用。',
+      ),
+      itemCount: 3,
+    },
+  ]
+}
+
+function buildDefaultIncludedCanonFacts(
+  artifact: SceneRunArtifactRecord,
+): ContextPacketArtifactDetailRecord['includedCanonFacts'] {
+  const sceneName = formatSceneName(artifact.sceneId)
+  const sequenceLabel = parseSequenceLabel(artifact.id)
+
+  return [
+    {
+      id: `${artifact.id}-canon-fact-001`,
+      label: localize(`${sceneName} objective`, `${sceneName} 目标`),
+      value: localize(
+        'This run preserves the next visible beat before any new reveal is introduced.',
+        '本次运行会先保住下一个可见节拍，再引入新的揭示。',
+      ),
+    },
+    {
+      id: `${artifact.id}-canon-fact-002`,
+      label: localize(`Run ${sequenceLabel} continuity guardrail`, `第 ${sequenceLabel} 次运行连续性护栏`),
+      value: localize(
+        'Existing scene state must remain stable until review decides what can change.',
+        '在审阅决定可变更内容之前，现有场景状态必须保持稳定。',
+      ),
+    },
+  ]
+}
+
+function buildDefaultIncludedAssets(
+  artifact: SceneRunArtifactRecord,
+): ContextPacketArtifactDetailRecord['includedAssets'] {
+  const sceneName = formatSceneName(artifact.sceneId)
+  const leadAsset = buildLeadAsset(artifact.sceneId, sceneName)
+  const settingAsset = buildSettingAsset(artifact.sceneId, sceneName)
+  const ruleAsset = buildRuleAsset(artifact.sceneId, sceneName)
+
+  return [
+    {
+      ...leadAsset,
+      reason: localize(
+        'Carries the primary point of view through the run.',
+        '承担本次运行的主要视角。',
+      ),
+    },
+    {
+      ...settingAsset,
+      reason: localize(
+        `Keeps action blocking and continuity anchored to the ${sceneName} setting.`,
+        `将动作调度和连续性固定在 ${sceneName} 场景内。`,
+      ),
+    },
+    {
+      ...ruleAsset,
+      reason: localize(
+        'Prevents the run from violating established scene constraints.',
+        '防止本次运行破坏既有场景约束。',
+      ),
+    },
+  ]
+}
+
+function buildDefaultExcludedPrivateFacts(
+  artifact: SceneRunArtifactRecord,
+): ContextPacketArtifactDetailRecord['excludedPrivateFacts'] {
+  return [
+    {
+      id: `${artifact.id}-excluded-001`,
+      label: localize('Deferred reveal', '延后揭示'),
+      reason: localize(
+        'Private reveal notes stay out of the shared packet until a review decision lands.',
+        '在审阅决定落定前，私有揭示备注不会进入共享上下文包。',
+      ),
+    },
+  ]
+}
+
+function buildDefaultGeneratedRefs(artifact: SceneRunArtifactRecord): RunArtifactGeneratedRefRecord[] {
+  const proposalSetId = buildProposalSetId(artifact.sceneId, parseRunSequenceNumber(artifact.runId))
+
+  return [
+    {
+      kind: 'proposal-set',
+      id: proposalSetId,
+      label: localize('Scene proposal set', '场景提案集'),
+    },
+  ]
+}
+
+function buildDefaultProposalSetProposals(
+  artifact: SceneRunArtifactRecord,
+): ProposalSetArtifactDetailRecord['proposals'] {
+  const sceneName = formatSceneName(artifact.sceneId)
+  const leadAsset = buildLeadAsset(artifact.sceneId, sceneName)
+  const settingAsset = buildSettingAsset(artifact.sceneId, sceneName)
+  const [proposalOneId, proposalTwoId] = buildProposalIds(artifact)
+
+  return [
+    {
+      id: proposalOneId,
+      title: localize('Anchor the arrival beat', '固定抵达节拍'),
+      summary: localize(
+        `Open on ${sceneName} before introducing any new reveal.`,
+        `先在 ${sceneName} 落定开场，再引入新的揭示。`,
+      ),
+      changeKind: 'action',
+      riskLabel: localize('Low continuity risk', '连续性风险低'),
+      relatedAssets: [leadAsset],
+    },
+    {
+      id: proposalTwoId,
+      title: localize('Stage the reveal through the setting', '通过场景地点推进揭示'),
+      summary: localize(
+        `Let the ${sceneName} setting carry the reveal instead of adding raw exposition.`,
+        `让 ${sceneName} 场景来承载揭示，而不是直接堆叠说明。`,
+      ),
+      changeKind: 'reveal',
+      riskLabel: localize('Editor check recommended', '建议编辑复核'),
+      relatedAssets: [settingAsset],
+    },
+  ]
+}
+
+function buildDefaultReviewOptions(): ProposalSetReviewOptionRecord[] {
+  const entries: Array<[RunReviewDecisionKind, LocalizedTextRecord, LocalizedTextRecord]> = [
+    ['accept', localize('Accept', '接受'), localize('Apply the proposal set without further changes.', '直接应用提案集，不再追加改动。')],
+    [
+      'accept-with-edit',
+      localize('Accept with edit', '接受并编辑'),
+      localize('Apply the proposal set, then layer editorial adjustments.', '应用提案集后，再叠加编辑调整。'),
+    ],
+    [
+      'request-rewrite',
+      localize('Request rewrite', '要求重写'),
+      localize('Return the run to execution with rewrite guidance.', '附带重写指引后退回执行阶段。'),
+    ],
+    [
+      'reject',
+      localize('Reject', '拒绝'),
+      localize('Close the run without producing canon or prose artifacts.', '关闭本次运行，不产出 canon 或 prose artifact。'),
+    ],
+  ]
+
+  return entries.map(([decision, label, description]) => ({
+    decision,
+    label,
+    description,
+  }))
+}
+
+function buildDefaultAcceptedProposalIds(artifact: SceneRunArtifactRecord, decision: CanonPatchArtifactDetailRecord['decision']) {
+  const [proposalOneId, proposalTwoId] = buildProposalIds(artifact)
+  return decision === 'accept-with-edit' ? [proposalTwoId] : [proposalOneId]
+}
+
+function buildAcceptedProposalIdsFromSource(
+  sourceProposalSetId: string,
+  decision: CanonPatchArtifactDetailRecord['decision'],
+) {
+  const suffix = decision === 'accept-with-edit' ? '002' : '001'
+  return [`${sourceProposalSetId}-proposal-${suffix}`]
+}
+
+function buildAcceptedFactValue(sceneName: string, proposalId: string) {
+  if (proposalId.endsWith('002')) {
+    return localize(
+      `${sceneName} now carries an approved reveal through the environment.`,
+      `${sceneName} 现在通过环境承载了一条已批准的揭示。`,
+    )
+  }
+
+  return localize(
+    `${sceneName} now opens on a stable arrival beat before any reveal escalates.`,
+    `${sceneName} 现在会先以稳定的抵达节拍开场，再放大揭示。`,
+  )
+}
+
+function buildAcceptedFactAssets(sceneId: string, sceneName: string, proposalId: string) {
+  return proposalId.endsWith('002')
+    ? [buildSettingAsset(sceneId, sceneName)]
+    : [buildLeadAsset(sceneId, sceneName)]
+}
+
+function buildDefaultAcceptedFacts(
+  artifact: SceneRunArtifactRecord,
+  acceptedProposalIds: string[],
+): CanonPatchArtifactDetailRecord['acceptedFacts'] {
+  const sceneName = formatSceneName(artifact.sceneId)
+
+  return acceptedProposalIds.map((proposalId, index) => ({
+    id: `${artifact.id}-fact-${padSequence(index + 1)}`,
+    label: localize(`Accepted fact ${index + 1}`, `接受事实 ${index + 1}`),
+    value: buildAcceptedFactValue(sceneName, proposalId),
+    sourceProposalIds: [proposalId],
+    relatedAssets: buildAcceptedFactAssets(artifact.sceneId, sceneName, proposalId),
+  }))
+}
+
+function buildDefaultTraceLinkIds(
+  artifact: SceneRunArtifactRecord,
+  relation: 'accepted_into' | 'rendered_as',
+  count = 1,
+) {
+  return Array.from({ length: count }, (_, index) => buildTraceLinkId(artifact.runId, relation, index + 1))
+}
+
+export function buildContextPacketDetail(
+  input: BuildContextPacketDetailInput,
+): ContextPacketArtifactDetailRecord {
+  assertArtifactKind(input.artifact, 'context-packet')
+  const sequence = parseRunSequenceNumber(input.artifact.runId)
+
+  return {
+    ...buildArtifactSummary(input),
+    kind: 'context-packet',
+    sceneId: input.artifact.sceneId,
+    sections: buildDefaultContextSections(input.artifact),
+    includedCanonFacts: buildDefaultIncludedCanonFacts(input.artifact),
+    includedAssets: buildDefaultIncludedAssets(input.artifact),
+    excludedPrivateFacts: buildDefaultExcludedPrivateFacts(input.artifact),
+    outputSchemaLabel: localize('Scene context packet schema', '场景上下文包结构'),
+    tokenBudgetLabel: localize(`Target budget ${1500 + sequence * 100} tokens`, `目标预算 ${1500 + sequence * 100} tokens`),
+  }
+}
+
+export function buildAgentInvocationDetail(
+  input: BuildAgentInvocationDetailInput,
+): AgentInvocationArtifactDetailRecord {
+  assertArtifactKind(input.artifact, 'agent-invocation')
+  const sceneName = formatSceneName(input.artifact.sceneId)
+  const agentRole = readAgentRole(input.artifact)
+  const isPlanner = agentRole === 'scene-planner'
+  const sequence = parseRunSequenceNumber(input.artifact.runId)
+
+  return {
+    ...buildArtifactSummary(input),
+    kind: 'agent-invocation',
+    agentRole,
+    modelLabel: isPlanner
+      ? localize('Fixture planner profile', 'Fixture 规划模型')
+      : localize('Fixture writer profile', 'Fixture 写作模型'),
+    inputSummary: isPlanner
+      ? localize(
+          `Consumes the packed scene context and editorial note for ${sceneName}.`,
+          `消费 ${sceneName} 的上下文包和编辑备注。`,
+        )
+      : localize(
+          `Consumes the approved planning frame and context packet for ${sceneName}.`,
+          `消费 ${sceneName} 的规划结果和上下文包。`,
+        ),
+    outputSummary: isPlanner
+      ? localize(
+          'Produces structured proposal candidates for editorial review.',
+          '产出供编辑审阅的结构化提案候选。',
+        )
+      : localize(
+          'Produces prose-shaping fixture output for the proposal set.',
+          '产出用于提案集的正文塑形 fixture 输出。',
+        ),
+    contextPacketId: input.contextPacketId ?? buildContextPacketId(input.artifact.sceneId, sequence),
+    outputSchemaLabel: isPlanner
+      ? localize('Proposal candidate schema', '提案候选结构')
+      : localize('Prose draft scaffold schema', '正文草稿脚手架结构'),
+    generatedRefs: input.generatedRefs ?? buildDefaultGeneratedRefs(input.artifact),
+  }
+}
+
+export function buildProposalSetDetail(
+  input: BuildProposalSetDetailInput,
+): ProposalSetArtifactDetailRecord {
+  assertArtifactKind(input.artifact, 'proposal-set')
+  const sequence = parseRunSequenceNumber(input.artifact.runId)
+
+  return {
+    ...buildArtifactSummary(input),
+    kind: 'proposal-set',
+    reviewId: input.reviewId ?? buildReviewId(input.artifact.sceneId, sequence),
+    sourceInvocationIds: input.sourceInvocationIds ?? [
+      buildAgentInvocationId(input.artifact.sceneId, sequence, 1),
+      buildAgentInvocationId(input.artifact.sceneId, sequence, 2),
+    ],
+    proposals: buildDefaultProposalSetProposals(input.artifact),
+    reviewOptions: buildDefaultReviewOptions(),
+  }
+}
+
+export function buildCanonPatchDetail(
+  input: BuildCanonPatchDetailInput,
+): CanonPatchArtifactDetailRecord {
+  assertArtifactKind(input.artifact, 'canon-patch')
+  const sequence = parseRunSequenceNumber(input.artifact.runId)
+  const sourceProposalSetId = input.sourceProposalSetId ?? buildProposalSetId(input.artifact.sceneId, sequence)
+  const acceptedProposalIds = input.acceptedProposalIds
+    ?? (input.sourceProposalSetId
+      ? buildAcceptedProposalIdsFromSource(input.sourceProposalSetId, input.decision)
+      : buildDefaultAcceptedProposalIds(input.artifact, input.decision))
+
+  return {
+    ...buildArtifactSummary(input),
+    kind: 'canon-patch',
+    decision: input.decision,
+    sourceProposalSetId,
+    acceptedProposalIds,
+    acceptedFacts: buildDefaultAcceptedFacts(input.artifact, acceptedProposalIds),
+    traceLinkIds: input.traceLinkIds ?? buildDefaultTraceLinkIds(input.artifact, 'accepted_into', acceptedProposalIds.length),
+  }
+}
+
+export function buildProseDraftDetail(
+  input: BuildProseDraftDetailInput,
+): ProseDraftArtifactDetailRecord {
+  assertArtifactKind(input.artifact, 'prose-draft')
+  const sceneName = formatSceneName(input.artifact.sceneId)
+  const sceneLead = buildLeadAsset(input.artifact.sceneId, sceneName)
+  const sceneSetting = buildSettingAsset(input.artifact.sceneId, sceneName)
+  const sequence = parseRunSequenceNumber(input.artifact.runId)
+
+  return {
+    ...buildArtifactSummary(input),
+    kind: 'prose-draft',
+    sourceCanonPatchId: input.sourceCanonPatchId ?? buildCanonPatchId(input.artifact.sceneId, sequence),
+    sourceProposalIds: input.sourceProposalIds ?? [buildProposalIds(input.artifact)[0]],
+    excerpt: localize(
+      `${sceneName} settles into view before the next reveal turns visible.`,
+      `${sceneName} 先稳稳落入视野，随后下一段揭示才开始显形。`,
+    ),
+    wordCount: 140 + sequence * 3,
+    relatedAssets: [sceneLead, sceneSetting],
+    traceLinkIds: input.traceLinkIds ?? buildDefaultTraceLinkIds(input.artifact, 'rendered_as'),
+  }
+}

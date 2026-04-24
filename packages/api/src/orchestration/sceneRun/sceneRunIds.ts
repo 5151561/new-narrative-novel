@@ -1,3 +1,5 @@
+import type { RunTraceRelation } from '../../contracts/api-records.js'
+
 function toSequenceLabel(sequence: number) {
   return String(sequence).padStart(3, '0')
 }
@@ -32,6 +34,10 @@ export function buildCanonPatchId(sceneId: string, sequence: number) {
 
 export function buildProseDraftId(sceneId: string, sequence: number) {
   return `prose-draft-${sceneId}-${toSequenceLabel(sequence)}`
+}
+
+export function buildTraceLinkId(runId: string, relation: RunTraceRelation, index: number) {
+  return `trace-link-${runId.replace(/^run-/, '')}-${relation}-${toSequenceLabel(index)}`
 }
 
 export { toSequenceLabel }
