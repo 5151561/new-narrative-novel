@@ -1378,7 +1378,13 @@ describe('App scene workbench', () => {
       expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Healthy')
     })
 
-    expect(window.location.search).toBe(initialSearch)
+    const sceneParams = new URLSearchParams(window.location.search)
+    expect(sceneParams.get('scope')).toBe('scene')
+    expect(sceneParams.get('id')).toBe('scene-midnight-platform')
+    expect(sceneParams.get('lens')).toBe('orchestrate')
+    expect(sceneParams.get('tab')).toBe('execution')
+    expect(sceneParams.get('proposalId')).toBe('proposal-1')
+    expect([...sceneParams.keys()].some((key) => /runtime|health/i.test(key))).toBe(false)
 
     restoreDormantScope('chapter')
 
@@ -1389,7 +1395,7 @@ describe('App scene workbench', () => {
 
     const params = new URLSearchParams(window.location.search)
     expect(params.get('scope')).toBe('chapter')
-    expect(params.has('health')).toBe(false)
+    expect([...params.keys()].some((key) => /runtime|health/i.test(key))).toBe(false)
   })
 
   it('shows degraded API runtime status without breaking the workbench shell', async () => {

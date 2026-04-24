@@ -525,9 +525,15 @@ Run events page:
       "refs": [
         {
           "kind": "context-packet",
-          "id": "ctx-scene-midnight-platform-run-002"
+          "id": "ctx-scene-midnight-platform-run-002",
+          "label": "Scene context packet"
         }
-      ]
+      ],
+      "metadata": {
+        "includedAssetCount": 3,
+        "excludedAssetCount": 1,
+        "redactedAssetCount": 1
+      }
     },
     {
       "id": "run-event-scene-midnight-platform-002-004",
@@ -589,12 +595,14 @@ Review decision result:
 - `RunEventRecord.summary` 只放产品级摘要，不放长 prompt、长上下文、长 prose、raw token stream、Temporal event history payload。
 - 大 payload 一律通过 `refs` 指向外部对象；`RunEventRecord` 只携带轻量引用和可读摘要。
 - 允许的 refs 语义位当前包括：`context-packet`、`agent-invocation`、`proposal-set`、`review`、`canon-patch`、`prose-draft`、`artifact`。
+- `metadata` 只允许放产品级轻量计数或布尔值；例如 `context_packet_built` 可以携带 included / excluded / redacted asset count，但不能携带 asset activation record、asset profile、policy rule、prompt 或完整 context packet。
 - 即使后续接真实 orchestration backend，也不能把 workflow engine 内部事件直接当产品事件流暴露给 renderer。
 
 ### 10.6 `context_packet_built` and `context-packet` ref semantics
 
 - `context_packet_built` 表示一次产品级上下文装配完成，可以用于后续 Context Packet Inspector、Prompt Trace、Asset Activation Trace。
 - 该 event 自身只表达“上下文包已建立”，不内联完整 prompt 或拼装后的大文本。
+- PR28 后，该 event 可以携带轻量 count metadata，例如 `includedAssetCount`、`excludedAssetCount`、`redactedAssetCount`；完整 activation trace 仍只能通过 context-packet artifact detail 读取。
 - `refs.kind = "context-packet"` 指向外部 context packet 资源，例如：
 
 ```json
@@ -605,7 +613,7 @@ Review decision result:
 }
 ```
 
-- PR23 不定义 context packet 详情 endpoint，只固定事件语义与 ref 位置。
+- context packet 详情通过 `GET /api/projects/{projectId}/runs/{runId}/artifacts/{artifactId}` 读取；event 只固定 ref 与轻量摘要位置。
 
 ### 10.7 `proposal_created` references `proposal-set`
 
@@ -632,15 +640,138 @@ Review decision result:
 
 ### 10.10 Future affordances
 
-以下能力是未来扩展位，不属于 PR23 当前实现范围：
+以下能力是未来扩展位，不属于 PR23 当前实现范围；其中 context packet inspection、proposal variants、asset activation trace 已在后续 PR 中以 artifact detail/read surface 方式落地：
 
-- context packet inspection
-- proposal variants
+- prompt section inspector
 - run debug dock
-- asset activation trace
 
 这些未来能力都必须建立在当前 PR23 合同之上：
 
 - 大 payload 继续通过 artifact / context-packet refs 暴露，不能回退成 event 内联。
 - `proposal_created` 继续以 `proposal-set` 为中心，而不是单 proposal。
 - debug / trace UI 应消费产品级 run events，而不是直接消费 Temporal history。
+
+## 11. PR28 Asset Context Policy / Context Activation Trace
+
+### 11.1 合同目标
+
+PR28 固定两层只读语义：
+
+- Asset Context Policy：资产静态 read model，描述该 asset 通常如何允许进入 agent context。
+- Context Activation Trace：某次 run 的 context-packet artifact detail，描述本次实际 included / excluded / redacted 的 asset context。
+
+这两层不得合并：
+
+- Asset policy 不等于 prompt editor，也不提供 mutation endpoint。
+- Context activation 不等于 canon，也不复制完整 asset profile。
+- Run event 仍只携带轻量 refs / metadata，大 payload 继续通过 artifact detail 读取。
+
+### 11.2 Asset knowledge 扩展
+
+`GET /api/projects/{projectId}/assets/{assetId}/knowledge` 继续返回 `AssetKnowledgeWorkspaceRecord | null`。PR28 在 `AssetRecord` 上新增可选 `contextPolicy`：
+
+```json
+{
+  "assetId": "asset-ren-voss",
+  "status": "active",
+  "summary": {
+    "en": "Ren can enter scene context as the primary POV...",
+    "zh-CN": "Ren 可以作为主视角进入场景上下文..."
+  },
+  "defaultVisibility": "character-known",
+  "defaultBudget": "selected-facts",
+  "activationRules": [
+    {
+      "id": "policy-ren-scene-cast",
+      "reasonKind": "scene-cast",
+      "label": { "en": "Scene cast", "zh-CN": "场景角色" },
+      "summary": { "en": "Include Ren when the scene cast includes him.", "zh-CN": "当场景角色包含 Ren 时纳入。" },
+      "targetAgents": ["scene-manager", "prose-agent"],
+      "visibility": "character-known",
+      "budget": "selected-facts"
+    }
+  ]
+}
+```
+
+字段约定：
+
+- `status`: `active | limited | blocked | draft`。
+- `defaultVisibility`: `public | character-known | private | spoiler | editor-only`。
+- `defaultBudget`: `summary-only | selected-facts | mentions-excerpts | full-profile`。
+- `targetAgents`: `scene-manager | character-agent | continuity-reviewer | prose-agent`。
+- `reasonKind`: `explicit-link | scene-cast | scene-location | rule-dependency | review-issue | proposal-variant | manual-pin`。
+- `exclusions` / `warnings` 是只读提示，不代表可写 guardrail 配置。
+- 没有 `contextPolicy` 的 asset 必须可降级为 quiet empty state，不得让 API 返回 500。
+
+### 11.3 Context packet activation detail
+
+`GET /api/projects/{projectId}/runs/{runId}/artifacts/{artifactId}` 在 `artifact.kind = "context-packet"` 时可以返回：
+
+```json
+{
+  "artifact": {
+    "id": "ctx-scene-midnight-platform-run-002",
+    "kind": "context-packet",
+    "sceneId": "scene-midnight-platform",
+    "activationSummary": {
+      "includedAssetCount": 3,
+      "excludedAssetCount": 1,
+      "redactedAssetCount": 1,
+      "targetAgentCount": 4,
+      "warningCount": 2
+    },
+    "assetActivations": [
+      {
+        "id": "ctx-scene-midnight-platform-run-002-activation-ren",
+        "assetId": "asset-ren-voss",
+        "assetTitle": { "en": "Ren Voss", "zh-CN": "任·沃斯" },
+        "assetKind": "character",
+        "decision": "included",
+        "reasonKind": "scene-cast",
+        "reasonLabel": { "en": "Scene cast", "zh-CN": "场景角色" },
+        "visibility": "character-known",
+        "budget": "selected-facts",
+        "targetAgents": ["scene-manager", "prose-agent"],
+        "policyRuleIds": ["policy-ren-scene-cast"]
+      }
+    ]
+  }
+}
+```
+
+字段约定：
+
+- `decision`: `included | excluded | redacted`。
+- `assetTitle` / `assetKind` / `reasonLabel` 是 trace 摘要，不能替代 asset record。
+- `policyRuleIds` 只引用 policy rule id，不复制完整 rule。
+- `sourceRefs` 只允许使用轻量 `RunEventRefRecord[]`。
+- artifact detail 可以展示 source refs 与 policy ids；event payload 不能内联这组 activation records。
+
+### 11.4 Renderer route / handoff 约束
+
+Asset context view 仍属于 Asset / Knowledge：
+
+```txt
+/workbench?scope=asset&id=asset-ren-voss&lens=knowledge&view=context
+```
+
+约束：
+
+- 当前 asset 只来自 route `id` / `assetId`。
+- 当前 view 只来自 route `view`。
+- Run artifact inspector 的 `Open asset context` 只执行 route handoff：`scope=asset&lens=knowledge&view=context`。
+- 不新增 `selectedPolicyRuleId`、`selectedActivationId` 或 Scene Dock 内部 asset selection store。
+
+### 11.5 非目标
+
+PR28 不定义以下能力：
+
+- policy mutation endpoint
+- prompt editor / prompt ordering
+- keyword-based WorldInfo / Lorebook activation engine
+- RAG / vector search
+- full prompt text 展示或编辑
+- SSE / event stream 实现
+- Temporal / durable workflow runtime
+- real LLM context builder

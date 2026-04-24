@@ -14,7 +14,7 @@
 
 ## 当前状态
 
-截至 2026-04-24，仓库由两个主要 workspace 包组成：
+截至 2026-04-25，仓库由两个主要 workspace 包组成：
 
 - `@narrative-novel/renderer`：React + Vite + Tailwind 的 workbench 前端、Storybook、mock runtime、UI/feature tests。
 - `@narrative-novel/api`：Fastify fixture-backed API server，兑现 `/api/projects/{projectId}/...` 合同，支持 read/write/run/artifact/trace 的产品级接口骨架。
@@ -32,6 +32,7 @@
 - project-level runtime health 边界：`GET /api/projects/{projectId}/runtime-info`。
 - Scene / Orchestrate 的 run 纵切：start run、polling events、waiting review、submit review decision、刷新 scene/chapter read model。
 - Run artifact / trace read surfaces：事件只携带轻量 `refs`，大 payload 通过 artifact/trace 读取。
+- Asset Context Policy / Context Activation Trace 基础：Asset / Knowledge 可以只读展示资产进入上下文的规则；context-packet artifact detail 可以解释某次 run included / excluded / redacted 了哪些 asset context。
 
 ## 产品模型
 
@@ -81,6 +82,7 @@ constraint -> proposal -> review -> accepted canon -> prose
 
 - run events 只保留产品级摘要和轻量 refs。
 - context packet、agent invocation、proposal set、canon patch、prose draft 等大对象走 artifact detail。
+- asset context policy 随 asset knowledge read model 返回；context activation trace 随 context-packet artifact detail 返回。
 - proposal -> canon -> prose 的关系走 trace read surface。
 - `events/stream` 仍是 501 占位；当前 renderer 使用 REST + polling/page contract。
 
@@ -120,7 +122,8 @@ constraint -> proposal -> review -> accepted canon -> prose
 ### Asset
 
 - Asset knowledge workspace。
-- profile / mentions / relations 视图。
+- profile / mentions / relations / context 视图。
+- 只读 Asset Context Policy：activation rules、visibility、budget、target agents、guardrails、warnings。
 - asset not-found 与 Storybook/mock fixture 场景。
 
 ### Book
@@ -139,6 +142,7 @@ constraint -> proposal -> review -> accepted canon -> prose
 - Project runtime health：`runtime-info`。
 - Scene run REST 合同：start run、get run、paginated events、submit review decision。
 - Run artifact / trace read surfaces。
+- Context-packet artifact activation trace：included / excluded / redacted asset context detail；run event 仍只放轻量 refs/count metadata。
 
 ## 本地开发
 
@@ -284,4 +288,5 @@ book-signal-arc
 - mock runtime 是 Storybook、测试和演示 fallback，不是产品数据来源终态。
 - `events/stream` 尚未开放，当前运行事件消费方式是 REST polling/page contract。
 - run artifact / trace 是产品 read surface，不是 raw workflow history、Temporal history 或 LLM token stream。
+- Asset context policy / activation trace 是 read-only 解释层，不是 prompt editor、RAG、policy mutation 或真实 LLM context builder。
 - 目前的重点仍是把 scope/lens/workbench/runtime/API 合同跑稳，再继续扩真实后端、auth、SSE、持久化和更深的编排引擎。
