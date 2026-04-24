@@ -128,6 +128,7 @@ interface SceneBottomDockRunSupport {
   selectedVariants?: Record<string, string>
   selectedVariantsForSubmit?: RunSelectedProposalVariantRecord[]
   onSelectProposalVariant?: (proposalId: string, variantId: string) => void
+  onOpenAssetContext?: (assetId: string) => void
   isSubmittingReviewDecision?: boolean
   onSubmitReviewDecision?: (input: {
     decision: RunReviewDecisionKind
@@ -171,6 +172,7 @@ function ActiveRunSupport({
   selectedVariants,
   selectedVariantsForSubmit = [],
   onSelectProposalVariant,
+  onOpenAssetContext,
   isSubmittingReviewDecision = false,
   onSubmitReviewDecision,
 }: SceneBottomDockRunSupport) {
@@ -249,6 +251,7 @@ function ActiveRunSupport({
           onSelectArtifact={onSelectArtifact}
           selectedVariants={selectedVariants}
           onSelectProposalVariant={onSelectProposalVariant}
+          onOpenAssetContext={onOpenAssetContext}
         />
       </div>
     </div>

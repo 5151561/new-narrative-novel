@@ -223,6 +223,93 @@ describe('SceneDockContainer', () => {
     })
   })
 
+  it('routes context activation handoffs to the asset context view without dock-owned selection state', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution',
+    )
+    const useSharedSceneRunSession = vi.fn(() => ({
+      activeRunId: 'run-scene-midnight-platform-001',
+      run: {
+        id: 'run-scene-midnight-platform-001',
+        scope: 'scene',
+        scopeId: 'scene-midnight-platform',
+        status: 'waiting_review',
+        title: 'Midnight platform rewrite run',
+        summary: 'Waiting for review.',
+        startedAtLabel: '2026-04-23 10:00',
+        pendingReviewId: 'review-scene-midnight-platform-001',
+        latestEventId: 'run-event-001',
+        eventCount: 2,
+      },
+      events: [],
+      pendingReviewId: 'review-scene-midnight-platform-001',
+      isReviewPending: true,
+      canSubmitDecision: true,
+      isPolling: true,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+      startRun: vi.fn(),
+      isStartingRun: false,
+      submitDecision: vi.fn(),
+      isSubmittingDecision: false,
+    }))
+
+    vi.doMock('../hooks/useSceneDockData', () => ({
+      useSceneDockData: () => ({
+        events: [],
+        trace: [],
+        consistency: { summary: '', checks: [] },
+        problems: { summary: '', items: [] },
+        cost: { currentWindowLabel: '', trendLabel: '', breakdown: [] },
+        isLoading: false,
+        isHydratingTab: false,
+        error: null,
+      }),
+    }))
+    vi.doMock('./scene-run-session-context', () => ({
+      useSharedSceneRunSession,
+    }))
+    mockRunArtifactQueries()
+    vi.doMock('../components/SceneBottomDock', () => ({
+      SceneBottomDock: (props: {
+        runSupport?: {
+          onOpenAssetContext?: (assetId: string) => void
+          selectedArtifactId?: string | null
+        }
+      }) => (
+        <div>
+          <div data-testid="selected-artifact">{props.runSupport?.selectedArtifactId ?? 'none'}</div>
+          <button type="button" onClick={() => props.runSupport?.onOpenAssetContext?.('asset-ren-voss')}>
+            Open Ren context
+          </button>
+        </div>
+      ),
+    }))
+
+    const { SceneDockContainer } = await import('./SceneDockContainer')
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <I18nProvider>
+          <SceneDockContainer sceneId="scene-midnight-platform" />
+        </I18nProvider>
+      </QueryClientProvider>,
+    )
+
+    expect(screen.getByTestId('selected-artifact')).toHaveTextContent('none')
+    await user.click(screen.getByRole('button', { name: 'Open Ren context' }))
+
+    expect(window.location.search).toContain('scope=asset')
+    expect(window.location.search).toContain('id=asset-ren-voss')
+    expect(window.location.search).toContain('lens=knowledge')
+    expect(window.location.search).toContain('view=context')
+    expect(screen.getByTestId('selected-artifact')).toHaveTextContent('none')
+  })
+
   it('preserves selected artifact and inspector mode across non-events dock tabs for the same run', async () => {
     const user = userEvent.setup()
     const useSharedSceneRunSession = vi.fn(() => ({

@@ -6,6 +6,8 @@ import {
   submitMockRunReviewDecision,
 } from '@/features/run/api/mock-run-db'
 
+import type { ContextPacketArtifactDetailRecord } from '../api/run-artifact-records'
+
 import { RunArtifactInspectorPanel } from './RunArtifactInspectorPanel'
 
 const runId = 'run-scene-midnight-platform-001'
@@ -22,7 +24,22 @@ const selectedVariants = [
 ]
 
 resetMockRunDb()
-const contextPacket = getMockRunArtifact({ runId, artifactId: contextPacketId }).artifact
+const contextPacket = getMockRunArtifact({ runId, artifactId: contextPacketId }).artifact as ContextPacketArtifactDetailRecord
+const contextPacketRedactedAssets: ContextPacketArtifactDetailRecord = {
+  ...contextPacket,
+  assetActivations: contextPacket.assetActivations?.filter((activation) => activation.decision === 'redacted'),
+  activationSummary: {
+    includedAssetCount: 0,
+    excludedAssetCount: 0,
+    redactedAssetCount: contextPacket.assetActivations?.filter((activation) => activation.decision === 'redacted').length ?? 0,
+    targetAgentCount: new Set(
+      contextPacket.assetActivations
+        ?.filter((activation) => activation.decision === 'redacted')
+        .flatMap((activation) => activation.targetAgents) ?? [],
+    ).size,
+    warningCount: contextPacket.activationSummary?.warningCount ?? 0,
+  },
+}
 const proposalSet = getMockRunArtifact({ runId, artifactId: proposalSetId }).artifact
 submitMockRunReviewDecision({ runId, reviewId, decision: 'accept', selectedVariants })
 const submittedProposalSet = getMockRunArtifact({ runId, artifactId: proposalSetId }).artifact
@@ -52,6 +69,20 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const ContextPacket: Story = {}
+
+export const ContextPacketWithActivations: Story = {
+  args: {
+    artifact: contextPacket,
+    onOpenAssetContext: () => undefined,
+  },
+}
+
+export const ContextPacketRedactedAssets: Story = {
+  args: {
+    artifact: contextPacketRedactedAssets,
+    onOpenAssetContext: () => undefined,
+  },
+}
 
 export const ProposalSet: Story = {
   args: {

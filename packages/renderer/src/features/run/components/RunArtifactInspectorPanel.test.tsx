@@ -53,18 +53,34 @@ describe('RunArtifactInspectorPanel', () => {
     renderInspector(artifact(contextPacketId))
 
     expect(screen.getByRole('heading', { name: 'Scene context packet' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Activation Summary' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Included Assets' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Excluded Assets' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Redacted Assets' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Target Agents' })).toBeInTheDocument()
     expect(screen.getByText('Scene brief')).toBeInTheDocument()
     expect(screen.getByText('Scene objective')).toBeInTheDocument()
-    expect(screen.getByText('Ren Voss')).toBeInTheDocument()
+    expect(screen.getAllByText('Ren Voss').length).toBeGreaterThan(0)
     expect(screen.getByText('Carries the primary point of view through the platform bargain.')).toBeInTheDocument()
-    expect(screen.getByText('Mei Arden')).toBeInTheDocument()
+    expect(screen.getAllByText('Mei Arden').length).toBeGreaterThan(0)
     expect(screen.getByText('Supplies the visible counter-pressure for the exchange.')).toBeInTheDocument()
-    expect(screen.getByText('Midnight Platform')).toBeInTheDocument()
+    expect(screen.getAllByText('Midnight Platform').length).toBeGreaterThan(0)
     expect(screen.getByText('Keeps witness pressure and staging anchored to the platform.')).toBeInTheDocument()
     expect(screen.getByText('Deferred reveal')).toBeInTheDocument()
     expect(screen.getByText('Private reveal notes stay out until review lands.')).toBeInTheDocument()
     expect(screen.getByText('Scene context packet schema')).toBeInTheDocument()
     expect(screen.getByText('Target budget 1600 tokens')).toBeInTheDocument()
+  })
+
+  it('forwards context activation asset handoffs from context packet details', async () => {
+    const user = userEvent.setup()
+    const onOpenAssetContext = vi.fn()
+
+    renderInspector(artifact(contextPacketId), null, { onOpenAssetContext })
+
+    await user.click(screen.getByRole('button', { name: 'Open asset context for Ren Voss' }))
+
+    expect(onOpenAssetContext).toHaveBeenCalledWith('asset-ren-voss')
   })
 
   it('shows proposal set proposals and review options', () => {

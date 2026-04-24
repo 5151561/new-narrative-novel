@@ -16,6 +16,7 @@ import type {
 import type { RunSelectedProposalVariantRecord } from '../api/run-records'
 
 import { RunProposalVariantSelector } from './RunProposalVariantSelector'
+import { RunContextAssetActivationList } from './RunContextAssetActivationList'
 
 function t(value: LocalizedTextRecord, locale: Locale) {
   return value[locale] ?? value.en
@@ -95,7 +96,13 @@ function invocationLabel(index: number) {
   return `Invocation ${index + 1}`
 }
 
-export function ContextPacketArtifactPanel({ artifact }: { artifact: ContextPacketArtifactDetailRecord }) {
+export function ContextPacketArtifactPanel({
+  artifact,
+  onOpenAssetContext,
+}: {
+  artifact: ContextPacketArtifactDetailRecord
+  onOpenAssetContext?: (assetId: string) => void
+}) {
   const { locale } = useI18n()
 
   return (
@@ -121,6 +128,11 @@ export function ContextPacketArtifactPanel({ artifact }: { artifact: ContextPack
           ))}
         </div>
       </SectionCard>
+      <RunContextAssetActivationList
+        activations={artifact.assetActivations}
+        summary={artifact.activationSummary}
+        onOpenAssetContext={onOpenAssetContext}
+      />
       <SectionCard eyebrow="Canon" title={locale === 'zh-CN' ? '已纳入 Canon 事实' : 'Included Canon Facts'}>
         {artifact.includedCanonFacts.length > 0 ? (
           <FactList items={artifact.includedCanonFacts.map((fact) => ({ id: fact.id, label: t(fact.label, locale), value: t(fact.value, locale) }))} />

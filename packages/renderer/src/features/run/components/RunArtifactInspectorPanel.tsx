@@ -18,6 +18,7 @@ export interface RunArtifactInspectorPanelProps {
   error?: Error | null
   selectedVariants?: Record<string, string>
   onSelectProposalVariant?: (proposalId: string, variantId: string) => void
+  onOpenAssetContext?: (assetId: string) => void
 }
 
 export function RunArtifactInspectorPanel({
@@ -26,6 +27,7 @@ export function RunArtifactInspectorPanel({
   error = null,
   selectedVariants,
   onSelectProposalVariant,
+  onOpenAssetContext,
 }: RunArtifactInspectorPanelProps) {
   const { locale } = useI18n()
 
@@ -65,7 +67,9 @@ export function RunArtifactInspectorPanel({
     <section className="flex min-h-0 flex-col overflow-hidden rounded-md border border-line-soft bg-surface-1 shadow-ringwarm">
       <PaneHeader title={title} description={summary} />
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {artifact.kind === 'context-packet' ? <ContextPacketArtifactPanel artifact={artifact} /> : null}
+        {artifact.kind === 'context-packet' ? (
+          <ContextPacketArtifactPanel artifact={artifact} onOpenAssetContext={onOpenAssetContext} />
+        ) : null}
         {artifact.kind === 'agent-invocation' ? <AgentInvocationArtifactPanel artifact={artifact} /> : null}
         {artifact.kind === 'proposal-set' ? (
           <ProposalSetArtifactPanel

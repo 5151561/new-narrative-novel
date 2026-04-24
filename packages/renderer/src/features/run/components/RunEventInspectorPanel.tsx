@@ -30,6 +30,7 @@ export interface RunEventInspectorPanelProps {
   onSelectArtifact?: (artifactId: string) => void
   selectedVariants?: Record<string, string>
   onSelectProposalVariant?: (proposalId: string, variantId: string) => void
+  onOpenAssetContext?: (assetId: string) => void
 }
 
 function t(value: LocalizedTextRecord, locale: Locale) {
@@ -124,6 +125,7 @@ export function RunEventInspectorPanel({
   onSelectArtifact,
   selectedVariants,
   onSelectProposalVariant,
+  onOpenAssetContext,
 }: RunEventInspectorPanelProps) {
   const { locale } = useI18n()
   const [internalMode, setInternalMode] = useState<RunEventInspectorMode>('artifact')
@@ -188,6 +190,7 @@ export function RunEventInspectorPanel({
                   error={artifactError}
                   selectedVariants={selectedVariants}
                   onSelectProposalVariant={onSelectProposalVariant}
+                  onOpenAssetContext={onOpenAssetContext}
                 />
               ) : (
                 <EmptyState

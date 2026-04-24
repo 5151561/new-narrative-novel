@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useI18n } from '@/app/i18n'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -9,6 +9,7 @@ import { useRunArtifactsQuery } from '@/features/run/hooks/useRunArtifactsQuery'
 import { useRunProposalVariantDraft } from '@/features/run/hooks/useRunProposalVariantDraft'
 import { useRunTraceQuery } from '@/features/run/hooks/useRunTraceQuery'
 import type { RunEventInspectorMode } from '@/features/run/components/RunEventInspectorPanel'
+import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 
 import { SceneBottomDock } from '../components/SceneBottomDock'
 import { useSceneDockData } from '../hooks/useSceneDockData'
@@ -31,6 +32,7 @@ export function SceneDockContainer({
   const { locale } = useI18n()
   const activeTab = useSceneUiStore((state) => state.dockTab)
   const setDockTab = useSceneUiStore((state) => state.setDockTab)
+  const { replaceRoute } = useWorkbenchRouteState()
   const dock = useSceneDockData(sceneId, activeTab, client)
   const runSession = useSharedSceneRunSession()
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(initialSelectedArtifactId)
@@ -73,6 +75,17 @@ export function SceneDockContainer({
     setSelectedArtifactId(artifactId)
     setInspectorMode('artifact')
   }
+  const handleOpenAssetContext = useCallback(
+    (assetId: string) => {
+      replaceRoute({
+        scope: 'asset',
+        assetId,
+        lens: 'knowledge',
+        view: 'context',
+      })
+    },
+    [replaceRoute],
+  )
 
   const runSupport =
     activeTab === 'events'
@@ -99,6 +112,7 @@ export function SceneDockContainer({
           selectedVariants: variantDraft.selectedVariantsByProposalId,
           selectedVariantsForSubmit: variantDraft.selectedVariantsForSubmit,
           onSelectProposalVariant: variantDraft.selectVariant,
+          onOpenAssetContext: handleOpenAssetContext,
           isSubmittingReviewDecision: runSession.isSubmittingDecision,
           onSubmitReviewDecision: runSession.submitDecision,
         }

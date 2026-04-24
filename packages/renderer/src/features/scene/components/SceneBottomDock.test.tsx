@@ -147,6 +147,43 @@ describe('SceneBottomDock', () => {
     expect(onSelectArtifact).toHaveBeenCalledWith('agent-invocation-scene-midnight-platform-run-002-001')
   })
 
+  it('forwards context activation asset handoffs from selected artifact detail', async () => {
+    const user = userEvent.setup()
+    resetMockRunDb()
+    const artifactId = 'ctx-scene-midnight-platform-run-001'
+    const selectedArtifact = getMockRunArtifact({
+      runId: 'run-scene-midnight-platform-001',
+      artifactId,
+    }).artifact
+    const onOpenAssetContext = vi.fn()
+
+    render(
+      createElement(SceneBottomDock as unknown as typeof SceneBottomDock, {
+        data: dockData,
+        activeTab: 'events',
+        onTabChange: vi.fn(),
+        runSupport: {
+          run: activeRun,
+          events: activeRunEvents,
+          isLoading: false,
+          error: null,
+          isReviewPending: true,
+          artifacts: [],
+          artifactsError: new Error('list unavailable'),
+          selectedArtifactId: artifactId,
+          selectedArtifact,
+          artifactError: null,
+          trace: null,
+          onOpenAssetContext,
+        },
+      }),
+    )
+
+    expect(screen.getByRole('heading', { name: 'Scene context packet' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Open asset context for Ren Voss' }))
+    expect(onOpenAssetContext).toHaveBeenCalledWith('asset-ren-voss')
+  })
+
   it('does not let artifact list errors mask selected artifact detail', () => {
     resetMockRunDb()
     const artifactId = 'ctx-scene-midnight-platform-run-001'

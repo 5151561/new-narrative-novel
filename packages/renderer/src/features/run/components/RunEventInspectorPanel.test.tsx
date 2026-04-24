@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import userEvent from '@testing-library/user-event'
 import { render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
 import {
@@ -115,5 +115,29 @@ describe('RunEventInspectorPanel', () => {
     expect(screen.getByText('Artifacts unavailable')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Scene context packet' })).toBeInTheDocument()
     expect(screen.queryByText('Artifact not found')).not.toBeInTheDocument()
+  })
+
+  it('forwards context activation asset handoffs from the selected artifact detail', async () => {
+    const user = userEvent.setup()
+    const onOpenAssetContext = vi.fn()
+    const artifacts = getMockRunArtifacts({ runId }).artifacts
+    const trace = getMockRunTrace({ runId })
+    const contextPacket = getMockRunArtifact({ runId, artifactId: contextPacketId }).artifact
+
+    render(
+      <I18nProvider>
+        <RunEventInspectorPanel
+          artifacts={artifacts}
+          selectedArtifactId={contextPacketId}
+          selectedArtifact={contextPacket}
+          trace={trace}
+          onOpenAssetContext={onOpenAssetContext}
+        />
+      </I18nProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Open asset context for Ren Voss' }))
+
+    expect(onOpenAssetContext).toHaveBeenCalledWith('asset-ren-voss')
   })
 })
