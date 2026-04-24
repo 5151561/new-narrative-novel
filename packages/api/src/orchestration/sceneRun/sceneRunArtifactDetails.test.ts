@@ -334,7 +334,10 @@ describe('sceneRunArtifactDetails', () => {
         ],
       },
     ])
-    expect(detail.traceLinkIds).toEqual(['trace-link-scene-midnight-platform-002-accepted_into-001'])
+    expect(detail.traceLinkIds).toEqual([
+      'trace-link-scene-midnight-platform-002-accepted_into-001',
+      'trace-link-scene-midnight-platform-002-accepted_into-002',
+    ])
   })
 
   it('uses explicit backreference metadata for custom canon patch and prose draft ids', () => {
@@ -366,6 +369,10 @@ describe('sceneRunArtifactDetails', () => {
     expect(canonPatchDetail.sourceProposalSetId).toBe('proposal-set-explicit-777')
     expect(canonPatchDetail.acceptedProposalIds).toEqual(['proposal-set-explicit-777-proposal-001'])
     expect(canonPatchDetail.acceptedFacts[0]?.sourceProposalIds).toEqual(['proposal-set-explicit-777-proposal-001'])
+    expect(canonPatchDetail.traceLinkIds).toEqual([
+      'trace-link-scene-midnight-platform-002-accepted_into-001',
+      'trace-link-scene-midnight-platform-002-accepted_into-002',
+    ])
 
     const proseDraftArtifact = {
       ...createProseDraftArtifact({
@@ -404,6 +411,10 @@ describe('sceneRunArtifactDetails', () => {
     expect(detail.sourceProposalSetId).toBe('proposal-set-explicit-555')
     expect(detail.acceptedProposalIds).toEqual(['proposal-set-explicit-555-proposal-002'])
     expect(detail.acceptedFacts[0]?.sourceProposalIds).toEqual(['proposal-set-explicit-555-proposal-002'])
+    expect(detail.traceLinkIds).toEqual([
+      'trace-link-scene-midnight-platform-002-accepted_into-001',
+      'trace-link-scene-midnight-platform-002-accepted_into-002',
+    ])
   })
 
   it('builds prose draft detail from deterministic canon and proposal links', () => {

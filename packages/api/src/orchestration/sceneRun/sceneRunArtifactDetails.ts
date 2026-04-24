@@ -486,6 +486,14 @@ function buildDefaultTraceLinkIds(
   return Array.from({ length: count }, (_, index) => buildTraceLinkId(artifact.runId, relation, index + 1))
 }
 
+function buildDefaultCanonPatchTraceLinkIds(
+  artifact: SceneRunArtifactRecord,
+  acceptedFacts: CanonPatchArtifactDetailRecord['acceptedFacts'],
+) {
+  const acceptedIntoLinkCount = acceptedFacts.reduce((count, fact) => count + fact.sourceProposalIds.length + 1, 0)
+  return buildDefaultTraceLinkIds(artifact, 'accepted_into', acceptedIntoLinkCount)
+}
+
 export function buildContextPacketDetail(
   input: BuildContextPacketDetailInput,
 ): ContextPacketArtifactDetailRecord {
@@ -576,6 +584,7 @@ export function buildCanonPatchDetail(
     ?? (input.sourceProposalSetId
       ? buildAcceptedProposalIdsFromSource(input.sourceProposalSetId, input.decision)
       : buildDefaultAcceptedProposalIds(input.artifact, input.decision))
+  const acceptedFacts = buildDefaultAcceptedFacts(input.artifact, acceptedProposalIds)
 
   return {
     ...buildArtifactSummary(input),
@@ -583,8 +592,8 @@ export function buildCanonPatchDetail(
     decision: input.decision,
     sourceProposalSetId,
     acceptedProposalIds,
-    acceptedFacts: buildDefaultAcceptedFacts(input.artifact, acceptedProposalIds),
-    traceLinkIds: input.traceLinkIds ?? buildDefaultTraceLinkIds(input.artifact, 'accepted_into', acceptedProposalIds.length),
+    acceptedFacts,
+    traceLinkIds: input.traceLinkIds ?? buildDefaultCanonPatchTraceLinkIds(input.artifact, acceptedFacts),
   }
 }
 

@@ -1,14 +1,32 @@
 import type {
+  RunArtifactDetailRecord,
+  RunArtifactSummaryRecord,
   RunEventRecord,
   RunEventsPageRecord,
   RunRecord,
   RunReviewDecisionKind,
+  RunTraceLinkRecord,
+  RunTraceNodeRecord,
+  RunTraceResponse,
   StartSceneRunInput,
   SubmitRunReviewDecisionInput,
 } from '../contracts/api-records.js'
 import { badRequest, conflict, notFound } from '../http/errors.js'
+import {
+  buildAgentInvocationDetail,
+  buildCanonPatchDetail,
+  buildContextPacketDetail,
+  buildProposalSetDetail,
+  buildProseDraftDetail,
+} from '../orchestration/sceneRun/sceneRunArtifactDetails.js'
 import { applySceneRunReviewDecisionTransition } from '../orchestration/sceneRun/sceneRunTransitions.js'
 import type { SceneRunArtifactRecord } from '../orchestration/sceneRun/sceneRunRecords.js'
+import {
+  buildAcceptedRunTrace,
+  buildInitialRunTrace,
+  buildRejectedRunTrace,
+  buildRewriteRunTrace,
+} from '../orchestration/sceneRun/sceneRunTraceLinks.js'
 import { buildFixtureSceneRunTimelineLabel } from '../orchestration/sceneRun/sceneRunTimeline.js'
 import { startSceneRunWorkflow } from '../orchestration/sceneRun/sceneRunWorkflow.js'
 
@@ -20,6 +38,12 @@ interface RunState {
   run: RunRecord
   events: RunEventRecord[]
   artifacts: SceneRunArtifactRecord[]
+  artifactDetailsById: Map<string, RunArtifactDetailRecord>
+  artifactSummaries: RunArtifactSummaryRecord[]
+  latestReviewDecision?: RunReviewDecisionKind
+  traceLinksById: Map<string, RunTraceLinkRecord>
+  traceNodesById: Map<string, RunTraceNodeRecord>
+  traceSummary: RunTraceResponse['summary']
 }
 
 function trimNote(note?: string) {
@@ -29,6 +53,184 @@ function trimNote(note?: string) {
 
 function clone<T>(value: T): T {
   return structuredClone(value)
+}
+
+function toArtifactSummary(detail: RunArtifactDetailRecord): RunArtifactSummaryRecord {
+  return {
+    id: detail.id,
+    runId: detail.runId,
+    kind: detail.kind,
+    title: detail.title,
+    summary: detail.summary,
+    statusLabel: detail.statusLabel,
+    createdAtLabel: detail.createdAtLabel,
+    sourceEventIds: [...detail.sourceEventIds],
+  }
+}
+
+function collectArtifactSourceEventIds(events: RunEventRecord[], artifact: SceneRunArtifactRecord) {
+  return events
+    .filter((event) => event.refs?.some((ref) => ref.kind === artifact.kind && ref.id === artifact.id))
+    .map((event) => event.id)
+}
+
+function findReviewId(events: RunEventRecord[]) {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const reviewRef = events[index]?.refs?.find((ref) => ref.kind === 'review')
+    if (reviewRef) {
+      return reviewRef.id
+    }
+  }
+
+  return undefined
+}
+
+function assertNoArtifactIdConflicts(
+  state: RunState,
+  input: {
+    projectId: string
+    runId: string
+  },
+  nextArtifacts: SceneRunArtifactRecord[],
+) {
+  const existingIds = new Set(state.artifacts.map((artifact) => artifact.id))
+  const nextIds = new Set<string>()
+
+  for (const artifact of nextArtifacts) {
+    if (existingIds.has(artifact.id) || nextIds.has(artifact.id)) {
+      throw conflict(`Run artifact id ${artifact.id} conflicts within run ${input.runId}.`, {
+        code: 'RUN_ARTIFACT_ID_CONFLICT',
+        detail: {
+          projectId: input.projectId,
+          runId: input.runId,
+          artifactId: artifact.id,
+        },
+      })
+    }
+
+    nextIds.add(artifact.id)
+  }
+}
+
+function indexRunReadSurfaces(state: RunState) {
+  const artifactDetailsById = new Map<string, RunArtifactDetailRecord>()
+  const artifactSummaries = [] as RunArtifactSummaryRecord[]
+
+  const contextPacketArtifact = state.artifacts.find((artifact) => artifact.kind === 'context-packet')
+  const contextPacketDetail = contextPacketArtifact
+    ? buildContextPacketDetail({
+        artifact: contextPacketArtifact,
+        sourceEventIds: collectArtifactSourceEventIds(state.events, contextPacketArtifact),
+      })
+    : undefined
+
+  if (contextPacketDetail) {
+    artifactDetailsById.set(contextPacketDetail.id, contextPacketDetail)
+    artifactSummaries.push(toArtifactSummary(contextPacketDetail))
+  }
+
+  const agentInvocationDetails = state.artifacts
+    .filter((artifact) => artifact.kind === 'agent-invocation')
+    .map((artifact) => buildAgentInvocationDetail({
+      artifact,
+      sourceEventIds: collectArtifactSourceEventIds(state.events, artifact),
+      contextPacketId: contextPacketDetail?.id,
+    }))
+
+  for (const detail of agentInvocationDetails) {
+    artifactDetailsById.set(detail.id, detail)
+    artifactSummaries.push(toArtifactSummary(detail))
+  }
+
+  const proposalSetArtifact = state.artifacts.find((artifact) => artifact.kind === 'proposal-set')
+  const proposalSetDetail = proposalSetArtifact
+    ? buildProposalSetDetail({
+        artifact: proposalSetArtifact,
+        sourceEventIds: collectArtifactSourceEventIds(state.events, proposalSetArtifact),
+        reviewId: findReviewId(state.events),
+        sourceInvocationIds: agentInvocationDetails.map((detail) => detail.id),
+      })
+    : undefined
+
+  if (proposalSetDetail) {
+    artifactDetailsById.set(proposalSetDetail.id, proposalSetDetail)
+    artifactSummaries.push(toArtifactSummary(proposalSetDetail))
+  }
+
+  const canonPatchArtifact = state.artifacts.find((artifact) => artifact.kind === 'canon-patch')
+  const acceptedDecision = state.latestReviewDecision === 'accept-with-edit' ? 'accept-with-edit' : 'accept'
+  const canonPatchDetail = canonPatchArtifact && proposalSetDetail
+    ? buildCanonPatchDetail({
+        artifact: canonPatchArtifact,
+        sourceEventIds: collectArtifactSourceEventIds(state.events, canonPatchArtifact),
+        decision: acceptedDecision,
+        sourceProposalSetId: proposalSetDetail.id,
+      })
+    : undefined
+
+  if (canonPatchDetail) {
+    artifactDetailsById.set(canonPatchDetail.id, canonPatchDetail)
+    artifactSummaries.push(toArtifactSummary(canonPatchDetail))
+  }
+
+  const proseDraftArtifact = state.artifacts.find((artifact) => artifact.kind === 'prose-draft')
+  const proseDraftDetail = proseDraftArtifact && canonPatchDetail
+    ? buildProseDraftDetail({
+        artifact: proseDraftArtifact,
+        sourceEventIds: collectArtifactSourceEventIds(state.events, proseDraftArtifact),
+        sourceCanonPatchId: canonPatchDetail.id,
+        sourceProposalIds: canonPatchDetail.acceptedProposalIds,
+      })
+    : undefined
+
+  if (proseDraftDetail) {
+    artifactDetailsById.set(proseDraftDetail.id, proseDraftDetail)
+    artifactSummaries.push(toArtifactSummary(proseDraftDetail))
+  }
+
+  const trace = contextPacketDetail && proposalSetDetail
+    ? (() => {
+        const traceBaseInput = {
+          runId: state.run.id,
+          contextPacket: contextPacketDetail,
+          agentInvocations: agentInvocationDetails,
+          proposalSet: proposalSetDetail,
+        }
+
+        if (canonPatchDetail && proseDraftDetail) {
+          return buildAcceptedRunTrace({
+            ...traceBaseInput,
+            canonPatch: canonPatchDetail,
+            proseDraft: proseDraftDetail,
+          })
+        }
+
+        switch (state.latestReviewDecision) {
+          case 'reject':
+            return buildRejectedRunTrace(traceBaseInput)
+          case 'request-rewrite':
+            return buildRewriteRunTrace(traceBaseInput)
+          default:
+            return buildInitialRunTrace(traceBaseInput)
+        }
+      })()
+    : {
+        runId: state.run.id,
+        nodes: [],
+        links: [],
+        summary: {
+          proposalSetCount: 0,
+          canonPatchCount: 0,
+          proseDraftCount: 0,
+          missingTraceCount: 0,
+        },
+      }
+
+  state.artifactDetailsById = artifactDetailsById
+  state.artifactSummaries = artifactSummaries
+  state.traceNodesById = new Map(trace.nodes.map((node) => [node.id, node]))
+  state.traceLinksById = new Map(trace.links.map((link) => [link.id, link]))
+  state.traceSummary = trace.summary
 }
 
 function isRunReviewDecisionKind(value: string): value is RunReviewDecisionKind {
@@ -45,6 +247,7 @@ function createSeedRun(): {
   run: RunRecord
   events: RunEventRecord[]
   artifacts: SceneRunArtifactRecord[]
+  latestReviewDecision?: RunReviewDecisionKind
 } {
   const projectId = DEFAULT_PROJECT_ID
   const sceneId = 'scene-midnight-platform'
@@ -83,6 +286,9 @@ export interface RunFixtureStore {
   startSceneRun(projectId: string, input: StartSceneRunInput): RunRecord
   getRun(projectId: string, runId: string): RunRecord | null
   getRunEvents(projectId: string, input: { runId: string; cursor?: string }): RunEventsPageRecord
+  listRunArtifacts(projectId: string, runId: string): RunArtifactSummaryRecord[] | null
+  getRunArtifact(projectId: string, runId: string, artifactId: string): RunArtifactDetailRecord | null
+  getRunTrace(projectId: string, runId: string): RunTraceResponse | null
   submitRunReviewDecision(projectId: string, input: SubmitRunReviewDecisionInput): RunRecord
 }
 
@@ -126,13 +332,27 @@ export function createRunFixtureStore(): RunFixtureStore {
     run: RunRecord,
     events: RunEventRecord[],
     artifacts: SceneRunArtifactRecord[],
+    latestReviewDecision?: RunReviewDecisionKind,
   ) {
-    getRunBucket(projectId, true)!.set(run.id, {
+    const state: RunState = {
       sequence,
       run: clone(run),
       events: clone(events),
       artifacts: clone(artifacts),
-    })
+      artifactDetailsById: new Map<string, RunArtifactDetailRecord>(),
+      artifactSummaries: [],
+      latestReviewDecision,
+      traceLinksById: new Map<string, RunTraceLinkRecord>(),
+      traceNodesById: new Map<string, RunTraceNodeRecord>(),
+      traceSummary: {
+        proposalSetCount: 0,
+        canonPatchCount: 0,
+        proseDraftCount: 0,
+        missingTraceCount: 0,
+      },
+    }
+    indexRunReadSurfaces(state)
+    getRunBucket(projectId, true)!.set(run.id, state)
   }
 
   function requireRunState(projectId: string, runId: string) {
@@ -152,7 +372,7 @@ export function createRunFixtureStore(): RunFixtureStore {
     sceneRunSequenceByProjectId.clear()
 
     const seed = createSeedRun()
-    setRunState(seed.projectId, seed.sequence, seed.run, seed.events, seed.artifacts)
+    setRunState(seed.projectId, seed.sequence, seed.run, seed.events, seed.artifacts, seed.latestReviewDecision)
     getSequenceBucket(seed.projectId, true)!.set(seed.sceneId, seed.sequence)
   }
 
@@ -204,6 +424,27 @@ export function createRunFixtureStore(): RunFixtureStore {
         nextCursor: hasMore ? pageEvents.at(-1)?.id : undefined,
       }
     },
+    listRunArtifacts(projectId, runId) {
+      const artifacts = getRunBucket(projectId)?.get(runId)?.artifactSummaries
+      return artifacts ? clone(artifacts) : null
+    },
+    getRunArtifact(projectId, runId, artifactId) {
+      const artifact = getRunBucket(projectId)?.get(runId)?.artifactDetailsById.get(artifactId)
+      return artifact ? clone(artifact) : null
+    },
+    getRunTrace(projectId, runId) {
+      const state = getRunBucket(projectId)?.get(runId)
+      if (!state) {
+        return null
+      }
+
+      return clone({
+        runId,
+        nodes: [...state.traceNodesById.values()],
+        links: [...state.traceLinksById.values()],
+        summary: state.traceSummary,
+      })
+    },
     submitRunReviewDecision(projectId, input) {
       if (!isRunReviewDecisionKind(input.decision)) {
         throw badRequest(`Unsupported run review decision "${String(input.decision)}".`, {
@@ -239,6 +480,11 @@ export function createRunFixtureStore(): RunFixtureStore {
         buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
       })
 
+      assertNoArtifactIdConflicts(state, {
+        projectId,
+        runId: input.runId,
+      }, transition.generatedArtifacts)
+
       state.events.push(...clone(transition.appendedEvents))
       state.artifacts.push(...clone(transition.generatedArtifacts))
       state.run.status = transition.nextRun.status
@@ -247,6 +493,8 @@ export function createRunFixtureStore(): RunFixtureStore {
       state.run.pendingReviewId = transition.nextRun.pendingReviewId
       state.run.latestEventId = state.events.at(-1)?.id
       state.run.eventCount = state.events.length
+      state.latestReviewDecision = input.decision
+      indexRunReadSurfaces(state)
 
       return clone(state.run)
     },
