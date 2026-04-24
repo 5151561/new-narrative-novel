@@ -15,7 +15,9 @@ import type { ReviewClient } from '@/features/review/api/review-client'
 import type { ReviewIssueDecisionRecord } from '@/features/review/api/review-decision-records'
 import type { ReviewIssueFixActionRecord } from '@/features/review/api/review-fix-action-records'
 import type { RunClient } from '@/features/run/api/run-client'
+import type { RunArtifactDetailResponse, RunArtifactListResponse } from '@/features/run/api/run-artifact-records'
 import type { RunEventsPageRecord, RunRecord, StartSceneRunInput, SubmitRunReviewDecisionInput } from '@/features/run/api/run-records'
+import type { RunTraceResponse } from '@/features/run/api/run-trace-records'
 import type { SceneClient } from '@/features/scene/api/scene-client'
 import type {
   ProposalActionInput,
@@ -274,6 +276,24 @@ export function createRunClient(projectId: string, transport: ApiTransport): Run
           note: input.note,
           patchId: input.patchId,
         },
+      })
+    },
+    async listRunArtifacts({ runId }) {
+      return transport.requestJson<RunArtifactListResponse>({
+        method: 'GET',
+        path: apiRouteContract.runArtifacts({ projectId, runId }),
+      })
+    },
+    async getRunArtifact({ runId, artifactId }) {
+      return transport.requestJson<RunArtifactDetailResponse>({
+        method: 'GET',
+        path: apiRouteContract.runArtifact({ projectId, runId, artifactId }),
+      })
+    },
+    async getRunTrace({ runId }) {
+      return transport.requestJson<RunTraceResponse>({
+        method: 'GET',
+        path: apiRouteContract.runTrace({ projectId, runId }),
       })
     },
   }

@@ -82,6 +82,15 @@ describe('api route contract', () => {
     expect(apiRouteContract.runEvents({ projectId: 'project-1', runId: 'run-7' })).toBe(
       '/api/projects/project-1/runs/run-7/events',
     )
+    expect(apiRouteContract.runArtifacts({ projectId: 'project-1', runId: 'run-7' })).toBe(
+      '/api/projects/project-1/runs/run-7/artifacts',
+    )
+    expect(apiRouteContract.runArtifact({ projectId: 'project-1', runId: 'run-7', artifactId: 'artifact-9' })).toBe(
+      '/api/projects/project-1/runs/run-7/artifacts/artifact-9',
+    )
+    expect(apiRouteContract.runTrace({ projectId: 'project-1', runId: 'run-7' })).toBe(
+      '/api/projects/project-1/runs/run-7/trace',
+    )
     expect(apiRouteContract.runEventsStream({ projectId: 'project-1', runId: 'run-7' })).toBe(
       '/api/projects/project-1/runs/run-7/events/stream',
     )
@@ -104,6 +113,13 @@ describe('api route contract', () => {
         runId: 'run / review 1',
       }),
     ).toBe('/api/projects/project%20%2F%20one/runs/run%20%2F%20review%201/events')
+    expect(
+      apiRouteContract.runArtifact({
+        projectId: 'project / one',
+        runId: 'run / review 1',
+        artifactId: 'ctx / 1',
+      }),
+    ).toBe('/api/projects/project%20%2F%20one/runs/run%20%2F%20review%201/artifacts/ctx%20%2F%201')
   })
 
   it('escapes the project runtime info project id and preserves the scene alias path', () => {

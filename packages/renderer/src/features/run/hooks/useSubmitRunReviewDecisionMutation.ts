@@ -34,6 +34,14 @@ export function useSubmitRunReviewDecisionMutation(options: UseSubmitRunReviewDe
         queryKey: runQueryKeys.events(effectiveProjectId, run.id),
         refetchType: 'active',
       })
+      await queryClient.invalidateQueries({
+        queryKey: runQueryKeys.artifacts(effectiveProjectId, run.id),
+        refetchType: 'active',
+      })
+      await queryClient.invalidateQueries({
+        queryKey: runQueryKeys.trace(effectiveProjectId, run.id),
+        refetchType: 'active',
+      })
     },
   })
 

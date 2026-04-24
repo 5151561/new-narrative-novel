@@ -51,6 +51,9 @@ function createRunClient(overrides: Partial<RunClient> = {}): RunClient {
     getRun: vi.fn(async () => createRun()),
     getRunEvents: vi.fn(async () => createEventsPage()),
     submitRunReviewDecision: vi.fn(async (_input: SubmitRunReviewDecisionInput) => createRun({ status: 'completed' })),
+    listRunArtifacts: vi.fn(),
+    getRunArtifact: vi.fn(),
+    getRunTrace: vi.fn(),
     ...overrides,
   }
 }

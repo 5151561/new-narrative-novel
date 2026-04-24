@@ -1,6 +1,18 @@
 import { ApiRequestError } from '@/app/project-runtime/api-transport'
 
 import type {
+  AgentInvocationArtifactDetailRecord,
+  CanonPatchArtifactDetailRecord,
+  ContextPacketArtifactDetailRecord,
+  LocalizedTextRecord,
+  ProposalSetArtifactDetailRecord,
+  ProseDraftArtifactDetailRecord,
+  RunArtifactDetailRecord,
+  RunArtifactKind,
+  RunArtifactListResponse,
+  RunArtifactRelatedAssetRecord,
+} from './run-artifact-records'
+import type {
   RunEventKind,
   RunEventRecord,
   RunEventRefRecord,
@@ -10,6 +22,13 @@ import type {
   StartSceneRunInput,
   SubmitRunReviewDecisionInput,
 } from './run-records'
+import type {
+  RunTraceLinkRecord,
+  RunTraceNodeKind,
+  RunTraceNodeRecord,
+  RunTraceRelation,
+  RunTraceResponse,
+} from './run-trace-records'
 
 const EVENT_PAGE_SIZE = 4
 const DEFAULT_PROJECT_ID = 'book-signal-arc'
@@ -17,11 +36,13 @@ const DEFAULT_PROJECT_ID = 'book-signal-arc'
 interface MockRunState {
   run: RunRecord
   events: RunEventRecord[]
+  reviewDecisionsByReviewId: Record<string, RunReviewDecisionKind>
 }
 
 export interface MockRunStateSnapshot {
   run: RunRecord
   events: RunEventRecord[]
+  reviewDecisionsByReviewId?: Record<string, RunReviewDecisionKind>
 }
 
 export interface MockRunSnapshot {
@@ -64,6 +85,18 @@ function buildAgentInvocationId(sceneId: string, sequence: number, index: number
   return `agent-invocation-${sceneId}-run-${toSequenceLabel(sequence)}-${toSequenceLabel(index)}`
 }
 
+function buildCanonPatchId(sceneId: string, sequence: number) {
+  return `canon-patch-${sceneId}-${toSequenceLabel(sequence)}`
+}
+
+function buildProseDraftId(sceneId: string, sequence: number) {
+  return `prose-draft-${sceneId}-${toSequenceLabel(sequence)}`
+}
+
+function buildTraceLinkId(runId: string, relation: RunTraceRelation, index: number) {
+  return `trace-link-${runId.replace(/^run-/, '')}-${relation}-${toSequenceLabel(index)}`
+}
+
 function buildTimelineLabel(order: number) {
   return `2026-04-21 10:${String(order).padStart(2, '0')}`
 }
@@ -86,6 +119,27 @@ function createEvent(
     createdAtLabel: buildTimelineLabel(order),
     refs,
   }
+}
+
+function text(en: string, zhCN = en): LocalizedTextRecord {
+  return {
+    en,
+    'zh-CN': zhCN,
+  }
+}
+
+function isRunArtifactKind(kind: RunEventRefRecord['kind']): kind is RunArtifactKind {
+  return (
+    kind === 'context-packet'
+    || kind === 'agent-invocation'
+    || kind === 'proposal-set'
+    || kind === 'canon-patch'
+    || kind === 'prose-draft'
+  )
+}
+
+function formatSceneName(sceneId: string) {
+  return sceneId.replace(/^scene-/, '').split('-').filter(Boolean).join(' ')
 }
 
 function getRunBucket(projectId = DEFAULT_PROJECT_ID, createIfMissing = false) {
@@ -118,11 +172,17 @@ function getSequenceBucket(projectId = DEFAULT_PROJECT_ID, createIfMissing = fal
   return next
 }
 
-function setRunState(projectId: string, run: RunRecord, events: RunEventRecord[]) {
+function setRunState(
+  projectId: string,
+  run: RunRecord,
+  events: RunEventRecord[],
+  reviewDecisionsByReviewId: Record<string, RunReviewDecisionKind> = {},
+) {
   const bucket = getRunBucket(projectId, true)
   bucket!.set(run.id, {
     run: clone(run),
     events: clone(events),
+    reviewDecisionsByReviewId: clone(reviewDecisionsByReviewId),
   })
 }
 
@@ -151,6 +211,517 @@ function appendRunEvent(state: MockRunState, kind: RunEventKind, label: string, 
 function extractRunSequence(runId: string) {
   const sequence = Number.parseInt(runId.slice(runId.lastIndexOf('-') + 1), 10)
   return Number.isNaN(sequence) ? 1 : sequence
+}
+
+interface MockArtifactEntry {
+  id: string
+  kind: RunArtifactKind
+  sourceEventIds: string[]
+}
+
+function getArtifactSortIndex(kind: RunArtifactKind, id: string) {
+  const baseIndex: Record<RunArtifactKind, number> = {
+    'context-packet': 1,
+    'agent-invocation': 2,
+    'proposal-set': 3,
+    'canon-patch': 4,
+    'prose-draft': 5,
+  }
+
+  return `${baseIndex[kind]}:${id}`
+}
+
+function collectArtifactEntries(state: MockRunState): MockArtifactEntry[] {
+  const entriesById = new Map<string, MockArtifactEntry>()
+
+  for (const event of state.events) {
+    for (const ref of event.refs ?? []) {
+      if (!isRunArtifactKind(ref.kind)) {
+        continue
+      }
+
+      const existing = entriesById.get(ref.id)
+      if (existing) {
+        if (!existing.sourceEventIds.includes(event.id)) {
+          existing.sourceEventIds.push(event.id)
+        }
+        continue
+      }
+
+      entriesById.set(ref.id, {
+        id: ref.id,
+        kind: ref.kind,
+        sourceEventIds: [event.id],
+      })
+    }
+  }
+
+  return Array.from(entriesById.values()).sort((left, right) =>
+    getArtifactSortIndex(left.kind, left.id).localeCompare(getArtifactSortIndex(right.kind, right.id)),
+  )
+}
+
+function getEventLabel(state: MockRunState, eventId: string) {
+  return state.events.find((event) => event.id === eventId)?.createdAtLabel
+}
+
+function buildArtifactSummary(state: MockRunState, entry: MockArtifactEntry) {
+  const sceneName = formatSceneName(state.run.scopeId)
+  const sourceEventLabel = entry.sourceEventIds.map((eventId) => getEventLabel(state, eventId)).find(Boolean)
+  const statusLabels: Record<RunArtifactKind, LocalizedTextRecord> = {
+    'context-packet': text('Built'),
+    'agent-invocation': text('Completed'),
+    'proposal-set': text('Ready for review'),
+    'canon-patch': text('Applied'),
+    'prose-draft': text('Generated'),
+  }
+  const titles: Record<RunArtifactKind, LocalizedTextRecord> = {
+    'context-packet': text('Scene context packet'),
+    'agent-invocation': entry.id.endsWith('-002') ? text('Writer invocation') : text('Planner invocation'),
+    'proposal-set': text('Scene proposal set'),
+    'canon-patch': text('Canon patch'),
+    'prose-draft': text('Prose draft'),
+  }
+  const summaries: Record<RunArtifactKind, LocalizedTextRecord> = {
+    'context-packet': text(`Packed context for ${sceneName}.`),
+    'agent-invocation': text(`Fixture agent output is ready for ${sceneName}.`),
+    'proposal-set': text(`Proposal candidates for ${sceneName} are ready for review.`),
+    'canon-patch': text(`Accepted proposal changes were compiled into canon for ${sceneName}.`),
+    'prose-draft': text(`A fixture prose draft was rendered for ${sceneName}.`),
+  }
+
+  return {
+    id: entry.id,
+    runId: state.run.id,
+    kind: entry.kind,
+    title: titles[entry.kind],
+    summary: summaries[entry.kind],
+    statusLabel: statusLabels[entry.kind],
+    createdAtLabel: text(sourceEventLabel ?? 'Linked event 000'),
+    sourceEventIds: [...entry.sourceEventIds],
+  }
+}
+
+function buildLeadAsset(sceneId: string): RunArtifactRelatedAssetRecord {
+  return {
+    assetId: `asset-${sceneId}-lead`,
+    kind: 'character',
+    label: text(`${formatSceneName(sceneId)} lead`),
+  }
+}
+
+function buildSettingAsset(sceneId: string): RunArtifactRelatedAssetRecord {
+  return {
+    assetId: `asset-${sceneId}-setting`,
+    kind: 'location',
+    label: text(`${formatSceneName(sceneId)} setting`),
+  }
+}
+
+function buildProposalIds(proposalSetId: string) {
+  return [`${proposalSetId}-proposal-001`, `${proposalSetId}-proposal-002`]
+}
+
+function getArtifactEntriesByKind(state: MockRunState, kind: RunArtifactKind) {
+  return collectArtifactEntries(state).filter((entry) => entry.kind === kind)
+}
+
+function getFirstArtifactEntry(state: MockRunState, kind: RunArtifactKind) {
+  return getArtifactEntriesByKind(state, kind)[0]
+}
+
+function getProposalSetId(state: MockRunState) {
+  return getFirstArtifactEntry(state, 'proposal-set')?.id ?? buildProposalSetId(state.run.scopeId, extractRunSequence(state.run.id))
+}
+
+function getContextPacketId(state: MockRunState) {
+  return getFirstArtifactEntry(state, 'context-packet')?.id ?? buildContextPacketId(state.run.scopeId, extractRunSequence(state.run.id))
+}
+
+function getAgentInvocationIds(state: MockRunState) {
+  return getArtifactEntriesByKind(state, 'agent-invocation').map((entry) => entry.id)
+}
+
+function getCanonPatchId(state: MockRunState) {
+  return getFirstArtifactEntry(state, 'canon-patch')?.id ?? buildCanonPatchId(state.run.scopeId, extractRunSequence(state.run.id))
+}
+
+function getReviewDecision(state: MockRunState): CanonPatchArtifactDetailRecord['decision'] {
+  const acceptedDecisions = Object.values(state.reviewDecisionsByReviewId).filter(
+    (decision): decision is CanonPatchArtifactDetailRecord['decision'] =>
+      decision === 'accept' || decision === 'accept-with-edit',
+  )
+
+  return acceptedDecisions.at(-1) ?? 'accept'
+}
+
+function getAcceptedProposalIds(state: MockRunState) {
+  const proposalSetId = getProposalSetId(state)
+  return [getReviewDecision(state) === 'accept-with-edit' ? `${proposalSetId}-proposal-002` : `${proposalSetId}-proposal-001`]
+}
+
+function buildContextPacketDetail(state: MockRunState, entry: MockArtifactEntry): ContextPacketArtifactDetailRecord {
+  const sceneId = state.run.scopeId
+
+  return {
+    ...buildArtifactSummary(state, entry),
+    kind: 'context-packet',
+    sceneId,
+    sections: [
+      {
+        id: `${entry.id}-section-brief`,
+        title: text('Scene brief'),
+        summary: text('Scene setup, continuity, and editorial intent were packed.'),
+        itemCount: 3,
+      },
+      {
+        id: `${entry.id}-section-canon`,
+        title: text('Canon anchors'),
+        summary: text('Approved canon facts were selected as guardrails.'),
+        itemCount: 2,
+      },
+    ],
+    includedCanonFacts: [
+      {
+        id: `${entry.id}-canon-fact-001`,
+        label: text('Scene objective'),
+        value: text('Preserve the next visible beat before introducing a reveal.'),
+      },
+    ],
+    includedAssets: [
+      {
+        ...buildLeadAsset(sceneId),
+        reason: text('Carries the primary point of view through the run.'),
+      },
+      {
+        ...buildSettingAsset(sceneId),
+        reason: text('Keeps action blocking anchored to the scene setting.'),
+      },
+    ],
+    excludedPrivateFacts: [
+      {
+        id: `${entry.id}-excluded-001`,
+        label: text('Deferred reveal'),
+        reason: text('Private reveal notes stay out until review lands.'),
+      },
+    ],
+    outputSchemaLabel: text('Scene context packet schema'),
+    tokenBudgetLabel: text(`Target budget ${1500 + extractRunSequence(state.run.id) * 100} tokens`),
+  }
+}
+
+function buildAgentInvocationDetail(state: MockRunState, entry: MockArtifactEntry): AgentInvocationArtifactDetailRecord {
+  const isWriter = entry.id.endsWith('-002')
+  const proposalSetId = getProposalSetId(state)
+
+  return {
+    ...buildArtifactSummary(state, entry),
+    kind: 'agent-invocation',
+    agentRole: isWriter ? 'scene-writer' : 'scene-planner',
+    modelLabel: isWriter ? text('Fixture writer profile') : text('Fixture planner profile'),
+    inputSummary: text('Consumes the packed scene context and editorial run note.'),
+    outputSummary: isWriter
+      ? text('Produces prose-shaping fixture output for the proposal set.')
+      : text('Produces structured proposal candidates for editorial review.'),
+    contextPacketId: getContextPacketId(state),
+    outputSchemaLabel: isWriter ? text('Prose draft scaffold schema') : text('Proposal candidate schema'),
+    generatedRefs: [
+      {
+        kind: 'proposal-set',
+        id: proposalSetId,
+        label: text('Scene proposal set'),
+      },
+    ],
+  }
+}
+
+function buildProposalSetDetail(state: MockRunState, entry: MockArtifactEntry): ProposalSetArtifactDetailRecord {
+  const [proposalOneId, proposalTwoId] = buildProposalIds(entry.id)
+
+  return {
+    ...buildArtifactSummary(state, entry),
+    kind: 'proposal-set',
+    reviewId: state.run.pendingReviewId ?? buildReviewId(state.run.scopeId, extractRunSequence(state.run.id)),
+    sourceInvocationIds: getAgentInvocationIds(state),
+    proposals: [
+      {
+        id: proposalOneId,
+        title: text('Anchor the arrival beat'),
+        summary: text('Open on the scene before introducing any new reveal.'),
+        changeKind: 'action',
+        riskLabel: text('Low continuity risk'),
+        relatedAssets: [buildLeadAsset(state.run.scopeId)],
+      },
+      {
+        id: proposalTwoId,
+        title: text('Stage the reveal through the setting'),
+        summary: text('Let the setting carry the reveal instead of adding exposition.'),
+        changeKind: 'reveal',
+        riskLabel: text('Editor check recommended'),
+        relatedAssets: [buildSettingAsset(state.run.scopeId)],
+      },
+    ],
+    reviewOptions: [
+      { decision: 'accept', label: text('Accept'), description: text('Apply the proposal set without further changes.') },
+      { decision: 'accept-with-edit', label: text('Accept with edit'), description: text('Apply the proposal set with editorial adjustments.') },
+      { decision: 'request-rewrite', label: text('Request rewrite'), description: text('Return the run to execution with rewrite guidance.') },
+      { decision: 'reject', label: text('Reject'), description: text('Close the run without producing canon or prose artifacts.') },
+    ],
+  }
+}
+
+function buildCanonPatchDetail(state: MockRunState, entry: MockArtifactEntry): CanonPatchArtifactDetailRecord {
+  const proposalSetId = getProposalSetId(state)
+  const decision = getReviewDecision(state)
+  const acceptedProposalIds = getAcceptedProposalIds(state)
+  const acceptedFacts = acceptedProposalIds.map((proposalId, index) => ({
+    id: `${entry.id}-fact-${toSequenceLabel(index + 1)}`,
+    label: text(`Accepted fact ${index + 1}`),
+    value: proposalId.endsWith('002')
+      ? text('The scene now carries an approved reveal through the environment.')
+      : text('The scene now opens on a stable arrival beat.'),
+    sourceProposalIds: [proposalId],
+    relatedAssets: proposalId.endsWith('002') ? [buildSettingAsset(state.run.scopeId)] : [buildLeadAsset(state.run.scopeId)],
+  }))
+
+  return {
+    ...buildArtifactSummary(state, entry),
+    kind: 'canon-patch',
+    decision,
+    sourceProposalSetId: proposalSetId,
+    acceptedProposalIds,
+    acceptedFacts,
+    traceLinkIds: [
+      buildTraceLinkId(state.run.id, 'accepted_into', 1),
+      buildTraceLinkId(state.run.id, 'accepted_into', 2),
+    ],
+  }
+}
+
+function buildProseDraftDetail(state: MockRunState, entry: MockArtifactEntry): ProseDraftArtifactDetailRecord {
+  return {
+    ...buildArtifactSummary(state, entry),
+    kind: 'prose-draft',
+    sourceCanonPatchId: getCanonPatchId(state),
+    sourceProposalIds: getAcceptedProposalIds(state),
+    excerpt: text('The scene settles into view before the next reveal turns visible.'),
+    wordCount: 140 + extractRunSequence(state.run.id) * 3,
+    relatedAssets: [buildLeadAsset(state.run.scopeId), buildSettingAsset(state.run.scopeId)],
+    traceLinkIds: [buildTraceLinkId(state.run.id, 'rendered_as', 1)],
+  }
+}
+
+function buildArtifactDetail(state: MockRunState, entry: MockArtifactEntry): RunArtifactDetailRecord {
+  switch (entry.kind) {
+    case 'context-packet':
+      return buildContextPacketDetail(state, entry)
+    case 'agent-invocation':
+      return buildAgentInvocationDetail(state, entry)
+    case 'proposal-set':
+      return buildProposalSetDetail(state, entry)
+    case 'canon-patch':
+      return buildCanonPatchDetail(state, entry)
+    case 'prose-draft':
+      return buildProseDraftDetail(state, entry)
+  }
+}
+
+function addTraceNode(nodesById: Map<string, RunTraceNodeRecord>, node: RunTraceNodeRecord) {
+  if (!nodesById.has(node.id)) {
+    nodesById.set(node.id, node)
+  }
+}
+
+function addTraceLink(
+  state: {
+    links: RunTraceLinkRecord[]
+    nodesById: Map<string, RunTraceNodeRecord>
+    missingTraceCount: number
+  },
+  runId: string,
+  relationCounts: Map<RunTraceRelation, number>,
+  input: {
+    from: { id: string; kind: RunTraceNodeKind }
+    to: { id: string; kind: RunTraceNodeKind }
+    relation: RunTraceRelation
+    label: LocalizedTextRecord
+  },
+) {
+  if (state.nodesById.get(input.from.id)?.kind !== input.from.kind || state.nodesById.get(input.to.id)?.kind !== input.to.kind) {
+    state.missingTraceCount += 1
+    return
+  }
+
+  const index = (relationCounts.get(input.relation) ?? 0) + 1
+  relationCounts.set(input.relation, index)
+  state.links.push({
+    id: buildTraceLinkId(runId, input.relation, index),
+    from: input.from,
+    to: input.to,
+    relation: input.relation,
+    label: input.label,
+  })
+}
+
+function buildTraceResponse(state: MockRunState): RunTraceResponse {
+  const entries = collectArtifactEntries(state)
+  const details = entries.map((entry) => buildArtifactDetail(state, entry))
+  const nodesById = new Map<string, RunTraceNodeRecord>()
+  const traceState = {
+    links: [] as RunTraceLinkRecord[],
+    nodesById,
+    missingTraceCount: 0,
+  }
+  const relationCounts = new Map<RunTraceRelation, number>()
+  const contextPacket = details.find((detail): detail is ContextPacketArtifactDetailRecord => detail.kind === 'context-packet')
+  const proposalSet = details.find((detail): detail is ProposalSetArtifactDetailRecord => detail.kind === 'proposal-set')
+  const canonPatch = details.find((detail): detail is CanonPatchArtifactDetailRecord => detail.kind === 'canon-patch')
+  const proseDraft = details.find((detail): detail is ProseDraftArtifactDetailRecord => detail.kind === 'prose-draft')
+  const agentInvocations = details.filter((detail): detail is AgentInvocationArtifactDetailRecord => detail.kind === 'agent-invocation')
+
+  for (const detail of details) {
+    addTraceNode(nodesById, {
+      id: detail.id,
+      kind: detail.kind,
+      label: detail.title,
+    })
+  }
+
+  if (proposalSet) {
+    addTraceNode(nodesById, {
+      id: proposalSet.reviewId,
+      kind: 'review',
+      label: text('Editorial review'),
+    })
+
+    for (const proposal of proposalSet.proposals) {
+      addTraceNode(nodesById, {
+        id: proposal.id,
+        kind: 'proposal',
+        label: proposal.title,
+      })
+      for (const asset of proposal.relatedAssets) {
+        addTraceNode(nodesById, {
+          id: asset.assetId,
+          kind: 'asset',
+          label: asset.label,
+        })
+      }
+    }
+  }
+
+  if (canonPatch) {
+    for (const acceptedFact of canonPatch.acceptedFacts) {
+      addTraceNode(nodesById, {
+        id: acceptedFact.id,
+        kind: 'canon-fact',
+        label: acceptedFact.label,
+      })
+      for (const asset of acceptedFact.relatedAssets) {
+        addTraceNode(nodesById, {
+          id: asset.assetId,
+          kind: 'asset',
+          label: asset.label,
+        })
+      }
+    }
+  }
+
+  if (proseDraft) {
+    for (const asset of proseDraft.relatedAssets) {
+      addTraceNode(nodesById, {
+        id: asset.assetId,
+        kind: 'asset',
+        label: asset.label,
+      })
+    }
+  }
+
+  for (const invocation of agentInvocations) {
+    addTraceLink(traceState, state.run.id, relationCounts, {
+      from: { id: invocation.contextPacketId ?? contextPacket?.id ?? '', kind: 'context-packet' },
+      to: { id: invocation.id, kind: 'agent-invocation' },
+      relation: 'used_context',
+      label: text('Used context'),
+    })
+  }
+
+  if (proposalSet) {
+    for (const sourceInvocationId of proposalSet.sourceInvocationIds) {
+      addTraceLink(traceState, state.run.id, relationCounts, {
+        from: { id: sourceInvocationId, kind: 'agent-invocation' },
+        to: { id: proposalSet.id, kind: 'proposal-set' },
+        relation: 'generated',
+        label: text('Generated'),
+      })
+    }
+
+    for (const proposal of proposalSet.proposals) {
+      addTraceLink(traceState, state.run.id, relationCounts, {
+        from: { id: proposalSet.id, kind: 'proposal-set' },
+        to: { id: proposal.id, kind: 'proposal' },
+        relation: 'proposed',
+        label: text('Proposed'),
+      })
+      for (const asset of proposal.relatedAssets) {
+        addTraceLink(traceState, state.run.id, relationCounts, {
+          from: { id: proposal.id, kind: 'proposal' },
+          to: { id: asset.assetId, kind: 'asset' },
+          relation: 'mentions',
+          label: text('Mentions'),
+        })
+      }
+    }
+
+    addTraceLink(traceState, state.run.id, relationCounts, {
+      from: { id: proposalSet.id, kind: 'proposal-set' },
+      to: { id: proposalSet.reviewId, kind: 'review' },
+      relation: 'reviewed_by',
+      label: text('Reviewed by'),
+    })
+  }
+
+  if (canonPatch) {
+    for (const acceptedFact of canonPatch.acceptedFacts) {
+      for (const proposalId of acceptedFact.sourceProposalIds) {
+        addTraceLink(traceState, state.run.id, relationCounts, {
+          from: { id: proposalId, kind: 'proposal' },
+          to: { id: acceptedFact.id, kind: 'canon-fact' },
+          relation: 'accepted_into',
+          label: text('Accepted into canon'),
+        })
+      }
+      addTraceLink(traceState, state.run.id, relationCounts, {
+        from: { id: acceptedFact.id, kind: 'canon-fact' },
+        to: { id: canonPatch.id, kind: 'canon-patch' },
+        relation: 'accepted_into',
+        label: text('Belongs to canon patch'),
+      })
+    }
+  }
+
+  if (proseDraft) {
+    addTraceLink(traceState, state.run.id, relationCounts, {
+      from: { id: proseDraft.sourceCanonPatchId, kind: 'canon-patch' },
+      to: { id: proseDraft.id, kind: 'prose-draft' },
+      relation: 'rendered_as',
+      label: text('Rendered as prose'),
+    })
+  }
+
+  const nodes = Array.from(nodesById.values())
+
+  return {
+    runId: state.run.id,
+    links: traceState.links,
+    nodes,
+    summary: {
+      proposalSetCount: nodes.filter((node) => node.kind === 'proposal-set').length,
+      canonPatchCount: nodes.filter((node) => node.kind === 'canon-patch').length,
+      proseDraftCount: nodes.filter((node) => node.kind === 'prose-draft').length,
+      missingTraceCount: traceState.missingTraceCount,
+    },
+  }
 }
 
 function buildSeedRun() {
@@ -234,8 +805,13 @@ function trimNote(note?: string) {
   return value ? value : undefined
 }
 
-function updateProjectRunState(projectId: string, run: RunRecord, events: RunEventRecord[]) {
-  setRunState(projectId, run, events)
+function updateProjectRunState(
+  projectId: string,
+  run: RunRecord,
+  events: RunEventRecord[],
+  reviewDecisionsByReviewId: Record<string, RunReviewDecisionKind> = {},
+) {
+  setRunState(projectId, run, events, reviewDecisionsByReviewId)
   return clone(run)
 }
 
@@ -279,6 +855,63 @@ export function getMockRunEvents(
   }
 }
 
+export function getMockRunArtifacts(
+  {
+    runId,
+  }: {
+    runId: string
+  },
+  projectId = DEFAULT_PROJECT_ID,
+): RunArtifactListResponse {
+  const state = requireRunState(runId, projectId)
+
+  return {
+    runId,
+    artifacts: collectArtifactEntries(state).map((entry) => buildArtifactSummary(state, entry)),
+  }
+}
+
+export function getMockRunArtifact(
+  {
+    runId,
+    artifactId,
+  }: {
+    runId: string
+    artifactId: string
+  },
+  projectId = DEFAULT_PROJECT_ID,
+) {
+  const state = requireRunState(runId, projectId)
+  const entry = collectArtifactEntries(state).find((artifactEntry) => artifactEntry.id === artifactId)
+
+  if (!entry) {
+    throw new ApiRequestError({
+      status: 404,
+      message: `Run artifact ${artifactId} was not found.`,
+      code: 'run-artifact-not-found',
+      detail: {
+        runId,
+        artifactId,
+      },
+    })
+  }
+
+  return {
+    artifact: buildArtifactDetail(state, entry),
+  }
+}
+
+export function getMockRunTrace(
+  {
+    runId,
+  }: {
+    runId: string
+  },
+  projectId = DEFAULT_PROJECT_ID,
+): RunTraceResponse {
+  return buildTraceResponse(requireRunState(runId, projectId))
+}
+
 export function startMockSceneRun(input: StartSceneRunInput, projectId = DEFAULT_PROJECT_ID): RunRecord {
   const sequenceBucket = getSequenceBucket(projectId, true)
   const nextSequence = (sequenceBucket?.get(input.sceneId) ?? 0) + 1
@@ -297,13 +930,37 @@ export function startMockSceneRun(input: StartSceneRunInput, projectId = DEFAULT
         id: buildContextPacketId(input.sceneId, nextSequence),
       },
     ]),
-    createEvent(runId, 4, 'proposal_created', 'Proposal set created', 'A proposal set is ready for review.', [
+    createEvent(runId, 4, 'agent_invocation_started', 'Planner invocation started', 'Planning agent invocation started.', [
+      {
+        kind: 'agent-invocation',
+        id: buildAgentInvocationId(input.sceneId, nextSequence, 1),
+      },
+    ]),
+    createEvent(runId, 5, 'agent_invocation_completed', 'Planner invocation completed', 'Planning agent returned proposal candidates.', [
+      {
+        kind: 'agent-invocation',
+        id: buildAgentInvocationId(input.sceneId, nextSequence, 1),
+      },
+    ]),
+    createEvent(runId, 6, 'agent_invocation_started', 'Writer invocation started', 'Writer agent invocation started.', [
+      {
+        kind: 'agent-invocation',
+        id: buildAgentInvocationId(input.sceneId, nextSequence, 2),
+      },
+    ]),
+    createEvent(runId, 7, 'agent_invocation_completed', 'Writer invocation completed', 'Writer agent returned prose candidates.', [
+      {
+        kind: 'agent-invocation',
+        id: buildAgentInvocationId(input.sceneId, nextSequence, 2),
+      },
+    ]),
+    createEvent(runId, 8, 'proposal_created', 'Proposal set created', 'A proposal set is ready for review.', [
       {
         kind: 'proposal-set',
         id: buildProposalSetId(input.sceneId, nextSequence),
       },
     ]),
-    createEvent(runId, 5, 'review_requested', 'Review requested', 'Editorial review is waiting on the proposal set.', [
+    createEvent(runId, 9, 'review_requested', 'Review requested', 'Editorial review is waiting on the proposal set.', [
       {
         kind: 'review',
         id: reviewId,
@@ -370,6 +1027,7 @@ export function submitMockRunReviewDecision(
   const note = trimNote(input.note)
   const runSequence = extractRunSequence(input.runId)
   const sceneId = state.run.scopeId
+  state.reviewDecisionsByReviewId[input.reviewId] = input.decision
   appendRunEvent(
     state,
     'review_decision_submitted',
@@ -412,7 +1070,7 @@ export function submitMockRunReviewDecision(
   state.run.pendingReviewId = undefined
   state.run.summary = buildRunSummary(input.decision)
 
-  return updateProjectRunState(projectId, state.run, state.events)
+  return updateProjectRunState(projectId, state.run, state.events, state.reviewDecisionsByReviewId)
 }
 
 export function exportMockRunSnapshot(): MockRunSnapshot {
@@ -423,6 +1081,7 @@ export function exportMockRunSnapshot(): MockRunSnapshot {
         Array.from(bucket.values()).map((state) => ({
           run: clone(state.run),
           events: clone(state.events),
+          reviewDecisionsByReviewId: clone(state.reviewDecisionsByReviewId),
         })),
       ]),
     ),
@@ -452,6 +1111,7 @@ export function importMockRunSnapshot(snapshot: MockRunSnapshot): void {
           {
             run: clone(state.run),
             events: clone(state.events),
+            reviewDecisionsByReviewId: clone(state.reviewDecisionsByReviewId ?? {}),
           },
         ]),
       ),

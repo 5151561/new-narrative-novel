@@ -369,6 +369,34 @@ async function handleFakeApiRequest<TResponse, TBody>(
     ) as TResponse
   }
 
+  const runArtifactsMatch = path.match(new RegExp(`${projectBasePattern}/runs/([^/]+)/artifacts$`))
+  if (method === 'GET' && runArtifactsMatch) {
+    return cloneFakeApiResponse(
+      await mockRuntime.runClient.listRunArtifacts({
+        runId: decodeSegment(runArtifactsMatch[1]!),
+      }),
+    ) as TResponse
+  }
+
+  const runArtifactMatch = path.match(new RegExp(`${projectBasePattern}/runs/([^/]+)/artifacts/([^/]+)$`))
+  if (method === 'GET' && runArtifactMatch) {
+    return cloneFakeApiResponse(
+      await mockRuntime.runClient.getRunArtifact({
+        runId: decodeSegment(runArtifactMatch[1]!),
+        artifactId: decodeSegment(runArtifactMatch[2]!),
+      }),
+    ) as TResponse
+  }
+
+  const runTraceMatch = path.match(new RegExp(`${projectBasePattern}/runs/([^/]+)/trace$`))
+  if (method === 'GET' && runTraceMatch) {
+    return cloneFakeApiResponse(
+      await mockRuntime.runClient.getRunTrace({
+        runId: decodeSegment(runTraceMatch[1]!),
+      }),
+    ) as TResponse
+  }
+
   const runMatch = path.match(new RegExp(`${projectBasePattern}/runs/([^/]+)$`))
   if (method === 'GET' && runMatch) {
     return cloneFakeApiResponse(

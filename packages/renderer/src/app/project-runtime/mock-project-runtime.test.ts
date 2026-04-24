@@ -535,14 +535,14 @@ describe('mock project runtime', () => {
       scopeId: 'scene-midnight-platform',
       status: 'waiting_review',
       pendingReviewId: 'review-scene-midnight-platform-002',
-      latestEventId: 'run-event-scene-midnight-platform-002-005',
-      eventCount: 5,
+      latestEventId: 'run-event-scene-midnight-platform-002-009',
+      eventCount: 9,
     })
     expect(createdEvents.events.map((event) => event.kind)).toEqual([
       'run_created',
       'run_started',
       'context_packet_built',
-      'proposal_created',
+      'agent_invocation_started',
     ])
     expect(createdEvents.events[0]).toMatchObject({
       id: 'run-event-scene-midnight-platform-002-001',
@@ -556,6 +556,52 @@ describe('mock project runtime', () => {
         },
       ],
     })
+    expect(createdEvents.events[3]).toMatchObject({
+      refs: [
+        {
+          kind: 'agent-invocation',
+          id: 'agent-invocation-scene-midnight-platform-run-002-001',
+        },
+      ],
+    })
+
+    const secondPage = await runtime.runClient.getRunEvents({
+      runId: createdRun.id,
+      cursor: createdEvents.nextCursor,
+    })
+    const createdArtifacts = await runtime.runClient.listRunArtifacts({
+      runId: createdRun.id,
+    })
+    const createdProposalSet = await runtime.runClient.getRunArtifact({
+      runId: createdRun.id,
+      artifactId: 'proposal-set-scene-midnight-platform-run-002',
+    })
+    const createdTrace = await runtime.runClient.getRunTrace({
+      runId: createdRun.id,
+    })
+
+    expect(secondPage.events.find((event) => event.kind === 'proposal_created')).toMatchObject({
+      refs: [
+        {
+          kind: 'proposal-set',
+          id: 'proposal-set-scene-midnight-platform-run-002',
+        },
+      ],
+    })
+    expect(createdArtifacts.artifacts.map((artifact) => artifact.kind)).toEqual([
+      'context-packet',
+      'agent-invocation',
+      'agent-invocation',
+      'proposal-set',
+    ])
+    expect(createdProposalSet.artifact).toMatchObject({
+      kind: 'proposal-set',
+      sourceInvocationIds: [
+        'agent-invocation-scene-midnight-platform-run-002-001',
+        'agent-invocation-scene-midnight-platform-run-002-002',
+      ],
+    })
+    expect(createdTrace.summary.missingTraceCount).toBe(0)
   })
 
   it('submitRunReviewDecision updates the run status and appends deterministic events', async () => {
@@ -577,6 +623,14 @@ describe('mock project runtime', () => {
       runId: 'run-scene-midnight-platform-001',
       cursor: finalPage.nextCursor,
     })
+    const canonPatch = await runtime.runClient.getRunArtifact({
+      runId: 'run-scene-midnight-platform-001',
+      artifactId: 'patch-midnight-platform-001',
+    })
+    const proseDraft = await runtime.runClient.getRunArtifact({
+      runId: 'run-scene-midnight-platform-001',
+      artifactId: 'prose-draft-scene-midnight-platform-001',
+    })
 
     expect(completedRun).toMatchObject({
       status: 'completed',
@@ -592,6 +646,114 @@ describe('mock project runtime', () => {
       'prose_generated',
     ])
     expect(completionPage.events.map((event) => event.kind)).toEqual(['run_completed'])
+    expect(canonPatch.artifact).toMatchObject({
+      kind: 'canon-patch',
+      acceptedProposalIds: ['proposal-set-scene-midnight-platform-run-001-proposal-002'],
+    })
+    expect(proseDraft.artifact).toMatchObject({
+      kind: 'prose-draft',
+      sourceProposalIds: ['proposal-set-scene-midnight-platform-run-001-proposal-002'],
+    })
+  })
+
+  it('keeps accepted artifact proposal ids structured when the review note mentions edits', async () => {
+    const runtime = createMockProjectRuntime({ projectId, persistence: createMemoryPersistence() })
+
+    await runtime.runClient.submitRunReviewDecision({
+      runId: 'run-scene-midnight-platform-001',
+      reviewId: 'review-scene-midnight-platform-001',
+      decision: 'accept',
+      note: 'apply with edits later',
+    })
+
+    const canonPatch = await runtime.runClient.getRunArtifact({
+      runId: 'run-scene-midnight-platform-001',
+      artifactId: 'canon-patch-scene-midnight-platform-001',
+    })
+    const proseDraft = await runtime.runClient.getRunArtifact({
+      runId: 'run-scene-midnight-platform-001',
+      artifactId: 'prose-draft-scene-midnight-platform-001',
+    })
+
+    expect(canonPatch.artifact).toMatchObject({
+      kind: 'canon-patch',
+      decision: 'accept',
+      acceptedProposalIds: ['proposal-set-scene-midnight-platform-run-001-proposal-001'],
+    })
+    expect(proseDraft.artifact).toMatchObject({
+      kind: 'prose-draft',
+      sourceProposalIds: ['proposal-set-scene-midnight-platform-run-001-proposal-001'],
+    })
+  })
+
+  it('exposes run artifacts and trace through the mock runtime before and after review acceptance', async () => {
+    const runtime = createMockProjectRuntime({ projectId, persistence: createMemoryPersistence() })
+
+    const preReviewArtifacts = await runtime.runClient.listRunArtifacts({
+      runId: 'run-scene-midnight-platform-001',
+    })
+    const contextPacket = await runtime.runClient.getRunArtifact({
+      runId: 'run-scene-midnight-platform-001',
+      artifactId: 'ctx-scene-midnight-platform-run-001',
+    })
+    const preReviewTrace = await runtime.runClient.getRunTrace({
+      runId: 'run-scene-midnight-platform-001',
+    })
+
+    expect(preReviewArtifacts.artifacts.map((artifact) => artifact.kind)).toEqual([
+      'context-packet',
+      'agent-invocation',
+      'agent-invocation',
+      'proposal-set',
+    ])
+    expect(contextPacket.artifact).toMatchObject({
+      id: 'ctx-scene-midnight-platform-run-001',
+      kind: 'context-packet',
+      sceneId: 'scene-midnight-platform',
+    })
+    expect(preReviewTrace.summary).toMatchObject({
+      proposalSetCount: 1,
+      canonPatchCount: 0,
+      proseDraftCount: 0,
+      missingTraceCount: 0,
+    })
+
+    await runtime.runClient.submitRunReviewDecision({
+      runId: 'run-scene-midnight-platform-001',
+      reviewId: 'review-scene-midnight-platform-001',
+      decision: 'accept',
+    })
+
+    const acceptedArtifacts = await runtime.runClient.listRunArtifacts({
+      runId: 'run-scene-midnight-platform-001',
+    })
+    const canonPatch = await runtime.runClient.getRunArtifact({
+      runId: 'run-scene-midnight-platform-001',
+      artifactId: 'canon-patch-scene-midnight-platform-001',
+    })
+    const acceptedTrace = await runtime.runClient.getRunTrace({
+      runId: 'run-scene-midnight-platform-001',
+    })
+
+    expect(acceptedArtifacts.artifacts.map((artifact) => artifact.kind)).toEqual([
+      'context-packet',
+      'agent-invocation',
+      'agent-invocation',
+      'proposal-set',
+      'canon-patch',
+      'prose-draft',
+    ])
+    expect(canonPatch.artifact).toMatchObject({
+      id: 'canon-patch-scene-midnight-platform-001',
+      kind: 'canon-patch',
+      sourceProposalSetId: 'proposal-set-scene-midnight-platform-run-001',
+    })
+    expect(acceptedTrace.summary).toMatchObject({
+      proposalSetCount: 1,
+      canonPatchCount: 1,
+      proseDraftCount: 1,
+      missingTraceCount: 0,
+    })
   })
 
   it('returns a not-found style error when submitting a review decision for a missing run', async () => {
@@ -698,22 +860,23 @@ describe('mock project runtime', () => {
     })
     const reloadedEvents = await reloadedRuntime.runClient.getRunEvents({
       runId: createdRun.id,
-      cursor: 'run-event-scene-midnight-platform-002-005',
+      cursor: 'run-event-scene-midnight-platform-002-008',
     })
 
     expect(reloadedRun).toMatchObject({
       id: 'run-scene-midnight-platform-002',
       status: 'completed',
       pendingReviewId: undefined,
-      latestEventId: 'run-event-scene-midnight-platform-002-009',
-      eventCount: 9,
+      latestEventId: 'run-event-scene-midnight-platform-002-013',
+      eventCount: 13,
     })
     expect(reloadedEvents.events.map((event) => event.kind)).toEqual([
+      'review_requested',
       'review_decision_submitted',
       'canon_patch_applied',
       'prose_generated',
-      'run_completed',
     ])
+    expect(reloadedEvents.nextCursor).toBe('run-event-scene-midnight-platform-002-012')
   })
 
   it('resetMockRunDb prevents run state pollution between mock runtimes', async () => {

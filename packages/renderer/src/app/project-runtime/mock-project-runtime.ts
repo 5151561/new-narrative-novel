@@ -340,6 +340,18 @@ export function createMockProjectRuntime({
       async submitRunReviewDecision(input) {
         return persistAfterMutation(() => baseRunClient.submitRunReviewDecision(input))
       },
+      async listRunArtifacts(input) {
+        await ensureHydrated()
+        return baseRunClient.listRunArtifacts(input)
+      },
+      async getRunArtifact(input) {
+        await ensureHydrated()
+        return baseRunClient.getRunArtifact(input)
+      },
+      async getRunTrace(input) {
+        await ensureHydrated()
+        return baseRunClient.getRunTrace(input)
+      },
     },
     runtimeInfoClient: {
       async getProjectRuntimeInfo() {

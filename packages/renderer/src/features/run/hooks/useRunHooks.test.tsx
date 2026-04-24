@@ -67,6 +67,19 @@ function createRuntimeWithRunClient(runClient: RunClient, projectId = 'book-sign
   }
 }
 
+function createRunClientStub(overrides: Partial<RunClient> = {}): RunClient {
+  return {
+    startSceneRun: vi.fn(),
+    getRun: vi.fn(),
+    getRunEvents: vi.fn(),
+    submitRunReviewDecision: vi.fn(),
+    listRunArtifacts: vi.fn(),
+    getRunArtifact: vi.fn(),
+    getRunTrace: vi.fn(),
+    ...overrides,
+  }
+}
+
 function createQueryClientWrapper(queryClient: QueryClient) {
   return function QueryClientWrapper({ children }: PropsWithChildren) {
     return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -76,12 +89,9 @@ function createQueryClientWrapper(queryClient: QueryClient) {
 describe('run hooks', () => {
   it('useRunQuery reads run detail through runtime.runClient', async () => {
     const queryClient = createQueryClient()
-    const runClient: RunClient = {
-      startSceneRun: vi.fn(),
+    const runClient = createRunClientStub({
       getRun: vi.fn(async () => createRunRecord({ id: 'run-scene-midnight-platform-001' })),
-      getRunEvents: vi.fn(),
-      submitRunReviewDecision: vi.fn(),
-    }
+    })
 
     const hook = renderHook(() => useRunQuery('run-scene-midnight-platform-001'), {
       wrapper: createProjectRuntimeTestWrapper({
@@ -135,12 +145,9 @@ describe('run hooks', () => {
   it('useRunEventsQuery preserves cursored pages without merging them', async () => {
     const queryClient = createQueryClient()
     const page = createRunEventsPage()
-    const runClient: RunClient = {
-      startSceneRun: vi.fn(),
-      getRun: vi.fn(),
+    const runClient = createRunClientStub({
       getRunEvents: vi.fn(async () => page),
-      submitRunReviewDecision: vi.fn(),
-    }
+    })
 
     const hook = renderHook(
       () =>
@@ -179,12 +186,10 @@ describe('run hooks', () => {
       runId: startedRun.id,
       nextCursor: undefined,
     })
-    const runClient: RunClient = {
+    const runClient = createRunClientStub({
       startSceneRun: vi.fn(async (_input: StartSceneRunInput) => startedRun),
-      getRun: vi.fn(),
       getRunEvents: vi.fn(async () => firstEventsPage),
-      submitRunReviewDecision: vi.fn(),
-    }
+    })
     const replaceStateSpy = vi.spyOn(window.history, 'replaceState')
     const pushStateSpy = vi.spyOn(window.history, 'pushState')
 
@@ -224,14 +229,11 @@ describe('run hooks', () => {
       message: 'Run already waiting for review',
       code: 'run-conflict',
     })
-    const runClient: RunClient = {
+    const runClient = createRunClientStub({
       startSceneRun: vi.fn(async () => {
         throw error
       }),
-      getRun: vi.fn(),
-      getRunEvents: vi.fn(),
-      submitRunReviewDecision: vi.fn(),
-    }
+    })
 
     const hook = renderHook(
       () =>
@@ -293,7 +295,7 @@ describe('run hooks', () => {
     expect(queryClient.getQueryData(runQueryKeys.detail('project-two', sharedRunId))).toEqual(projectTwoRun)
   })
 
-  it('useSubmitRunReviewDecisionMutation updates run detail, invalidates run events, and avoids route writes', async () => {
+  it('useSubmitRunReviewDecisionMutation updates run detail, invalidates run events/artifacts/trace, and avoids route writes', async () => {
     const queryClient = createQueryClient()
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
     const previousRun = createRunRecord({
@@ -316,12 +318,9 @@ describe('run hooks', () => {
       createRunEventsPage({ runId: previousRun.id }),
     )
 
-    const runClient: RunClient = {
-      startSceneRun: vi.fn(),
-      getRun: vi.fn(),
-      getRunEvents: vi.fn(),
+    const runClient = createRunClientStub({
       submitRunReviewDecision: vi.fn(async (_input: SubmitRunReviewDecisionInput) => completedRun),
-    }
+    })
     const replaceStateSpy = vi.spyOn(window.history, 'replaceState')
     const pushStateSpy = vi.spyOn(window.history, 'pushState')
 
@@ -346,6 +345,14 @@ describe('run hooks', () => {
       queryKey: runQueryKeys.events('book-signal-arc', previousRun.id),
       refetchType: 'active',
     })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: runQueryKeys.artifacts('book-signal-arc', previousRun.id),
+      refetchType: 'active',
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: runQueryKeys.trace('book-signal-arc', previousRun.id),
+      refetchType: 'active',
+    })
     expect(replaceStateSpy).not.toHaveBeenCalled()
     expect(pushStateSpy).not.toHaveBeenCalled()
   })
@@ -359,10 +366,7 @@ describe('run hooks', () => {
     })
     queryClient.setQueryData(runQueryKeys.detail('book-signal-arc', previousRun.id), previousRun)
 
-    const runClient: RunClient = {
-      startSceneRun: vi.fn(),
-      getRun: vi.fn(),
-      getRunEvents: vi.fn(),
+    const runClient = createRunClientStub({
       submitRunReviewDecision: vi.fn(async () => {
         throw new ApiRequestError({
           status: 409,
@@ -370,7 +374,7 @@ describe('run hooks', () => {
           code: 'run-review-conflict',
         })
       }),
-    }
+    })
 
     const hook = renderHook(() => useSubmitRunReviewDecisionMutation(), {
       wrapper: createProjectRuntimeTestWrapper({

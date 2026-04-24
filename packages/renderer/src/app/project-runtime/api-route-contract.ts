@@ -212,6 +212,15 @@ export const apiRouteContract = {
   runEvents({ projectId, runId }: { projectId: string; runId: string }) {
     return `${runBase(projectId, runId)}/events`
   },
+  runArtifacts({ projectId, runId }: { projectId: string; runId: string }) {
+    return `${runBase(projectId, runId)}/artifacts`
+  },
+  runArtifact({ projectId, runId, artifactId }: { projectId: string; runId: string; artifactId: string }) {
+    return `${runBase(projectId, runId)}/artifacts/${segment(artifactId)}`
+  },
+  runTrace({ projectId, runId }: { projectId: string; runId: string }) {
+    return `${runBase(projectId, runId)}/trace`
+  },
   runEventsStream({ projectId, runId }: { projectId: string; runId: string }) {
     return `${runBase(projectId, runId)}/events/stream`
   },

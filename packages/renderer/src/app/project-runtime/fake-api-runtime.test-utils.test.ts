@@ -7,8 +7,10 @@ import type { ChapterStructureWorkspaceRecord } from '@/features/chapter/api/cha
 import type { ReviewClient } from '@/features/review/api/review-client'
 import type { ReviewIssueDecisionRecord } from '@/features/review/api/review-decision-records'
 import type { ReviewIssueFixActionRecord, SetReviewIssueFixActionInput } from '@/features/review/api/review-fix-action-records'
+import type { RunArtifactDetailResponse, RunArtifactListResponse } from '@/features/run/api/run-artifact-records'
 import type { RunClient } from '@/features/run/api/run-client'
 import type { RunEventsPageRecord, RunRecord, StartSceneRunInput, SubmitRunReviewDecisionInput } from '@/features/run/api/run-records'
+import type { RunTraceResponse } from '@/features/run/api/run-trace-records'
 
 import { ApiRequestError } from './api-transport'
 import { createFakeApiRuntime } from './fake-api-runtime.test-utils'
@@ -638,10 +640,58 @@ describe('createFakeApiRuntime override matching', () => {
       eventCount: 9,
       summary: 'Accepted and applied.',
     })
+    const artifactsResponse: RunArtifactListResponse = {
+      runId: startedRun.id,
+      artifacts: [
+        {
+          id: 'ctx-scene-midnight-platform-run-002',
+          runId: startedRun.id,
+          kind: 'context-packet',
+          title: { en: 'Scene context packet', 'zh-CN': 'Scene context packet' },
+          summary: { en: 'Packed context.', 'zh-CN': 'Packed context.' },
+          statusLabel: { en: 'Built', 'zh-CN': 'Built' },
+          createdAtLabel: { en: '2026-04-21 10:03', 'zh-CN': '2026-04-21 10:03' },
+          sourceEventIds: ['run-event-scene-midnight-platform-002-003'],
+        },
+      ],
+    }
+    const artifactResponse: RunArtifactDetailResponse = {
+      artifact: {
+        ...artifactsResponse.artifacts[0]!,
+        kind: 'context-packet',
+        sceneId: 'scene-midnight-platform',
+        sections: [],
+        includedCanonFacts: [],
+        includedAssets: [],
+        excludedPrivateFacts: [],
+        outputSchemaLabel: { en: 'Schema', 'zh-CN': 'Schema' },
+        tokenBudgetLabel: { en: '1500 tokens', 'zh-CN': '1500 tokens' },
+      },
+    }
+    const traceResponse: RunTraceResponse = {
+      runId: startedRun.id,
+      nodes: [
+        {
+          id: 'ctx-scene-midnight-platform-run-002',
+          kind: 'context-packet',
+          label: { en: 'Scene context packet', 'zh-CN': 'Scene context packet' },
+        },
+      ],
+      links: [],
+      summary: {
+        proposalSetCount: 0,
+        canonPatchCount: 0,
+        proseDraftCount: 0,
+        missingTraceCount: 0,
+      },
+    }
     const startSceneRun = vi.fn(async (_input: StartSceneRunInput) => startedRun)
     const getRun = vi.fn(async (_input: { runId: string }) => startedRun)
     const getRunEvents = vi.fn(async (_input: { runId: string; cursor?: string }) => runEventsPage)
     const submitRunReviewDecision = vi.fn(async (_input: SubmitRunReviewDecisionInput) => completedRun)
+    const listRunArtifacts = vi.fn(async (_input: { runId: string }) => artifactsResponse)
+    const getRunArtifact = vi.fn(async (_input: { runId: string; artifactId: string }) => artifactResponse)
+    const getRunTrace = vi.fn(async (_input: { runId: string }) => traceResponse)
     const pushStateSpy = vi.spyOn(window.history, 'pushState')
     const replaceStateSpy = vi.spyOn(window.history, 'replaceState')
     const initialHref = window.location.href
@@ -651,6 +701,9 @@ describe('createFakeApiRuntime override matching', () => {
       getRun,
       getRunEvents,
       submitRunReviewDecision,
+      listRunArtifacts,
+      getRunArtifact,
+      getRunTrace,
     }
 
     const { requests, runtime } = createFakeApiRuntime({
@@ -690,6 +743,14 @@ describe('createFakeApiRuntime override matching', () => {
         note: 'Ship it.',
       }),
     ).resolves.toEqual(completedRun)
+    await expect(runtime.runClient.listRunArtifacts({ runId: startedRun.id })).resolves.toEqual(artifactsResponse)
+    await expect(
+      runtime.runClient.getRunArtifact({
+        runId: startedRun.id,
+        artifactId: 'ctx-scene-midnight-platform-run-002',
+      }),
+    ).resolves.toEqual(artifactResponse)
+    await expect(runtime.runClient.getRunTrace({ runId: startedRun.id })).resolves.toEqual(traceResponse)
 
     expect(startSceneRun).toHaveBeenCalledWith({
       sceneId: 'scene-midnight-platform',
@@ -708,6 +769,16 @@ describe('createFakeApiRuntime override matching', () => {
       reviewId: startedRun.pendingReviewId,
       decision: 'accept',
       note: 'Ship it.',
+    })
+    expect(listRunArtifacts).toHaveBeenCalledWith({
+      runId: startedRun.id,
+    })
+    expect(getRunArtifact).toHaveBeenCalledWith({
+      runId: startedRun.id,
+      artifactId: 'ctx-scene-midnight-platform-run-002',
+    })
+    expect(getRunTrace).toHaveBeenCalledWith({
+      runId: startedRun.id,
     })
     expectRecordedRequest(requests, {
       method: 'POST',
@@ -736,6 +807,18 @@ describe('createFakeApiRuntime override matching', () => {
         decision: 'accept',
         note: 'Ship it.',
       },
+    })
+    expectRecordedRequest(requests, {
+      method: 'GET',
+      path: '/api/projects/project-1/runs/run-scene-midnight-platform-002/artifacts',
+    })
+    expectRecordedRequest(requests, {
+      method: 'GET',
+      path: '/api/projects/project-1/runs/run-scene-midnight-platform-002/artifacts/ctx-scene-midnight-platform-run-002',
+    })
+    expectRecordedRequest(requests, {
+      method: 'GET',
+      path: '/api/projects/project-1/runs/run-scene-midnight-platform-002/trace',
     })
     expect(window.location.href).toBe(initialHref)
     expect(pushStateSpy).not.toHaveBeenCalled()

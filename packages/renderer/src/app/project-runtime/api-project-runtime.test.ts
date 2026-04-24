@@ -4,7 +4,9 @@ import type { BuildBookExportArtifactInput } from '@/features/book/api/book-expo
 import type { ChapterStructureWorkspaceRecord } from '@/features/chapter/api/chapter-records'
 import type { ReviewIssueDecisionRecord } from '@/features/review/api/review-decision-records'
 import type { ReviewIssueFixActionRecord } from '@/features/review/api/review-fix-action-records'
+import type { RunArtifactDetailResponse, RunArtifactListResponse } from '@/features/run/api/run-artifact-records'
 import type { RunEventsPageRecord, RunRecord } from '@/features/run/api/run-records'
+import type { RunTraceResponse } from '@/features/run/api/run-trace-records'
 import { sceneRuntimeCapabilities, type SceneRuntimeInfo } from '@/features/scene/api/scene-runtime'
 import type { SceneExecutionViewModel, ScenePatchPreviewViewModel } from '@/features/scene/types/scene-view-models'
 import type { ProjectRuntimeInfoRecord } from './project-runtime-info'
@@ -451,6 +453,69 @@ describe('api project runtime', () => {
         } satisfies RunRecord
       }
 
+      if (method === 'GET' && path === '/api/projects/project-1/runs/run-scene-midnight-platform-002/artifacts') {
+        return {
+          runId: 'run-scene-midnight-platform-002',
+          artifacts: [
+            {
+              id: 'ctx-scene-midnight-platform-run-002',
+              runId: 'run-scene-midnight-platform-002',
+              kind: 'context-packet',
+              title: { en: 'Scene context packet', 'zh-CN': 'Scene context packet' },
+              summary: { en: 'Packed context.', 'zh-CN': 'Packed context.' },
+              statusLabel: { en: 'Built', 'zh-CN': 'Built' },
+              createdAtLabel: { en: '2026-04-21 10:03', 'zh-CN': '2026-04-21 10:03' },
+              sourceEventIds: ['run-event-scene-midnight-platform-002-003'],
+            },
+          ],
+        } satisfies RunArtifactListResponse
+      }
+
+      if (
+        method === 'GET'
+        && path === '/api/projects/project-1/runs/run-scene-midnight-platform-002/artifacts/ctx-scene-midnight-platform-run-002'
+      ) {
+        return {
+          artifact: {
+            id: 'ctx-scene-midnight-platform-run-002',
+            runId: 'run-scene-midnight-platform-002',
+            kind: 'context-packet',
+            title: { en: 'Scene context packet', 'zh-CN': 'Scene context packet' },
+            summary: { en: 'Packed context.', 'zh-CN': 'Packed context.' },
+            statusLabel: { en: 'Built', 'zh-CN': 'Built' },
+            createdAtLabel: { en: '2026-04-21 10:03', 'zh-CN': '2026-04-21 10:03' },
+            sourceEventIds: ['run-event-scene-midnight-platform-002-003'],
+            sceneId: 'scene-midnight-platform',
+            sections: [],
+            includedCanonFacts: [],
+            includedAssets: [],
+            excludedPrivateFacts: [],
+            outputSchemaLabel: { en: 'Schema', 'zh-CN': 'Schema' },
+            tokenBudgetLabel: { en: '1500 tokens', 'zh-CN': '1500 tokens' },
+          },
+        } satisfies RunArtifactDetailResponse
+      }
+
+      if (method === 'GET' && path === '/api/projects/project-1/runs/run-scene-midnight-platform-002/trace') {
+        return {
+          runId: 'run-scene-midnight-platform-002',
+          nodes: [
+            {
+              id: 'ctx-scene-midnight-platform-run-002',
+              kind: 'context-packet',
+              label: { en: 'Scene context packet', 'zh-CN': 'Scene context packet' },
+            },
+          ],
+          links: [],
+          summary: {
+            proposalSetCount: 0,
+            canonPatchCount: 0,
+            proseDraftCount: 0,
+            missingTraceCount: 0,
+          },
+        } satisfies RunTraceResponse
+      }
+
       return null
     })
     const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })
@@ -487,6 +552,35 @@ describe('api project runtime', () => {
     ).resolves.toMatchObject<Partial<RunRecord>>({
       status: 'completed',
     })
+    await expect(runtime.runClient.listRunArtifacts({ runId: 'run-scene-midnight-platform-002' })).resolves.toMatchObject({
+      runId: 'run-scene-midnight-platform-002',
+      artifacts: [
+        expect.objectContaining({
+          id: 'ctx-scene-midnight-platform-run-002',
+          kind: 'context-packet',
+        }),
+      ],
+    })
+    await expect(
+      runtime.runClient.getRunArtifact({
+        runId: 'run-scene-midnight-platform-002',
+        artifactId: 'ctx-scene-midnight-platform-run-002',
+      }),
+    ).resolves.toMatchObject({
+      artifact: {
+        id: 'ctx-scene-midnight-platform-run-002',
+        kind: 'context-packet',
+      },
+    })
+    await expect(runtime.runClient.getRunTrace({ runId: 'run-scene-midnight-platform-002' })).resolves.toMatchObject({
+      runId: 'run-scene-midnight-platform-002',
+      nodes: [
+        expect.objectContaining({
+          id: 'ctx-scene-midnight-platform-run-002',
+          kind: 'context-packet',
+        }),
+      ],
+    })
 
     expect(transport).toHaveBeenNthCalledWith(1, {
       method: 'POST',
@@ -516,6 +610,18 @@ describe('api project runtime', () => {
         note: 'Accept this draft.',
         patchId: 'patch-1',
       },
+    })
+    expect(transport).toHaveBeenNthCalledWith(5, {
+      method: 'GET',
+      path: '/api/projects/project-1/runs/run-scene-midnight-platform-002/artifacts',
+    })
+    expect(transport).toHaveBeenNthCalledWith(6, {
+      method: 'GET',
+      path: '/api/projects/project-1/runs/run-scene-midnight-platform-002/artifacts/ctx-scene-midnight-platform-run-002',
+    })
+    expect(transport).toHaveBeenNthCalledWith(7, {
+      method: 'GET',
+      path: '/api/projects/project-1/runs/run-scene-midnight-platform-002/trace',
     })
   })
 
@@ -554,5 +660,51 @@ describe('api project runtime', () => {
         decision: 'accept',
       }),
     ).rejects.toBe(requestError)
+  })
+
+  it('does not swallow run artifact and trace read failures', async () => {
+    const artifactsError = new ApiRequestError({
+      status: 500,
+      message: 'Artifacts unavailable',
+      code: 'run-artifacts-unavailable',
+    })
+    const artifactError = new ApiRequestError({
+      status: 404,
+      message: 'Run artifact missing',
+      code: 'run-artifact-not-found',
+    })
+    const traceError = new ApiRequestError({
+      status: 500,
+      message: 'Trace unavailable',
+      code: 'run-trace-unavailable',
+    })
+    const transport = vi.fn(async ({ method, path }: { method: string; path: string }) => {
+      if (method === 'GET' && path === '/api/projects/project-1/runs/run-scene-midnight-platform-002/artifacts') {
+        throw artifactsError
+      }
+
+      if (
+        method === 'GET'
+        && path === '/api/projects/project-1/runs/run-scene-midnight-platform-002/artifacts/artifact-missing'
+      ) {
+        throw artifactError
+      }
+
+      if (method === 'GET' && path === '/api/projects/project-1/runs/run-scene-midnight-platform-002/trace') {
+        throw traceError
+      }
+
+      return null
+    })
+    const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })
+
+    await expect(runtime.runClient.listRunArtifacts({ runId: 'run-scene-midnight-platform-002' })).rejects.toBe(artifactsError)
+    await expect(
+      runtime.runClient.getRunArtifact({
+        runId: 'run-scene-midnight-platform-002',
+        artifactId: 'artifact-missing',
+      }),
+    ).rejects.toBe(artifactError)
+    await expect(runtime.runClient.getRunTrace({ runId: 'run-scene-midnight-platform-002' })).rejects.toBe(traceError)
   })
 })
