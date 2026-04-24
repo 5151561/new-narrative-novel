@@ -1,0 +1,72 @@
+import type { Meta, StoryObj } from '@storybook/react'
+
+import {
+  getMockRunArtifact,
+  resetMockRunDb,
+  submitMockRunReviewDecision,
+} from '@/features/run/api/mock-run-db'
+
+import { RunArtifactInspectorPanel } from './RunArtifactInspectorPanel'
+
+const runId = 'run-scene-midnight-platform-001'
+const reviewId = 'review-scene-midnight-platform-001'
+const contextPacketId = 'ctx-scene-midnight-platform-run-001'
+const proposalSetId = 'proposal-set-scene-midnight-platform-run-001'
+const canonPatchId = 'canon-patch-scene-midnight-platform-001'
+const proseDraftId = 'prose-draft-scene-midnight-platform-001'
+
+resetMockRunDb()
+const contextPacket = getMockRunArtifact({ runId, artifactId: contextPacketId }).artifact
+const proposalSet = getMockRunArtifact({ runId, artifactId: proposalSetId }).artifact
+submitMockRunReviewDecision({ runId, reviewId, decision: 'accept' })
+const canonPatch = getMockRunArtifact({ runId, artifactId: canonPatchId }).artifact
+const proseDraft = getMockRunArtifact({ runId, artifactId: proseDraftId }).artifact
+
+const meta = {
+  title: 'Business/Run/Artifact Inspector',
+  component: RunArtifactInspectorPanel,
+  parameters: {
+    layout: 'fullscreen',
+  },
+  render: (args) => (
+    <div className="min-h-[720px] bg-app p-6">
+      <RunArtifactInspectorPanel {...args} />
+    </div>
+  ),
+  args: {
+    artifact: contextPacket,
+    isLoading: false,
+    error: null,
+  },
+} satisfies Meta<typeof RunArtifactInspectorPanel>
+
+export default meta
+
+type Story = StoryObj<typeof meta>
+
+export const ContextPacket: Story = {}
+
+export const ProposalSet: Story = {
+  args: {
+    artifact: proposalSet,
+  },
+}
+
+export const CanonPatch: Story = {
+  args: {
+    artifact: canonPatch,
+  },
+}
+
+export const ProseDraft: Story = {
+  args: {
+    artifact: proseDraft,
+  },
+}
+
+export const ErrorArtifactNotFound: Story = {
+  args: {
+    artifact: null,
+    error: new Error('Run artifact missing-artifact was not found.'),
+  },
+}

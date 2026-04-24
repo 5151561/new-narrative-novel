@@ -1,4 +1,6 @@
+import userEvent from '@testing-library/user-event'
 import { render, screen } from '@testing-library/react'
+import { vi } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
 
@@ -84,5 +86,21 @@ describe('RunEventStreamPanel', () => {
 
     expect(screen.getByText('No run events yet')).toBeInTheDocument()
     expect(screen.getByText('Structured run events will appear here once the active run records product-level milestones.')).toBeInTheDocument()
+  })
+
+  it('forwards selectedArtifactId and onSelectArtifact to clickable ref chips', async () => {
+    const user = userEvent.setup()
+    const onSelectArtifact = vi.fn()
+    renderPanel({
+      selectedArtifactId: 'ctx-scene-midnight-platform-001',
+      onSelectArtifact,
+    })
+
+    const contextRef = screen.getByRole('button', { name: 'Open context-packet' })
+    expect(contextRef).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(screen.getByRole('button', { name: 'Open proposal-set' }))
+
+    expect(onSelectArtifact).toHaveBeenCalledWith('proposal-set-scene-midnight-platform-001')
   })
 })

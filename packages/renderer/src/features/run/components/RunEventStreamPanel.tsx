@@ -6,10 +6,14 @@ import { TimelineList, type TimelineItem } from '@/components/ui/TimelineList'
 
 import type { RunEventRecord } from '../api/run-records'
 
+import { RunArtifactRefList } from './RunArtifactRefList'
+
 interface RunEventStreamPanelProps {
   events: RunEventRecord[]
   isLoading: boolean
   error: Error | null
+  selectedArtifactId?: string | null
+  onSelectArtifact?: (artifactId: string) => void
 }
 
 const severityTone = {
@@ -31,17 +35,19 @@ const severityLabels: Record<Locale, Record<keyof typeof severityTone, string>> 
   },
 }
 
-function formatRefLabel(ref: NonNullable<RunEventRecord['refs']>[number]) {
-  return ref.kind
-}
-
 function getErrorMessage(locale: Locale) {
   return locale === 'zh-CN'
     ? '当前运行时间线暂时不可用。'
     : 'The active run timeline is temporarily unavailable.'
 }
 
-export function RunEventStreamPanel({ events, isLoading, error }: RunEventStreamPanelProps) {
+export function RunEventStreamPanel({
+  events,
+  isLoading,
+  error,
+  selectedArtifactId,
+  onSelectArtifact,
+}: RunEventStreamPanelProps) {
   const { locale } = useI18n()
 
   const items: TimelineItem[] = events.map((event) => {
@@ -55,13 +61,9 @@ export function RunEventStreamPanel({ events, isLoading, error }: RunEventStream
       tone: severityTone[severity],
       trailing:
         event.refs?.length || severity ? (
-          <div className="flex max-w-[180px] flex-wrap justify-end gap-1">
+          <div className="flex max-w-[260px] flex-wrap justify-end gap-1">
             <Badge tone={severityTone[severity]}>{severityLabels[locale][severity]}</Badge>
-            {event.refs?.map((ref) => (
-              <Badge key={`${event.id}-${ref.kind}-${ref.id}`} title={ref.label ?? ref.id}>
-                {formatRefLabel(ref)}
-              </Badge>
-            ))}
+            <RunArtifactRefList refs={event.refs} selectedArtifactId={selectedArtifactId} onSelectArtifact={onSelectArtifact} />
           </div>
         ) : null,
     }
