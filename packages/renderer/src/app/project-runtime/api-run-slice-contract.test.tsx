@@ -103,7 +103,7 @@ describe('api run-slice contract', () => {
 
     expect(eventsHook.result.current.page).toMatchObject({
       runId: startedRunId,
-      nextCursor: undefined,
+      nextCursor: 'run-event-scene-midnight-platform-002-008',
     })
     expect(requests).toContainEqual({
       method: 'GET',

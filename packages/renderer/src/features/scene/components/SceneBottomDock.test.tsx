@@ -1,6 +1,7 @@
 import { createElement } from 'react'
 
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
 import { SceneBottomDock } from './SceneBottomDock'
 import type { SceneDockViewModel } from '../types/scene-view-models'
@@ -62,6 +63,17 @@ const activeRunEvents: RunEventRecord[] = [
     refs: [{ kind: 'agent-invocation', id: 'agent-invocation-scene-midnight-platform-run-002-001' }],
   },
   {
+    id: 'run-event-scene-midnight-platform-002-005',
+    runId: activeRun.id,
+    order: 5,
+    kind: 'agent_invocation_completed',
+    label: 'Planner invocation completed',
+    summary: 'Planning agent returned proposal candidates.',
+    createdAtLabel: '2026-04-23 10:05',
+    severity: 'info',
+    refs: [{ kind: 'agent-invocation', id: 'agent-invocation-scene-midnight-platform-run-002-001' }],
+  },
+  {
     id: 'run-event-scene-midnight-platform-002-007',
     runId: activeRun.id,
     order: 7,
@@ -92,7 +104,10 @@ describe('SceneBottomDock', () => {
     expect(screen.getByText('Events / Trace / Consistency / Problems / Cost')).toBeInTheDocument()
   })
 
-  it('surfaces active run support in the events area without turning the dock into a raw debugger', () => {
+  it('surfaces active run support in the events area without turning the dock into a raw debugger', async () => {
+    const user = userEvent.setup()
+    const onSelectArtifact = vi.fn()
+
     render(
       createElement(SceneBottomDock as unknown as typeof SceneBottomDock, {
         data: dockData,
@@ -108,6 +123,7 @@ describe('SceneBottomDock', () => {
           selectedArtifactId: null,
           selectedArtifact: null,
           trace: null,
+          onSelectArtifact,
         },
       }),
     )
@@ -118,10 +134,14 @@ describe('SceneBottomDock', () => {
     expect(screen.getByText('Run Timeline')).toBeInTheDocument()
     expect(screen.getByText('Run Inspector')).toBeInTheDocument()
     expect(screen.getByText('Context packet built')).toBeInTheDocument()
+    expect(screen.getByText('Planner invocation completed')).toBeInTheDocument()
     expect(screen.getByText('Review requested')).toBeInTheDocument()
     expect(screen.queryByText('Planner invocation started')).not.toBeInTheDocument()
     expect(screen.queryByText('run-scene-midnight-platform-002')).not.toBeInTheDocument()
     expect(screen.queryByText('review-scene-midnight-platform-002')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Open agent-invocation' }))
+    expect(onSelectArtifact).toHaveBeenCalledWith('agent-invocation-scene-midnight-platform-run-002-001')
   })
 
   it('does not let artifact list errors mask selected artifact detail', () => {

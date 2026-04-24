@@ -123,6 +123,7 @@ interface SceneBottomDockRunSupport {
 
 const dockProductMilestoneKinds = new Set<RunEventRecord['kind']>([
   'context_packet_built',
+  'agent_invocation_completed',
   'proposal_created',
   'review_requested',
   'review_decision_submitted',
