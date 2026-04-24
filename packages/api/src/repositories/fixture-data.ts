@@ -639,7 +639,7 @@ function createAssetWorkspace(): Record<string, AssetKnowledgeWorkspaceRecord> {
         assetId: asset.id,
         assets,
         viewsMeta: {
-          availableViews: ['profile', 'mentions', 'relations'],
+          availableViews: ['profile', 'mentions', 'relations', 'context'],
         },
       },
     ]),

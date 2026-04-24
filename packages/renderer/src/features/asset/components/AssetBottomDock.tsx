@@ -42,6 +42,21 @@ export function AssetBottomDock({ summary, activity }: AssetBottomDockProps) {
                   label: locale === 'zh-CN' ? '缺失字段' : 'Missing fields',
                   value: `${summary.missingFieldCount}`,
                 },
+                {
+                  id: 'context-policy-status',
+                  label: locale === 'zh-CN' ? '上下文策略' : 'Context policy',
+                  value: summary.contextPolicy.statusLabel,
+                },
+                {
+                  id: 'context-policy-rules',
+                  label: locale === 'zh-CN' ? '策略规则' : 'Policy rules',
+                  value: `${summary.contextPolicy.activationRuleCount}`,
+                },
+                {
+                  id: 'context-policy-warnings',
+                  label: locale === 'zh-CN' ? '策略警告' : 'Policy warnings',
+                  value: `${summary.contextPolicy.warningCount}`,
+                },
                 ...(traceabilityReady
                   ? [
                       {

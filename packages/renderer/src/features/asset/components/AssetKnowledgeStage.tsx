@@ -6,10 +6,12 @@ import type {
 } from '@/features/workbench/types/workbench-route'
 
 import type {
+  AssetContextPolicyViewModel,
   AssetMentionViewModel,
   AssetProfileViewModel,
   AssetRelationViewModel,
 } from '../types/asset-view-models'
+import { AssetContextPolicyView } from './AssetContextPolicyView'
 import { AssetMentionsView } from './AssetMentionsView'
 import { AssetProfileView } from './AssetProfileView'
 import { AssetRelationsView } from './AssetRelationsView'
@@ -22,6 +24,7 @@ interface AssetKnowledgeStageProps {
   profile: AssetProfileViewModel
   mentions: AssetMentionViewModel[]
   relations: AssetRelationViewModel[]
+  contextPolicy: AssetContextPolicyViewModel
   onViewChange: (view: AssetKnowledgeView) => void
   onOpenScene: (sceneId: string, lens: Extract<SceneLens, 'draft' | 'orchestrate'>) => void
   onOpenChapter: (chapterId: string, lens: Extract<ChapterLens, 'structure' | 'draft'>) => void
@@ -36,6 +39,7 @@ export function AssetKnowledgeStage({
   profile,
   mentions,
   relations,
+  contextPolicy,
   onViewChange,
   onOpenScene,
   onOpenChapter,
@@ -76,6 +80,7 @@ export function AssetKnowledgeStage({
         {activeView === 'relations' ? (
           <AssetRelationsView relations={relations} onSelectAsset={onSelectAsset} />
         ) : null}
+        {activeView === 'context' ? <AssetContextPolicyView policy={contextPolicy} /> : null}
       </div>
     </div>
   )

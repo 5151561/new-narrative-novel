@@ -94,6 +94,22 @@ export const RuleRelations: Story = {
   },
 }
 
+export const ContextPolicy: Story = {
+  parameters: {
+    assetStory: {
+      search: getAssetStorySearch('character', 'context'),
+    },
+  },
+}
+
+export const MissingPolicy: Story = {
+  parameters: {
+    assetStory: {
+      search: getAssetStorySearch('missing-policy', 'context'),
+    },
+  },
+}
+
 export const AssetNotFound: Story = {
   parameters: {
     assetStory: {

@@ -59,10 +59,10 @@ describe('fixture API server read surfaces', () => {
       expect(asset.json()).toMatchObject({
         assetId: 'asset-ren-voss',
         viewsMeta: {
-          availableViews: ['profile', 'mentions', 'relations'],
+          availableViews: ['profile', 'mentions', 'relations', 'context'],
         },
       })
-      expect(asset.json().viewsMeta.availableViews).not.toContain('context')
+      expect(asset.json().viewsMeta.availableViews).toContain('context')
       expect(asset.json().assets).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -147,10 +147,10 @@ describe('fixture API server read surfaces', () => {
       expect(response.json()).toMatchObject({
         assetId: 'asset-ticket-window',
         viewsMeta: {
-          availableViews: ['profile', 'mentions', 'relations'],
+          availableViews: ['profile', 'mentions', 'relations', 'context'],
         },
       })
-      expect(response.json().viewsMeta.availableViews).not.toContain('context')
+      expect(response.json().viewsMeta.availableViews).toContain('context')
       const ticketWindow = response.json().assets.find((asset: { id: string }) => asset.id === 'asset-ticket-window')
       expect(ticketWindow).toMatchObject({
         id: 'asset-ticket-window',

@@ -14,7 +14,7 @@ const workspace: AssetKnowledgeWorkspaceViewModel = {
     rules: [],
   },
   viewsMeta: {
-    availableViews: ['profile', 'mentions', 'relations'],
+    availableViews: ['profile', 'mentions', 'relations', 'context'],
   },
   profile: {
     sections: [],
@@ -68,6 +68,16 @@ const workspace: AssetKnowledgeWorkspaceViewModel = {
       summary: 'Ren keeps the ledger closed.',
     },
   ],
+  contextPolicy: {
+    hasContextPolicy: true,
+    statusLabel: 'Active',
+    summary: 'Ren may enter run context when he is in cast.',
+    defaultVisibilityLabel: 'Character-known',
+    defaultBudgetLabel: 'Selected facts',
+    activationRules: [],
+    exclusions: [],
+    warnings: [],
+  },
   inspector: {
     kindLabel: 'Character',
     summary: 'Courier-side negotiator who keeps the ledger closed while trying to buy time in public.',
@@ -77,6 +87,14 @@ const workspace: AssetKnowledgeWorkspaceViewModel = {
     notes: ['Keep Ren’s refusal legible before any exit bell cue lands.'],
     isOrphan: false,
     missingFields: ['Implications'],
+    contextPolicy: {
+      hasContextPolicy: true,
+      statusLabel: 'Active',
+      defaultVisibilityLabel: 'Character-known',
+      defaultBudgetLabel: 'Selected facts',
+      activationRuleCount: 0,
+      warningCount: 0,
+    },
   },
   dockSummary: {
     problemItems: [
@@ -91,6 +109,14 @@ const workspace: AssetKnowledgeWorkspaceViewModel = {
     relationCount: 2,
     mentionCount: 2,
     isOrphan: false,
+    contextPolicy: {
+      hasContextPolicy: true,
+      statusLabel: 'Active',
+      defaultVisibilityLabel: 'Character-known',
+      defaultBudgetLabel: 'Selected facts',
+      activationRuleCount: 0,
+      warningCount: 0,
+    },
   },
   dockActivity: [],
 }

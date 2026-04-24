@@ -7,7 +7,7 @@ import type { AssetKnowledgeView } from '@/features/workbench/types/workbench-ro
 import { useAssetKnowledgeWorkspaceQuery } from '../hooks/useAssetKnowledgeWorkspaceQuery'
 import type { AssetKnowledgeWorkspaceViewModel, AssetNavigatorItemViewModel } from '../types/asset-view-models'
 
-export type AssetStoryVariant = 'character' | 'location' | 'rule' | 'orphan' | 'warnings-heavy'
+export type AssetStoryVariant = 'character' | 'location' | 'rule' | 'orphan' | 'warnings-heavy' | 'missing-policy'
 
 function text(locale: Locale, values: { en: string; 'zh-CN': string }) {
   return values[locale]
@@ -21,6 +21,8 @@ export function getAssetStoryVariantAssetId(variant: AssetStoryVariant) {
       return 'asset-ledger-stays-shut'
     case 'warnings-heavy':
       return 'asset-departure-bell-timing'
+    case 'missing-policy':
+      return 'asset-ticket-window'
     case 'orphan':
     case 'character':
     default:
@@ -97,6 +99,19 @@ function applyOrphanVariant(
     },
     mentions: [],
     relations: [],
+    contextPolicy: {
+      hasContextPolicy: false,
+      statusLabel: text(locale, { en: 'Not configured', 'zh-CN': '未配置' }),
+      summary: text(locale, {
+        en: 'This asset does not have a context policy yet.',
+        'zh-CN': '这个资产还没有上下文策略。',
+      }),
+      defaultVisibilityLabel: text(locale, { en: 'None', 'zh-CN': '无' }),
+      defaultBudgetLabel: text(locale, { en: 'None', 'zh-CN': '无' }),
+      activationRules: [],
+      exclusions: [],
+      warnings: [],
+    },
     inspector: {
       kindLabel: text(locale, { en: 'Rule', 'zh-CN': '规则' }),
       summary,
@@ -106,6 +121,14 @@ function applyOrphanVariant(
       notes: [text(locale, { en: 'Keep it parked in the sidebar until a real scene uses it.', 'zh-CN': '在真实场景使用它之前，先把它停留在辅助面板里。' })],
       isOrphan: true,
       missingFields: [missingField],
+      contextPolicy: {
+        hasContextPolicy: false,
+        statusLabel: text(locale, { en: 'Not configured', 'zh-CN': '未配置' }),
+        defaultVisibilityLabel: text(locale, { en: 'None', 'zh-CN': '无' }),
+        defaultBudgetLabel: text(locale, { en: 'None', 'zh-CN': '无' }),
+        activationRuleCount: 0,
+        warningCount: 0,
+      },
     },
     dockSummary: {
       problemItems: [
@@ -133,6 +156,14 @@ function applyOrphanVariant(
       relationCount: 0,
       mentionCount: 0,
       isOrphan: true,
+      contextPolicy: {
+        hasContextPolicy: false,
+        statusLabel: text(locale, { en: 'Not configured', 'zh-CN': '未配置' }),
+        defaultVisibilityLabel: text(locale, { en: 'None', 'zh-CN': '无' }),
+        defaultBudgetLabel: text(locale, { en: 'None', 'zh-CN': '无' }),
+        activationRuleCount: 0,
+        warningCount: 0,
+      },
     },
     dockActivity: [
       {

@@ -227,6 +227,68 @@ describe('AssetKnowledgeWorkspace', () => {
     expect(screen.getByText('Canon-backed')).toBeInTheDocument()
   })
 
+  it('renders the context policy route and restores it through browser back after switching views', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState({}, '', '/workbench?scope=asset&id=asset-ren-voss&lens=knowledge&view=context')
+
+    render(
+      <AppProviders>
+        <AssetRouteHarness />
+      </AppProviders>,
+    )
+
+    const contextButton = await screen.findByRole('button', { name: 'Context' })
+    const navigatorRen = screen.getByRole('button', { name: /Ren Voss/i })
+    const dockRegion = screen.getByRole('region', { name: 'Asset bottom dock' })
+    const inspectorPolicy = screen.getByRole('heading', { name: 'Context Policy' }).closest('section')
+
+    expect(contextButton).toHaveAttribute('aria-pressed', 'true')
+    expect(navigatorRen).toHaveClass('border-line-strong')
+    expect(screen.getAllByText('Ren may enter run context when he is in cast or explicitly linked to a proposal.').length).toBeGreaterThan(0)
+    expect(screen.getByText('Cast member')).toBeInTheDocument()
+    expect(screen.getByText('Primary POV context')).toBeInTheDocument()
+    expect(inspectorPolicy).not.toBeNull()
+    expect(within(inspectorPolicy!).getByText('Active')).toBeInTheDocument()
+    expect(within(dockRegion).getByText('Switched to Context')).toBeInTheDocument()
+    expect(within(dockRegion).getByText('Focused Ren Voss')).toBeInTheDocument()
+    expect(within(dockRegion).getByText('Private/spoiler policy requires caution')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Mentions' }))
+
+    await waitFor(() => {
+      expect(new URLSearchParams(window.location.search).get('view')).toBe('mentions')
+    })
+
+    expect(await screen.findByRole('button', { name: 'Open in Draft: Midnight Platform' })).toBeInTheDocument()
+
+    window.history.back()
+
+    await waitFor(() => {
+      expect(new URLSearchParams(window.location.search).get('view')).toBe('context')
+    })
+
+    expect(screen.getByRole('button', { name: 'Context' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Cast member')).toBeInTheDocument()
+  })
+
+  it('renders a quiet missing-policy context route without crashing', async () => {
+    window.history.replaceState({}, '', '/workbench?scope=asset&id=asset-ticket-window&lens=knowledge&view=context')
+
+    render(
+      <AppProviders>
+        <AssetRouteHarness />
+      </AppProviders>,
+    )
+
+    const dockRegion = await screen.findByRole('region', { name: 'Asset bottom dock' })
+
+    expect(screen.getByRole('button', { name: /Ticket Window/i })).toHaveClass('border-line-strong')
+    expect(screen.getAllByText('No context policy yet').length).toBeGreaterThan(0)
+    expect(within(dockRegion).queryByText('Missing context policy')).not.toBeInTheDocument()
+    expect(within(dockRegion).getByText('Switched to Context')).toBeInTheDocument()
+  })
+
   it('does not render trace-derived inspector and dock judgments while traceability is still loading', async () => {
     mockedUseAssetTraceabilitySummaryQuery.mockReturnValue({
       summary: null,

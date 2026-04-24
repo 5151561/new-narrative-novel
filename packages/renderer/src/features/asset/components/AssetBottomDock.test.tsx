@@ -33,6 +33,11 @@ const summary: AssetDockSummaryViewModel = {
       label: 'Relations present but no narrative backing',
       detail: '1 relation does not yet appear in the current narrative backing.',
     },
+    {
+      id: 'context-policy-caution',
+      label: 'Private/spoiler policy requires caution',
+      detail: 'At least one context policy path uses private or spoiler visibility and needs guardrails before run context.',
+    },
   ],
   warningCount: 1,
   missingFieldCount: 1,
@@ -42,6 +47,14 @@ const summary: AssetDockSummaryViewModel = {
   mentionsWithoutCanonBackingCount: 2,
   mentionsWithMissingSceneTraceCount: 1,
   relationsWithoutNarrativeBackingCount: 1,
+  contextPolicy: {
+    hasContextPolicy: true,
+    statusLabel: 'Active',
+    defaultVisibilityLabel: 'Character-known',
+    defaultBudgetLabel: 'Selected facts',
+    activationRuleCount: 2,
+    warningCount: 1,
+  },
 } as AssetDockSummaryViewModel
 
 const activity: AssetDockActivityItem[] = [
@@ -79,6 +92,10 @@ describe('AssetBottomDock', () => {
     expect(within(problemsSection!).getByText('Mentions without canon backing')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Mentions with missing scene trace')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Relations present but no narrative backing')).toBeInTheDocument()
+    expect(within(problemsSection!).getByText('Private/spoiler policy requires caution')).toBeInTheDocument()
+    expect(within(problemsSection!).getByText('Context policy')).toBeInTheDocument()
+    expect(within(problemsSection!).getByText('Policy rules')).toBeInTheDocument()
+    expect(within(problemsSection!).getByText('Policy warnings')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Without canon backing')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Missing scene trace')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Narrative backing gaps')).toBeInTheDocument()

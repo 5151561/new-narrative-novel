@@ -140,6 +140,9 @@ describe('useAssetKnowledgeWorkspaceQuery', () => {
       assetId: 'asset-ren-voss',
       kind: 'character',
       title: 'Ren Voss',
+      viewsMeta: {
+        availableViews: ['profile', 'mentions', 'relations', 'context'],
+      },
       navigator: {
         characters: expect.arrayContaining([expect.objectContaining({ id: 'asset-ren-voss' })]),
         locations: expect.arrayContaining([expect.objectContaining({ id: 'asset-midnight-platform' })]),
@@ -178,15 +181,52 @@ describe('useAssetKnowledgeWorkspaceQuery', () => {
           targetTitle: 'Mei Arden',
         }),
       ]),
+      contextPolicy: expect.objectContaining({
+        hasContextPolicy: true,
+        statusLabel: 'Active',
+        defaultVisibilityLabel: 'Character-known',
+        defaultBudgetLabel: 'Selected facts',
+        activationRules: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'ren-scene-cast',
+            label: 'Cast member',
+            reasonKindLabel: 'Scene cast',
+            visibilityLabel: 'Character-known',
+            budgetLabel: 'Selected facts',
+            targetAgentLabels: expect.arrayContaining(['Scene manager', 'Character agent', 'Prose agent']),
+            priorityLabel: 'Primary POV context',
+          }),
+          expect.objectContaining({
+            id: 'ren-proposal-link',
+            guardrailLabel: 'Do not expose private courier signal notes.',
+          }),
+        ]),
+        exclusions: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'ren-private-signal',
+            label: 'Courier signal private key',
+          }),
+        ]),
+      }),
       inspector: expect.objectContaining({
         kindLabel: 'Character',
         mentionCount: 3,
         relationCount: 3,
+        contextPolicy: expect.objectContaining({
+          hasContextPolicy: true,
+          statusLabel: 'Active',
+          activationRuleCount: 2,
+          warningCount: 0,
+        }),
       }),
       dockSummary: expect.objectContaining({
         warningCount: 1,
         relationCount: 3,
         mentionCount: 3,
+        contextPolicy: expect.objectContaining({
+          statusLabel: 'Active',
+          activationRuleCount: 2,
+        }),
       }),
       dockActivity: expect.arrayContaining([
         expect.objectContaining({
@@ -204,7 +244,112 @@ describe('useAssetKnowledgeWorkspaceQuery', () => {
     expect(hook.result.current.workspace?.navigator.locations).toHaveLength(2)
     expect(hook.result.current.workspace?.navigator.rules).toHaveLength(2)
     expect(hook.result.current.workspace?.dockSummary.problemItems).toEqual(
-      expect.arrayContaining([expect.objectContaining({ label: 'Warning' })]),
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Warning' }),
+        expect.objectContaining({ label: 'Private/spoiler policy requires caution' }),
+      ]),
+    )
+  })
+
+  it('maps missing context policy into empty-state-ready workspace data without dock problems', async () => {
+    const { wrapper } = wrapperFactory()
+
+    const hook = renderHook(
+      () =>
+        useAssetKnowledgeWorkspaceQuery({
+          assetId: 'asset-ticket-window',
+          activeView: 'context',
+        }),
+      {
+        wrapper,
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.workspace?.assetId).toBe('asset-ticket-window')
+    })
+
+    expect(hook.result.current.workspace).toMatchObject({
+      contextPolicy: {
+        hasContextPolicy: false,
+        statusLabel: 'Not configured',
+        defaultVisibilityLabel: 'None',
+        defaultBudgetLabel: 'None',
+        activationRules: [],
+        exclusions: [],
+        warnings: [],
+      },
+      inspector: {
+        contextPolicy: {
+          hasContextPolicy: false,
+          activationRuleCount: 0,
+          warningCount: 0,
+        },
+      },
+      dockSummary: {
+        contextPolicy: {
+          hasContextPolicy: false,
+          activationRuleCount: 0,
+          warningCount: 0,
+        },
+      },
+      dockActivity: expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'view',
+          title: 'Switched to Context',
+        }),
+      ]),
+    })
+    expect(hook.result.current.workspace?.dockSummary.problemItems).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'missing-context-policy',
+        }),
+      ]),
+    )
+    expect(hook.result.current.workspace?.dockSummary.problemItems).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: 'Missing context policy',
+        }),
+      ]),
+    )
+  })
+
+  it('adds blocked and no-rule context policy problems to the dock summary', async () => {
+    const blockedWorkspace = structuredClone(getMockAssetKnowledgeWorkspace('asset-ren-voss'))
+    const ren = blockedWorkspace?.assets.find((asset) => asset.id === 'asset-ren-voss')
+    if (!ren?.contextPolicy) {
+      throw new Error('Expected Ren fixture to include a context policy')
+    }
+    ren.contextPolicy.status = 'blocked'
+    ren.contextPolicy.activationRules = []
+
+    const client = {
+      getAssetKnowledgeWorkspace: vi.fn(async () => blockedWorkspace),
+    }
+    const { wrapper } = wrapperFactory()
+
+    const hook = renderHook(
+      () =>
+        useAssetKnowledgeWorkspaceQuery(
+          {
+            assetId: 'asset-ren-voss',
+          },
+          client,
+        ),
+      { wrapper },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.workspace?.assetId).toBe('asset-ren-voss')
+    })
+
+    expect(hook.result.current.workspace?.dockSummary.problemItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Context policy blocked' }),
+        expect.objectContaining({ label: 'No activation rules' }),
+      ]),
     )
   })
 

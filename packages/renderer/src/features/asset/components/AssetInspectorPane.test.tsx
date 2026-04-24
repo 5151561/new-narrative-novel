@@ -19,6 +19,14 @@ describe('AssetInspectorPane', () => {
       canonBackedMentionCount: 1,
       draftContextMentionCount: 1,
       unlinkedMentionCount: 1,
+      contextPolicy: {
+        hasContextPolicy: true,
+        statusLabel: 'Active',
+        defaultVisibilityLabel: 'Character-known',
+        defaultBudgetLabel: 'Selected facts',
+        activationRuleCount: 2,
+        warningCount: 1,
+      },
     } as unknown as Parameters<typeof AssetInspectorPane>[0]['inspector']
 
     render(
@@ -29,6 +37,7 @@ describe('AssetInspectorPane', () => {
 
     const summarySection = screen.getByRole('heading', { name: 'Summary' }).closest('section')
     const consistencySection = screen.getByRole('heading', { name: 'Consistency' }).closest('section')
+    const contextPolicySection = screen.getByRole('heading', { name: 'Context Policy' }).closest('section')
 
     expect(summarySection).not.toBeNull()
     expect(consistencySection).not.toBeNull()
@@ -41,6 +50,10 @@ describe('AssetInspectorPane', () => {
     expect(within(within(consistencySection!).getByText('Canon-backed mentions').closest('div')!).getByText('1')).toBeInTheDocument()
     expect(within(within(consistencySection!).getByText('Draft-context mentions').closest('div')!).getByText('1')).toBeInTheDocument()
     expect(within(within(consistencySection!).getByText('Unlinked mentions').closest('div')!).getByText('1')).toBeInTheDocument()
+    expect(contextPolicySection).not.toBeNull()
+    expect(within(contextPolicySection!).getByText('Active')).toBeInTheDocument()
+    expect(within(contextPolicySection!).getByText('Character-known')).toBeInTheDocument()
+    expect(within(contextPolicySection!).getByText('Selected facts')).toBeInTheDocument()
   })
 
   it('shows traceability unavailable state instead of pretending trace-derived counts are zero', () => {
@@ -62,6 +75,14 @@ describe('AssetInspectorPane', () => {
               title: 'Traceability unavailable',
               message: 'Scene traceability sources failed to load.',
             },
+            contextPolicy: {
+              hasContextPolicy: false,
+              statusLabel: 'Not configured',
+              defaultVisibilityLabel: 'None',
+              defaultBudgetLabel: 'None',
+              activationRuleCount: 0,
+              warningCount: 0,
+            },
           }}
         />
       </I18nProvider>,
@@ -75,5 +96,6 @@ describe('AssetInspectorPane', () => {
     expect(within(consistencySection!).queryByText('Canon-backed mentions')).not.toBeInTheDocument()
     expect(within(consistencySection!).queryByText('Draft-context mentions')).not.toBeInTheDocument()
     expect(within(consistencySection!).queryByText('Unlinked mentions')).not.toBeInTheDocument()
+    expect(screen.getByText('No context policy yet')).toBeInTheDocument()
   })
 })

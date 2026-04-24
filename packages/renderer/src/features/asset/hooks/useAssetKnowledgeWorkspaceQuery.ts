@@ -14,6 +14,11 @@ import {
   getAssetKindOrder,
   readLocalizedAssetText,
   type AssetChapterMentionRecord,
+  type AssetContextActivationReasonKindRecord,
+  type AssetContextBudgetRecord,
+  type AssetContextPolicyRecord,
+  type AssetContextTargetAgentRecord,
+  type AssetContextVisibilityRecord,
   type AssetKnowledgeWorkspaceRecord,
   type AssetSceneMentionRecord,
   type AssetProfileFactRecord,
@@ -26,6 +31,9 @@ import type {
   AssetDockSummaryViewModel,
   AssetInspectorViewModel,
   AssetChapterMentionViewModel,
+  AssetContextActivationRuleViewModel,
+  AssetContextPolicySummaryViewModel,
+  AssetContextPolicyViewModel,
   AssetKnowledgeWorkspaceViewModel,
   AssetMentionHandoffActionViewModel,
   AssetMentionViewModel,
@@ -38,6 +46,180 @@ import { assetQueryKeys } from './asset-query-keys'
 
 function localizeText(value: { en: string; 'zh-CN': string }, locale: 'en' | 'zh-CN') {
   return readLocalizedAssetText(value, locale)
+}
+
+function getContextPolicyStatusLabel(status: AssetContextPolicyRecord['status'] | 'missing', locale: 'en' | 'zh-CN') {
+  const labels: Record<'en' | 'zh-CN', Record<AssetContextPolicyRecord['status'] | 'missing', string>> = {
+    en: {
+      active: 'Active',
+      limited: 'Limited',
+      blocked: 'Blocked',
+      draft: 'Draft',
+      missing: 'Not configured',
+    },
+    'zh-CN': {
+      active: '启用',
+      limited: '受限',
+      blocked: '阻断',
+      draft: '草稿',
+      missing: '未配置',
+    },
+  }
+
+  return labels[locale][status]
+}
+
+function getContextVisibilityLabel(visibility: AssetContextVisibilityRecord | 'missing', locale: 'en' | 'zh-CN') {
+  const labels: Record<'en' | 'zh-CN', Record<AssetContextVisibilityRecord | 'missing', string>> = {
+    en: {
+      public: 'Public',
+      'character-known': 'Character-known',
+      private: 'Private',
+      spoiler: 'Spoiler',
+      'editor-only': 'Editor-only',
+      missing: 'None',
+    },
+    'zh-CN': {
+      public: '公开',
+      'character-known': '角色已知',
+      private: '私密',
+      spoiler: '剧透',
+      'editor-only': '仅编辑',
+      missing: '无',
+    },
+  }
+
+  return labels[locale][visibility]
+}
+
+function getContextBudgetLabel(budget: AssetContextBudgetRecord | 'missing', locale: 'en' | 'zh-CN') {
+  const labels: Record<'en' | 'zh-CN', Record<AssetContextBudgetRecord | 'missing', string>> = {
+    en: {
+      'summary-only': 'Summary only',
+      'selected-facts': 'Selected facts',
+      'mentions-excerpts': 'Mention excerpts',
+      'full-profile': 'Full profile',
+      missing: 'None',
+    },
+    'zh-CN': {
+      'summary-only': '仅摘要',
+      'selected-facts': '筛选事实',
+      'mentions-excerpts': '提及摘录',
+      'full-profile': '完整资料',
+      missing: '无',
+    },
+  }
+
+  return labels[locale][budget]
+}
+
+function getContextAgentLabel(agent: AssetContextTargetAgentRecord, locale: 'en' | 'zh-CN') {
+  const labels: Record<'en' | 'zh-CN', Record<AssetContextTargetAgentRecord, string>> = {
+    en: {
+      'scene-manager': 'Scene manager',
+      'character-agent': 'Character agent',
+      'continuity-reviewer': 'Continuity reviewer',
+      'prose-agent': 'Prose agent',
+    },
+    'zh-CN': {
+      'scene-manager': '场景管理',
+      'character-agent': '角色代理',
+      'continuity-reviewer': '连续性审阅',
+      'prose-agent': '成稿代理',
+    },
+  }
+
+  return labels[locale][agent]
+}
+
+function getContextReasonKindLabel(reasonKind: AssetContextActivationReasonKindRecord, locale: 'en' | 'zh-CN') {
+  const labels: Record<'en' | 'zh-CN', Record<AssetContextActivationReasonKindRecord, string>> = {
+    en: {
+      'explicit-link': 'Explicit link',
+      'scene-cast': 'Scene cast',
+      'scene-location': 'Scene location',
+      'rule-dependency': 'Rule dependency',
+      'review-issue': 'Review issue',
+      'proposal-variant': 'Proposal variant',
+      'manual-pin': 'Manual pin',
+    },
+    'zh-CN': {
+      'explicit-link': '显式引用',
+      'scene-cast': '场景登场',
+      'scene-location': '场景地点',
+      'rule-dependency': '规则依赖',
+      'review-issue': '审阅问题',
+      'proposal-variant': '提案变体',
+      'manual-pin': '手动固定',
+    },
+  }
+
+  return labels[locale][reasonKind]
+}
+
+function emptyContextPolicy(locale: 'en' | 'zh-CN'): AssetContextPolicyViewModel {
+  return {
+    hasContextPolicy: false,
+    statusLabel: getContextPolicyStatusLabel('missing', locale),
+    summary:
+      locale === 'zh-CN'
+        ? '这个资产还没有上下文策略。'
+        : 'This asset does not have a context policy yet.',
+    defaultVisibilityLabel: getContextVisibilityLabel('missing', locale),
+    defaultBudgetLabel: getContextBudgetLabel('missing', locale),
+    activationRules: [],
+    exclusions: [],
+    warnings: [],
+  }
+}
+
+function mapContextActivationRule(
+  rule: AssetContextPolicyRecord['activationRules'][number],
+  locale: 'en' | 'zh-CN',
+): AssetContextActivationRuleViewModel {
+  return {
+    id: rule.id,
+    label: localizeText(rule.label, locale),
+    summary: localizeText(rule.summary, locale),
+    reasonKindLabel: getContextReasonKindLabel(rule.reasonKind, locale),
+    visibilityLabel: getContextVisibilityLabel(rule.visibility, locale),
+    budgetLabel: getContextBudgetLabel(rule.budget, locale),
+    targetAgentLabels: rule.targetAgents.map((agent) => getContextAgentLabel(agent, locale)),
+    priorityLabel: rule.priorityLabel ? localizeText(rule.priorityLabel, locale) : undefined,
+    guardrailLabel: rule.guardrailLabel ? localizeText(rule.guardrailLabel, locale) : undefined,
+  }
+}
+
+function mapContextPolicy(policy: AssetContextPolicyRecord | undefined, locale: 'en' | 'zh-CN'): AssetContextPolicyViewModel {
+  if (!policy) {
+    return emptyContextPolicy(locale)
+  }
+
+  return {
+    hasContextPolicy: true,
+    statusLabel: getContextPolicyStatusLabel(policy.status, locale),
+    summary: localizeText(policy.summary, locale),
+    defaultVisibilityLabel: getContextVisibilityLabel(policy.defaultVisibility, locale),
+    defaultBudgetLabel: getContextBudgetLabel(policy.defaultBudget, locale),
+    activationRules: policy.activationRules.map((rule) => mapContextActivationRule(rule, locale)),
+    exclusions: (policy.exclusions ?? []).map((exclusion) => ({
+      id: exclusion.id,
+      label: localizeText(exclusion.label, locale),
+      summary: localizeText(exclusion.summary, locale),
+    })),
+    warnings: (policy.warnings ?? []).map((warning) => localizeText(warning, locale)),
+  }
+}
+
+function summarizeContextPolicy(policy: AssetContextPolicyViewModel): AssetContextPolicySummaryViewModel {
+  return {
+    hasContextPolicy: policy.hasContextPolicy,
+    statusLabel: policy.statusLabel,
+    defaultVisibilityLabel: policy.defaultVisibilityLabel,
+    defaultBudgetLabel: policy.defaultBudgetLabel,
+    activationRuleCount: policy.activationRules.length,
+    warningCount: policy.warnings.length,
+  }
 }
 
 function mapProfileSection(
@@ -195,6 +377,8 @@ function buildMissingFields(sections: AssetProfileSectionViewModel[]): string[] 
 function buildProblemItems(
   record: AssetRecord,
   inspector: AssetInspectorViewModel,
+  rawContextPolicy: AssetContextPolicyRecord | undefined,
+  contextPolicy: AssetContextPolicyViewModel,
   locale: 'en' | 'zh-CN',
 ): AssetDockSummaryItem[] {
   const items: AssetDockSummaryItem[] = []
@@ -237,6 +421,43 @@ function buildProblemItems(
     })
   }
 
+  if (rawContextPolicy) {
+    if (rawContextPolicy.status === 'blocked') {
+      items.push({
+        id: 'blocked-context-policy',
+        label: locale === 'zh-CN' ? '上下文策略已阻断' : 'Context policy blocked',
+        detail: contextPolicy.summary,
+      })
+    }
+
+    if (rawContextPolicy.activationRules.length === 0) {
+      items.push({
+        id: 'no-context-activation-rules',
+        label: locale === 'zh-CN' ? '缺少激活规则' : 'No activation rules',
+        detail:
+          locale === 'zh-CN'
+            ? '策略存在，但没有任何激活规则可说明何时进入上下文。'
+            : 'The policy exists, but no activation rules explain when it should enter context.',
+      })
+    }
+
+    const requiresCaution =
+      rawContextPolicy.defaultVisibility === 'private' ||
+      rawContextPolicy.defaultVisibility === 'spoiler' ||
+      rawContextPolicy.activationRules.some((rule) => rule.visibility === 'private' || rule.visibility === 'spoiler')
+
+    if (requiresCaution) {
+      items.push({
+        id: 'context-policy-caution',
+        label: locale === 'zh-CN' ? '私密/剧透策略需谨慎' : 'Private/spoiler policy requires caution',
+        detail:
+          locale === 'zh-CN'
+            ? '至少一条上下文策略使用私密或剧透可见性，进入运行上下文前需要保持护栏。'
+            : 'At least one context policy path uses private or spoiler visibility and needs guardrails before run context.',
+      })
+    }
+  }
+
   return items
 }
 
@@ -267,13 +488,23 @@ function buildDockActivity(
   ]
 
   if (activeView !== 'profile') {
+    const viewLabel =
+      activeView === 'mentions'
+        ? locale === 'zh-CN'
+          ? '提及'
+          : 'Mentions'
+        : activeView === 'relations'
+          ? locale === 'zh-CN'
+            ? '关系'
+            : 'Relations'
+          : locale === 'zh-CN'
+            ? '上下文'
+            : 'Context'
+
     activity.unshift({
       id: 'view',
       kind: 'view',
-      title:
-        locale === 'zh-CN'
-          ? `切换到${activeView === 'mentions' ? '提及' : '关系'}`
-          : `Switched to ${activeView === 'mentions' ? 'Mentions' : 'Relations'}`,
+      title: locale === 'zh-CN' ? `切换到${viewLabel}` : `Switched to ${viewLabel}`,
       detail:
         locale === 'zh-CN'
           ? '底部面板只记录当前知识工作区里的最近上下文变化。'
@@ -316,6 +547,8 @@ function buildAssetKnowledgeWorkspaceModel(
   const warnings = (selected.warnings ?? []).map((warning) => localizeText(warning, locale))
   const notes = (selected.notes ?? []).map((note) => localizeText(note, locale))
   const missingFields = buildMissingFields(profileSections)
+  const contextPolicy = mapContextPolicy(selected.contextPolicy, locale)
+  const contextPolicySummary = summarizeContextPolicy(contextPolicy)
   const inspector: AssetInspectorViewModel = {
     kindLabel:
       selected.kind === 'character'
@@ -336,14 +569,16 @@ function buildAssetKnowledgeWorkspaceModel(
     notes,
     isOrphan: selected.mentions.length === 0 && selected.relations.length === 0,
     missingFields,
+    contextPolicy: contextPolicySummary,
   }
   const dockSummary: AssetDockSummaryViewModel = {
-    problemItems: buildProblemItems(selected, inspector, locale),
+    problemItems: buildProblemItems(selected, inspector, selected.contextPolicy, contextPolicy, locale),
     warningCount: warnings.length,
     missingFieldCount: missingFields.length,
     relationCount: selected.relations.length,
     mentionCount: selected.mentions.length,
     isOrphan: inspector.isOrphan,
+    contextPolicy: contextPolicySummary,
   }
 
   const navigatorItems = assets.map((asset) => mapNavigatorItem(asset, locale))
@@ -364,6 +599,7 @@ function buildAssetKnowledgeWorkspaceModel(
     },
     mentions: mapMention(selected, locale),
     relations: mapRelations(selected, assetsById, locale),
+    contextPolicy,
     inspector,
     dockSummary,
     dockActivity: buildDockActivity(

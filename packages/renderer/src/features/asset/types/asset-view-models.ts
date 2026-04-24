@@ -102,6 +102,44 @@ export interface AssetRelationViewModel {
   summary: string
 }
 
+export interface AssetContextActivationRuleViewModel {
+  id: string
+  label: string
+  summary: string
+  reasonKindLabel: string
+  visibilityLabel: string
+  budgetLabel: string
+  targetAgentLabels: string[]
+  priorityLabel?: string
+  guardrailLabel?: string
+}
+
+export interface AssetContextPolicyNoteViewModel {
+  id: string
+  label: string
+  summary: string
+}
+
+export interface AssetContextPolicyViewModel {
+  hasContextPolicy: boolean
+  statusLabel: string
+  summary: string
+  defaultVisibilityLabel: string
+  defaultBudgetLabel: string
+  activationRules: AssetContextActivationRuleViewModel[]
+  exclusions: AssetContextPolicyNoteViewModel[]
+  warnings: string[]
+}
+
+export interface AssetContextPolicySummaryViewModel {
+  hasContextPolicy: boolean
+  statusLabel: string
+  defaultVisibilityLabel: string
+  defaultBudgetLabel: string
+  activationRuleCount: number
+  warningCount: number
+}
+
 export interface AssetInspectorViewModel {
   kindLabel: string
   summary: string
@@ -115,6 +153,7 @@ export interface AssetInspectorViewModel {
   draftContextMentionCount?: number
   unlinkedMentionCount?: number
   traceabilityStatus?: AssetTraceabilityStatusViewModel | null
+  contextPolicy: AssetContextPolicySummaryViewModel
 }
 
 export interface AssetDockSummaryItem {
@@ -134,6 +173,7 @@ export interface AssetDockSummaryViewModel {
   mentionsWithMissingSceneTraceCount?: number
   relationsWithoutNarrativeBackingCount?: number
   traceabilityStatus?: AssetTraceabilityStatusViewModel | null
+  contextPolicy: AssetContextPolicySummaryViewModel
 }
 
 export interface AssetDockActivityItem {
@@ -160,6 +200,7 @@ export interface AssetKnowledgeWorkspaceViewModel {
   profile: AssetProfileViewModel
   mentions: AssetMentionViewModel[]
   relations: AssetRelationViewModel[]
+  contextPolicy: AssetContextPolicyViewModel
   inspector: AssetInspectorViewModel
   dockSummary: AssetDockSummaryViewModel
   dockActivity: AssetDockActivityItem[]

@@ -656,7 +656,7 @@ export function getMockAssetKnowledgeWorkspace(assetId: string): AssetKnowledgeW
     assetId,
     assets: listMockAssetRecords(),
     viewsMeta: {
-      availableViews: ['profile', 'mentions', 'relations'],
+      availableViews: ['profile', 'mentions', 'relations', 'context'],
     },
   }
 }

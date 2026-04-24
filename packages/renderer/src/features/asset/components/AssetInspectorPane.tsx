@@ -89,6 +89,50 @@ export function AssetInspectorPane({ title, inspector }: AssetInspectorPaneProps
             ))}
           </div>
         </SectionCard>
+        <SectionCard title={locale === 'zh-CN' ? '上下文策略' : 'Context Policy'} eyebrow={locale === 'zh-CN' ? '只读摘要' : 'Read-only Summary'}>
+          <FactList
+            items={[
+              {
+                id: 'context-policy-status',
+                label: locale === 'zh-CN' ? '状态' : 'Status',
+                value: inspector.contextPolicy.statusLabel,
+              },
+              {
+                id: 'context-policy-visibility',
+                label: locale === 'zh-CN' ? '默认可见性' : 'Default visibility',
+                value: inspector.contextPolicy.defaultVisibilityLabel,
+              },
+              {
+                id: 'context-policy-budget',
+                label: locale === 'zh-CN' ? '默认预算' : 'Default budget',
+                value: inspector.contextPolicy.defaultBudgetLabel,
+              },
+              {
+                id: 'context-policy-rules',
+                label: locale === 'zh-CN' ? '激活规则' : 'Activation rules',
+                value: `${inspector.contextPolicy.activationRuleCount}`,
+              },
+              {
+                id: 'context-policy-warnings',
+                label: locale === 'zh-CN' ? '策略警告' : 'Policy warnings',
+                value: `${inspector.contextPolicy.warningCount}`,
+              },
+            ]}
+          />
+          {!inspector.contextPolicy.hasContextPolicy ? (
+            <div className="mt-4">
+              <EmptyState
+                title={locale === 'zh-CN' ? '暂无上下文策略' : 'No context policy yet'}
+                message={
+                  locale === 'zh-CN'
+                    ? '该资产会在 Context 视图中显示安静空态。'
+                    : 'The Context view will show a quiet empty state for this asset.'
+                }
+                className="min-h-0"
+              />
+            </div>
+          ) : null}
+        </SectionCard>
       </div>
     </section>
   )

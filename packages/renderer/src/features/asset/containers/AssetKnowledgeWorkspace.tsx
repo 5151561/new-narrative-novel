@@ -62,7 +62,7 @@ function AssetTopBar({
   title?: string
   summary?: string
   kind?: 'character' | 'location' | 'rule'
-  view: 'profile' | 'mentions' | 'relations'
+  view: 'profile' | 'mentions' | 'relations' | 'context'
 }) {
   const { locale, dictionary } = useI18n()
 
@@ -272,6 +272,7 @@ export function AssetKnowledgeWorkspace() {
           profile={traceAwareWorkspace.profile}
           mentions={traceAwareWorkspace.mentions}
           relations={traceAwareWorkspace.relations}
+          contextPolicy={traceAwareWorkspace.contextPolicy}
           onViewChange={(view) => patchAssetRoute({ view })}
           onOpenScene={openSceneFromAsset}
           onOpenChapter={openChapterFromAsset}
