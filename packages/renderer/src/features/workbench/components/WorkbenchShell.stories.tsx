@@ -11,7 +11,36 @@ import { ChapterStructureStage } from '@/features/chapter/components/ChapterStru
 import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '@/features/chapter/types/chapter-view-models'
 import { TimelineList } from '@/components/ui/TimelineList'
 
+import {
+  DEFAULT_WORKBENCH_LAYOUT_STATE,
+  WORKBENCH_LAYOUT_BOUNDS,
+  serializeWorkbenchLayoutState,
+  type WorkbenchLayoutState,
+} from '../types/workbench-layout'
 import { WorkbenchShell } from './WorkbenchShell'
+
+const WORKBENCH_LAYOUT_STORY_KEYS = {
+  default: 'storybook:workbench-layout:default',
+  navigatorHidden: 'storybook:workbench-layout:navigator-hidden',
+  inspectorHidden: 'storybook:workbench-layout:inspector-hidden',
+  bottomDockHidden: 'storybook:workbench-layout:bottom-dock-hidden',
+  resizedPanes: 'storybook:workbench-layout:resized-panes',
+  bottomDockMaximized: 'storybook:workbench-layout:bottom-dock-maximized',
+  narrowViewport: 'storybook:workbench-layout:narrow-viewport',
+  chapterScope: 'storybook:workbench-layout:chapter-scope',
+} as const
+
+function writeWorkbenchLayoutStoryState(storageKey: string, initialLayout: WorkbenchLayoutState) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.setItem(storageKey, serializeWorkbenchLayoutState(initialLayout))
+}
+
+function createWorkbenchLayoutState(layout: Partial<WorkbenchLayoutState> = {}): WorkbenchLayoutState {
+  return { ...DEFAULT_WORKBENCH_LAYOUT_STATE, ...layout }
+}
 
 function WorkbenchStoryProviders({ children }: PropsWithChildren) {
   const storyEnvironment = useMemo(() => createStoryProjectRuntimeEnvironment(), [])
@@ -19,12 +48,17 @@ function WorkbenchStoryProviders({ children }: PropsWithChildren) {
   return <AppProviders runtime={storyEnvironment.runtime} queryClient={storyEnvironment.queryClient}>{children}</AppProviders>
 }
 
-function WorkbenchShellStoryPreview() {
+function WorkbenchShellStoryPreview({
+  layoutStorageKey = WORKBENCH_LAYOUT_STORY_KEYS.default,
+}: {
+  layoutStorageKey?: string
+}) {
   const { locale } = useI18n()
   const isChinese = locale === 'zh-CN'
 
   return (
     <WorkbenchShell
+      layoutStorageKey={layoutStorageKey}
       topBar={
         <div className="flex items-center justify-between px-4 py-3">
           <div>
@@ -85,7 +119,66 @@ function WorkbenchShellStoryPreview() {
           </div>
         </div>
       }
+      inspector={
+        <div className="flex h-full flex-col gap-4 p-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.08em] text-text-soft">
+              {isChinese ? '检查器' : 'Inspector'}
+            </p>
+            <h3 className="mt-1 text-lg">{isChinese ? '执行上下文' : 'Execution Context'}</h3>
+          </div>
+          <div className="space-y-3 text-sm text-text-muted">
+            <p>{isChinese ? '当前节拍需要公开见证压力。' : 'Current beat needs public witness pressure.'}</p>
+            <p>{isChinese ? '风险：铃声时点过早释放。' : 'Risk: bell timing resolves too early.'}</p>
+          </div>
+        </div>
+      }
+      bottomDock={
+        <div className="grid h-full min-h-0 grid-cols-3 gap-3 p-4 text-sm">
+          {[
+            {
+              label: isChinese ? '运行' : 'Run',
+              value: isChinese ? '运行 07 已暂停' : 'Run 07 paused',
+            },
+            {
+              label: isChinese ? '评审' : 'Review',
+              value: isChinese ? '3 条未决' : '3 open items',
+            },
+            {
+              label: isChinese ? '下一步' : 'Next',
+              value: isChinese ? '收束候车厅延误' : 'Tighten concourse delay',
+            },
+          ].map((item) => (
+            <div key={item.label} className="rounded-md border border-line-soft bg-surface-1 p-3">
+              <p className="text-xs uppercase tracking-[0.08em] text-text-soft">{item.label}</p>
+              <p className="mt-2 text-text-main">{item.value}</p>
+            </div>
+          ))}
+        </div>
+      }
     />
+  )
+}
+
+function renderShellStory(
+  storageKey: string,
+  initialLayout: WorkbenchLayoutState,
+  options: { narrow?: boolean } = {},
+) {
+  writeWorkbenchLayoutStoryState(storageKey, initialLayout)
+
+  const preview = (
+    <WorkbenchStoryProviders>
+      <WorkbenchShellStoryPreview layoutStorageKey={storageKey} />
+    </WorkbenchStoryProviders>
+  )
+
+  return options.narrow ? (
+    <div className="min-h-screen overflow-auto bg-app">
+      <div className="w-[390px] max-w-full">{preview}</div>
+    </div>
+  ) : (
+    preview
   )
 }
 
@@ -95,11 +188,7 @@ const meta = {
   parameters: {
     layout: 'fullscreen',
   },
-  render: () => (
-    <WorkbenchStoryProviders>
-      <WorkbenchShellStoryPreview />
-    </WorkbenchStoryProviders>
-  ),
+  render: () => renderShellStory(WORKBENCH_LAYOUT_STORY_KEYS.default, createWorkbenchLayoutState()),
   args: {
     topBar: <></>,
     modeRail: <></>,
@@ -114,7 +203,70 @@ type Story = StoryObj<typeof meta>
 
 export const Default: Story = {}
 
-function ChapterWorkbenchShellStoryPreview() {
+export const NavigatorHidden: Story = {
+  render: () =>
+    renderShellStory(
+      WORKBENCH_LAYOUT_STORY_KEYS.navigatorHidden,
+      createWorkbenchLayoutState({ navigatorVisible: false }),
+    ),
+}
+
+export const InspectorHidden: Story = {
+  render: () =>
+    renderShellStory(
+      WORKBENCH_LAYOUT_STORY_KEYS.inspectorHidden,
+      createWorkbenchLayoutState({ inspectorVisible: false }),
+    ),
+}
+
+export const BottomDockHidden: Story = {
+  render: () =>
+    renderShellStory(
+      WORKBENCH_LAYOUT_STORY_KEYS.bottomDockHidden,
+      createWorkbenchLayoutState({ bottomDockVisible: false }),
+    ),
+}
+
+export const ResizedPanes: Story = {
+  render: () =>
+    renderShellStory(
+      WORKBENCH_LAYOUT_STORY_KEYS.resizedPanes,
+      createWorkbenchLayoutState({
+        navigatorWidth: WORKBENCH_LAYOUT_BOUNDS.navigator.max,
+        inspectorWidth: WORKBENCH_LAYOUT_BOUNDS.inspector.min,
+        bottomDockHeight: WORKBENCH_LAYOUT_BOUNDS.bottomDock.max,
+      }),
+    ),
+}
+
+export const BottomDockMaximized: Story = {
+  render: () =>
+    renderShellStory(
+      WORKBENCH_LAYOUT_STORY_KEYS.bottomDockMaximized,
+      createWorkbenchLayoutState({
+        bottomDockHeight: WORKBENCH_LAYOUT_BOUNDS.bottomDock.defaultSize,
+        bottomDockMaximized: true,
+      }),
+    ),
+}
+
+export const NarrowViewport: Story = {
+  render: () =>
+    renderShellStory(WORKBENCH_LAYOUT_STORY_KEYS.narrowViewport, createWorkbenchLayoutState(), {
+      narrow: true,
+    }),
+  parameters: {
+    viewport: {
+      defaultViewport: 'mobile1',
+    },
+  },
+}
+
+function ChapterWorkbenchShellStoryPreview({
+  layoutStorageKey = WORKBENCH_LAYOUT_STORY_KEYS.chapterScope,
+}: {
+  layoutStorageKey?: string
+}) {
   const { locale, dictionary } = useI18n()
   const activeView: ChapterStructureView = 'sequence'
   const model: ChapterStructureWorkspaceViewModel = {
@@ -205,6 +357,7 @@ function ChapterWorkbenchShellStoryPreview() {
 
   return (
     <WorkbenchShell
+      layoutStorageKey={layoutStorageKey}
       topBar={
         <div className="flex items-center justify-between px-4 py-3">
           <div>
@@ -275,9 +428,13 @@ function ChapterWorkbenchShellStoryPreview() {
 }
 
 export const ChapterScope: Story = {
-  render: () => (
-    <WorkbenchStoryProviders>
-      <ChapterWorkbenchShellStoryPreview />
-    </WorkbenchStoryProviders>
-  ),
+  render: () => {
+    writeWorkbenchLayoutStoryState(WORKBENCH_LAYOUT_STORY_KEYS.chapterScope, createWorkbenchLayoutState())
+
+    return (
+      <WorkbenchStoryProviders>
+        <ChapterWorkbenchShellStoryPreview layoutStorageKey={WORKBENCH_LAYOUT_STORY_KEYS.chapterScope} />
+      </WorkbenchStoryProviders>
+    )
+  },
 }
