@@ -4,6 +4,7 @@ import '../src/styles/globals.css'
 import { STORYBOOK_DEFAULT_LOCALE, withStorybookLocale } from './storybook-locale'
 
 const preview: Preview = {
+  tags: ['autodocs'],
   decorators: [withStorybookLocale],
   initialGlobals: {
     locale: STORYBOOK_DEFAULT_LOCALE,

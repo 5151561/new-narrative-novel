@@ -36,11 +36,12 @@ import type {
   StartSceneRunInput,
   SubmitRunReviewDecisionInput,
 } from '../contracts/api-records.js'
-import { notFound } from '../http/errors.js'
+import { conflict, notFound } from '../http/errors.js'
 import {
   buildAcceptedFactsFromCanonPatch,
   buildSceneProseFromProseDraftArtifact,
 } from '../orchestration/sceneRun/sceneRunProseMaterialization.js'
+import { applySceneProseRevisionRequest } from '../orchestration/sceneRun/sceneRunProseRevision.js'
 
 import { createFixtureDataSnapshot } from './fixture-data.js'
 import { createRunFixtureStore, type RunFixtureStore } from './runFixtureStore.js'
@@ -218,6 +219,21 @@ function buildSceneRunStatusLabel(run: RunRecord) {
 
 function isAcceptedRunDecision(decision: SubmitRunReviewDecisionInput['decision']) {
   return decision === 'accept' || decision === 'accept-with-edit'
+}
+
+function buildRevisionModeLabel(revisionMode: SceneProseViewModel['revisionModes'][number]) {
+  switch (revisionMode) {
+    case 'rewrite':
+      return 'rewrite'
+    case 'compress':
+      return 'compression'
+    case 'expand':
+      return 'expansion'
+    case 'tone_adjust':
+      return 'tone adjustment'
+    case 'continuity_fix':
+      return 'continuity fix'
+  }
 }
 
 export interface FixtureRepository {
@@ -645,7 +661,33 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
       return clone(getScene(projectId, sceneId).patchPreview)
     },
     commitScenePatch(_projectId, _sceneId, _patchId) {},
-    reviseSceneProse(_projectId, _sceneId, _revisionMode) {},
+    reviseSceneProse(projectId, sceneId, revisionMode) {
+      const scene = getScene(projectId, sceneId)
+      if (!scene.prose.proseDraft) {
+        throw conflict(`Scene ${sceneId} requires a prose draft before revision can be requested.`, {
+          code: 'SCENE_PROSE_REVISION_DRAFT_REQUIRED',
+          detail: { projectId, sceneId, revisionMode },
+        })
+      }
+
+      scene.prose = applySceneProseRevisionRequest({
+        prose: scene.prose,
+        revisionMode,
+      })
+      syncChapterSceneProseStatus(projectId, sceneId, { en: 'Revision queued', 'zh-CN': '修订已排队' })
+
+      const revisionModeLabel = buildRevisionModeLabel(revisionMode)
+      scene.dock.events = [
+        {
+          id: `prose-revision-${sceneId}`,
+          title: 'Prose revision queued',
+          detail: `The ${revisionModeLabel} revision request is waiting for review.`,
+          meta: `Queue ${scene.prose.revisionQueueCount ?? 0}`,
+          tone: 'accent',
+        },
+        ...scene.dock.events.filter((entry) => entry.id !== `prose-revision-${sceneId}`),
+      ]
+    },
     continueSceneRun(_projectId, _sceneId) {},
     switchSceneThread(projectId, sceneId, threadId) {
       const scene = getScene(projectId, sceneId)
