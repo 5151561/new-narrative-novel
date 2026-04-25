@@ -25,6 +25,7 @@ import { sceneQueryKeys } from '@/features/scene/hooks/scene-query-keys'
 import { useSceneWorkspaceQuery } from '@/features/scene/hooks/useSceneWorkspaceQuery'
 import type { SceneTab, SceneWorkspaceViewModel } from '@/features/scene/types/scene-view-models'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
+import { WorkbenchEditorProvider } from '@/features/workbench/editor/WorkbenchEditorProvider'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import type {
   SceneRouteState,
@@ -363,17 +364,17 @@ function SceneWorkbench({
 export default function App() {
   const { route, replaceRoute, patchSceneRoute } = useWorkbenchRouteState()
 
-  if (route.scope === 'scene') {
-    return <SceneWorkbench route={route} replaceRoute={replaceRoute} patchSceneRoute={patchSceneRoute} />
-  }
-
-  if (route.scope === 'asset') {
-    return <AssetWorkbench />
-  }
-
-  if (route.scope === 'book') {
-    return <BookWorkbench />
-  }
-
-  return <ChapterWorkbench />
+  return (
+    <WorkbenchEditorProvider route={route} replaceRoute={replaceRoute}>
+      {route.scope === 'scene' ? (
+        <SceneWorkbench route={route} replaceRoute={replaceRoute} patchSceneRoute={patchSceneRoute} />
+      ) : route.scope === 'asset' ? (
+        <AssetWorkbench />
+      ) : route.scope === 'book' ? (
+        <BookWorkbench />
+      ) : (
+        <ChapterWorkbench />
+      )}
+    </WorkbenchEditorProvider>
+  )
 }

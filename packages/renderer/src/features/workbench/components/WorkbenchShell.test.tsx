@@ -3,15 +3,24 @@ import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { renderWithProjectRuntime } from '@/app/project-runtime/project-runtime-test-utils'
+import { WorkbenchEditorProvider } from '@/features/workbench/editor/WorkbenchEditorProvider'
 import {
   DEFAULT_WORKBENCH_LAYOUT_STATE,
   WORKBENCH_LAYOUT_BOUNDS,
   getWorkbenchBodyGridColumns,
 } from '@/features/workbench/types/workbench-layout'
+import type { WorkbenchRouteState } from '@/features/workbench/types/workbench-route'
 
 import { WorkbenchShell } from './WorkbenchShell'
 
 const TEST_STORAGE_KEY = 'workbench-shell-layout-test'
+const TEST_EDITOR_STORAGE_KEY = 'workbench-shell-editor-test'
+const TEST_ROUTE: WorkbenchRouteState = {
+  scope: 'scene',
+  sceneId: 'scene-midnight-platform',
+  lens: 'orchestrate',
+  tab: 'execution',
+}
 
 function renderWorkbenchShell(
   props: Partial<Parameters<typeof WorkbenchShell>[0]> = {},
@@ -28,6 +37,26 @@ function renderWorkbenchShell(
       layoutStorageKey={storageKey}
       {...props}
     />,
+  )
+}
+
+function renderWorkbenchShellWithEditor(
+  props: Partial<Parameters<typeof WorkbenchShell>[0]> = {},
+  storageKey = TEST_STORAGE_KEY,
+) {
+  return renderWithProjectRuntime(
+    <WorkbenchEditorProvider route={TEST_ROUTE} replaceRoute={() => {}} storageKey={TEST_EDITOR_STORAGE_KEY}>
+      <WorkbenchShell
+        topBar={<div>Shell Top Bar</div>}
+        modeRail={<nav aria-label="Mode Rail">Mode Rail</nav>}
+        navigator={<div>Navigator Content</div>}
+        mainStage={<div>Main Stage Content</div>}
+        inspector={<div>Inspector Content</div>}
+        bottomDock={<div>Bottom Dock Content</div>}
+        layoutStorageKey={storageKey}
+        {...props}
+      />
+    </WorkbenchEditorProvider>,
   )
 }
 
@@ -87,6 +116,53 @@ describe('WorkbenchShell', () => {
       'aria-valuenow',
       `${DEFAULT_WORKBENCH_LAYOUT_STATE.bottomDockHeight}`,
     )
+  })
+
+  it('renders editor tabs above the main content when an editor provider is present', async () => {
+    renderWorkbenchShellWithEditor()
+
+    const tablist = await screen.findByRole('tablist', { name: 'Open Editors' })
+    const mainContent = screen.getByText('Main Stage Content')
+
+    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*scene-midnight-platform/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(tablist.compareDocumentPosition(mainContent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('keeps the legacy main stage without editor tabs when no editor provider is present', () => {
+    renderWorkbenchShell()
+
+    const mainStage = screen.getByTestId('workbench-main-stage')
+    const mainContent = screen.getByText('Main Stage Content')
+
+    expect(mainStage).toHaveTextContent('Main Stage Content')
+    expect(mainStage).toHaveClass('min-h-0', 'flex-1', 'overflow-hidden')
+    expect(mainStage).not.toHaveClass('flex-col', 'overflow-auto')
+    expect(mainContent.parentElement).toBe(mainStage)
+    expect(screen.queryByRole('tablist', { name: 'Open Editors' })).not.toBeInTheDocument()
+  })
+
+  it('keeps main stage and editor tabs accessible when the navigator is hidden', async () => {
+    const user = userEvent.setup()
+    renderWorkbenchShellWithEditor()
+
+    await user.click(screen.getByRole('button', { name: 'Toggle Navigator' }))
+
+    expect(screen.queryByRole('region', { name: 'Navigator' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('workbench-main-stage')).toHaveTextContent('Main Stage Content')
+    expect(await screen.findByRole('tablist', { name: 'Open Editors' })).toBeInTheDocument()
+  })
+
+  it('keeps editor tabs accessible when the bottom dock is maximized', async () => {
+    const user = userEvent.setup()
+    renderWorkbenchShellWithEditor()
+
+    await user.click(screen.getByRole('button', { name: 'Maximize Bottom Dock' }))
+
+    expect(screen.getByRole('button', { name: 'Restore Bottom Dock' })).toBeInTheDocument()
+    expect(await screen.findByRole('tablist', { name: 'Open Editors' })).toBeInTheDocument()
   })
 
   it('toggle Navigator removes the navigator region', async () => {

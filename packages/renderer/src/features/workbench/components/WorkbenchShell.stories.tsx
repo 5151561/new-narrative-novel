@@ -1,4 +1,4 @@
-import { useMemo, type PropsWithChildren } from 'react'
+import { useMemo, useState, type PropsWithChildren } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 
 import { useI18n } from '@/app/i18n'
@@ -10,6 +10,11 @@ import { ChapterStructureInspectorPane } from '@/features/chapter/components/Cha
 import { ChapterStructureStage } from '@/features/chapter/components/ChapterStructureStage'
 import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '@/features/chapter/types/chapter-view-models'
 import { TimelineList } from '@/components/ui/TimelineList'
+import { WorkbenchEditorProvider } from '../editor/WorkbenchEditorProvider'
+import { getWorkbenchEditorContextId, type WorkbenchEditorContext } from '../editor/workbench-editor-context'
+import { describeWorkbenchEditorContext, type WorkbenchEditorDictionary } from '../editor/workbench-editor-descriptors'
+import { writeWorkbenchEditorStorage } from '../editor/workbench-editor-storage'
+import type { WorkbenchRouteState } from '../types/workbench-route'
 
 import {
   DEFAULT_WORKBENCH_LAYOUT_STATE,
@@ -28,7 +33,67 @@ const WORKBENCH_LAYOUT_STORY_KEYS = {
   bottomDockMaximized: 'storybook:workbench-layout:bottom-dock-maximized',
   narrowViewport: 'storybook:workbench-layout:narrow-viewport',
   chapterScope: 'storybook:workbench-layout:chapter-scope',
+  multipleEditorTabs: 'storybook:workbench-layout:multiple-editor-tabs',
+  activeSceneOrchestrate: 'storybook:workbench-layout:active-scene-orchestrate',
+  activeBookDraft: 'storybook:workbench-layout:active-book-draft',
+  editorTabsHiddenNavigator: 'storybook:workbench-layout:editor-tabs-hidden-navigator',
+  editorTabsBottomDockMaximized: 'storybook:workbench-layout:editor-tabs-bottom-dock-maximized',
+  editorTabsOverflow: 'storybook:workbench-layout:editor-tabs-overflow',
 } as const
+
+const WORKBENCH_EDITOR_STORY_KEYS = {
+  multipleEditorTabs: 'storybook:workbench-editors:multiple-editor-tabs',
+  activeSceneOrchestrate: 'storybook:workbench-editors:active-scene-orchestrate',
+  activeBookDraft: 'storybook:workbench-editors:active-book-draft',
+  editorTabsHiddenNavigator: 'storybook:workbench-editors:editor-tabs-hidden-navigator',
+  editorTabsBottomDockMaximized: 'storybook:workbench-editors:editor-tabs-bottom-dock-maximized',
+  editorTabsOverflow: 'storybook:workbench-editors:editor-tabs-overflow',
+} as const
+
+const EDITOR_SCENE_ORCHESTRATE_ROUTE: WorkbenchRouteState = {
+  scope: 'scene',
+  sceneId: 'scene-midnight-platform',
+  lens: 'orchestrate',
+  tab: 'execution',
+  beatId: 'beat-bargain',
+  proposalId: 'proposal-2',
+}
+const EDITOR_SCENE_DRAFT_ROUTE: WorkbenchRouteState = {
+  scope: 'scene',
+  sceneId: 'scene-concourse-delay',
+  lens: 'draft',
+  tab: 'prose',
+}
+const EDITOR_CHAPTER_ROUTE: WorkbenchRouteState = {
+  scope: 'chapter',
+  chapterId: 'chapter-signals-in-rain',
+  lens: 'structure',
+  view: 'sequence',
+  sceneId: 'scene-midnight-platform',
+}
+const EDITOR_ASSET_ROUTE: WorkbenchRouteState = {
+  scope: 'asset',
+  assetId: 'asset-ren-voss',
+  lens: 'knowledge',
+  view: 'mentions',
+}
+const EDITOR_BOOK_DRAFT_ROUTE: WorkbenchRouteState = {
+  scope: 'book',
+  bookId: 'book-signal-arc',
+  lens: 'draft',
+  view: 'signals',
+  draftView: 'review',
+  reviewFilter: 'all',
+  reviewStatusFilter: 'open',
+  selectedChapterId: 'chapter-open-water-signals',
+}
+const EDITOR_BOOK_STRUCTURE_ROUTE: WorkbenchRouteState = {
+  scope: 'book',
+  bookId: 'book-signal-arc',
+  lens: 'structure',
+  view: 'signals',
+  selectedChapterId: 'chapter-open-water-signals',
+}
 
 function writeWorkbenchLayoutStoryState(storageKey: string, initialLayout: WorkbenchLayoutState) {
   if (typeof window === 'undefined') {
@@ -40,6 +105,42 @@ function writeWorkbenchLayoutStoryState(storageKey: string, initialLayout: Workb
 
 function createWorkbenchLayoutState(layout: Partial<WorkbenchLayoutState> = {}): WorkbenchLayoutState {
   return { ...DEFAULT_WORKBENCH_LAYOUT_STATE, ...layout }
+}
+
+function createEditorStoryContext(
+  route: WorkbenchRouteState,
+  index: number,
+  dictionary: WorkbenchEditorDictionary,
+): WorkbenchEditorContext {
+  const timestamp = 1_900_000_000_000 + index
+  const descriptor = describeWorkbenchEditorContext(route, dictionary)
+
+  return {
+    id: getWorkbenchEditorContextId(route),
+    route,
+    title: descriptor.title,
+    subtitle: descriptor.subtitle,
+    updatedAt: timestamp,
+    lastActiveAt: timestamp,
+  }
+}
+
+function writeWorkbenchEditorStoryState(
+  storageKey: string,
+  routes: WorkbenchRouteState[],
+  activeRoute: WorkbenchRouteState,
+  dictionary: WorkbenchEditorDictionary,
+) {
+  const contexts = routes.map((route, index) => createEditorStoryContext(route, index + 1, dictionary))
+
+  writeWorkbenchEditorStorage(
+    {
+      contexts,
+      contextIds: contexts.map((context) => context.id),
+      activeContextId: getWorkbenchEditorContextId(activeRoute),
+    },
+    storageKey,
+  )
 }
 
 function WorkbenchStoryProviders({ children }: PropsWithChildren) {
@@ -160,6 +261,31 @@ function WorkbenchShellStoryPreview({
   )
 }
 
+function WorkbenchEditorShellStoryPreview({
+  initialRoute,
+  editorStorageKey,
+  layoutStorageKey,
+  routes,
+}: {
+  initialRoute: WorkbenchRouteState
+  editorStorageKey: string
+  layoutStorageKey: string
+  routes: WorkbenchRouteState[]
+}) {
+  const { dictionary } = useI18n()
+  const [route, setRoute] = useState(initialRoute)
+
+  useMemo(() => {
+    writeWorkbenchEditorStoryState(editorStorageKey, routes, initialRoute, dictionary)
+  }, [dictionary, editorStorageKey, initialRoute, routes])
+
+  return (
+    <WorkbenchEditorProvider route={route} replaceRoute={setRoute} storageKey={editorStorageKey}>
+      <WorkbenchShellStoryPreview layoutStorageKey={layoutStorageKey} />
+    </WorkbenchEditorProvider>
+  )
+}
+
 function renderShellStory(
   storageKey: string,
   initialLayout: WorkbenchLayoutState,
@@ -179,6 +305,33 @@ function renderShellStory(
     </div>
   ) : (
     preview
+  )
+}
+
+function renderEditorShellStory({
+  layoutStorageKey,
+  editorStorageKey,
+  initialLayout,
+  routes,
+  activeRoute,
+}: {
+  layoutStorageKey: string
+  editorStorageKey: string
+  initialLayout: WorkbenchLayoutState
+  routes: WorkbenchRouteState[]
+  activeRoute: WorkbenchRouteState
+}) {
+  writeWorkbenchLayoutStoryState(layoutStorageKey, initialLayout)
+
+  return (
+    <WorkbenchStoryProviders>
+      <WorkbenchEditorShellStoryPreview
+        initialRoute={activeRoute}
+        editorStorageKey={editorStorageKey}
+        layoutStorageKey={layoutStorageKey}
+        routes={routes}
+      />
+    </WorkbenchStoryProviders>
   )
 }
 
@@ -248,6 +401,134 @@ export const BottomDockMaximized: Story = {
         bottomDockMaximized: true,
       }),
     ),
+}
+
+export const MultipleEditorTabs: Story = {
+  render: () =>
+    renderEditorShellStory({
+      layoutStorageKey: WORKBENCH_LAYOUT_STORY_KEYS.multipleEditorTabs,
+      editorStorageKey: WORKBENCH_EDITOR_STORY_KEYS.multipleEditorTabs,
+      initialLayout: createWorkbenchLayoutState(),
+      routes: [
+        EDITOR_SCENE_ORCHESTRATE_ROUTE,
+        EDITOR_CHAPTER_ROUTE,
+        EDITOR_ASSET_ROUTE,
+        EDITOR_BOOK_DRAFT_ROUTE,
+      ],
+      activeRoute: EDITOR_ASSET_ROUTE,
+    }),
+}
+
+export const ActiveSceneOrchestrate: Story = {
+  render: () =>
+    renderEditorShellStory({
+      layoutStorageKey: WORKBENCH_LAYOUT_STORY_KEYS.activeSceneOrchestrate,
+      editorStorageKey: WORKBENCH_EDITOR_STORY_KEYS.activeSceneOrchestrate,
+      initialLayout: createWorkbenchLayoutState(),
+      routes: [
+        EDITOR_SCENE_ORCHESTRATE_ROUTE,
+        EDITOR_CHAPTER_ROUTE,
+        EDITOR_ASSET_ROUTE,
+        EDITOR_BOOK_DRAFT_ROUTE,
+      ],
+      activeRoute: EDITOR_SCENE_ORCHESTRATE_ROUTE,
+    }),
+}
+
+export const ActiveBookDraft: Story = {
+  render: () =>
+    renderEditorShellStory({
+      layoutStorageKey: WORKBENCH_LAYOUT_STORY_KEYS.activeBookDraft,
+      editorStorageKey: WORKBENCH_EDITOR_STORY_KEYS.activeBookDraft,
+      initialLayout: createWorkbenchLayoutState(),
+      routes: [
+        EDITOR_SCENE_ORCHESTRATE_ROUTE,
+        EDITOR_CHAPTER_ROUTE,
+        EDITOR_ASSET_ROUTE,
+        EDITOR_BOOK_DRAFT_ROUTE,
+      ],
+      activeRoute: EDITOR_BOOK_DRAFT_ROUTE,
+    }),
+}
+
+export const EditorTabsWithHiddenNavigator: Story = {
+  render: () =>
+    renderEditorShellStory({
+      layoutStorageKey: WORKBENCH_LAYOUT_STORY_KEYS.editorTabsHiddenNavigator,
+      editorStorageKey: WORKBENCH_EDITOR_STORY_KEYS.editorTabsHiddenNavigator,
+      initialLayout: createWorkbenchLayoutState({ navigatorVisible: false }),
+      routes: [
+        EDITOR_SCENE_ORCHESTRATE_ROUTE,
+        EDITOR_CHAPTER_ROUTE,
+        EDITOR_ASSET_ROUTE,
+        EDITOR_BOOK_DRAFT_ROUTE,
+      ],
+      activeRoute: EDITOR_SCENE_ORCHESTRATE_ROUTE,
+    }),
+}
+
+export const EditorTabsWithBottomDockMaximized: Story = {
+  render: () =>
+    renderEditorShellStory({
+      layoutStorageKey: WORKBENCH_LAYOUT_STORY_KEYS.editorTabsBottomDockMaximized,
+      editorStorageKey: WORKBENCH_EDITOR_STORY_KEYS.editorTabsBottomDockMaximized,
+      initialLayout: createWorkbenchLayoutState({
+        bottomDockHeight: WORKBENCH_LAYOUT_BOUNDS.bottomDock.defaultSize,
+        bottomDockMaximized: true,
+      }),
+      routes: [
+        EDITOR_SCENE_ORCHESTRATE_ROUTE,
+        EDITOR_CHAPTER_ROUTE,
+        EDITOR_ASSET_ROUTE,
+        EDITOR_BOOK_DRAFT_ROUTE,
+      ],
+      activeRoute: EDITOR_BOOK_DRAFT_ROUTE,
+    }),
+}
+
+export const EditorTabsOverflow: Story = {
+  render: () =>
+    renderEditorShellStory({
+      layoutStorageKey: WORKBENCH_LAYOUT_STORY_KEYS.editorTabsOverflow,
+      editorStorageKey: WORKBENCH_EDITOR_STORY_KEYS.editorTabsOverflow,
+      initialLayout: createWorkbenchLayoutState(),
+      routes: [
+        EDITOR_SCENE_ORCHESTRATE_ROUTE,
+        EDITOR_SCENE_DRAFT_ROUTE,
+        EDITOR_CHAPTER_ROUTE,
+        {
+          scope: 'chapter',
+          chapterId: 'chapter-open-water-signals',
+          lens: 'draft',
+          view: 'sequence',
+        },
+        EDITOR_ASSET_ROUTE,
+        {
+          scope: 'asset',
+          assetId: 'asset-mei-arden',
+          lens: 'knowledge',
+          view: 'relations',
+        },
+        {
+          scope: 'asset',
+          assetId: 'asset-eastbound-platform',
+          lens: 'knowledge',
+          view: 'context',
+        },
+        EDITOR_BOOK_STRUCTURE_ROUTE,
+        EDITOR_BOOK_DRAFT_ROUTE,
+        {
+          scope: 'book',
+          bookId: 'book-signal-arc',
+          lens: 'draft',
+          view: 'signals',
+          draftView: 'compare',
+          checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+          selectedChapterId: 'chapter-open-water-signals',
+        },
+      ],
+      activeRoute: EDITOR_BOOK_DRAFT_ROUTE,
+    }),
 }
 
 export const NarrowViewport: Story = {

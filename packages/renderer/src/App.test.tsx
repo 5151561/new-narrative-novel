@@ -170,6 +170,30 @@ function setNavigatorLanguage(language: string) {
   })
 }
 
+function expectNoEditorUrlParams() {
+  const params = new URLSearchParams(window.location.search)
+  const forbiddenEditorParamPatterns = [
+    /^tabs$/i,
+    /^activeEditor$/i,
+    /^group$/i,
+    /^opened/i,
+    /^activeContext$/i,
+    /^contexts?$/i,
+    /editor/i,
+  ]
+
+  for (const key of params.keys()) {
+    expect(forbiddenEditorParamPatterns.some((pattern) => pattern.test(key))).toBe(false)
+  }
+}
+
+function expectBusinessSearchParams(expected: Record<string, string>) {
+  const params = new URLSearchParams(window.location.search)
+
+  expectNoEditorUrlParams()
+  expect(Object.fromEntries(params.entries())).toEqual(expected)
+}
+
 function createReadyArtifactReviewInbox() {
   return {
     bookId: 'book-signal-arc',
@@ -1361,6 +1385,176 @@ describe('App scene workbench', () => {
 
     expect(await screen.findByRole('heading', { name: 'Asset knowledge' })).toBeInTheDocument()
   })
+
+  it('opens workbench editor tabs as local preference without writing editor state into the URL', async () => {
+    const user = userEvent.setup()
+
+    const firstRender = await renderFreshApp(
+      '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution&beatId=beat-bargain&proposalId=proposal-2',
+    )
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    expect(await screen.findByRole('tablist', { name: 'Open Editors' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*scene-midnight-platform/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expectNoEditorUrlParams()
+
+    act(() => {
+      latestReplaceRoute?.({
+        scope: 'asset',
+        assetId: 'asset-ren-voss',
+        lens: 'knowledge',
+        view: 'mentions',
+      })
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Asset knowledge' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*scene-midnight-platform/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Asset.*Knowledge.*asset-ren-voss/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expectNoEditorUrlParams()
+
+    await user.click(screen.getByRole('tab', { name: /Scene.*Orchestrate.*scene-midnight-platform/i }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('scene')
+      expect(params.get('id')).toBe('scene-midnight-platform')
+      expect(params.get('lens')).toBe('orchestrate')
+      expect(params.get('tab')).toBe('execution')
+      expect(params.get('beatId')).toBe('beat-bargain')
+      expect(params.get('proposalId')).toBe('proposal-2')
+    })
+    expectNoEditorUrlParams()
+
+    act(() => {
+      latestReplaceRoute?.({
+        scope: 'book',
+        bookId: 'book-signal-arc',
+        lens: 'draft',
+        view: 'signals',
+        draftView: 'review',
+        reviewFilter: 'all',
+        reviewStatusFilter: 'open',
+        selectedChapterId: 'chapter-open-water-signals',
+      })
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Book manuscript' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Book.*Draft.*book-signal-arc/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(screen.getByRole('tab', { name: /Asset.*Knowledge.*asset-ren-voss/i })).toBeInTheDocument()
+    expectNoEditorUrlParams()
+
+    const refreshSearch = window.location.search
+    firstRender.unmount()
+    await renderFreshApp(refreshSearch)
+
+    expect(await screen.findByRole('heading', { name: 'Book manuscript' })).toBeInTheDocument()
+    expect(await screen.findByRole('tablist', { name: 'Open Editors' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*scene-midnight-platform/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Asset.*Knowledge.*asset-ren-voss/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Book.*Draft.*book-signal-arc/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+
+    await user.click(screen.getByRole('button', { name: /Close Editor: Asset.*Knowledge/i }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('id')).toBe('book-signal-arc')
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('draftView')).toBe('review')
+    })
+    expect(screen.queryByRole('tab', { name: /Asset.*Knowledge.*asset-ren-voss/i })).not.toBeInTheDocument()
+    expectNoEditorUrlParams()
+  }, 10000)
+
+  it('closes the active editor tab through the shell and restores the most recent remaining route', async () => {
+    const user = userEvent.setup()
+
+    await renderFreshApp(
+      '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution&beatId=beat-bargain&proposalId=proposal-2',
+    )
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+
+    act(() => {
+      latestReplaceRoute?.({
+        scope: 'asset',
+        assetId: 'asset-ren-voss',
+        lens: 'knowledge',
+        view: 'mentions',
+      })
+    })
+    expect(await screen.findByRole('heading', { name: 'Asset knowledge' })).toBeInTheDocument()
+
+    act(() => {
+      latestReplaceRoute?.({
+        scope: 'chapter',
+        chapterId: 'chapter-signals-in-rain',
+        lens: 'structure',
+        view: 'assembly',
+        sceneId: 'scene-concourse-delay',
+      })
+    })
+    expect(await screen.findByRole('heading', { name: 'Chapter workbench' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: /Asset.*Knowledge.*asset-ren-voss/i }))
+    await waitFor(() => {
+      expectBusinessSearchParams({
+        scope: 'asset',
+        id: 'asset-ren-voss',
+        lens: 'knowledge',
+        view: 'mentions',
+      })
+    })
+
+    act(() => {
+      latestReplaceRoute?.({
+        scope: 'book',
+        bookId: 'book-signal-arc',
+        lens: 'draft',
+        view: 'signals',
+        draftView: 'compare',
+        checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+        selectedChapterId: 'chapter-open-water-signals',
+      })
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Book manuscript' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Book.*Draft.*book-signal-arc/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+
+    await user.click(screen.getByRole('button', { name: /Close Editor: Book.*Draft/i }))
+
+    await waitFor(() => {
+      expectBusinessSearchParams({
+        scope: 'asset',
+        id: 'asset-ren-voss',
+        lens: 'knowledge',
+        view: 'mentions',
+      })
+    })
+    expect(await screen.findByRole('heading', { name: 'Asset knowledge' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Asset.*Knowledge.*asset-ren-voss/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*scene-midnight-platform/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Chapter.*Structure.*chapter-signals-in-rain/i })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /Book.*Draft.*book-signal-arc/i })).not.toBeInTheDocument()
+  }, 10000)
 
   it('keeps the header runtime status stable across scope changes for the mock runtime', async () => {
     const initialSearch = '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution'

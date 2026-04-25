@@ -4,6 +4,8 @@ import { useI18n } from '@/app/i18n'
 import { ProjectRuntimeStatusBoundary } from '@/app/project-runtime'
 import { Pane } from '@/components/ui/Pane'
 
+import { useOptionalWorkbenchEditor } from '../editor/WorkbenchEditorProvider'
+import { WorkbenchEditorTabs } from '../editor/WorkbenchEditorTabs'
 import { useWorkbenchLayoutState } from '../hooks/useWorkbenchLayoutState'
 import {
   WORKBENCH_LAYOUT_BOUNDS,
@@ -38,6 +40,7 @@ export function WorkbenchShell({
 }: WorkbenchShellProps) {
   const { dictionary } = useI18n()
   const layout = useWorkbenchLayoutState(layoutStorageKey)
+  const editor = useOptionalWorkbenchEditor()
   const hasNavigator = isRenderablePane(navigator)
   const hasInspector = isRenderablePane(inspector)
   const hasBottomDock = isRenderablePane(bottomDock)
@@ -117,9 +120,21 @@ export function WorkbenchShell({
           </div>
         ) : null}
         <Pane className="ml-3 min-h-0" style={{ gridColumn: 3 }}>
-          <main data-testid="workbench-main-stage" className="min-h-0 flex-1 overflow-hidden">
-            {mainStage}
-          </main>
+          {editor ? (
+            <main data-testid="workbench-main-stage" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <WorkbenchEditorTabs
+                contexts={editor.state.contexts}
+                activeContextId={editor.state.activeContextId}
+                onActivateContext={editor.activateContext}
+                onCloseContext={editor.closeContext}
+              />
+              <div className="min-h-0 flex-1 overflow-auto">{mainStage}</div>
+            </main>
+          ) : (
+            <main data-testid="workbench-main-stage" className="min-h-0 flex-1 overflow-hidden">
+              {mainStage}
+            </main>
+          )}
         </Pane>
         {showInspector ? (
           <div className="relative ml-3 min-h-0" style={{ gridColumn: 4 }}>
