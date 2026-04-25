@@ -14,10 +14,11 @@
 
 ## 当前状态
 
-截至 2026-04-25，仓库由两个主要 workspace 包组成：
+截至 2026-04-25，仓库由三个主要 workspace 包组成：
 
 - `@narrative-novel/renderer`：React + Vite + Tailwind 的 workbench 前端、Storybook、mock runtime、UI/feature tests。
 - `@narrative-novel/api`：Fastify fixture-backed API server，兑现 `/api/projects/{projectId}/...` 合同，支持 read/write/run/artifact/trace 的产品级接口骨架。
+- `@narrative-novel/desktop`：Electron workbench shell，承载现有 renderer，并在桌面模式下托管本地 fixture API；不选择项目目录、不接 worker。
 
 当前最准确的理解是：
 
@@ -189,6 +190,32 @@ pnpm dev:renderer
 pnpm --filter @narrative-novel/renderer dev --host 127.0.0.1 --port 4173
 ```
 
+### 启动 desktop shell
+
+Desktop shell 会加载现有 Web Workbench，并自动启动本地 `@narrative-novel/api` fixture server。renderer 仍保持 Web-first，业务流量继续通过 HTTP API contract；桌面端只通过 `window.narrativeDesktop` 暴露 runtime config、local API status / restart / log buffer 等窄桥接能力。
+
+先启动 renderer dev server：
+
+```bash
+pnpm --filter @narrative-novel/renderer dev --host 127.0.0.1 --port 4173
+```
+
+再启动 Electron shell：
+
+```bash
+pnpm dev:desktop
+```
+
+不需要再手动运行 `pnpm dev:api`。Electron main 会选择可用端口，启动 `packages/api`，并把 `http://127.0.0.1:<port>/api` 作为 desktop-local runtime config 提供给 renderer。
+
+如需使用其它 renderer dev server 地址：
+
+```bash
+NARRATIVE_RENDERER_DEV_URL=http://127.0.0.1:5173 pnpm dev:desktop
+```
+
+生产加载路径使用 `packages/renderer/dist/index.html` 或打包后的等价 renderer 资源。当前 desktop 包新增依赖后需要重新执行 `pnpm install` 才会写入 lockfile 并安装 Electron。
+
 ### 启动 Storybook
 
 ```bash
@@ -209,7 +236,11 @@ Storybook 是前端规范层和评审层。涉及前端组件、页面、fixture
 
 ```bash
 pnpm dev:api
+pnpm dev:desktop
 pnpm dev:renderer
+pnpm build:desktop
+pnpm test:desktop
+pnpm typecheck:desktop
 pnpm typecheck
 pnpm test
 pnpm build
@@ -218,9 +249,10 @@ pnpm storybook
 
 说明：
 
-- `pnpm typecheck` 同时覆盖 `@narrative-novel/api` 与 `@narrative-novel/renderer`。
-- `pnpm test` 同时覆盖 `@narrative-novel/api` 与 `@narrative-novel/renderer`。
+- `pnpm typecheck` 同时覆盖 `@narrative-novel/api`、`@narrative-novel/renderer` 与 `@narrative-novel/desktop`。
+- `pnpm test` 同时覆盖 `@narrative-novel/api`、`@narrative-novel/renderer` 与 `@narrative-novel/desktop`。
 - `pnpm build` 当前只构建 renderer。
+- `pnpm dev:desktop` 启动 Electron thin shell，默认加载 `http://127.0.0.1:4173` 的 renderer dev server。
 - `pnpm storybook` 当前只启动 renderer Storybook。
 
 包级命令：
@@ -228,6 +260,9 @@ pnpm storybook
 ```bash
 pnpm --filter @narrative-novel/api typecheck
 pnpm --filter @narrative-novel/api test
+pnpm --filter @narrative-novel/desktop typecheck
+pnpm --filter @narrative-novel/desktop test
+pnpm --filter @narrative-novel/desktop build
 pnpm --filter @narrative-novel/renderer typecheck
 pnpm --filter @narrative-novel/renderer test
 pnpm --filter @narrative-novel/renderer build-storybook

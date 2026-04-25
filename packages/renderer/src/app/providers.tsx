@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import { I18nProvider, useI18n } from './i18n'
 import { ProjectRuntimeProvider } from './project-runtime'
 import type { ProjectRuntime } from './project-runtime'
+import { useRuntimeConfig } from './runtime'
 import { bookQueryKeys } from '@/features/book/hooks/book-query-keys'
 import { chapterQueryKeys } from '@/features/chapter/hooks/chapter-query-keys'
 import { sceneQueryKeys } from '@/features/scene/hooks/scene-query-keys'
@@ -43,10 +44,19 @@ export function AppProviders({
   runtime,
   queryClient = defaultQueryClient,
 }: PropsWithChildren<AppProvidersProps>) {
+  const runtimeConfigState = useRuntimeConfig()
+
+  if (!runtime && runtimeConfigState.status !== 'ready') {
+    return null
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
-        <ProjectRuntimeProvider runtime={runtime}>
+        <ProjectRuntimeProvider
+          runtime={runtime}
+          runtimeConfig={runtimeConfigState.status === 'ready' ? runtimeConfigState.runtimeConfig : undefined}
+        >
           <LocaleQuerySync />
           {children}
         </ProjectRuntimeProvider>

@@ -44,6 +44,11 @@ export function createServer(options: CreateServerOptions = {}) {
     ok: true,
   }))
 
+  app.get(`${config.apiBasePath}/health`, async () => ({
+    ok: true,
+    runtime: process.env.NARRATIVE_RUNTIME ?? 'api',
+  }))
+
   const routeContext = {
     app,
     apiBasePath: config.apiBasePath,
