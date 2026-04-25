@@ -257,6 +257,10 @@ describe('fixture API server run artifact read surfaces', () => {
               kind: 'canon-fact',
               id: 'canon-patch-scene-midnight-platform-002-fact-001',
             },
+            label: {
+              en: expect.stringContaining('selected variant Reveal pressure'),
+              'zh-CN': expect.stringContaining('已选变体 揭示加压'),
+            },
           }),
           expect.objectContaining({
             relation: 'accepted_into',
@@ -278,6 +282,10 @@ describe('fixture API server run artifact read surfaces', () => {
             to: {
               kind: 'prose-draft',
               id: proseDraftRef!.id,
+            },
+            label: {
+              en: expect.stringContaining('selected variant Reveal pressure'),
+              'zh-CN': expect.stringContaining('已选变体 揭示加压'),
             },
           }),
         ]),

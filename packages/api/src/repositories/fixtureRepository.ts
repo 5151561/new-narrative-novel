@@ -315,7 +315,6 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
     const runStatus = mapRunStatusToSceneRunStatus(run.status)
     const sceneStatus = mapRunStatusToSceneStatus(run.status)
     const runHealth = mapRunStatusToRunHealth(run.status)
-    const runStatusLabel = buildSceneRunStatusLabel(run)
 
     scene.workspace.latestRunId = run.id
     scene.workspace.runStatus = runStatus
@@ -327,9 +326,6 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
     scene.execution.runtimeSummary.latestFailureSummary = run.status === 'failed' ? run.summary : undefined
     scene.execution.canContinueRun = run.status === 'running' || run.status === 'queued'
     scene.execution.canOpenProse = run.status === 'completed'
-
-    scene.prose.statusLabel = runStatusLabel
-    scene.prose.latestDiffSummary = run.summary
 
     scene.inspector.runtime.runHealth = runHealth
     scene.inspector.runtime.latestFailure = run.status === 'failed' ? run.summary : undefined

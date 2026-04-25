@@ -588,17 +588,13 @@ function buildDefaultReviewOptions(): ProposalSetReviewOptionRecord[] {
   }))
 }
 
-function buildDefaultAcceptedProposalIds(artifact: SceneRunArtifactRecord, decision: CanonPatchArtifactDetailRecord['decision']) {
-  const [proposalOneId, proposalTwoId] = buildProposalIds(artifact)
-  return decision === 'accept-with-edit' ? [proposalTwoId] : [proposalOneId]
+function buildDefaultAcceptedProposalIds(artifact: SceneRunArtifactRecord) {
+  const [proposalOneId] = buildProposalIds(artifact)
+  return [proposalOneId]
 }
 
-function buildAcceptedProposalIdsFromSource(
-  sourceProposalSetId: string,
-  decision: CanonPatchArtifactDetailRecord['decision'],
-) {
-  const suffix = decision === 'accept-with-edit' ? '002' : '001'
-  return [`${sourceProposalSetId}-proposal-${suffix}`]
+function buildAcceptedProposalIdsFromSource(sourceProposalSetId: string) {
+  return [`${sourceProposalSetId}-proposal-001`]
 }
 
 function buildAcceptedFactValue(sceneName: string, proposalId: string) {
@@ -760,8 +756,8 @@ export function buildCanonPatchDetail(
   const sourceProposalSetId = input.sourceProposalSetId ?? buildProposalSetId(input.artifact.sceneId, sequence)
   const acceptedProposalIds = input.acceptedProposalIds
     ?? (input.sourceProposalSetId
-      ? buildAcceptedProposalIdsFromSource(input.sourceProposalSetId, input.decision)
-      : buildDefaultAcceptedProposalIds(input.artifact, input.decision))
+      ? buildAcceptedProposalIdsFromSource(input.sourceProposalSetId)
+      : buildDefaultAcceptedProposalIds(input.artifact))
   const selectedVariants = normalizeSelectedVariants(
     filterSelectedVariantsForProposals(input.selectedVariants, acceptedProposalIds),
   )

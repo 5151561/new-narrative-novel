@@ -96,6 +96,42 @@ function addAssetNode(state: MutableTraceState, asset: RunArtifactRelatedAssetRe
   })
 }
 
+function buildSelectedVariantTraceLabel(
+  input: BuildAcceptedRunTraceInput,
+  proposalId: string,
+  baseLabel: LocalizedTextRecord,
+): LocalizedTextRecord {
+  const selectedVariant = input.canonPatch.selectedVariants?.find((variant) => variant.proposalId === proposalId)
+    ?? input.proseDraft.selectedVariants?.find((variant) => variant.proposalId === proposalId)
+  if (!selectedVariant) {
+    return baseLabel
+  }
+
+  const proposal = input.proposalSet.proposals.find((candidate) => candidate.id === selectedVariant.proposalId)
+  const variant = proposal?.variants?.find((candidate) => candidate.id === selectedVariant.variantId)
+  if (!variant) {
+    return text(
+      `${baseLabel.en} via selected variant ${selectedVariant.variantId}`,
+      `${baseLabel['zh-CN']}，使用已选变体 ${selectedVariant.variantId}`,
+    )
+  }
+
+  return text(
+    `${baseLabel.en} via selected variant ${variant.label.en}: ${variant.summary.en}`,
+    `${baseLabel['zh-CN']}，使用已选变体 ${variant.label['zh-CN']}：${variant.summary['zh-CN']}`,
+  )
+}
+
+function buildRenderedAsTraceLabel(input: BuildAcceptedRunTraceInput) {
+  const selectedVariants = input.proseDraft.selectedVariants ?? input.canonPatch.selectedVariants
+  const selectedVariant = selectedVariants?.[0]
+  if (!selectedVariant) {
+    return text('Rendered as prose', '渲染为正文')
+  }
+
+  return buildSelectedVariantTraceLabel(input, selectedVariant.proposalId, text('Rendered as prose', '渲染为正文'))
+}
+
 function buildInitialTraceState(input: BuildInitialRunTraceInput) {
   const state = createState(input.runId)
 
@@ -282,7 +318,7 @@ export function buildAcceptedRunTrace(input: BuildAcceptedRunTraceInput): RunTra
           kind: 'canon-fact',
         },
         relation: 'accepted_into',
-        label: text('Accepted into canon', '接受进入正典'),
+        label: buildSelectedVariantTraceLabel(input, sourceProposalId, text('Accepted into canon', '接受进入正典')),
       })
     }
 
@@ -325,7 +361,7 @@ export function buildAcceptedRunTrace(input: BuildAcceptedRunTraceInput): RunTra
       kind: 'prose-draft',
     },
     relation: 'rendered_as',
-    label: text('Rendered as prose', '渲染为正文'),
+    label: buildRenderedAsTraceLabel(input),
   })
 
   for (const asset of input.proseDraft.relatedAssets) {

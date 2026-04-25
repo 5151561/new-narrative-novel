@@ -2,6 +2,17 @@ import { describe, expect, it } from 'vitest'
 
 import { withTestServer } from './test/support/test-server.js'
 
+function findEventRef(
+  events: Array<{
+    kind: string
+    refs?: Array<{ kind: string; id: string }>
+  }>,
+  eventKind: string,
+  refKind: string,
+) {
+  return events.find((event) => event.kind === eventKind)?.refs?.find((ref) => ref.kind === refKind)
+}
+
 describe('fixture API server run flow', () => {
   it('supports start, detail, paged events, review decision submission, and stream placeholder', async () => {
     await withTestServer(async ({ app }) => {
@@ -225,6 +236,10 @@ describe('fixture API server run flow', () => {
 
   it('materializes prose after accept-with-edit review decisions', async () => {
     await withTestServer(async ({ app }) => {
+      const selectedVariant = {
+        proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+        variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-reveal-pressure',
+      }
       const startResponse = await app.inject({
         method: 'POST',
         url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
@@ -243,6 +258,7 @@ describe('fixture API server run flow', () => {
           reviewId: startedRun.pendingReviewId,
           decision: 'accept-with-edit',
           note: 'Use the editorial adjustment.',
+          selectedVariants: [selectedVariant],
         },
       })
       expect(reviewResponse.statusCode).toBe(200)
@@ -251,18 +267,64 @@ describe('fixture API server run flow', () => {
         summary: 'Proposal set accepted with editor adjustments applied to canon and prose.',
       })
 
+      const postReviewEventsResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${startedRun.id}/events?cursor=${startedRun.latestEventId}`,
+      })
+      expect(postReviewEventsResponse.statusCode).toBe(200)
+      const postReviewEvents = postReviewEventsResponse.json().events
+      const canonPatchRef = findEventRef(postReviewEvents, 'canon_patch_applied', 'canon-patch')
+      const proseDraftRef = findEventRef(postReviewEvents, 'prose_generated', 'prose-draft')
+      expect(canonPatchRef).toBeTruthy()
+      expect(proseDraftRef).toBeTruthy()
+
+      const canonPatchResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${startedRun.id}/artifacts/${canonPatchRef!.id}`,
+      })
+      expect(canonPatchResponse.statusCode).toBe(200)
+      expect(canonPatchResponse.json()).toMatchObject({
+        artifact: {
+          acceptedProposalIds: [selectedVariant.proposalId],
+          selectedVariants: [selectedVariant],
+          acceptedFacts: [
+            expect.objectContaining({
+              sourceProposalIds: [selectedVariant.proposalId],
+              selectedVariants: [selectedVariant],
+            }),
+          ],
+        },
+      })
+
+      const proseDraftResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${startedRun.id}/artifacts/${proseDraftRef!.id}`,
+      })
+      expect(proseDraftResponse.statusCode).toBe(200)
+      expect(proseDraftResponse.json()).toMatchObject({
+        artifact: {
+          sourceCanonPatchId: canonPatchRef!.id,
+          sourceProposalIds: [selectedVariant.proposalId],
+          selectedVariants: [selectedVariant],
+          body: {
+            en: expect.stringContaining(selectedVariant.variantId),
+          },
+        },
+      })
+
       const proseAfterReview = await app.inject({
         method: 'GET',
         url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
       })
       expect(proseAfterReview.statusCode).toBe(200)
       expect(proseAfterReview.json()).toMatchObject({
-        proseDraft: expect.stringContaining('Accepted proposal proposal-set-scene-midnight-platform-run-002-proposal-002 anchors the draft.'),
+        proseDraft: expect.stringContaining(selectedVariant.variantId),
         traceSummary: {
           sourcePatchId: 'canon-patch-scene-midnight-platform-002',
           sourceProposals: [
             expect.objectContaining({
-              proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-002',
+              proposalId: selectedVariant.proposalId,
+              title: expect.stringContaining('Selected variant Reveal pressure'),
             }),
           ],
         },
@@ -341,8 +403,7 @@ describe('fixture API server run flow', () => {
         url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
       })
       expect(proseAfterReview.statusCode).toBe(200)
-      expect(proseAfterReview.json().proseDraft).toBe(proseBeforeReview.json().proseDraft)
-      expect(proseAfterReview.json().traceSummary).toEqual(proseBeforeReview.json().traceSummary)
+      expect(proseAfterReview.json()).toEqual(proseBeforeReview.json())
     })
   })
 
@@ -385,8 +446,7 @@ describe('fixture API server run flow', () => {
         url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
       })
       expect(proseAfterReview.statusCode).toBe(200)
-      expect(proseAfterReview.json().proseDraft).toBe(proseBeforeReview.json().proseDraft)
-      expect(proseAfterReview.json().traceSummary).toEqual(proseBeforeReview.json().traceSummary)
+      expect(proseAfterReview.json()).toEqual(proseBeforeReview.json())
     })
   })
 })

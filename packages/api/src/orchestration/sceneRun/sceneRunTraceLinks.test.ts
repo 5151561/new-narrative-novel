@@ -25,7 +25,7 @@ describe('sceneRunTraceLinks', () => {
   const runId = 'run-scene-midnight-platform-002'
   const sceneId = 'scene-midnight-platform'
 
-  function buildInitialArtifacts() {
+  function buildInitialArtifacts(selectedVariants?: Array<{ proposalId: string; variantId: string }>) {
     const contextPacket = buildContextPacketDetail({
       artifact: createContextPacketArtifact({
         runId,
@@ -70,6 +70,7 @@ describe('sceneRunTraceLinks', () => {
       }),
       sourceEventIds: ['run-event-scene-midnight-platform-002-008'],
       sourceInvocationIds: [plannerInvocation.id, writerInvocation.id],
+      selectedVariants,
     })
 
     return {
@@ -266,6 +267,70 @@ describe('sceneRunTraceLinks', () => {
         to: {
           kind: 'asset',
           id: 'asset-scene-midnight-platform-setting',
+        },
+      }),
+    ]))
+  })
+
+  it('carries selected variant provenance in accepted and rendered trace labels', () => {
+    const selectedVariant = {
+      proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+      variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-reveal-pressure',
+    }
+    const initial = buildInitialArtifacts([selectedVariant])
+    const canonPatch = buildCanonPatchDetail({
+      artifact: createCanonPatchArtifact({
+        runId,
+        sceneId,
+        sequence: 2,
+      }),
+      sourceEventIds: ['run-event-scene-midnight-platform-002-011'],
+      decision: 'accept-with-edit',
+      sourceProposalSetId: initial.proposalSet.id,
+      selectedVariants: [selectedVariant],
+    })
+    const proseDraft = buildProseDraftDetail({
+      artifact: createProseDraftArtifact({
+        runId,
+        sceneId,
+        sequence: 2,
+      }),
+      sourceEventIds: ['run-event-scene-midnight-platform-002-012'],
+      sourceCanonPatchId: canonPatch.id,
+      sourceProposalIds: canonPatch.acceptedProposalIds,
+      selectedVariants: canonPatch.selectedVariants,
+    })
+
+    const trace = buildAcceptedRunTrace({
+      runId,
+      contextPacket: initial.contextPacket,
+      agentInvocations: [initial.plannerInvocation, initial.writerInvocation],
+      proposalSet: initial.proposalSet,
+      canonPatch,
+      proseDraft,
+    })
+
+    expect(trace.links).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        relation: 'accepted_into',
+        from: {
+          kind: 'proposal',
+          id: selectedVariant.proposalId,
+        },
+        label: {
+          en: expect.stringContaining('selected variant Reveal pressure'),
+          'zh-CN': expect.stringContaining('已选变体 揭示加压'),
+        },
+      }),
+      expect.objectContaining({
+        relation: 'rendered_as',
+        from: {
+          kind: 'canon-patch',
+          id: canonPatch.id,
+        },
+        label: {
+          en: expect.stringContaining('selected variant Reveal pressure'),
+          'zh-CN': expect.stringContaining('已选变体 揭示加压'),
         },
       }),
     ]))

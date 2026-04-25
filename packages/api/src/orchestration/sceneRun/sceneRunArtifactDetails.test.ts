@@ -573,8 +573,8 @@ describe('sceneRunArtifactDetails', () => {
     })
 
     expect(detail.sourceProposalSetId).toBe('proposal-set-explicit-555')
-    expect(detail.acceptedProposalIds).toEqual(['proposal-set-explicit-555-proposal-002'])
-    expect(detail.acceptedFacts[0]?.sourceProposalIds).toEqual(['proposal-set-explicit-555-proposal-002'])
+    expect(detail.acceptedProposalIds).toEqual(['proposal-set-explicit-555-proposal-001'])
+    expect(detail.acceptedFacts[0]?.sourceProposalIds).toEqual(['proposal-set-explicit-555-proposal-001'])
     expect(detail.traceLinkIds).toEqual([
       'trace-link-scene-midnight-platform-002-accepted_into-001',
       'trace-link-scene-midnight-platform-002-accepted_into-002',
