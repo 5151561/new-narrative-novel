@@ -2,7 +2,13 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { getMainWindowOptions, resolvePreloadPath, resolveRendererDevUrl, resolveRendererTarget } from './create-window.js'
+import {
+  getMainWindowOptions,
+  registerWindowShowLifecycle,
+  resolvePreloadPath,
+  resolveRendererDevUrl,
+  resolveRendererTarget,
+} from './create-window.js'
 
 describe('getMainWindowOptions', () => {
   it('uses the required BrowserWindow security defaults', () => {
@@ -24,7 +30,39 @@ describe('resolvePreloadPath', () => {
   })
 })
 
+describe('registerWindowShowLifecycle', () => {
+  it('shows the hidden window when Electron reports it is ready', () => {
+    let readyListener: (() => void) | undefined
+    let showCount = 0
+
+    registerWindowShowLifecycle({
+      once(event, listener) {
+        expect(event).toBe('ready-to-show')
+        readyListener = listener
+      },
+      show() {
+        showCount += 1
+      },
+    })
+
+    expect(showCount).toBe(0)
+    readyListener?.()
+    expect(showCount).toBe(1)
+  })
+})
+
 describe('resolveRendererTarget', () => {
+  it('loads the renderer Vite dev server by default in desktop dev mode', () => {
+    expect(
+      resolveRendererTarget({
+        isPackaged: false,
+      }),
+    ).toEqual({
+      kind: 'url',
+      url: 'http://127.0.0.1:5173/',
+    })
+  })
+
   it('loads the renderer dev server in desktop dev mode', () => {
     expect(
       resolveRendererTarget({

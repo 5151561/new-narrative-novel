@@ -18,7 +18,12 @@ export interface RendererTargetInput {
   desktopDistDir?: string
 }
 
-const DEFAULT_RENDERER_DEV_URL = 'http://127.0.0.1:4173'
+export interface WindowShowLifecycleTarget {
+  once(event: 'ready-to-show', listener: () => void): void
+  show(): void
+}
+
+const DEFAULT_RENDERER_DEV_URL = 'http://127.0.0.1:5173'
 const LOCAL_RENDERER_DEV_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const processWithElectronPaths = process as NodeJS.Process & { resourcesPath?: string }
@@ -78,6 +83,12 @@ export function resolveRendererTarget({
   }
 }
 
+export function registerWindowShowLifecycle(window: WindowShowLifecycleTarget): void {
+  window.once('ready-to-show', () => {
+    window.show()
+  })
+}
+
 export async function createMainWindow(): Promise<BrowserWindow> {
   const { app, BrowserWindow } = await import('electron')
   const window = new BrowserWindow(
@@ -85,6 +96,7 @@ export async function createMainWindow(): Promise<BrowserWindow> {
       preloadPath: resolvePreloadPath(),
     }),
   )
+  registerWindowShowLifecycle(window)
 
   const target = resolveRendererTarget({
     isPackaged: app.isPackaged,
@@ -95,10 +107,6 @@ export async function createMainWindow(): Promise<BrowserWindow> {
   } else {
     await window.loadFile(target.filePath)
   }
-
-  window.once('ready-to-show', () => {
-    window.show()
-  })
 
   return window
 }
