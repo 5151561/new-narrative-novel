@@ -13,8 +13,11 @@ import type {
   FixtureProjectData,
   ProjectRuntimeInfoRecord,
   ProposalActionInput,
+  ProposalSetArtifactDetailRecord,
   ReviewIssueDecisionRecord,
   ReviewIssueFixActionRecord,
+  CanonPatchArtifactDetailRecord,
+  ProseDraftArtifactDetailRecord,
   RunArtifactDetailRecord,
   RunArtifactSummaryRecord,
   RunEventsPageRecord,
@@ -34,6 +37,10 @@ import type {
   SubmitRunReviewDecisionInput,
 } from '../contracts/api-records.js'
 import { notFound } from '../http/errors.js'
+import {
+  buildAcceptedFactsFromCanonPatch,
+  buildSceneProseFromProseDraftArtifact,
+} from '../orchestration/sceneRun/sceneRunProseMaterialization.js'
 
 import { createFixtureDataSnapshot } from './fixture-data.js'
 import { createRunFixtureStore, type RunFixtureStore } from './runFixtureStore.js'
@@ -209,6 +216,10 @@ function buildSceneRunStatusLabel(run: RunRecord) {
   }
 }
 
+function isAcceptedRunDecision(decision: SubmitRunReviewDecisionInput['decision']) {
+  return decision === 'accept' || decision === 'accept-with-edit'
+}
+
 export interface FixtureRepository {
   getProjectRuntimeInfo(projectId: string): ProjectRuntimeInfoRecord
   getBookStructure(projectId: string, bookId: string): BookStructureRecord | null
@@ -356,6 +367,86 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
       project.chapters[chapterId] = nextChapter
       return
     }
+  }
+
+  function findLatestArtifactDetail<TKind extends RunArtifactDetailRecord['kind']>(
+    projectId: string,
+    runId: string,
+    kind: TKind,
+  ): Extract<RunArtifactDetailRecord, { kind: TKind }> | undefined {
+    const artifacts = runStore.listRunArtifacts(projectId, runId)
+    if (!artifacts) {
+      return undefined
+    }
+
+    for (let index = artifacts.length - 1; index >= 0; index -= 1) {
+      const artifact = artifacts[index]
+      if (artifact?.kind !== kind) {
+        continue
+      }
+
+      const detail = runStore.getRunArtifact(projectId, runId, artifact.id)
+      if (detail?.kind === kind) {
+        return detail as Extract<RunArtifactDetailRecord, { kind: TKind }>
+      }
+    }
+
+    return undefined
+  }
+
+  function syncChapterSceneProseStatus(projectId: string, sceneId: string, statusLabel: { en: string; 'zh-CN': string }) {
+    const project = getProject(projectId)
+    for (const [chapterId, chapter] of Object.entries(project.chapters)) {
+      const sceneIndex = chapter.scenes.findIndex((scene) => scene.id === sceneId)
+      if (sceneIndex < 0) {
+        continue
+      }
+
+      const nextChapter = clone(chapter)
+      nextChapter.scenes[sceneIndex] = {
+        ...nextChapter.scenes[sceneIndex]!,
+        proseStatusLabel: statusLabel,
+      }
+      project.chapters[chapterId] = nextChapter
+      return
+    }
+  }
+
+  function syncSceneProseFromAcceptedRun(projectId: string, run: RunRecord, decision: SubmitRunReviewDecisionInput['decision']) {
+    if (run.scope !== 'scene' || !isAcceptedRunDecision(decision)) {
+      return
+    }
+
+    const proseDraft = findLatestArtifactDetail(projectId, run.id, 'prose-draft') as ProseDraftArtifactDetailRecord | undefined
+    if (!proseDraft) {
+      return
+    }
+
+    const canonPatch = findLatestArtifactDetail(projectId, run.id, 'canon-patch') as CanonPatchArtifactDetailRecord | undefined
+    const proposalSet = findLatestArtifactDetail(projectId, run.id, 'proposal-set') as ProposalSetArtifactDetailRecord | undefined
+    const scene = getScene(projectId, run.scopeId)
+    const hadProseDraft = Boolean(scene.prose.proseDraft)
+    const proseMaterialization = buildSceneProseFromProseDraftArtifact({
+      proseDraft,
+      canonPatch,
+      proposalSet,
+    })
+    const acceptedFacts = buildAcceptedFactsFromCanonPatch(canonPatch)
+
+    scene.prose = {
+      ...scene.prose,
+      ...proseMaterialization,
+    }
+    scene.execution.acceptedSummary = {
+      ...scene.execution.acceptedSummary,
+      acceptedFacts,
+    }
+    scene.inspector.context.acceptedFacts = acceptedFacts
+    syncChapterSceneProseStatus(
+      projectId,
+      run.scopeId,
+      hadProseDraft ? { en: 'Updated', 'zh-CN': '已更新' } : { en: 'Generated', 'zh-CN': '已生成' },
+    )
   }
 
   function syncRunMutations(projectId: string, run: RunRecord) {
@@ -592,6 +683,7 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
     submitRunReviewDecision(projectId, input) {
       const run = runStore.submitRunReviewDecision(projectId, input)
       syncRunMutations(projectId, run)
+      syncSceneProseFromAcceptedRun(projectId, run, input.decision)
       return run
     },
     exportSnapshot() {

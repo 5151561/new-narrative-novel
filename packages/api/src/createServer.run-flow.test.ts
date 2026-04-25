@@ -139,8 +139,49 @@ describe('fixture API server run flow', () => {
       })
       expect(proseAfterReview.statusCode).toBe(200)
       expect(proseAfterReview.json()).toMatchObject({
-        statusLabel: 'Run completed',
-        latestDiffSummary: 'Proposal set accepted and applied to canon and prose.',
+        proseDraft: expect.stringContaining('Midnight Platform opens from the accepted run artifact'),
+        draftWordCount: 146,
+        statusLabel: 'Generated',
+        latestDiffSummary: 'A fixture prose draft was rendered for Midnight Platform.',
+        traceSummary: {
+          sourcePatchId: 'canon-patch-scene-midnight-platform-002',
+          sourceProposals: [
+            expect.objectContaining({
+              proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+            }),
+          ],
+          acceptedFactIds: ['canon-patch-scene-midnight-platform-002-fact-001'],
+          missingLinks: [],
+        },
+      })
+
+      const executionAfterReview = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/execution',
+      })
+      expect(executionAfterReview.statusCode).toBe(200)
+      expect(executionAfterReview.json()).toMatchObject({
+        acceptedSummary: {
+          acceptedFacts: [
+            expect.objectContaining({
+              id: 'canon-patch-scene-midnight-platform-002-fact-001',
+              label: 'Accepted fact 1',
+            }),
+          ],
+        },
+      })
+
+      const chapterAfterReview = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/chapters/chapter-signals-in-rain/structure',
+      })
+      expect(chapterAfterReview.statusCode).toBe(200)
+      expect(chapterAfterReview.json().scenes[0]).toMatchObject({
+        id: 'scene-midnight-platform',
+        proseStatusLabel: {
+          en: 'Updated',
+          'zh-CN': '已更新',
+        },
       })
 
       const dockAfterReview = await app.inject({
@@ -161,12 +202,15 @@ describe('fixture API server run flow', () => {
         url: `/api/projects/book-signal-arc/runs/${startedRun.id}/events?cursor=${finalPreReviewEventsResponse.json().events.at(-1)?.id}`,
       })
       expect(postReviewEventsResponse.statusCode).toBe(200)
-      expect(postReviewEventsResponse.json().events.map((event: { kind: string }) => event.kind)).toEqual([
+      const postReviewEvents = postReviewEventsResponse.json().events
+      expect(postReviewEvents.map((event: { kind: string }) => event.kind)).toEqual([
         'review_decision_submitted',
         'canon_patch_applied',
         'prose_generated',
         'run_completed',
       ])
+      expect(JSON.stringify(postReviewEvents)).not.toContain('Midnight Platform opens from the accepted run artifact')
+      expect(JSON.stringify(postReviewEvents)).not.toContain('sourceProposalIds')
 
       const streamResponse = await app.inject({
         method: 'GET',
@@ -179,8 +223,61 @@ describe('fixture API server run flow', () => {
     })
   })
 
+  it('materializes prose after accept-with-edit review decisions', async () => {
+    await withTestServer(async ({ app }) => {
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
+          note: 'Keep the edit path visible.',
+        },
+      })
+      expect(startResponse.statusCode).toBe(200)
+      const startedRun = startResponse.json()
+
+      const reviewResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/book-signal-arc/runs/${startedRun.id}/review-decisions`,
+        payload: {
+          reviewId: startedRun.pendingReviewId,
+          decision: 'accept-with-edit',
+          note: 'Use the editorial adjustment.',
+        },
+      })
+      expect(reviewResponse.statusCode).toBe(200)
+      expect(reviewResponse.json()).toMatchObject({
+        status: 'completed',
+        summary: 'Proposal set accepted with editor adjustments applied to canon and prose.',
+      })
+
+      const proseAfterReview = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
+      })
+      expect(proseAfterReview.statusCode).toBe(200)
+      expect(proseAfterReview.json()).toMatchObject({
+        proseDraft: expect.stringContaining('Accepted proposal proposal-set-scene-midnight-platform-run-002-proposal-002 anchors the draft.'),
+        traceSummary: {
+          sourcePatchId: 'canon-patch-scene-midnight-platform-002',
+          sourceProposals: [
+            expect.objectContaining({
+              proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-002',
+            }),
+          ],
+        },
+      })
+    })
+  })
+
   it('preserves request-rewrite run flow semantics over HTTP', async () => {
     await withTestServer(async ({ app }) => {
+      const proseBeforeReview = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
+      })
+      expect(proseBeforeReview.statusCode).toBe(200)
+
       const startResponse = await app.inject({
         method: 'POST',
         url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
@@ -238,6 +335,58 @@ describe('fixture API server run flow', () => {
         runStatus: 'running',
         status: 'running',
       })
+
+      const proseAfterReview = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
+      })
+      expect(proseAfterReview.statusCode).toBe(200)
+      expect(proseAfterReview.json().proseDraft).toBe(proseBeforeReview.json().proseDraft)
+      expect(proseAfterReview.json().traceSummary).toEqual(proseBeforeReview.json().traceSummary)
+    })
+  })
+
+  it('does not overwrite scene prose after rejected review decisions', async () => {
+    await withTestServer(async ({ app }) => {
+      const proseBeforeReview = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
+      })
+      expect(proseBeforeReview.statusCode).toBe(200)
+
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
+          note: 'Try a path that will be rejected.',
+        },
+      })
+      expect(startResponse.statusCode).toBe(200)
+      const startedRun = startResponse.json()
+
+      const reviewResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/book-signal-arc/runs/${startedRun.id}/review-decisions`,
+        payload: {
+          reviewId: startedRun.pendingReviewId,
+          decision: 'reject',
+          note: 'Close this attempt.',
+        },
+      })
+      expect(reviewResponse.statusCode).toBe(200)
+      expect(reviewResponse.json()).toMatchObject({
+        status: 'completed',
+        summary: 'Proposal set rejected and the run was closed.',
+      })
+
+      const proseAfterReview = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
+      })
+      expect(proseAfterReview.statusCode).toBe(200)
+      expect(proseAfterReview.json().proseDraft).toBe(proseBeforeReview.json().proseDraft)
+      expect(proseAfterReview.json().traceSummary).toEqual(proseBeforeReview.json().traceSummary)
     })
   })
 })

@@ -220,9 +220,18 @@ describe('fixture API server run artifact read surfaces', () => {
           id: proseDraftRef!.id,
           kind: 'prose-draft',
           sourceCanonPatchId: canonPatchRef!.id,
+          sourceProposalIds: ['proposal-set-scene-midnight-platform-run-002-proposal-001'],
           selectedVariants: [selectedVariant],
+          body: {
+            en: expect.stringContaining(selectedVariant.variantId),
+          },
+          excerpt: {
+            en: 'Midnight Platform settles into view before the next reveal turns visible.',
+            'zh-CN': 'Midnight Platform 先稳稳落入视野，随后下一段揭示才开始显形。',
+          },
         },
       })
+      expect(proseDraftResponse.json().artifact.body.en).toContain('Accepted proposal proposal-set-scene-midnight-platform-run-002-proposal-001 anchors the draft.')
 
       const traceResponse = await app.inject({
         method: 'GET',

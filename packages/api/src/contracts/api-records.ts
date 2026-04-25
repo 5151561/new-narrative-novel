@@ -985,6 +985,7 @@ export interface ProseDraftArtifactDetailRecord extends RunArtifactSummaryRecord
   sourceCanonPatchId: string
   sourceProposalIds: string[]
   selectedVariants?: RunSelectedProposalVariantRecord[]
+  body?: LocalizedTextRecord
   excerpt: LocalizedTextRecord
   wordCount: number
   relatedAssets: RunArtifactRelatedAssetRecord[]

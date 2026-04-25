@@ -184,6 +184,45 @@ function buildDefaultSummary(artifact: SceneRunArtifactRecord): LocalizedTextRec
   }
 }
 
+function buildSelectedVariantBodyLine(selectedVariant: RunSelectedProposalVariantRecord, index: number): LocalizedTextRecord {
+  const variantLabel = selectedVariant.variantId
+    .replace(`${selectedVariant.proposalId}-variant-`, '')
+    .split('-')
+    .filter(Boolean)
+    .join(' ')
+  const displayIndex = index + 1
+
+  return localize(
+    `Selected variant ${displayIndex} (${variantLabel}) shapes the beat by preserving its proposed effect, with rationale retained from ${selectedVariant.variantId}.`,
+    `已选变体 ${displayIndex}（${variantLabel}）按其提案效果塑造节拍，并保留来自 ${selectedVariant.variantId} 的理由。`,
+  )
+}
+
+function buildProseDraftBody(input: {
+  sceneName: string
+  sourceProposalIds: string[]
+  selectedVariants?: RunSelectedProposalVariantRecord[]
+}): LocalizedTextRecord {
+  const acceptedProposalLine = input.sourceProposalIds.length > 0
+    ? `Accepted proposal ${input.sourceProposalIds.join(', ')} anchors the draft.`
+    : 'The default accepted proposal anchors the draft.'
+  const acceptedProposalLineZh = input.sourceProposalIds.length > 0
+    ? `已接受提案 ${input.sourceProposalIds.join(', ')} 成为正文锚点。`
+    : '默认接受提案成为正文锚点。'
+  const variantLines = input.selectedVariants?.map(buildSelectedVariantBodyLine) ?? []
+  const selectedVariantLine = variantLines.length > 0
+    ? variantLines.map((line) => line.en).join(' ')
+    : 'No selected proposal variant was submitted, so the draft follows the default accepted proposal path.'
+  const selectedVariantLineZh = variantLines.length > 0
+    ? variantLines.map((line) => line['zh-CN']).join(' ')
+    : '未提交已选提案变体，因此正文沿用默认接受提案路径。'
+
+  return localize(
+    `${input.sceneName} opens from the accepted run artifact rather than a hard-coded scene field. ${acceptedProposalLine} ${selectedVariantLine} The scene resolves into generated prose that can be traced back to the canon patch.`,
+    `${input.sceneName} 从已接受的运行 artifact 展开，而不是直接写死在 scene 字段里。${acceptedProposalLineZh}${selectedVariantLineZh} 该场景生成的正文可以追溯回正典补丁。`,
+  )
+}
+
 function buildDefaultCreatedAtLabel(sourceEventIds: string[]) {
   const orderLabel = parseEventOrderLabel(sourceEventIds[0])
   return localize(`Linked event ${orderLabel}`, `关联事件 ${orderLabel}`)
@@ -748,15 +787,24 @@ export function buildProseDraftDetail(
   const sceneLead = buildLeadAsset(input.artifact.sceneId, sceneName)
   const sceneSetting = buildSettingAsset(input.artifact.sceneId, sceneName)
   const sequence = parseRunSequenceNumber(input.artifact.runId)
+  const sourceProposalIds = input.sourceProposalIds ?? [buildProposalIds(input.artifact)[0]]
+  const selectedVariants = input.selectedVariants && input.selectedVariants.length > 0
+    ? input.selectedVariants
+    : undefined
 
   return {
     ...buildArtifactSummary(input),
     kind: 'prose-draft',
     sourceCanonPatchId: input.sourceCanonPatchId ?? buildCanonPatchId(input.artifact.sceneId, sequence),
-    sourceProposalIds: input.sourceProposalIds ?? [buildProposalIds(input.artifact)[0]],
-    ...(input.selectedVariants && input.selectedVariants.length > 0
-      ? { selectedVariants: input.selectedVariants }
+    sourceProposalIds,
+    ...(selectedVariants
+      ? { selectedVariants }
       : {}),
+    body: buildProseDraftBody({
+      sceneName,
+      sourceProposalIds,
+      selectedVariants,
+    }),
     excerpt: localize(
       `${sceneName} settles into view before the next reveal turns visible.`,
       `${sceneName} 先稳稳落入视野，随后下一段揭示才开始显形。`,

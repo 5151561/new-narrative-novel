@@ -500,6 +500,8 @@ describe('sceneRunArtifactDetails', () => {
     })
 
     expect(proseDraftDetail.selectedVariants).toEqual([selectedVariant])
+    expect(proseDraftDetail.body?.en).toContain(selectedVariant.variantId)
+    expect(proseDraftDetail.body?.en).toContain('rationale retained')
   })
 
   it('uses explicit backreference metadata for custom canon patch and prose draft ids', () => {
@@ -594,6 +596,10 @@ describe('sceneRunArtifactDetails', () => {
     expect(detail).toMatchObject({
       sourceCanonPatchId: 'canon-patch-scene-midnight-platform-002',
       sourceProposalIds: ['proposal-set-scene-midnight-platform-run-002-proposal-001'],
+      body: text(
+        'Midnight Platform opens from the accepted run artifact rather than a hard-coded scene field. Accepted proposal proposal-set-scene-midnight-platform-run-002-proposal-001 anchors the draft. No selected proposal variant was submitted, so the draft follows the default accepted proposal path. The scene resolves into generated prose that can be traced back to the canon patch.',
+        'Midnight Platform 从已接受的运行 artifact 展开，而不是直接写死在 scene 字段里。已接受提案 proposal-set-scene-midnight-platform-run-002-proposal-001 成为正文锚点。未提交已选提案变体，因此正文沿用默认接受提案路径。 该场景生成的正文可以追溯回正典补丁。',
+      ),
       excerpt: text(
         'Midnight Platform settles into view before the next reveal turns visible.',
         'Midnight Platform 先稳稳落入视野，随后下一段揭示才开始显形。',

@@ -33,6 +33,7 @@
 - Scene / Orchestrate 的 run 纵切：start run、polling events、waiting review、submit review decision、刷新 scene/chapter read model。
 - Run artifact / trace read surfaces：事件只携带轻量 `refs`，大 payload 通过 artifact/trace 读取。
 - Asset Context Policy / Context Activation Trace 基础：Asset / Knowledge 可以只读展示资产进入上下文的规则；context-packet artifact detail 可以解释某次 run included / excluded / redacted 了哪些 asset context。
+- Scene prose generation 纵切：`accept` / `accept-with-edit` 后，fixture API 从 prose-draft artifact detail materialize scene prose read model，并保留 proposal variant -> canon patch -> prose draft 的 trace。
 
 ## 产品模型
 
@@ -83,6 +84,7 @@ constraint -> proposal -> review -> accepted canon -> prose
 - run events 只保留产品级摘要和轻量 refs。
 - context packet、agent invocation、proposal set、canon patch、prose draft 等大对象走 artifact detail。
 - asset context policy 随 asset knowledge read model 返回；context activation trace 随 context-packet artifact detail 返回。
+- accepted review 通过 prose-draft artifact body 物化 scene prose；reject / request-rewrite 不覆盖当前正文。
 - proposal -> canon -> prose 的关系走 trace read surface。
 - `events/stream` 仍是 501 占位；当前 renderer 使用 REST + polling/page contract。
 

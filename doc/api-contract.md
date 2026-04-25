@@ -629,7 +629,41 @@ Review decision result:
 - `reviewId` 与 run 当前 `pendingReviewId` 不匹配时返回 `409`。
 - `422` 保留为 API / override 可用的 validation 错误语义；PR23 默认 mock contract 只内建 conflict 校验，不额外强制 review decision 字段规则。
 - 成功后返回最新 `RunRecord`，并由事件页补充 `review_decision_submitted`、`canon_patch_applied`、`prose_generated`、`run_completed` 等产品事件。
-- run review write 只更新 run/event query data；它不写 route，不直接修改 scene/chapter/book UI 状态。
+- `accept` / `accept-with-edit` 成功后，fixture API 会通过 `prose-draft` artifact detail materialize scene prose read model，并同步 scene accepted facts 与 chapter scene row 的 prose 状态；`request-rewrite` / `reject` 不生成或覆盖正文。
+- run review write 不写 route，不新增 endpoint；scene/chapter read model 刷新必须来自 run artifact relation，而不是把正文硬编码进 event 或 scene seed。
+
+### 10.8.1 Prose draft artifact body
+
+`ProseDraftArtifactDetailRecord` 在 PR29 起可以携带正文级 `body?: LocalizedTextRecord`：
+
+```json
+{
+  "kind": "prose-draft",
+  "sourceCanonPatchId": "canon-patch-scene-midnight-platform-002",
+  "sourceProposalIds": ["proposal-set-scene-midnight-platform-run-002-proposal-001"],
+  "selectedVariants": [
+    {
+      "proposalId": "proposal-set-scene-midnight-platform-run-002-proposal-001",
+      "variantId": "proposal-set-scene-midnight-platform-run-002-proposal-001-variant-reveal-pressure"
+    }
+  ],
+  "body": {
+    "en": "Materialized prose body...",
+    "zh-CN": "已物化的正文..."
+  },
+  "excerpt": {
+    "en": "Short prose excerpt...",
+    "zh-CN": "短正文摘录..."
+  }
+}
+```
+
+约束：
+
+- `body` 是 artifact detail payload，不得进入 `RunEventRecord.metadata`。
+- `excerpt` 继续服务列表、摘要和 dock 等轻量展示面。
+- `GET /scenes/{sceneId}/prose` 的 `SceneProseViewModel.proseDraft` 是字符串 view-model，取 `body.en`，缺失时回退到 `excerpt.en`。
+- `traceSummary.sourcePatchId` 来自 `sourceCanonPatchId`；`sourceProposals` 来自 `sourceProposalIds` 并保留 selected variant 摘要；`acceptedFactIds` 来自 canon patch accepted facts。
 
 ### 10.9 SSE and engine boundary
 
