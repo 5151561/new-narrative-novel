@@ -155,6 +155,7 @@ describe('RunArtifactInspectorPanel', () => {
 
     expect(screen.getByRole('heading', { name: 'Prose draft' })).toBeInTheDocument()
     expect(screen.getByText('The scene settles into view before the next reveal turns visible.')).toBeInTheDocument()
+    expect(screen.getByText('The scene opens from the accepted run artifact, keeping the selected review material visible in the draft.')).toBeInTheDocument()
     expect(screen.getByText('143 words')).toBeInTheDocument()
     expect(screen.getByText(canonPatchId)).toBeInTheDocument()
     expect(screen.getByText(`${proposalSetId}-proposal-001`)).toBeInTheDocument()

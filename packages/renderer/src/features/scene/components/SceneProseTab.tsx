@@ -44,6 +44,109 @@ export function ProseDraftReader({ proseDraft }: Pick<SceneProseViewModel, 'pros
   )
 }
 
+function dedupeByKey<T>(items: T[] | undefined, getKey: (item: T) => string | undefined) {
+  const seen = new Set<string>()
+  const deduped: T[] = []
+
+  for (const item of items ?? []) {
+    const key = getKey(item)?.trim()
+    if (!key || seen.has(key)) {
+      continue
+    }
+
+    seen.add(key)
+    deduped.push(item)
+  }
+
+  return deduped
+}
+
+function normalizeTraceSummary(traceSummary: SceneProseViewModel['traceSummary']) {
+  if (!traceSummary) {
+    return null
+  }
+
+  const sourcePatchId = traceSummary.sourcePatchId?.trim()
+  const sourceProposals = dedupeByKey(traceSummary.sourceProposals, (proposal) => proposal.proposalId)
+  const relatedAssets = dedupeByKey(traceSummary.relatedAssets, (asset) => asset.assetId)
+  const missingLinks = [...new Set((traceSummary.missingLinks ?? []).map((link) => link.trim()).filter(Boolean))]
+
+  if (!sourcePatchId && sourceProposals.length === 0 && relatedAssets.length === 0 && missingLinks.length === 0) {
+    return null
+  }
+
+  return {
+    sourcePatchId,
+    sourceProposals,
+    relatedAssets,
+    missingLinks,
+  }
+}
+
+export function ProseSourceSummary({ traceSummary }: Pick<SceneProseViewModel, 'traceSummary'>) {
+  const { locale } = useI18n()
+  const normalizedTraceSummary = normalizeTraceSummary(traceSummary)
+
+  if (!normalizedTraceSummary) {
+    return null
+  }
+
+  const sourceProposals = normalizedTraceSummary.sourceProposals
+  const relatedAssets = normalizedTraceSummary.relatedAssets
+  const missingLinks = normalizedTraceSummary.missingLinks
+  const hasSourceData = Boolean(normalizedTraceSummary.sourcePatchId || sourceProposals.length > 0 || relatedAssets.length > 0)
+
+  return (
+    <SectionCard eyebrow={locale === 'zh-CN' ? '来源' : 'Sources'} title={locale === 'zh-CN' ? '正文来源摘要' : 'Draft Source Summary'}>
+      <div className="grid gap-3 text-sm">
+        {normalizedTraceSummary.sourcePatchId ? (
+          <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-2">
+            <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">{locale === 'zh-CN' ? 'Source patch' : 'Source patch'}</p>
+            <p className="mt-1 break-all font-medium text-text-main">{normalizedTraceSummary.sourcePatchId}</p>
+          </div>
+        ) : null}
+        {sourceProposals.length > 0 ? (
+          <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-2">
+            <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">
+              {locale === 'zh-CN' ? 'Source proposals' : 'Source proposals'}
+            </p>
+            <p className="mt-1 text-text-main">
+              {locale === 'zh-CN' ? `${sourceProposals.length} 个提案` : `${sourceProposals.length} proposals`}
+            </p>
+            <ul className="mt-2 space-y-1 text-text-muted">
+              {sourceProposals.map((proposal) => (
+                <li key={proposal.proposalId} className="break-words">
+                  {proposal.title ?? proposal.proposalId}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {relatedAssets.length > 0 ? (
+          <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-2">
+            <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">{locale === 'zh-CN' ? 'Related assets' : 'Related assets'}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {relatedAssets.map((asset) => (
+                <Badge key={asset.assetId} tone="neutral">
+                  {asset.title}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {missingLinks.length > 0 || hasSourceData ? (
+          <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-2">
+            <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">{locale === 'zh-CN' ? 'Missing links' : 'Missing links'}</p>
+            <p className="mt-1 text-text-muted">
+              {missingLinks.length > 0 ? missingLinks.join(', ') : locale === 'zh-CN' ? '没有缺失来源链接' : 'No missing source links'}
+            </p>
+          </div>
+        ) : null}
+      </div>
+    </SectionCard>
+  )
+}
+
 export function RevisionActionBar({
   revisionModes,
   selectedMode,
@@ -254,6 +357,7 @@ export function SceneProseTab({
               {prose.latestDiffSummary ?? (locale === 'zh-CN' ? '尚未请求新的正文修订。' : 'No prose revision requested yet.')}
             </p>
           </SectionCard>
+          <ProseSourceSummary traceSummary={prose.traceSummary} />
         </div>
       </div>
       <ProseStatusFooter prose={prose} selectedMode={selectedMode} />

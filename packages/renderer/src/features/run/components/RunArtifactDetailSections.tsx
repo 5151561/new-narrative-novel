@@ -327,6 +327,11 @@ export function ProseDraftArtifactPanel({ artifact }: { artifact: ProseDraftArti
       <SectionCard eyebrow="Excerpt" title={locale === 'zh-CN' ? '正文摘录' : 'Excerpt'}>
         <p className="text-sm leading-6 text-text-main">{t(artifact.excerpt, locale)}</p>
       </SectionCard>
+      {artifact.body ? (
+        <SectionCard eyebrow="Body" title={locale === 'zh-CN' ? '正文全文' : 'Generated Body'}>
+          <p className="whitespace-pre-wrap text-sm leading-6 text-text-main">{t(artifact.body, locale)}</p>
+        </SectionCard>
+      ) : null}
       <SectionCard eyebrow="Assets" title={locale === 'zh-CN' ? '相关资产' : 'Related Assets'}>
         <RelatedAssets assets={artifact.relatedAssets} />
       </SectionCard>

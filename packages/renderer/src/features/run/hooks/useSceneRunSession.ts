@@ -29,17 +29,6 @@ interface SceneSessionStartedRun {
   run: RunRecord
 }
 
-async function invalidateSceneRunQueryFamilies(queryClient: ReturnType<typeof useQueryClient>, sceneId: string) {
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: sceneQueryKeys.workspace(sceneId) }),
-    queryClient.invalidateQueries({ queryKey: sceneQueryKeys.execution(sceneId) }),
-    queryClient.invalidateQueries({ queryKey: sceneQueryKeys.prose(sceneId) }),
-    queryClient.invalidateQueries({ queryKey: sceneQueryKeys.inspector(sceneId) }),
-    queryClient.invalidateQueries({ queryKey: sceneQueryKeys.dock(sceneId) }),
-    queryClient.invalidateQueries({ queryKey: sceneQueryKeys.patchPreview(sceneId) }),
-  ])
-}
-
 function syncSceneRunViewCaches(
   queryClient: ReturnType<typeof useQueryClient>,
   sceneId: string,
@@ -158,7 +147,6 @@ export function useSceneRunSession({ sceneId, runId, latestRunId }: UseSceneRunS
         reviewId: pendingReviewId,
         ...input,
       })
-      await invalidateSceneRunQueryFamilies(queryClient, sceneId)
       return updatedRun
     },
     isSubmittingDecision: submitRunReviewDecision.isPending,

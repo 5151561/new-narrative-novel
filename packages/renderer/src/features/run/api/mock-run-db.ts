@@ -673,6 +673,10 @@ function buildProseDraftDetail(state: MockRunState, entry: MockArtifactEntry): P
     sourceCanonPatchId: getCanonPatchId(state),
     sourceProposalIds: acceptedProposalIds,
     ...(selectedVariants.length > 0 ? { selectedVariants } : {}),
+    body: text(
+      'The scene opens from the accepted run artifact, keeping the selected review material visible in the draft.',
+      '场景从已采纳的运行产物展开，并把选中的审阅材料保留在草稿里。',
+    ),
     excerpt: text('The scene settles into view before the next reveal turns visible.'),
     wordCount: 140 + extractRunSequence(state.run.id) * 3,
     relatedAssets: [buildLeadAsset(state.run.scopeId), buildSettingAsset(state.run.scopeId)],

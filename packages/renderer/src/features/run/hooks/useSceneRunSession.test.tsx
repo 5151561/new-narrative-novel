@@ -472,7 +472,7 @@ describe('useSceneRunSession', () => {
     expect(hook.result.current.events.map((event) => event.id)).toEqual(['run-event-001', 'run-event-002'])
   })
 
-  it('invalidates scene-related query families after a successful review decision', async () => {
+  it('delegates review-decision invalidation to the submit mutation without duplicating scene invalidations', async () => {
     const queryClient = createQueryClient()
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
     const runClient = createRunClient({
@@ -521,12 +521,20 @@ describe('useSceneRunSession', () => {
       decision: 'accept',
       note: 'Ship it.',
     })
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sceneQueryKeys.workspace('scene-midnight-platform') })
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sceneQueryKeys.execution('scene-midnight-platform') })
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sceneQueryKeys.prose('scene-midnight-platform') })
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sceneQueryKeys.inspector('scene-midnight-platform') })
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sceneQueryKeys.dock('scene-midnight-platform') })
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sceneQueryKeys.patchPreview('scene-midnight-platform') })
+    const sceneInvalidationKeys = [
+      sceneQueryKeys.workspace('scene-midnight-platform'),
+      sceneQueryKeys.execution('scene-midnight-platform'),
+      sceneQueryKeys.prose('scene-midnight-platform'),
+      sceneQueryKeys.inspector('scene-midnight-platform'),
+      sceneQueryKeys.dock('scene-midnight-platform'),
+      sceneQueryKeys.patchPreview('scene-midnight-platform'),
+    ]
+
+    for (const queryKey of sceneInvalidationKeys) {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey, refetchType: 'active' })
+      expect(invalidateSpy.mock.calls.filter(([call]) => JSON.stringify(call.queryKey) === JSON.stringify(queryKey))).toHaveLength(1)
+    }
+    expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: sceneQueryKeys.prose('scene-midnight-platform') })
   })
 
   it('uses runClient boundaries without touching sceneClient', async () => {

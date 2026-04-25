@@ -5,8 +5,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { ProjectRuntime } from '@/app/project-runtime'
 import { ApiRequestError, createProjectRuntimeTestWrapper, createTestProjectRuntime } from '@/app/project-runtime'
+import { bookQueryKeys } from '@/features/book/hooks/book-query-keys'
+import { chapterQueryKeys } from '@/features/chapter/hooks/chapter-query-keys'
 import type { RunClient } from '@/features/run/api/run-client'
 import type { RunEventsPageRecord, RunRecord, StartSceneRunInput, SubmitRunReviewDecisionInput } from '@/features/run/api/run-records'
+import { sceneQueryKeys } from '@/features/scene/hooks/scene-query-keys'
 
 import { runQueryKeys } from './run-query-keys'
 import { useRunEventsQuery } from './useRunEventsQuery'
@@ -295,7 +298,7 @@ describe('run hooks', () => {
     expect(queryClient.getQueryData(runQueryKeys.detail('project-two', sharedRunId))).toEqual(projectTwoRun)
   })
 
-  it('useSubmitRunReviewDecisionMutation updates run detail, invalidates run events/artifacts/trace, and avoids route writes', async () => {
+  it('useSubmitRunReviewDecisionMutation updates run detail, invalidates run and scene aggregate reads, and avoids route writes', async () => {
     const queryClient = createQueryClient()
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
     const previousRun = createRunRecord({
@@ -317,6 +320,13 @@ describe('run hooks', () => {
       runQueryKeys.eventsPage('book-signal-arc', previousRun.id, undefined),
       createRunEventsPage({ runId: previousRun.id }),
     )
+    queryClient.setQueryData(sceneQueryKeys.prose(previousRun.scopeId), {
+      sceneId: previousRun.scopeId,
+      proseDraft: 'Previous cached draft',
+      revisionModes: ['rewrite'],
+      warningsCount: 0,
+      focusModeAvailable: false,
+    })
 
     const runClient = createRunClientStub({
       submitRunReviewDecision: vi.fn(async (_input: SubmitRunReviewDecisionInput) => completedRun),
@@ -357,6 +367,10 @@ describe('run hooks', () => {
     })
     expect(queryClient.getQueryData(runQueryKeys.detail('book-signal-arc', previousRun.id))).toEqual(completedRun)
     expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: runQueryKeys.detail('book-signal-arc', previousRun.id),
+      refetchType: 'active',
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: runQueryKeys.events('book-signal-arc', previousRun.id),
       refetchType: 'active',
     })
@@ -367,6 +381,41 @@ describe('run hooks', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: runQueryKeys.trace('book-signal-arc', previousRun.id),
       refetchType: 'active',
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sceneQueryKeys.workspace(previousRun.scopeId),
+      refetchType: 'active',
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sceneQueryKeys.execution(previousRun.scopeId),
+      refetchType: 'active',
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sceneQueryKeys.prose(previousRun.scopeId),
+      refetchType: 'active',
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sceneQueryKeys.inspector(previousRun.scopeId),
+      refetchType: 'active',
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sceneQueryKeys.dock(previousRun.scopeId),
+      refetchType: 'active',
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sceneQueryKeys.patchPreview(previousRun.scopeId),
+      refetchType: 'active',
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: chapterQueryKeys.all,
+      refetchType: 'active',
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: bookQueryKeys.all,
+      refetchType: 'active',
+    })
+    expect(queryClient.getQueryData(sceneQueryKeys.prose(previousRun.scopeId))).toMatchObject({
+      proseDraft: 'Previous cached draft',
     })
     expect(replaceStateSpy).not.toHaveBeenCalled()
     expect(pushStateSpy).not.toHaveBeenCalled()

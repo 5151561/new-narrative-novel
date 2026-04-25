@@ -7,6 +7,7 @@ import { vi } from 'vitest'
 import { I18nProvider } from '@/app/i18n'
 import { ProjectRuntimeProvider, createTestProjectRuntime } from '@/app/project-runtime'
 import { createSceneClient } from '@/features/scene/api/scene-client'
+import type { SceneProseViewModel } from '@/features/scene/types/scene-view-models'
 import { applyProseRevision, createSceneMockDatabase } from '@/mock/scene-fixtures'
 
 import { SceneProseContainer } from './SceneProseContainer'
@@ -87,6 +88,87 @@ describe('SceneProseContainer', () => {
 
     expect(explicitSpy).toHaveBeenCalledWith('scene-midnight-platform')
     expect(runtimeClient.getSceneProse).not.toHaveBeenCalled()
+  })
+
+  it('renders generated prose and its source summary from the prose read model', async () => {
+    const generatedProse: SceneProseViewModel = {
+      sceneId: 'scene-midnight-platform',
+      proseDraft: 'Accepted run draft opens with the ledger still shut.',
+      revisionModes: ['rewrite', 'compress'],
+      latestDiffSummary: 'Generated from accepted run prose artifact.',
+      warningsCount: 0,
+      focusModeAvailable: true,
+      draftWordCount: 9,
+      statusLabel: 'Generated from run',
+      traceSummary: {
+        sourcePatchId: 'canon-patch-scene-midnight-platform-001',
+        sourceProposals: [
+          {
+            proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+            title: 'Anchor the arrival beat',
+            sourceTraceId: 'trace-accepted-1',
+          },
+          {
+            proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+            title: 'Duplicate arrival beat',
+            sourceTraceId: 'trace-accepted-duplicate',
+          },
+        ],
+        relatedAssets: [
+          { assetId: 'asset-ren-voss', title: 'Ren Voss', kind: 'character' },
+          { assetId: 'asset-ren-voss', title: 'Ren Voss duplicate', kind: 'character' },
+        ],
+        missingLinks: ['asset-ledger-stays-shut'],
+      },
+    }
+    const client = {
+      ...createSceneClient(),
+      getSceneProse: vi.fn(async () => generatedProse),
+    }
+    const Wrapper = wrapperFactory()
+
+    render(<SceneProseContainer sceneId="scene-midnight-platform" client={client} />, {
+      wrapper: Wrapper,
+    })
+
+    expect(await screen.findByText('Accepted run draft opens with the ledger still shut.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Draft Source Summary' })).toBeInTheDocument()
+    expect(screen.getByText('canon-patch-scene-midnight-platform-001')).toBeInTheDocument()
+    expect(screen.getByText('1 proposals')).toBeInTheDocument()
+    expect(screen.getByText('Anchor the arrival beat')).toBeInTheDocument()
+    expect(screen.queryByText('Duplicate arrival beat')).not.toBeInTheDocument()
+    expect(screen.getByText('Ren Voss')).toBeInTheDocument()
+    expect(screen.queryByText('Ren Voss duplicate')).not.toBeInTheDocument()
+    expect(screen.getByText('asset-ledger-stays-shut')).toBeInTheDocument()
+  })
+
+  it('does not render source summary noise for an empty trace summary', async () => {
+    const proseWithEmptyTrace: SceneProseViewModel = {
+      sceneId: 'scene-midnight-platform',
+      proseDraft: 'Accepted run draft remains readable.',
+      revisionModes: ['rewrite'],
+      warningsCount: 0,
+      focusModeAvailable: false,
+      traceSummary: {
+        sourcePatchId: '  ',
+        sourceProposals: [],
+        relatedAssets: [],
+        missingLinks: [],
+      },
+    }
+    const client = {
+      ...createSceneClient(),
+      getSceneProse: vi.fn(async () => proseWithEmptyTrace),
+    }
+    const Wrapper = wrapperFactory()
+
+    render(<SceneProseContainer sceneId="scene-midnight-platform" client={client} />, {
+      wrapper: Wrapper,
+    })
+
+    expect(await screen.findByText('Accepted run draft remains readable.')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Draft Source Summary' })).not.toBeInTheDocument()
+    expect(screen.queryByText('No missing source links')).not.toBeInTheDocument()
   })
 
   it('applies a mock revision request and updates the prose status footer', async () => {

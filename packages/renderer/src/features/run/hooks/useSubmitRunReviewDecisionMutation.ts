@@ -1,8 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { classifyApiWriteErrorState, resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
+import { bookQueryKeys } from '@/features/book/hooks/book-query-keys'
+import { chapterQueryKeys } from '@/features/chapter/hooks/chapter-query-keys'
 import type { RunClient } from '@/features/run/api/run-client'
 import type { RunRecord, SubmitRunReviewDecisionInput } from '@/features/run/api/run-records'
+import { sceneQueryKeys } from '@/features/scene/hooks/scene-query-keys'
 
 import { runQueryKeys } from './run-query-keys'
 
@@ -30,18 +33,63 @@ export function useSubmitRunReviewDecisionMutation(options: UseSubmitRunReviewDe
     mutationFn: async (input) => effectiveClient.submitRunReviewDecision(input),
     onSuccess: async (run) => {
       queryClient.setQueryData(runQueryKeys.detail(effectiveProjectId, run.id), run)
-      await queryClient.invalidateQueries({
-        queryKey: runQueryKeys.events(effectiveProjectId, run.id),
-        refetchType: 'active',
-      })
-      await queryClient.invalidateQueries({
-        queryKey: runQueryKeys.artifacts(effectiveProjectId, run.id),
-        refetchType: 'active',
-      })
-      await queryClient.invalidateQueries({
-        queryKey: runQueryKeys.trace(effectiveProjectId, run.id),
-        refetchType: 'active',
-      })
+      const invalidations: Array<Promise<unknown>> = [
+        queryClient.invalidateQueries({
+          queryKey: runQueryKeys.detail(effectiveProjectId, run.id),
+          refetchType: 'active',
+        }),
+        queryClient.invalidateQueries({
+          queryKey: runQueryKeys.events(effectiveProjectId, run.id),
+          refetchType: 'active',
+        }),
+        queryClient.invalidateQueries({
+          queryKey: runQueryKeys.artifacts(effectiveProjectId, run.id),
+          refetchType: 'active',
+        }),
+        queryClient.invalidateQueries({
+          queryKey: runQueryKeys.trace(effectiveProjectId, run.id),
+          refetchType: 'active',
+        }),
+      ]
+
+      if (run.scope === 'scene') {
+        invalidations.push(
+          queryClient.invalidateQueries({
+            queryKey: sceneQueryKeys.workspace(run.scopeId),
+            refetchType: 'active',
+          }),
+          queryClient.invalidateQueries({
+            queryKey: sceneQueryKeys.execution(run.scopeId),
+            refetchType: 'active',
+          }),
+          queryClient.invalidateQueries({
+            queryKey: sceneQueryKeys.prose(run.scopeId),
+            refetchType: 'active',
+          }),
+          queryClient.invalidateQueries({
+            queryKey: sceneQueryKeys.inspector(run.scopeId),
+            refetchType: 'active',
+          }),
+          queryClient.invalidateQueries({
+            queryKey: sceneQueryKeys.dock(run.scopeId),
+            refetchType: 'active',
+          }),
+          queryClient.invalidateQueries({
+            queryKey: sceneQueryKeys.patchPreview(run.scopeId),
+            refetchType: 'active',
+          }),
+          queryClient.invalidateQueries({
+            queryKey: chapterQueryKeys.all,
+            refetchType: 'active',
+          }),
+          queryClient.invalidateQueries({
+            queryKey: bookQueryKeys.all,
+            refetchType: 'active',
+          }),
+        )
+      }
+
+      await Promise.all(invalidations)
     },
   })
 
