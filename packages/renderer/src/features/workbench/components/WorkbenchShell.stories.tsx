@@ -64,6 +64,12 @@ const EDITOR_SCENE_DRAFT_ROUTE: WorkbenchRouteState = {
   lens: 'draft',
   tab: 'prose',
 }
+const EDITOR_SCENE_STRUCTURE_ROUTE: WorkbenchRouteState = {
+  scope: 'scene',
+  sceneId: 'scene-ticket-window',
+  lens: 'structure',
+  tab: 'setup',
+}
 const EDITOR_CHAPTER_ROUTE: WorkbenchRouteState = {
   scope: 'chapter',
   chapterId: 'chapter-signals-in-rain',
@@ -495,6 +501,7 @@ export const EditorTabsOverflow: Story = {
       routes: [
         EDITOR_SCENE_ORCHESTRATE_ROUTE,
         EDITOR_SCENE_DRAFT_ROUTE,
+        EDITOR_SCENE_STRUCTURE_ROUTE,
         EDITOR_CHAPTER_ROUTE,
         {
           scope: 'chapter',
