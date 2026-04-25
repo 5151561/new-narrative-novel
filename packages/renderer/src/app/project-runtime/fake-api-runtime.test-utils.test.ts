@@ -627,6 +627,22 @@ describe('createFakeApiRuntime override matching', () => {
     })
   })
 
+  it('rejects scene prose revision through the fake API runtime when the scene has no prose draft', async () => {
+    const { runtime } = createFakeApiRuntime()
+
+    await expect(runtime.sceneClient.reviseSceneProse('scene-warehouse-bridge', 'compress')).rejects.toMatchObject({
+      name: 'ApiRequestError',
+      status: 409,
+      message: 'Scene scene-warehouse-bridge requires a prose draft before revision can be requested.',
+      code: 'SCENE_PROSE_REVISION_DRAFT_REQUIRED',
+      detail: {
+        projectId: 'project-smoke',
+        sceneId: 'scene-warehouse-bridge',
+        revisionMode: 'compress',
+      },
+    })
+  })
+
   it('records POST scene runs and GET run events with cursor and forwards run endpoints to mock runtime.runClient', async () => {
     const startedRun = createRunRecord()
     const runEventsPage = createRunEventsPage({

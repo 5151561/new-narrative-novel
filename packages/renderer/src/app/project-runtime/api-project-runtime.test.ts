@@ -402,6 +402,21 @@ describe('api project runtime', () => {
     })
   })
 
+  it('posts scene prose revision requests with the selected revision mode', async () => {
+    const transport = createTransportMock()
+    const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })
+
+    await runtime.sceneClient.reviseSceneProse('scene-1', 'compress')
+
+    expect(transport).toHaveBeenCalledWith({
+      method: 'POST',
+      path: '/api/projects/project-1/scenes/scene-1/prose/revision',
+      body: {
+        revisionMode: 'compress',
+      },
+    })
+  })
+
   it('uses the run contract transport routes and omits duplicated ids from write bodies', async () => {
     const transport = vi.fn(async ({ method, path }: { method: string; path: string }) => {
       if (method === 'POST' && path === '/api/projects/project-1/scenes/scene-midnight-platform/runs') {

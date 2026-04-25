@@ -63,6 +63,7 @@ export function SceneProseContainer({ sceneId, client }: SceneProseContainerProp
   }
 
   const prose = proseQuery.prose
+  const canReviseDraft = Boolean(prose.proseDraft?.trim())
 
   return (
     <SceneProseTab
@@ -70,9 +71,14 @@ export function SceneProseContainer({ sceneId, client }: SceneProseContainerProp
       selectedMode={selectedMode}
       isFocusModeActive={isFocusModeActive}
       isRevising={isRevising}
+      canReviseDraft={canReviseDraft}
       onSelectMode={setSelectedMode}
       onToggleFocusMode={() => setIsFocusModeActive((current) => !current)}
       onRevise={async () => {
+        if (!canReviseDraft) {
+          return
+        }
+
         setIsRevising(true)
         try {
           await effectiveClient.reviseSceneProse(sceneId, selectedMode)

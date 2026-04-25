@@ -85,6 +85,7 @@ PR20 的前端运行路径统一收敛到 `/api/projects/{projectId}/...`。
 - `review-decisions/{issueId}` 与 `review-fix-actions/{issueId}` 的 `PUT` 返回最新单条记录；`DELETE` 返回空响应即可。
 - `books/{bookId}/export-artifacts` 的 `POST` 返回新产物记录。
 - Scene 侧动作型接口当前统一按“命令成功即可”的思路处理，返回空响应；需要新数据时由查询重新拉取。
+- `scenes/{sceneId}/prose/revision` 当前是 fixture-backed mutation：请求体为 `{ revisionMode }`，成功返回 `204`，并要求该 scene 已有 `proseDraft`。缺少草稿时返回 `409` 与 `SCENE_PROSE_REVISION_DRAFT_REQUIRED`。成功后 API 只更新 revision queue / latest diff / status / read-model aggregation；run events 仍保持轻量摘要与 refs，不内联 prose body payload。
 
 ## 4. 统一错误体
 

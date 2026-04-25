@@ -86,6 +86,7 @@ constraint -> proposal -> review -> accepted canon -> prose
 - context packet、agent invocation、proposal set、canon patch、prose draft 等大对象走 artifact detail。
 - asset context policy 随 asset knowledge read model 返回；context activation trace 随 context-packet artifact detail 返回。
 - accepted review 通过 prose-draft artifact body 物化 scene prose；reject / request-rewrite 不覆盖当前正文。
+- Scene prose revision 已走 API-backed fixture mutation，并在成功后暴露 queued status / diff summary read model。
 - proposal -> canon -> prose 的关系走 trace read surface。
 - `events/stream` 仍是 501 占位；当前 renderer 使用 REST + polling/page contract。
 
@@ -299,6 +300,7 @@ book-signal-arc
 - `GET /api/projects/{projectId}/runs/{runId}/artifacts`
 - `GET /api/projects/{projectId}/runs/{runId}/artifacts/{artifactId}`
 - `GET /api/projects/{projectId}/runs/{runId}/trace`
+- `POST /api/projects/{projectId}/scenes/{sceneId}/prose/revision`
 - `GET /api/projects/{projectId}/runs/{runId}/events/stream`：当前保持 `501` 占位
 
 详细合同见 [doc/api-contract.md](doc/api-contract.md)。

@@ -59,6 +59,40 @@ const generatedFromRunBridge: SceneRuntimeBridge = {
   },
 }
 
+const revisionQueuedBridge: SceneRuntimeBridge = {
+  async getSceneWorkspace(sceneId) {
+    const scene = createSceneMockDatabase().scenes[sceneId]
+    if (!scene) {
+      throw new Error(`Unknown scene "${sceneId}"`)
+    }
+
+    return structuredClone(scene.workspace)
+  },
+  async getSceneExecution(sceneId) {
+    const scene = createSceneMockDatabase().scenes[sceneId]
+    if (!scene) {
+      throw new Error(`Unknown scene "${sceneId}"`)
+    }
+
+    return structuredClone(scene.execution)
+  },
+  async getSceneProse(sceneId) {
+    const scene = createSceneMockDatabase().scenes[sceneId]
+    if (!scene) {
+      throw new Error(`Unknown scene "${sceneId}"`)
+    }
+
+    return {
+      ...structuredClone(scene.prose),
+      proseDraft: 'Midnight Platform keeps the accepted run draft visible while the next revision waits in the queue.',
+      latestDiffSummary: 'Latest revision: rewrite pass prepared for review.',
+      statusLabel: 'Revision queued',
+      revisionQueueCount: 2,
+      warningsCount: 1,
+    }
+  },
+}
+
 const meta = {
   title: 'Mockups/Scene/Prose',
   component: SceneProseContainer,
@@ -94,7 +128,7 @@ export const EmptyDraft: Story = {
   },
 }
 
-export const GeneratedFromRun: Story = {
+export const GeneratedFromAcceptedRun: Story = {
   args: {
     sceneId: 'scene-midnight-platform',
   },
@@ -102,6 +136,31 @@ export const GeneratedFromRun: Story = {
     sceneStory: {
       search: '?scope=scene&id=scene-midnight-platform&lens=draft&tab=prose',
       bridge: generatedFromRunBridge,
+    },
+  },
+}
+
+export const GeneratedFromRun: Story = GeneratedFromAcceptedRun
+
+export const RevisionQueued: Story = {
+  args: {
+    sceneId: 'scene-midnight-platform',
+  },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-midnight-platform&lens=draft&tab=prose',
+      bridge: revisionQueuedBridge,
+    },
+  },
+}
+
+export const NoDraftCannotRevise: Story = {
+  args: {
+    sceneId: 'scene-warehouse-bridge',
+  },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-warehouse-bridge&lens=draft&tab=prose',
     },
   },
 }

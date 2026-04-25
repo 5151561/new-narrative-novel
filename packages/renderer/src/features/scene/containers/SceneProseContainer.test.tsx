@@ -6,6 +6,7 @@ import { vi } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
 import { ProjectRuntimeProvider, createTestProjectRuntime } from '@/app/project-runtime'
+import { createFakeApiRuntime } from '@/app/project-runtime/fake-api-runtime.test-utils'
 import { createSceneClient } from '@/features/scene/api/scene-client'
 import type { SceneProseViewModel } from '@/features/scene/types/scene-view-models'
 import { applyProseRevision, createSceneMockDatabase } from '@/mock/scene-fixtures'
@@ -262,5 +263,57 @@ describe('SceneProseContainer', () => {
     const fallbackProse = await fallbackClient.getSceneProse('scene-midnight-platform')
     expect(fallbackProse.latestDiffSummary).not.toBe('Latest revision: compress pass prepared for review.')
     expect(fallbackProse.revisionQueueCount ?? 0).toBe(0)
+  })
+
+  it('routes prose revisions through the API runtime, refetches queued state, and keeps the draft body stable', async () => {
+    const user = userEvent.setup()
+    const { projectId, requests, runtime, mockRuntime } = createFakeApiRuntime()
+    const getSceneProseSpy = vi.spyOn(mockRuntime.sceneClient, 'getSceneProse')
+    const reviseSceneProseSpy = vi.spyOn(mockRuntime.sceneClient, 'reviseSceneProse')
+    const initialProse = await mockRuntime.sceneClient.getSceneProse('scene-midnight-platform')
+    const Wrapper = wrapperFactory(runtime)
+
+    render(<SceneProseContainer sceneId="scene-midnight-platform" />, {
+      wrapper: Wrapper,
+    })
+
+    expect(await screen.findByText(initialProse.proseDraft!)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Compress' }))
+    await user.click(screen.getByRole('button', { name: 'Revise Draft' }))
+
+    expect(await screen.findAllByText('Latest revision: compress pass prepared for review.')).toHaveLength(2)
+    expect(screen.getByText('1 revision queued')).toBeInTheDocument()
+    expect(screen.getByText('Queue 1')).toBeInTheDocument()
+    expect(screen.getByText(initialProse.proseDraft!)).toBeInTheDocument()
+    expect(reviseSceneProseSpy).toHaveBeenCalledWith('scene-midnight-platform', 'compress')
+    expect(getSceneProseSpy).toHaveBeenCalledTimes(4)
+    expect(requests).toContainEqual({
+      method: 'POST',
+      path: `/api/projects/${projectId}/scenes/scene-midnight-platform/prose/revision`,
+      body: {
+        revisionMode: 'compress',
+      },
+    })
+  })
+
+  it('keeps revise disabled when the API runtime prose read model has no draft', async () => {
+    const user = userEvent.setup()
+    const { requests, runtime } = createFakeApiRuntime()
+    const Wrapper = wrapperFactory(runtime)
+
+    render(<SceneProseContainer sceneId="scene-warehouse-bridge" />, {
+      wrapper: Wrapper,
+    })
+
+    expect(await screen.findByText('No draft prose yet')).toBeInTheDocument()
+    expect(screen.getByText('A prose draft is required before queuing a revision.')).toBeInTheDocument()
+
+    const reviseButton = screen.getByRole('button', { name: 'Revise Draft' })
+    expect(reviseButton).toBeDisabled()
+
+    await user.click(reviseButton)
+
+    expect(requests.some((request) => request.method === 'POST' && request.path.endsWith('/prose/revision'))).toBe(false)
   })
 })

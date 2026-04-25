@@ -2,7 +2,7 @@ import {
   createMockProjectRuntime,
   type CreateMockProjectRuntimeOptions,
 } from './mock-project-runtime'
-import type { ApiQueryValue, ApiRequestOptions } from './api-transport'
+import { ApiRequestError, type ApiQueryValue, type ApiRequestOptions } from './api-transport'
 import { createApiProjectRuntime } from './api-project-runtime'
 import { createProjectRuntimeInfoRecord } from './project-runtime-info'
 
@@ -443,6 +443,31 @@ async function handleFakeApiRequest<TResponse, TBody>(
   const sceneProseMatch = path.match(new RegExp(`${projectBasePattern}/scenes/([^/]+)/prose$`))
   if (method === 'GET' && sceneProseMatch) {
     return mockRuntime.sceneClient.getSceneProse(decodeSegment(sceneProseMatch[1]!)) as Promise<TResponse>
+  }
+
+  const sceneProseRevisionMatch = path.match(new RegExp(`${projectBasePattern}/scenes/([^/]+)/prose/revision$`))
+  if (method === 'POST' && sceneProseRevisionMatch) {
+    const sceneId = decodeSegment(sceneProseRevisionMatch[1]!)
+    const revisionBody = body as {
+      revisionMode: Parameters<typeof mockRuntime.sceneClient.reviseSceneProse>[1]
+    }
+    const prose = await mockRuntime.sceneClient.getSceneProse(sceneId)
+
+    if (!prose.proseDraft?.trim()) {
+      throw new ApiRequestError({
+        status: 409,
+        message: `Scene ${sceneId} requires a prose draft before revision can be requested.`,
+        code: 'SCENE_PROSE_REVISION_DRAFT_REQUIRED',
+        detail: {
+          projectId,
+          sceneId,
+          revisionMode: revisionBody.revisionMode,
+        },
+      })
+    }
+
+    await mockRuntime.sceneClient.reviseSceneProse(sceneId, revisionBody.revisionMode)
+    return undefined as TResponse
   }
 
   const sceneInspectorMatch = path.match(new RegExp(`${projectBasePattern}/scenes/([^/]+)/inspector$`))

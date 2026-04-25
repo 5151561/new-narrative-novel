@@ -12,6 +12,7 @@ interface SceneProseTabProps {
   selectedMode: SceneProseViewModel['revisionModes'][number]
   isFocusModeActive: boolean
   isRevising: boolean
+  canReviseDraft: boolean
   onSelectMode: (mode: SceneProseViewModel['revisionModes'][number]) => void
   onToggleFocusMode: () => void
   onRevise: () => void
@@ -151,9 +152,10 @@ export function RevisionActionBar({
   revisionModes,
   selectedMode,
   isRevising,
+  canReviseDraft,
   onSelectMode,
   onRevise,
-}: Pick<SceneProseTabProps, 'selectedMode' | 'isRevising' | 'onSelectMode' | 'onRevise'> &
+}: Pick<SceneProseTabProps, 'selectedMode' | 'isRevising' | 'canReviseDraft' | 'onSelectMode' | 'onRevise'> &
   Pick<SceneProseViewModel, 'revisionModes'>) {
   const { locale } = useI18n()
   const revisionLabels: Record<SceneProseViewModel['revisionModes'][number], string> = {
@@ -196,12 +198,17 @@ export function RevisionActionBar({
         <button
           type="button"
           onClick={onRevise}
-          disabled={isRevising}
+          disabled={isRevising || !canReviseDraft}
           className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
         >
           {locale === 'zh-CN' ? '开始修订' : 'Revise Draft'}
         </button>
       </div>
+      {!canReviseDraft ? (
+        <p className="mt-3 text-sm text-text-muted">
+          {locale === 'zh-CN' ? '需要先生成正文草稿，才能排队新的修订。' : 'A prose draft is required before queuing a revision.'}
+        </p>
+      ) : null}
     </SectionCard>
   )
 }
@@ -281,6 +288,7 @@ export function ProseToolbar({
 
 export function ProseStatusFooter({ prose, selectedMode }: Pick<SceneProseTabProps, 'prose' | 'selectedMode'>) {
   const { locale } = useI18n()
+  const revisionQueueCount = prose.revisionQueueCount ?? 0
   const revisionLabel =
     selectedMode === 'rewrite'
       ? locale === 'zh-CN'
@@ -311,6 +319,9 @@ export function ProseStatusFooter({ prose, selectedMode }: Pick<SceneProseTabPro
           </Badge>
           <Badge tone="neutral">{locale === 'zh-CN' ? `${prose.draftWordCount ?? 0} 字` : `${prose.draftWordCount ?? 0} words`}</Badge>
           <Badge tone="accent">{revisionLabel}</Badge>
+          {revisionQueueCount > 0 ? (
+            <Badge tone="accent">{locale === 'zh-CN' ? `修订 ${revisionQueueCount}` : `Queue ${revisionQueueCount}`}</Badge>
+          ) : null}
         </div>
         <div className="space-y-1 text-right">
           <p className="text-sm text-text-main">{prose.statusLabel ?? (locale === 'zh-CN' ? '可进入修订轮次' : 'Ready for revision pass')}</p>
@@ -326,6 +337,7 @@ export function SceneProseTab({
   selectedMode,
   isFocusModeActive,
   isRevising,
+  canReviseDraft,
   onSelectMode,
   onToggleFocusMode,
   onRevise,
@@ -349,6 +361,7 @@ export function SceneProseTab({
             revisionModes={prose.revisionModes}
             selectedMode={selectedMode}
             isRevising={isRevising}
+            canReviseDraft={canReviseDraft}
             onSelectMode={onSelectMode}
             onRevise={onRevise}
           />
