@@ -4,9 +4,13 @@
   "packageManager": "pnpm@10.8.0",
   "scripts": {
     "dev:api": "pnpm --filter @narrative-novel/api dev",
+    "dev:desktop": "pnpm --filter @narrative-novel/desktop dev",
     "dev:renderer": "pnpm --filter @narrative-novel/renderer dev",
-    "typecheck": "pnpm -r --filter @narrative-novel/api --filter @narrative-novel/renderer typecheck",
-    "test": "pnpm -r --filter @narrative-novel/api --filter @narrative-novel/renderer test",
+    "build:desktop": "pnpm --filter @narrative-novel/desktop build",
+    "test:desktop": "pnpm --filter @narrative-novel/desktop test",
+    "typecheck:desktop": "pnpm --filter @narrative-novel/desktop typecheck",
+    "typecheck": "pnpm -r --filter @narrative-novel/api --filter @narrative-novel/renderer --filter @narrative-novel/desktop typecheck",
+    "test": "pnpm -r --filter @narrative-novel/api --filter @narrative-novel/renderer --filter @narrative-novel/desktop test",
     "build": "pnpm --filter @narrative-novel/renderer build",
     "storybook": "pnpm --filter @narrative-novel/renderer storybook"
   }
