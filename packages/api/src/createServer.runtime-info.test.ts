@@ -15,6 +15,21 @@ describe('fixture API server runtime info surfaces', () => {
     })
   })
 
+  it('serves /api/health for desktop local API supervisor readiness', async () => {
+    await withTestServer(async ({ app }) => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/health',
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({
+        ok: true,
+        runtime: 'api',
+      })
+    })
+  })
+
   it('returns project runtime info from the fixture repository', async () => {
     await withTestServer(async ({ app }) => {
       const [primaryProjectResponse, clonedProjectResponse] = await Promise.all([

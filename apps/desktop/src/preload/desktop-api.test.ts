@@ -21,7 +21,15 @@ describe('createNarrativeDesktopApi', () => {
     }
     const api = createNarrativeDesktopApi(invoke)
 
-    expect(Object.keys(api).sort()).toEqual(['getAppVersion', 'getPlatform', 'getRuntimeMode'])
+    expect(Object.keys(api).sort()).toEqual([
+      'getAppVersion',
+      'getLocalApiLogs',
+      'getLocalApiStatus',
+      'getPlatform',
+      'getRuntimeConfig',
+      'getRuntimeMode',
+      'restartLocalApi',
+    ])
     expect('ipcRenderer' in api).toBe(false)
 
     await expect(api.getAppVersion()).resolves.toBe('0.1.0')

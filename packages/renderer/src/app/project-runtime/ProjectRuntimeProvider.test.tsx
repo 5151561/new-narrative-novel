@@ -24,6 +24,9 @@ afterEach(() => {
   } else {
     runtimeEnv.VITE_NARRATIVE_PROJECT_ID = originalProjectId
   }
+
+  Reflect.deleteProperty(window, 'narrativeDesktop')
+  vi.restoreAllMocks()
 })
 
 describe('ProjectRuntimeProvider', () => {
@@ -69,5 +72,53 @@ describe('ProjectRuntimeProvider', () => {
     expect(hook.result.current.sceneClient).toBeDefined()
     expect(hook.result.current.traceabilitySceneClient).toBeDefined()
     expect(hook.result.current.persistence).toBeUndefined()
+  })
+
+  it('creates an API runtime from desktop-local runtime config even when web API env is absent', async () => {
+    delete runtimeEnv.VITE_NARRATIVE_API_BASE_URL
+    delete runtimeEnv.VITE_NARRATIVE_PROJECT_ID
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          capabilities: {
+            read: true,
+            runEvents: true,
+            write: true,
+          },
+          projectId: 'book-signal-arc',
+          source: 'api',
+          status: 'healthy',
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          status: 200,
+        },
+      ),
+    )
+
+    function Wrapper({ children }: PropsWithChildren) {
+      return (
+        <ProjectRuntimeProvider
+          runtimeConfig={{
+            apiBaseUrl: 'http://127.0.0.1:4888/api',
+            runtimeMode: 'desktop-local',
+          }}
+        >
+          {children}
+        </ProjectRuntimeProvider>
+      )
+    }
+
+    const hook = renderHook(() => useProjectRuntime(), {
+      wrapper: Wrapper,
+    })
+
+    expect(hook.result.current.persistence).toBeUndefined()
+
+    await hook.result.current.runtimeInfoClient.getProjectRuntimeInfo()
+
+    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:4888/api/projects/book-signal-arc/runtime-info', expect.any(Object))
   })
 })

@@ -18,7 +18,7 @@
 
 - `@narrative-novel/renderer`：React + Vite + Tailwind 的 workbench 前端、Storybook、mock runtime、UI/feature tests。
 - `@narrative-novel/api`：Fastify fixture-backed API server，兑现 `/api/projects/{projectId}/...` 合同，支持 read/write/run/artifact/trace 的产品级接口骨架。
-- `@narrative-novel/desktop`：Electron thin shell，当前只承载现有 renderer，不启动本地 API、不选择项目目录、不接 worker。
+- `@narrative-novel/desktop`：Electron workbench shell，承载现有 renderer，并在桌面模式下托管本地 fixture API；不选择项目目录、不接 worker。
 
 当前最准确的理解是：
 
@@ -188,9 +188,9 @@ pnpm dev:renderer
 pnpm --filter @narrative-novel/renderer dev --host 127.0.0.1 --port 4173
 ```
 
-### 启动 desktop thin shell
+### 启动 desktop shell
 
-Desktop-PR1 只验证安全 Electron shell 能否承载现有 Web Workbench。它不会自动启动 fixture API、不会选择项目目录、不会启动 worker。
+Desktop shell 会加载现有 Web Workbench，并自动启动本地 `@narrative-novel/api` fixture server。renderer 仍保持 Web-first，业务流量继续通过 HTTP API contract；桌面端只通过 `window.narrativeDesktop` 暴露 runtime config、local API status / restart / log buffer 等窄桥接能力。
 
 先启动 renderer dev server：
 
@@ -203,6 +203,8 @@ pnpm --filter @narrative-novel/renderer dev --host 127.0.0.1 --port 4173
 ```bash
 pnpm dev:desktop
 ```
+
+不需要再手动运行 `pnpm dev:api`。Electron main 会选择可用端口，启动 `packages/api`，并把 `http://127.0.0.1:<port>/api` 作为 desktop-local runtime config 提供给 renderer。
 
 如需使用其它 renderer dev server 地址：
 

@@ -4,16 +4,17 @@ import { createApiProjectRuntime } from './api-project-runtime'
 import { createApiTransport } from './api-transport'
 import type { ProjectRuntime } from './project-runtime'
 import { createMockProjectRuntime } from './mock-project-runtime'
+import { createWebRuntimeConfig, type RuntimeConfig } from '@/app/runtime'
 
 const ProjectRuntimeContext = createContext<ProjectRuntime | null>(null)
 
-export function createDefaultProjectRuntime() {
+export function createDefaultProjectRuntime(runtimeConfig: RuntimeConfig = createWebRuntimeConfig()) {
   const apiBaseUrl = import.meta.env.VITE_NARRATIVE_API_BASE_URL
-  if (apiBaseUrl) {
+  if (runtimeConfig.runtimeMode === 'desktop-local' || apiBaseUrl) {
     return createApiProjectRuntime({
       projectId: import.meta.env.VITE_NARRATIVE_PROJECT_ID ?? 'book-signal-arc',
       transport: createApiTransport({
-        baseUrl: apiBaseUrl,
+        baseUrl: runtimeConfig.runtimeMode === 'desktop-local' ? runtimeConfig.apiBaseUrl : apiBaseUrl,
       }),
     })
   }
@@ -23,9 +24,10 @@ export function createDefaultProjectRuntime() {
 
 export function ProjectRuntimeProvider({
   runtime,
+  runtimeConfig,
   children,
-}: PropsWithChildren<{ runtime?: ProjectRuntime }>) {
-  const resolvedRuntime = useMemo(() => runtime ?? createDefaultProjectRuntime(), [runtime])
+}: PropsWithChildren<{ runtime?: ProjectRuntime; runtimeConfig?: RuntimeConfig }>) {
+  const resolvedRuntime = useMemo(() => runtime ?? createDefaultProjectRuntime(runtimeConfig), [runtime, runtimeConfig])
 
   return <ProjectRuntimeContext.Provider value={resolvedRuntime}>{children}</ProjectRuntimeContext.Provider>
 }

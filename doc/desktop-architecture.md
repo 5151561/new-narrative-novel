@@ -70,7 +70,7 @@ web, fixture, local desktop, and future remote deployments.
 
 ## Local API Supervisor
 
-A future desktop round may let Electron supervise a local API process. That
+Electron supervises a local API process in desktop-local mode. That
 responsibility is process lifecycle only:
 
 - find or reserve a local port
@@ -103,12 +103,19 @@ keeps their process boundary explicit.
 ## Preload Bridge Security
 
 The preload bridge is the only desktop capability surface exposed to the
-renderer. The first bridge version exposes only:
+renderer. The current bridge contract exposes only:
 
 ```ts
 window.narrativeDesktop.getAppVersion(): Promise<string>
 window.narrativeDesktop.getPlatform(): Promise<'darwin' | 'win32' | 'linux'>
 window.narrativeDesktop.getRuntimeMode(): Promise<'web' | 'desktop'>
+window.narrativeDesktop.getRuntimeConfig(): Promise<{
+  runtimeMode: 'desktop-local'
+  apiBaseUrl: string
+}>
+window.narrativeDesktop.getLocalApiStatus(): Promise<LocalApiStatusSnapshot>
+window.narrativeDesktop.restartLocalApi(): Promise<LocalApiStatusSnapshot>
+window.narrativeDesktop.getLocalApiLogs(): Promise<string[]>
 ```
 
 Security rules:
@@ -121,18 +128,16 @@ Security rules:
 - every new bridge method must be explicit, typed, and scoped to a product
   capability.
 
-## Not Implemented In Desktop-PR0 Or Desktop-PR1
+## Not Implemented In Early Desktop Rounds
 
-The first two desktop rounds do not implement:
+The early desktop rounds still do not implement:
 
-- local API startup
 - project directory selection
 - worker startup
 - packaging or release artifacts
 - auto update
 - local database storage
 - model or LLM integration
-- renderer API base URL rewiring
 - multi-window behavior
 - native file read/write capability exposed to renderer
 
