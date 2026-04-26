@@ -122,6 +122,7 @@ describe('BookStructureStage', () => {
     expect(screen.getByRole('button', { name: 'Sequence' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Signals' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Outliner' })).not.toBeInTheDocument()
+    expect(screen.queryByText(workspace.summary)).not.toBeInTheDocument()
   })
 
   it('keeps switchboard responsibility only and does not normalize an unsupported active view', () => {

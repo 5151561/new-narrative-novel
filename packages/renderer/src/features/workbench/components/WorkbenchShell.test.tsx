@@ -135,7 +135,7 @@ describe('WorkbenchShell', () => {
     const mainContent = screen.getByText('Main Stage Content')
 
     expect(editorTabsRegion).toContainElement(tablist)
-    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*scene-midnight-platform/i })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*Execution/i })).toHaveAttribute(
       'aria-selected',
       'true',
     )
@@ -441,7 +441,7 @@ describe('WorkbenchShell', () => {
 
     expect(window.location.search).toBe(initialSearch)
     expect(screen.getByTestId('workbench-editor-tabs')).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*scene-midnight-platform/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*Execution/i })).toBeInTheDocument()
   })
 
   it('ignores invalid persisted layout when rendering the shell', () => {

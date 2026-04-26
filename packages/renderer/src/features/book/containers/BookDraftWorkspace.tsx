@@ -8,7 +8,8 @@ import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import type { BookDraftView, BookReviewFilter, BookReviewStatusFilter } from '@/features/workbench/types/workbench-route'
 
-import { getLocaleName, getWorkbenchLensLabel, useI18n } from '@/app/i18n'
+import { getWorkbenchLensLabel, useI18n } from '@/app/i18n'
+import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { useClearReviewIssueDecisionMutation } from '@/features/review/hooks/useClearReviewIssueDecisionMutation'
 import { useClearReviewIssueFixActionMutation } from '@/features/review/hooks/useClearReviewIssueFixActionMutation'
 import { useBookReviewInboxQuery } from '@/features/review/hooks/useBookReviewInboxQuery'
@@ -45,29 +46,6 @@ let rememberedBookReviewFixActionSequence = 0
 let rememberedBookExportArtifactSequence = 0
 const DEFAULT_BOOK_EXPERIMENT_BRANCH_ID = 'branch-book-signal-arc-quiet-ending'
 
-function LanguageToggle() {
-  const { locale, setLocale, dictionary } = useI18n()
-
-  return (
-    <div className="flex items-center gap-1 rounded-md border border-line-soft bg-surface-2 p-1">
-      <span className="px-2 text-[11px] uppercase tracking-[0.05em] text-text-soft">{dictionary.common.language}</span>
-      {(['en', 'zh-CN'] as const).map((value) => (
-        <button
-          key={value}
-          type="button"
-          aria-pressed={locale === value}
-          onClick={() => setLocale(value)}
-          className={`rounded-md px-2 py-1 text-xs font-medium ${
-            locale === value ? 'bg-surface-1 text-text-main shadow-ringwarm' : 'text-text-muted'
-          }`}
-        >
-          {getLocaleName(locale, value)}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 function DraftPaneState({ title, message }: { title: string; message: string }) {
   return (
     <div className="p-4">
@@ -78,7 +56,6 @@ function DraftPaneState({ title, message }: { title: string; message: string }) 
 
 function BookDraftTopBar({
   bookTitle,
-  summary,
   selectedChapterTitle,
   assembledWordCount,
   missingDraftChapterCount,
@@ -92,33 +69,23 @@ function BookDraftTopBar({
   const { locale } = useI18n()
 
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0 space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
-          {locale === 'zh-CN' ? '叙事工作台' : 'Narrative workbench'}
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg leading-tight text-text-main">{locale === 'zh-CN' ? '书籍手稿' : 'Book manuscript'}</h1>
-          <Badge tone="neutral">{locale === 'zh-CN' ? '书籍' : 'Book'}</Badge>
-          <Badge tone="accent">{getWorkbenchLensLabel(locale, 'draft')}</Badge>
-        </div>
-        <p className="text-sm text-text-muted">
+    <div className="flex h-full flex-wrap items-center justify-end gap-2">
+      <div className="sr-only">
+        <h1>{locale === 'zh-CN' ? '书籍手稿' : 'Book manuscript'}</h1>
+        <p>
           {bookTitle ?? (locale === 'zh-CN' ? '书籍' : 'Book')} / {getWorkbenchLensLabel(locale, 'draft')}
           {selectedChapterTitle ? ` / ${selectedChapterTitle}` : ''}
         </p>
-        {summary ? <p className="max-w-[60ch] text-sm leading-6 text-text-muted">{summary}</p> : null}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <LanguageToggle />
-        {assembledWordCount !== undefined ? (
-          <Badge tone="neutral">{locale === 'zh-CN' ? `合计 ${assembledWordCount} 词` : `${assembledWordCount} words`}</Badge>
-        ) : null}
-        {missingDraftChapterCount !== undefined ? (
-          <Badge tone={missingDraftChapterCount > 0 ? 'warn' : 'success'}>
-            {locale === 'zh-CN' ? `缺稿 ${missingDraftChapterCount}` : `Missing ${missingDraftChapterCount}`}
-          </Badge>
-        ) : null}
-      </div>
+      <LocaleToggle />
+      {assembledWordCount !== undefined ? (
+        <Badge tone="neutral">{locale === 'zh-CN' ? `合计 ${assembledWordCount} 词` : `${assembledWordCount} words`}</Badge>
+      ) : null}
+      {missingDraftChapterCount !== undefined ? (
+        <Badge tone={missingDraftChapterCount > 0 ? 'warn' : 'success'}>
+          {locale === 'zh-CN' ? `缺稿 ${missingDraftChapterCount}` : `Missing ${missingDraftChapterCount}`}
+        </Badge>
+      ) : null}
     </div>
   )
 }

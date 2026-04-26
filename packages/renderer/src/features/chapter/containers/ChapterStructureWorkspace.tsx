@@ -1,12 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import {
-  getChapterStructureViewLabel,
-  getLocaleName,
-  useI18n,
-} from '@/app/i18n'
-import { Badge } from '@/components/ui/Badge'
+import { useI18n } from '@/app/i18n'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import type { SceneLens } from '@/features/workbench/types/workbench-route'
@@ -20,7 +16,7 @@ import { type ChapterWorkbenchMutationEvent } from '../hooks/useChapterWorkbench
 import { useReorderChapterSceneMutation } from '../hooks/useReorderChapterSceneMutation'
 import { useChapterStructureWorkspaceQuery } from '../hooks/useChapterStructureWorkspaceQuery'
 import { useUpdateChapterSceneStructureMutation } from '../hooks/useUpdateChapterSceneStructureMutation'
-import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
+import type { ChapterStructureView } from '../types/chapter-view-models'
 import { ChapterDockContainer } from './ChapterDockContainer'
 
 const defaultChapterViews: ChapterStructureView[] = ['sequence', 'outliner', 'assembly']
@@ -36,56 +32,13 @@ function getEffectiveChapterView(
   return availableViews[0] ?? defaultChapterViews[0]
 }
 
-function LanguageToggle() {
-  const { locale, setLocale, dictionary } = useI18n()
+function ChapterTopCommandBar() {
+  const { dictionary } = useI18n()
 
   return (
-    <div className="flex items-center gap-1 rounded-md border border-line-soft bg-surface-2 p-1">
-      <span className="px-2 text-[11px] uppercase tracking-[0.05em] text-text-soft">{dictionary.common.language}</span>
-      {(['en', 'zh-CN'] as const).map((value) => (
-        <button
-          key={value}
-          type="button"
-          aria-pressed={locale === value}
-          onClick={() => setLocale(value)}
-          className={`rounded-md px-2 py-1 text-xs font-medium ${
-            locale === value ? 'bg-surface-1 text-text-main shadow-ringwarm' : 'text-text-muted'
-          }`}
-        >
-          {getLocaleName(locale, value)}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function ChapterTopCommandBar({
-  activeView,
-  workspace,
-}: {
-  activeView: ChapterStructureView
-  workspace?: ChapterStructureWorkspaceViewModel | null
-}) {
-  const { locale, dictionary } = useI18n()
-
-  return (
-    <div className="flex h-full flex-wrap items-center justify-between gap-3">
-      <div className="min-w-0 space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.narrativeWorkbench}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg leading-tight text-text-main">{dictionary.app.chapterWorkbench}</h1>
-          <Badge tone="neutral">{dictionary.common.chapter}</Badge>
-          <Badge tone="accent">{getChapterStructureViewLabel(locale, activeView)}</Badge>
-        </div>
-        <p className="text-sm text-text-muted">
-          {workspace?.title ?? dictionary.common.chapter} / {dictionary.app.chapterStructure} / {getChapterStructureViewLabel(locale, activeView)}
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <LanguageToggle />
-        <Badge tone="neutral">{dictionary.app.chapterStructure}</Badge>
-        <Badge tone="neutral">{getChapterStructureViewLabel(locale, activeView)}</Badge>
-      </div>
+    <div className="flex h-full flex-wrap items-center justify-end gap-2">
+      <h1 className="sr-only">{dictionary.app.chapterWorkbench}</h1>
+      <LocaleToggle />
     </div>
   )
 }
@@ -245,7 +198,7 @@ export function ChapterStructureWorkspace() {
 
     return (
       <WorkbenchShell
-        topBar={<ChapterTopCommandBar activeView={route.view} workspace={null} />}
+        topBar={<ChapterTopCommandBar />}
         modeRail={shellModeRail}
         navigator={<ChapterPaneState title={locale === 'zh-CN' ? '章节不可用' : 'Chapter unavailable'} message={message} />}
         mainStage={<ChapterPaneState title={locale === 'zh-CN' ? '章节不可用' : 'Chapter unavailable'} message={message} />}
@@ -263,7 +216,7 @@ export function ChapterStructureWorkspace() {
 
     return (
       <WorkbenchShell
-        topBar={<ChapterTopCommandBar activeView={route.view} workspace={workspace} />}
+        topBar={<ChapterTopCommandBar />}
         modeRail={shellModeRail}
         navigator={<ChapterPaneState title={dictionary.common.loading} message={message} />}
         mainStage={<ChapterPaneState title={dictionary.common.loading} message={message} />}
@@ -281,7 +234,7 @@ export function ChapterStructureWorkspace() {
 
     return (
       <WorkbenchShell
-        topBar={<ChapterTopCommandBar activeView={route.view} workspace={workspace} />}
+        topBar={<ChapterTopCommandBar />}
         modeRail={shellModeRail}
         navigator={<ChapterPaneState title={locale === 'zh-CN' ? '章节不存在' : 'Chapter not found'} message={message} />}
         mainStage={<ChapterPaneState title={locale === 'zh-CN' ? '章节不存在' : 'Chapter not found'} message={message} />}
@@ -293,7 +246,7 @@ export function ChapterStructureWorkspace() {
 
   return (
     <WorkbenchShell
-      topBar={<ChapterTopCommandBar activeView={effectiveView} workspace={workspace} />}
+      topBar={<ChapterTopCommandBar />}
       modeRail={shellModeRail}
       navigator={
         <ChapterBinderPane

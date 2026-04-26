@@ -1,7 +1,6 @@
 import { useQueries } from '@tanstack/react-query'
 
 import {
-  getLocaleName,
   getSceneRunStatusLabel,
   getSceneStatusLabel,
   getSceneTabLabel,
@@ -24,6 +23,7 @@ import { useSceneExecutionQuery } from '@/features/scene/hooks/useSceneExecution
 import { sceneQueryKeys } from '@/features/scene/hooks/scene-query-keys'
 import { useSceneWorkspaceQuery } from '@/features/scene/hooks/useSceneWorkspaceQuery'
 import type { SceneTab, SceneWorkspaceViewModel } from '@/features/scene/types/scene-view-models'
+import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { WorkbenchEditorProvider } from '@/features/workbench/editor/WorkbenchEditorProvider'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
@@ -56,29 +56,6 @@ function statusTone(status: SceneWorkspaceViewModel['status']): SceneNavigatorCa
   return 'neutral'
 }
 
-function LanguageToggle() {
-  const { locale, setLocale, dictionary } = useI18n()
-
-  return (
-    <div className="flex items-center gap-1 rounded-md border border-line-soft bg-surface-2 p-1">
-      <span className="px-2 text-[11px] uppercase tracking-[0.05em] text-text-soft">{dictionary.common.language}</span>
-      {(['en', 'zh-CN'] as const).map((value) => (
-        <button
-          key={value}
-          type="button"
-          aria-pressed={locale === value}
-          onClick={() => setLocale(value)}
-          className={`rounded-md px-2 py-1 text-xs font-medium ${
-            locale === value ? 'bg-surface-1 text-text-main shadow-ringwarm' : 'text-text-muted'
-          }`}
-        >
-          {getLocaleName(locale, value)}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 function SceneTopCommandBar({
   activeScene,
   lens,
@@ -91,30 +68,24 @@ function SceneTopCommandBar({
   const { locale, dictionary } = useI18n()
 
   return (
-    <div className="flex h-full flex-wrap items-center justify-between gap-3">
-      <div className="min-w-0 space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.narrativeWorkbench}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg leading-tight text-text-main">{dictionary.app.sceneCockpit}</h1>
-          <Badge tone="neutral">{dictionary.common.scene}</Badge>
-          {activeScene ? <Badge tone={statusTone(activeScene.status)}>{getSceneStatusLabel(locale, activeScene.status)}</Badge> : null}
-          {activeScene ? (
-            <Badge tone={activeScene.runStatus === 'paused' ? 'warn' : 'neutral'}>
-              {getSceneRunStatusLabel(locale, activeScene.runStatus)}
-            </Badge>
-          ) : null}
-          {activeScene?.currentVersionLabel ? <Badge tone="neutral">{activeScene.currentVersionLabel}</Badge> : null}
-        </div>
-        <p className="text-sm text-text-muted">
+    <div className="flex h-full flex-wrap items-center justify-end gap-2">
+      <div className="sr-only">
+        <h1>{dictionary.app.sceneCockpit}</h1>
+        <p>
           {activeScene?.chapterTitle ?? dictionary.common.chapter} / {activeScene?.title ?? dictionary.common.activeScene} /{' '}
           {getWorkbenchLensLabel(locale, lens)} / {getSceneTabLabel(locale, tab)}
         </p>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <LanguageToggle />
-        <Badge tone="neutral">{getWorkbenchLensLabel(locale, lens)}</Badge>
-        <Badge tone="neutral">{getSceneTabLabel(locale, tab)}</Badge>
-      </div>
+      <LocaleToggle />
+      {activeScene ? (
+        <>
+          <Badge tone={statusTone(activeScene.status)}>{getSceneStatusLabel(locale, activeScene.status)}</Badge>
+          <Badge tone={activeScene.runStatus === 'paused' ? 'warn' : 'neutral'}>
+            {getSceneRunStatusLabel(locale, activeScene.runStatus)}
+          </Badge>
+          {activeScene.currentVersionLabel ? <Badge tone="neutral">{activeScene.currentVersionLabel}</Badge> : null}
+        </>
+      ) : null}
     </div>
   )
 }
@@ -226,7 +197,7 @@ function NavigatorPane({
 
   return (
     <>
-      <PaneHeader title={dictionary.app.scenes} description={dictionary.app.sceneNavigatorDescription} />
+      <PaneHeader title={dictionary.app.scenes} />
       <div className="grid gap-2 p-3">
         {items.map((item) => {
           const active = item.sceneId === activeSceneId

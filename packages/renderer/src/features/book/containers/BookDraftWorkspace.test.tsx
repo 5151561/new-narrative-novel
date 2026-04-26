@@ -14,6 +14,7 @@ import { resetMockReviewFixActionDb } from '@/features/review/api/mock-review-fi
 import { ApiRequestError, ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
 import { createReviewClient } from '@/features/review/api/review-client'
 import { reviewQueryKeys } from '@/features/review/hooks/review-query-keys'
+import type { BookReviewInboxViewModel } from '@/features/review/types/review-view-models'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 
 import { resetMockBookExportArtifactDb } from '../api/mock-book-export-artifact-db'
@@ -21,7 +22,7 @@ import * as bookExperimentBranchQueryModule from '../hooks/useBookExperimentBran
 import { resetRememberedBookWorkbenchHandoffs } from '../hooks/useBookWorkbenchActivity'
 import { BookDraftWorkspace } from './BookDraftWorkspace'
 
-function createReadyArtifactReviewInbox() {
+function createReadyArtifactReviewInbox(): BookReviewInboxViewModel {
   return {
     bookId: 'book-signal-arc',
     title: 'Signal Arc',

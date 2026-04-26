@@ -1,7 +1,11 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { WorkbenchRouteState } from '@/features/workbench/types/workbench-route'
+import type {
+  BookRouteState,
+  SceneRouteState,
+  WorkbenchRouteState,
+} from '@/features/workbench/types/workbench-route'
 
 import { getWorkbenchEditorContextId } from './workbench-editor-context'
 import { MAX_WORKBENCH_EDITOR_CONTEXTS } from './workbench-editor-storage'
@@ -9,21 +13,21 @@ import { useWorkbenchEditorState } from './useWorkbenchEditorState'
 
 const TEST_STORAGE_KEY = 'workbench-editor-state-test'
 
-const sceneOrchestrateRoute = (sceneId = 'scene-midnight-platform'): WorkbenchRouteState => ({
+const sceneOrchestrateRoute = (sceneId = 'scene-midnight-platform'): SceneRouteState => ({
   scope: 'scene',
   sceneId,
   lens: 'orchestrate',
   tab: 'execution',
 })
 
-const sceneDraftRoute = (sceneId = 'scene-midnight-platform'): WorkbenchRouteState => ({
+const sceneDraftRoute = (sceneId = 'scene-midnight-platform'): SceneRouteState => ({
   scope: 'scene',
   sceneId,
   lens: 'draft',
   tab: 'prose',
 })
 
-const bookReviewRoute = (reviewIssueId = 'issue-1'): WorkbenchRouteState => ({
+const bookReviewRoute = (reviewIssueId = 'issue-1'): BookRouteState => ({
   scope: 'book',
   bookId: 'book-signal-arc',
   lens: 'draft',
@@ -75,7 +79,7 @@ describe('useWorkbenchEditorState', () => {
       id: 'scene:scene-midnight-platform:orchestrate',
       route,
       title: 'Scene · Orchestrate',
-      subtitle: 'scene-midnight-platform',
+      subtitle: 'Midnight Platform · Execution',
     })
     expect(result.current.state.activeContextId).toBe('scene:scene-midnight-platform:orchestrate')
   })
@@ -120,6 +124,43 @@ describe('useWorkbenchEditorState', () => {
       'scene:scene-midnight-platform:orchestrate',
       'scene:scene-midnight-platform:draft',
     ])
+  })
+
+  it('re-describes every open context when descriptor labels change', async () => {
+    const { result, rerender } = renderHook(
+      ({ prefix }: { prefix: string }) =>
+        useWorkbenchEditorState({
+          storageKey: TEST_STORAGE_KEY,
+          describeContext: (route) => ({
+            id: getWorkbenchEditorContextId(route),
+            title: `${prefix}:${route.scope}:${route.lens}`,
+            subtitle: `${prefix}:${route.lens}`,
+            scopeLabel: `${prefix}:${route.scope}`,
+            lensLabel: `${prefix}:${route.lens}`,
+          }),
+        }),
+      { initialProps: { prefix: 'en' } },
+    )
+
+    act(() => {
+      result.current.openOrUpdateContext(sceneOrchestrateRoute('scene-a'))
+      result.current.openOrUpdateContext(sceneDraftRoute('scene-b'))
+    })
+
+    expect(result.current.state.contexts.map((context) => `${context.title}/${context.subtitle}`)).toEqual([
+      'en:scene:orchestrate/en:orchestrate',
+      'en:scene:draft/en:draft',
+    ])
+
+    rerender({ prefix: 'zh' })
+
+    await waitFor(() => {
+      expect(result.current.state.contexts.map((context) => `${context.title}/${context.subtitle}`)).toEqual([
+        'zh:scene:orchestrate/zh:orchestrate',
+        'zh:scene:draft/zh:draft',
+      ])
+    })
+    expect(result.current.state.contexts.map((context) => context.subtitle).join('|')).not.toMatch(/scene-/)
   })
 
   it('activateContext does not reorder the displayed context list', () => {

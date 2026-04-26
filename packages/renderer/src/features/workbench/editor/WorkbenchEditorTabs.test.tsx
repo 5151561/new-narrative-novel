@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { WorkbenchEditorContext } from './workbench-editor-context'
 import { WorkbenchEditorTabs } from './WorkbenchEditorTabs'
+import { describeWorkbenchEditorContext } from './workbench-editor-descriptors'
 
 function makeContext(index: number, activeAt = index): WorkbenchEditorContext {
   return {
@@ -39,6 +40,37 @@ function renderTabs(
   return {
     onActivateContext,
     onCloseContext,
+  }
+}
+
+function makeDescribedContext(
+  route: WorkbenchEditorContext['route'],
+  index: number,
+): WorkbenchEditorContext {
+  const descriptor = describeWorkbenchEditorContext(
+    route,
+    {
+      shell: {
+        sceneEditor: 'Scene',
+        chapterEditor: 'Chapter',
+        assetEditor: 'Asset',
+        bookEditor: 'Book',
+        structureLens: 'Structure',
+        orchestrateLens: 'Orchestrate',
+        draftLens: 'Draft',
+        knowledgeLens: 'Knowledge',
+      },
+    },
+    'en',
+  )
+
+  return {
+    id: descriptor.id,
+    route,
+    title: descriptor.title,
+    subtitle: descriptor.subtitle,
+    updatedAt: index,
+    lastActiveAt: index,
   }
 }
 
@@ -83,6 +115,51 @@ describe('WorkbenchEditorTabs', () => {
 
     expect(screen.getAllByRole('tab')).toHaveLength(16)
     expect(screen.getByRole('tab', { name: /Scene 16/ })).toBeInTheDocument()
+  })
+
+  it('does not visibly render raw object ids as subtitles', () => {
+    renderTabs([makeContext(1)])
+
+    expect(screen.getByRole('tab', { name: 'Scene 1 · Orchestrate' })).toBeInTheDocument()
+    expect(screen.queryByText('scene-1')).not.toBeInTheDocument()
+  })
+
+  it('keeps same scope lens and view tabs distinguishable with clean object labels', () => {
+    renderTabs([
+      makeDescribedContext(
+        {
+          scope: 'scene',
+          sceneId: 'scene-midnight-platform',
+          lens: 'orchestrate',
+          tab: 'execution',
+        },
+        1,
+      ),
+      makeDescribedContext(
+        {
+          scope: 'scene',
+          sceneId: 'scene-concourse-delay',
+          lens: 'orchestrate',
+          tab: 'execution',
+        },
+        2,
+      ),
+    ])
+
+    expect(screen.getByRole('tab', { name: 'Scene · Orchestrate Midnight Platform · Execution' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Scene · Orchestrate Concourse Delay · Execution' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Close Editor: Scene · Orchestrate / Midnight Platform · Execution' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Close Editor: Scene · Orchestrate / Concourse Delay · Execution' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /scene-midnight-platform/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /scene-concourse-delay/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /scene-midnight-platform/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /scene-concourse-delay/i })).not.toBeInTheDocument()
+    expect(screen.queryByText('scene-midnight-platform')).not.toBeInTheDocument()
+    expect(screen.queryByText('scene-concourse-delay')).not.toBeInTheDocument()
   })
 
   it('close buttons have accessible labels', () => {

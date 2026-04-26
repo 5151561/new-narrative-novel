@@ -28,10 +28,10 @@ export function WorkbenchEditorProvider({
   storageKey,
   children,
 }: WorkbenchEditorProviderProps) {
-  const { dictionary } = useI18n()
+  const { dictionary, locale } = useI18n()
   const describeContext = useCallback(
-    (nextRoute: WorkbenchRouteState) => describeWorkbenchEditorContext(nextRoute, dictionary),
-    [dictionary],
+    (nextRoute: WorkbenchRouteState) => describeWorkbenchEditorContext(nextRoute, dictionary, locale),
+    [dictionary, locale],
   )
   const editorState = useWorkbenchEditorState({
     storageKey,

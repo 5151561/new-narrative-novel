@@ -602,7 +602,7 @@ describe('ChapterStructureWorkspace', () => {
 
     expect(within(selectedRowItem!).getByRole('button', { name: 'Save' })).toBeEnabled()
 
-    await user.click(screen.getByRole('button', { name: '中文' }))
+    await user.click(screen.getByRole('button', { name: /中文/ }))
 
     await waitFor(() => {
       expect(screen.queryByLabelText('摘要')).not.toBeInTheDocument()

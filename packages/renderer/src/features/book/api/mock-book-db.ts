@@ -12,8 +12,8 @@ export const mockBookRecordSeeds: Record<string, BookStructureRecord> = {
     bookId: 'book-signal-arc',
     title: text('Signal Arc', '信号弧线'),
     summary: text(
-      'Aggregate the current chapter workspaces into one ordered book-level structure surface.',
-      '把现有章节工作台聚合成一个按顺序展开的书籍结构视图。',
+      'Book-level chapter order, risk, and trace state for Signal Arc.',
+      '信号弧线的章节顺序、风险和追踪状态。',
     ),
     chapterIds: ['chapter-signals-in-rain', 'chapter-open-water-signals'],
     viewsMeta: {

@@ -1,12 +1,12 @@
 import { useCallback, useEffect } from 'react'
 
-import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import type { BookStructureView } from '@/features/workbench/types/workbench-route'
 
-import { getLocaleName, getWorkbenchLensLabel, useI18n } from '@/app/i18n'
+import { getWorkbenchLensLabel, useI18n } from '@/app/i18n'
+import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { BookInspectorPane } from '../components/BookInspectorPane'
 import { BookModeRail } from '../components/BookModeRail'
 import { BookNavigatorPane } from '../components/BookNavigatorPane'
@@ -18,43 +18,12 @@ import { rememberBookWorkbenchHandoff } from '../hooks/useBookWorkbenchActivity'
 const defaultBookViews: BookStructureView[] = ['sequence', 'outliner', 'signals']
 let rememberedBookHandoffSequence = 0
 
-function getBookViewLabel(locale: 'en' | 'zh-CN', view: BookStructureView) {
-  if (locale === 'zh-CN') {
-    return view === 'sequence' ? '顺序' : view === 'outliner' ? '大纲' : '信号'
-  }
-
-  return view === 'sequence' ? 'Sequence' : view === 'outliner' ? 'Outliner' : 'Signals'
-}
-
 function getEffectiveBookView(activeView: BookStructureView, availableViews: BookStructureView[]) {
   if (availableViews.includes(activeView)) {
     return activeView
   }
 
   return availableViews[0] ?? defaultBookViews[0]
-}
-
-function LanguageToggle() {
-  const { locale, setLocale, dictionary } = useI18n()
-
-  return (
-    <div className="flex items-center gap-1 rounded-md border border-line-soft bg-surface-2 p-1">
-      <span className="px-2 text-[11px] uppercase tracking-[0.05em] text-text-soft">{dictionary.common.language}</span>
-      {(['en', 'zh-CN'] as const).map((value) => (
-        <button
-          key={value}
-          type="button"
-          aria-pressed={locale === value}
-          onClick={() => setLocale(value)}
-          className={`rounded-md px-2 py-1 text-xs font-medium ${
-            locale === value ? 'bg-surface-1 text-text-main shadow-ringwarm' : 'text-text-muted'
-          }`}
-        >
-          {getLocaleName(locale, value)}
-        </button>
-      ))}
-    </div>
-  )
 }
 
 function BookPaneState({ title, message }: { title: string; message: string }) {
@@ -65,38 +34,26 @@ function BookPaneState({ title, message }: { title: string; message: string }) {
   )
 }
 
-function BookTopBar({
-  title,
-  summary,
-  view,
-}: {
-  title?: string
-  summary?: string
-  view: BookStructureView
-}) {
+function getBookViewLabel(locale: 'en' | 'zh-CN', view: BookStructureView) {
+  if (locale === 'zh-CN') {
+    return view === 'sequence' ? '顺序' : view === 'outliner' ? '大纲' : '信号'
+  }
+
+  return view === 'sequence' ? 'Sequence' : view === 'outliner' ? 'Outliner' : 'Signals'
+}
+
+function BookTopBar({ view }: { view: BookStructureView }) {
   const { locale } = useI18n()
 
   return (
-    <div className="flex h-full flex-wrap items-center justify-between gap-3">
-      <div className="min-w-0 space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
-          {locale === 'zh-CN' ? '叙事工作台' : 'Narrative workbench'}
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg leading-tight text-text-main">{locale === 'zh-CN' ? '书籍工作台' : 'Book workbench'}</h1>
-          <Badge tone="neutral">{locale === 'zh-CN' ? '书籍' : 'Book'}</Badge>
-          <Badge tone="accent">{getBookViewLabel(locale, view)}</Badge>
-        </div>
-        <p className="text-sm text-text-muted">
-          {title ?? (locale === 'zh-CN' ? '书籍' : 'Book')} / {getWorkbenchLensLabel(locale, 'structure')} / {getBookViewLabel(locale, view)}
+    <div className="flex h-full flex-wrap items-center justify-end gap-2">
+      <div className="sr-only">
+        <h1>{locale === 'zh-CN' ? '书籍工作台' : 'Book workbench'}</h1>
+        <p>
+          {locale === 'zh-CN' ? '书籍' : 'Book'} / {getWorkbenchLensLabel(locale, 'structure')} / {getBookViewLabel(locale, view)}
         </p>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <LanguageToggle />
-        <Badge tone="neutral">{getWorkbenchLensLabel(locale, 'structure')}</Badge>
-        <Badge tone="neutral">{getBookViewLabel(locale, view)}</Badge>
-      </div>
-      {summary ? <p className="w-full text-sm leading-6 text-text-muted">{summary}</p> : null}
+      <LocaleToggle />
     </div>
   )
 }
@@ -222,7 +179,7 @@ export function BookStructureWorkspace() {
 
     return (
       <WorkbenchShell
-        topBar={<BookTopBar view={route.view} title={workspace?.title} summary={workspace?.summary} />}
+        topBar={<BookTopBar view={route.view} />}
         modeRail={modeRail}
         navigator={<BookPaneState title={locale === 'zh-CN' ? '加载中' : 'Loading'} message={message} />}
         mainStage={<BookPaneState title={locale === 'zh-CN' ? '加载中' : 'Loading'} message={message} />}
@@ -249,7 +206,7 @@ export function BookStructureWorkspace() {
 
   return (
     <WorkbenchShell
-      topBar={<BookTopBar title={workspace.title} summary={workspace.summary} view={effectiveView} />}
+      topBar={<BookTopBar view={effectiveView} />}
       modeRail={modeRail}
       navigator={
         <BookNavigatorPane

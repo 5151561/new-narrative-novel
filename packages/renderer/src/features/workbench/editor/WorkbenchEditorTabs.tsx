@@ -13,8 +13,16 @@ interface WorkbenchEditorTabsProps {
   className?: string
 }
 
-function getCloseLabel(template: string, title: string) {
-  return `${template}: ${title}`
+function getEditorActionLabel(title: string, subtitle: string) {
+  return subtitle ? `${title} / ${subtitle}` : title
+}
+
+function getCloseLabel(template: string, title: string, subtitle: string) {
+  return `${template}: ${getEditorActionLabel(title, subtitle)}`
+}
+
+function isRawObjectId(value: string) {
+  return /^(scene|chapter|asset|book)-[a-z0-9-]+$/i.test(value)
 }
 
 export function WorkbenchEditorTabs({
@@ -41,6 +49,7 @@ export function WorkbenchEditorTabs({
     >
       {contexts.map((context) => {
         const isActive = context.id === activeContextId
+        const visibleSubtitle = isRawObjectId(context.subtitle) ? '' : context.subtitle
 
         return (
           <div
@@ -62,12 +71,14 @@ export function WorkbenchEditorTabs({
               )}
             >
               <span className="truncate text-xs font-semibold leading-4">{context.title}</span>
-              <span className="truncate text-[11px] leading-4 text-text-muted">{context.subtitle}</span>
+              {visibleSubtitle ? (
+                <span className="truncate text-[11px] leading-4 text-text-muted">{visibleSubtitle}</span>
+              ) : null}
             </button>
             <button
               type="button"
-              aria-label={getCloseLabel(dictionary.shell.closeEditor, context.title)}
-              title={getCloseLabel(dictionary.shell.closeEditor, context.title)}
+              aria-label={getCloseLabel(dictionary.shell.closeEditor, context.title, visibleSubtitle)}
+              title={getCloseLabel(dictionary.shell.closeEditor, context.title, visibleSubtitle)}
               onClick={(event) => {
                 event.stopPropagation()
                 onCloseContext(context.id)

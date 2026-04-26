@@ -8,10 +8,15 @@ import { ApiRequestError, type ProjectRuntime } from '@/app/project-runtime'
 import { resetMockBookExportArtifactDb } from '@/features/book/api/mock-book-export-artifact-db'
 import { resetRememberedBookWorkbenchHandoffs } from '@/features/book/hooks/useBookWorkbenchActivity'
 import { resetMockChapterDb } from '@/features/chapter/api/mock-chapter-db'
+import type { BookReviewInboxViewModel } from '@/features/review/types/review-view-models'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 
 const originalNavigatorLanguage = window.navigator.language
 let latestReplaceRoute: ReturnType<typeof useWorkbenchRouteState>['replaceRoute'] | null = null
+
+function nonEditorCloseButtonName(label: string) {
+  return new RegExp(`^(?!Close Editor:).*${label}`, 'i')
+}
 
 function setSceneBridge(bridge: Record<string, unknown> | undefined) {
   if (bridge) {
@@ -194,7 +199,7 @@ function expectBusinessSearchParams(expected: Record<string, string>) {
   expect(Object.fromEntries(params.entries())).toEqual(expected)
 }
 
-function createReadyArtifactReviewInbox() {
+function createReadyArtifactReviewInbox(): BookReviewInboxViewModel {
   return {
     bookId: 'book-signal-arc',
     title: 'Signal Arc',
@@ -402,7 +407,7 @@ describe('App scene workbench', () => {
 
     expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /Ticket Window/i }))
+    await user.click(screen.getByRole('button', { name: nonEditorCloseButtonName('Ticket Window') }))
 
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search)
@@ -419,10 +424,12 @@ describe('App scene workbench', () => {
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
     expect(screen.getByText('Signals in Rain / Concourse Delay / Orchestrate / Execution')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Midnight Platform/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Concourse Delay/i })).toHaveClass('border-line-strong')
-    expect(screen.getByRole('button', { name: /Ticket Window/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Departure Bell/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Midnight Platform') })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Concourse Delay') })).toHaveClass(
+      'border-line-strong',
+    )
+    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Ticket Window') })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Departure Bell') })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Warehouse Bridge/i })).not.toBeInTheDocument()
   })
 
@@ -439,10 +446,12 @@ describe('App scene workbench', () => {
     await renderFreshApp('?scope=scene&id=scene-concourse-delay&lens=orchestrate&tab=execution')
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Midnight Platform/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Concourse Delay/i })).toHaveClass('border-line-strong')
-    expect(screen.getByRole('button', { name: /Ticket Window/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Departure Bell/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Midnight Platform') })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Concourse Delay') })).toHaveClass(
+      'border-line-strong',
+    )
+    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Ticket Window') })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Departure Bell') })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Warehouse Bridge/i })).not.toBeInTheDocument()
     expect(screen.getByText('A crowd bottleneck should slow the exit without resolving who controls the courier line.')).toBeInTheDocument()
   })
@@ -457,7 +466,7 @@ describe('App scene workbench', () => {
     expect(screen.getAllByText('Run 07').length).toBeGreaterThan(0)
     expect(screen.getAllByText('review').length).toBeGreaterThan(0)
 
-    await user.click(screen.getByRole('button', { name: /Ticket Window/i }))
+    await user.click(screen.getByRole('button', { name: nonEditorCloseButtonName('Ticket Window') }))
 
     await waitFor(() => {
       expect(screen.getByText('Signals in Rain / Ticket Window / Orchestrate / Execution')).toBeInTheDocument()
@@ -529,7 +538,6 @@ describe('App scene workbench', () => {
     await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
 
     expect(await screen.findByRole('heading', { name: '场景驾驶舱' })).toBeInTheDocument()
-    expect(screen.getByText('叙事工作台')).toBeInTheDocument()
     await waitFor(() => {
       expect(screen.getAllByText('午夜站台').length).toBeGreaterThan(0)
     })
@@ -547,11 +555,10 @@ describe('App scene workbench', () => {
 
     expect(await screen.findByRole('heading', { name: 'Scene cockpit' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: '中文' }))
+    await user.click(screen.getByRole('button', { name: /中文/ }))
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: '场景驾驶舱' })).toBeInTheDocument()
-      expect(screen.getByText('叙事工作台')).toBeInTheDocument()
       expect(screen.getAllByText('午夜站台').length).toBeGreaterThan(0)
       expect(new URLSearchParams(window.location.search).get('id')).toBe('scene-midnight-platform')
       expect(new URLSearchParams(window.location.search).get('lens')).toBe('orchestrate')
@@ -566,7 +573,6 @@ describe('App scene workbench', () => {
     await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
 
     expect(await screen.findByRole('heading', { name: '场景驾驶舱' })).toBeInTheDocument()
-    expect(screen.getByText('叙事工作台')).toBeInTheDocument()
   })
 
   it('rebuilds setup form data in the active locale after switching languages', async () => {
@@ -577,7 +583,7 @@ describe('App scene workbench', () => {
 
     expect(await screen.findByDisplayValue('Midnight Platform')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: '中文' }))
+    await user.click(screen.getByRole('button', { name: /中文/ }))
 
     await waitFor(() => {
       expect(screen.getByDisplayValue('午夜站台')).toBeInTheDocument()
@@ -649,7 +655,9 @@ describe('App scene workbench', () => {
     })
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Ticket Window/i })).toHaveClass('border-line-strong')
+    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Ticket Window') })).toHaveClass(
+      'border-line-strong',
+    )
 
     window.history.back()
 
@@ -725,10 +733,10 @@ describe('App scene workbench', () => {
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
 
-    const midnightButton = screen.getByRole('button', { name: /Midnight Platform/i })
-    const ticketButton = screen.getByRole('button', { name: /Ticket Window/i })
-    const concourseButton = screen.getByRole('button', { name: /Concourse Delay/i })
-    const departureButton = screen.getByRole('button', { name: /Departure Bell/i })
+    const midnightButton = screen.getByRole('button', { name: nonEditorCloseButtonName('Midnight Platform') })
+    const ticketButton = screen.getByRole('button', { name: nonEditorCloseButtonName('Ticket Window') })
+    const concourseButton = screen.getByRole('button', { name: nonEditorCloseButtonName('Concourse Delay') })
+    const departureButton = screen.getByRole('button', { name: nonEditorCloseButtonName('Departure Bell') })
 
     expect(midnightButton.compareDocumentPosition(ticketButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(ticketButton.compareDocumentPosition(concourseButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -1395,7 +1403,7 @@ describe('App scene workbench', () => {
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
     expect(await screen.findByRole('tablist', { name: 'Open Editors' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*scene-midnight-platform/i })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*Execution/i })).toHaveAttribute(
       'aria-selected',
       'true',
     )
@@ -1411,14 +1419,14 @@ describe('App scene workbench', () => {
     })
 
     expect(await screen.findByRole('heading', { name: 'Asset knowledge' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*scene-midnight-platform/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Asset.*Knowledge.*asset-ren-voss/i })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*Execution/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Asset.*Knowledge.*Mentions/i })).toHaveAttribute(
       'aria-selected',
       'true',
     )
     expectNoEditorUrlParams()
 
-    await user.click(screen.getByRole('tab', { name: /Scene.*Orchestrate.*scene-midnight-platform/i }))
+    await user.click(screen.getByRole('tab', { name: /Scene.*Orchestrate.*Execution/i }))
 
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search)
@@ -1445,11 +1453,11 @@ describe('App scene workbench', () => {
     })
 
     expect(await screen.findByRole('heading', { name: 'Book manuscript' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Book.*Draft.*book-signal-arc/i })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: /Book.*Draft.*Review/i })).toHaveAttribute(
       'aria-selected',
       'true',
     )
-    expect(screen.getByRole('tab', { name: /Asset.*Knowledge.*asset-ren-voss/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Asset.*Knowledge.*Mentions/i })).toBeInTheDocument()
     expectNoEditorUrlParams()
 
     const refreshSearch = window.location.search
@@ -1458,9 +1466,9 @@ describe('App scene workbench', () => {
 
     expect(await screen.findByRole('heading', { name: 'Book manuscript' })).toBeInTheDocument()
     expect(await screen.findByRole('tablist', { name: 'Open Editors' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*scene-midnight-platform/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Asset.*Knowledge.*asset-ren-voss/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Book.*Draft.*book-signal-arc/i })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*Execution/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Asset.*Knowledge.*Mentions/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Book.*Draft.*Review/i })).toHaveAttribute(
       'aria-selected',
       'true',
     )
@@ -1474,7 +1482,7 @@ describe('App scene workbench', () => {
       expect(params.get('lens')).toBe('draft')
       expect(params.get('draftView')).toBe('review')
     })
-    expect(screen.queryByRole('tab', { name: /Asset.*Knowledge.*asset-ren-voss/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /Asset.*Knowledge.*Mentions/i })).not.toBeInTheDocument()
     expectNoEditorUrlParams()
   }, 10000)
 
@@ -1508,7 +1516,7 @@ describe('App scene workbench', () => {
     })
     expect(await screen.findByRole('heading', { name: 'Chapter workbench' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('tab', { name: /Asset.*Knowledge.*asset-ren-voss/i }))
+    await user.click(screen.getByRole('tab', { name: /Asset.*Knowledge.*Mentions/i }))
     await waitFor(() => {
       expectBusinessSearchParams({
         scope: 'asset',
@@ -1531,7 +1539,7 @@ describe('App scene workbench', () => {
     })
 
     expect(await screen.findByRole('heading', { name: 'Book manuscript' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Book.*Draft.*book-signal-arc/i })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: /Book.*Draft.*Compare/i })).toHaveAttribute(
       'aria-selected',
       'true',
     )
@@ -1547,13 +1555,13 @@ describe('App scene workbench', () => {
       })
     })
     expect(await screen.findByRole('heading', { name: 'Asset knowledge' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Asset.*Knowledge.*asset-ren-voss/i })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: /Asset.*Knowledge.*Mentions/i })).toHaveAttribute(
       'aria-selected',
       'true',
     )
-    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*scene-midnight-platform/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Chapter.*Structure.*chapter-signals-in-rain/i })).toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: /Book.*Draft.*book-signal-arc/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*Execution/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Chapter.*Structure.*Assembly/i })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /Book.*Draft.*Compare/i })).not.toBeInTheDocument()
   }, 10000)
 
   it('keeps the header runtime status stable across scope changes for the mock runtime', async () => {

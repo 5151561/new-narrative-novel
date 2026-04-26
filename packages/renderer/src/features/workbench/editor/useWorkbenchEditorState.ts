@@ -111,6 +111,39 @@ export function useWorkbenchEditorState(
     [storageKey],
   )
 
+  useEffect(() => {
+    const currentState = stateRef.current
+
+    if (currentState.contexts.length === 0) {
+      return
+    }
+
+    let didUpdateContextCopy = false
+    const contexts = currentState.contexts.map((context) => {
+      const descriptor = describeContext(context.route)
+
+      if (context.title === descriptor.title && context.subtitle === descriptor.subtitle) {
+        return context
+      }
+
+      didUpdateContextCopy = true
+      return {
+        ...context,
+        title: descriptor.title,
+        subtitle: descriptor.subtitle,
+      }
+    })
+
+    if (!didUpdateContextCopy) {
+      return
+    }
+
+    persistState({
+      ...currentState,
+      contexts,
+    })
+  }, [describeContext, persistState])
+
   const openOrUpdateContext = useCallback(
     (route: WorkbenchRouteState) => {
       const id = getWorkbenchEditorContextId(route)

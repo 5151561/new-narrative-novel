@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { getWorkbenchLensLabel, useI18n } from '@/app/i18n'
+import { useI18n } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
+import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 
 import { ChapterDraftBinderPane } from '../components/ChapterDraftBinderPane'
@@ -18,31 +19,19 @@ import {
 import type { ChapterDraftWorkspaceViewModel } from '../types/chapter-draft-view-models'
 
 function WorkspacePreview({ workspace }: { workspace: ChapterDraftWorkspaceViewModel }) {
-  const { locale, dictionary } = useI18n()
+  const { locale } = useI18n()
   const activity = buildChapterDraftStoryActivity(locale, workspace)
 
   return (
     <WorkbenchShell
       topBar={
-        <div className="flex h-full flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0 space-y-1">
-            <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.narrativeWorkbench}</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg leading-tight text-text-main">{dictionary.app.chapterWorkbench}</h1>
-              <Badge tone="neutral">{dictionary.common.chapter}</Badge>
-              <Badge tone="accent">{dictionary.app.chapterDraft}</Badge>
-            </div>
-            <p className="text-sm text-text-muted">
-              {workspace.title} / {getWorkbenchLensLabel(locale, 'draft')} / {workspace.selectedScene?.title}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="neutral">{locale === 'zh-CN' ? `已起草 ${workspace.draftedSceneCount}` : `Drafted ${workspace.draftedSceneCount}`}</Badge>
-            <Badge tone={workspace.missingDraftCount > 0 ? 'warn' : 'success'}>
-              {locale === 'zh-CN' ? `缺稿 ${workspace.missingDraftCount}` : `Missing ${workspace.missingDraftCount}`}
-            </Badge>
-            <Badge tone="neutral">{locale === 'zh-CN' ? `合计 ${workspace.assembledWordCount} 词` : `${workspace.assembledWordCount} words`}</Badge>
-          </div>
+        <div className="flex h-full flex-wrap items-center justify-end gap-2">
+          <LocaleToggle />
+          <Badge tone="neutral">{locale === 'zh-CN' ? `已起草 ${workspace.draftedSceneCount}` : `Drafted ${workspace.draftedSceneCount}`}</Badge>
+          <Badge tone={workspace.missingDraftCount > 0 ? 'warn' : 'success'}>
+            {locale === 'zh-CN' ? `缺稿 ${workspace.missingDraftCount}` : `Missing ${workspace.missingDraftCount}`}
+          </Badge>
+          <Badge tone="neutral">{locale === 'zh-CN' ? `合计 ${workspace.assembledWordCount} 词` : `${workspace.assembledWordCount} words`}</Badge>
         </div>
       }
       modeRail={<ChapterModeRail activeLens="draft" onSelectScope={() => undefined} onSelectLens={() => undefined} />}

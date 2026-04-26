@@ -1,8 +1,9 @@
 import { useCallback, useEffect } from 'react'
 
-import { getLocaleName, getWorkbenchLensLabel, useI18n } from '@/app/i18n'
+import { getWorkbenchLensLabel, useI18n } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import type { SceneLens } from '@/features/workbench/types/workbench-route'
@@ -50,29 +51,6 @@ function mergeTraceabilityIntoWorkspace(
   }
 }
 
-function LanguageToggle() {
-  const { locale, setLocale, dictionary } = useI18n()
-
-  return (
-    <div className="flex items-center gap-1 rounded-md border border-line-soft bg-surface-2 p-1">
-      <span className="px-2 text-[11px] uppercase tracking-[0.05em] text-text-soft">{dictionary.common.language}</span>
-      {(['en', 'zh-CN'] as const).map((value) => (
-        <button
-          key={value}
-          type="button"
-          aria-pressed={locale === value}
-          onClick={() => setLocale(value)}
-          className={`rounded-md px-2 py-1 text-xs font-medium ${
-            locale === value ? 'bg-surface-1 text-text-main shadow-ringwarm' : 'text-text-muted'
-          }`}
-        >
-          {getLocaleName(locale, value)}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 function DraftPaneState({ title, message }: { title: string; message: string }) {
   return (
     <div className="p-4">
@@ -97,33 +75,26 @@ function ChapterDraftTopBar({
   const { locale, dictionary } = useI18n()
 
   return (
-    <div className="flex h-full flex-wrap items-center justify-between gap-3">
-      <div className="min-w-0 space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.narrativeWorkbench}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg leading-tight text-text-main">{dictionary.app.chapterWorkbench}</h1>
-          <Badge tone="neutral">{dictionary.common.chapter}</Badge>
-          <Badge tone="accent">{getWorkbenchLensLabel(locale, 'draft')}</Badge>
-        </div>
-        <p className="text-sm text-text-muted">
+    <div className="flex h-full flex-wrap items-center justify-end gap-2">
+      <div className="sr-only">
+        <h1>{dictionary.app.chapterWorkbench}</h1>
+        <p>
           {chapterTitle} / {getWorkbenchLensLabel(locale, 'draft')}
           {selectedSceneTitle ? ` / ${selectedSceneTitle}` : ''}
         </p>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <LanguageToggle />
-        {draftedSceneCount !== undefined ? (
-          <Badge tone="neutral">{locale === 'zh-CN' ? `已起草 ${draftedSceneCount}` : `Drafted ${draftedSceneCount}`}</Badge>
-        ) : null}
-        {missingDraftCount !== undefined ? (
-          <Badge tone={missingDraftCount > 0 ? 'warn' : 'success'}>
-            {locale === 'zh-CN' ? `缺稿 ${missingDraftCount}` : `Missing ${missingDraftCount}`}
-          </Badge>
-        ) : null}
-        {assembledWordCount !== undefined ? (
-          <Badge tone="neutral">{locale === 'zh-CN' ? `合计 ${assembledWordCount} 词` : `${assembledWordCount} words`}</Badge>
-        ) : null}
-      </div>
+      <LocaleToggle />
+      {draftedSceneCount !== undefined ? (
+        <Badge tone="neutral">{locale === 'zh-CN' ? `已起草 ${draftedSceneCount}` : `Drafted ${draftedSceneCount}`}</Badge>
+      ) : null}
+      {missingDraftCount !== undefined ? (
+        <Badge tone={missingDraftCount > 0 ? 'warn' : 'success'}>
+          {locale === 'zh-CN' ? `缺稿 ${missingDraftCount}` : `Missing ${missingDraftCount}`}
+        </Badge>
+      ) : null}
+      {assembledWordCount !== undefined ? (
+        <Badge tone="neutral">{locale === 'zh-CN' ? `合计 ${assembledWordCount} 词` : `${assembledWordCount} words`}</Badge>
+      ) : null}
     </div>
   )
 }

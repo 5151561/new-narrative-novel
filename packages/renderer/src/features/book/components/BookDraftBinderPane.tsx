@@ -25,11 +25,6 @@ export function BookDraftBinderPane({ workspace, onSelectChapter, onOpenChapter 
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PaneHeader
         title={locale === 'zh-CN' ? '章节' : 'Chapters'}
-        description={
-          locale === 'zh-CN'
-            ? '保持 route.selectedChapterId 作为唯一章节焦点真源。'
-            : 'Keep route.selectedChapterId as the single selected chapter truth.'
-        }
       />
       <div className="min-h-0 flex-1 space-y-3 overflow-auto p-3">
         <ul className="space-y-2">

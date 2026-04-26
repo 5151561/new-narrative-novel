@@ -1,7 +1,7 @@
 import { useMemo, useState, type PropsWithChildren } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { useI18n } from '@/app/i18n'
+import { useI18n, type Locale } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
 import { createStoryProjectRuntimeEnvironment } from '@/app/project-runtime'
 import { Badge } from '@/components/ui/Badge'
@@ -126,9 +126,10 @@ function createEditorStoryContext(
   route: WorkbenchRouteState,
   index: number,
   dictionary: WorkbenchEditorDictionary,
+  locale: Locale,
 ): WorkbenchEditorContext {
   const timestamp = 1_900_000_000_000 + index
-  const descriptor = describeWorkbenchEditorContext(route, dictionary)
+  const descriptor = describeWorkbenchEditorContext(route, dictionary, locale)
 
   return {
     id: getWorkbenchEditorContextId(route),
@@ -145,8 +146,9 @@ function writeWorkbenchEditorStoryState(
   routes: WorkbenchRouteState[],
   activeRoute: WorkbenchRouteState,
   dictionary: WorkbenchEditorDictionary,
+  locale: Locale,
 ) {
-  const contexts = routes.map((route, index) => createEditorStoryContext(route, index + 1, dictionary))
+  const contexts = routes.map((route, index) => createEditorStoryContext(route, index + 1, dictionary, locale))
 
   writeWorkbenchEditorStorage(
     {
@@ -287,12 +289,12 @@ function WorkbenchEditorShellStoryPreview({
   layoutStorageKey: string
   routes: WorkbenchRouteState[]
 }) {
-  const { dictionary } = useI18n()
+  const { dictionary, locale } = useI18n()
   const [route, setRoute] = useState(initialRoute)
 
   useMemo(() => {
-    writeWorkbenchEditorStoryState(editorStorageKey, routes, initialRoute, dictionary)
-  }, [dictionary, editorStorageKey, initialRoute, routes])
+    writeWorkbenchEditorStoryState(editorStorageKey, routes, initialRoute, dictionary, locale)
+  }, [dictionary, editorStorageKey, initialRoute, locale, routes])
 
   return (
     <WorkbenchEditorProvider route={route} replaceRoute={setRoute} storageKey={editorStorageKey}>

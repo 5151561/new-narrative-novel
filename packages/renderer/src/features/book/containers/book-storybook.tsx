@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 
-import { getWorkbenchLensLabel, useI18n } from '@/app/i18n'
-import { Badge } from '@/components/ui/Badge'
+import { useI18n } from '@/app/i18n'
+import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import type { BookStructureView } from '@/features/workbench/types/workbench-route'
@@ -27,14 +27,6 @@ interface BookStoryParameters {
 
 const defaultBookStorySearch = '?scope=book&id=book-storybook&lens=structure&view=sequence&selectedChapterId=chapter-signals-in-rain'
 
-function getBookViewLabel(locale: 'en' | 'zh-CN', view: BookStructureView) {
-  if (locale === 'zh-CN') {
-    return view === 'sequence' ? '顺序' : view === 'outliner' ? '大纲' : '信号'
-  }
-
-  return view === 'sequence' ? 'Sequence' : view === 'outliner' ? 'Outliner' : 'Signals'
-}
-
 function applyBookStoryEnvironment(search = defaultBookStorySearch) {
   if (typeof window === 'undefined') {
     return
@@ -58,35 +50,10 @@ export function getBookStorySearch(options?: {
   return `?scope=book&id=book-storybook&lens=structure&view=${view}&selectedChapterId=${selectedChapterId}`
 }
 
-function BookStoryTopBar({
-  title,
-  summary,
-  view,
-}: {
-  title: string
-  summary: string
-  view: BookStructureView
-}) {
-  const { locale, dictionary } = useI18n()
-
+function BookStoryTopBar() {
   return (
-    <div className="flex h-full flex-wrap items-center justify-between gap-3">
-      <div className="min-w-0 space-y-1">
-        <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.narrativeWorkbench}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg leading-tight text-text-main">{locale === 'zh-CN' ? '书籍工作台' : 'Book workbench'}</h1>
-          <Badge tone="neutral">{dictionary.common.book}</Badge>
-          <Badge tone="accent">{getBookViewLabel(locale, view)}</Badge>
-        </div>
-        <p className="text-sm text-text-muted">
-          {title} / {getWorkbenchLensLabel(locale, 'structure')} / {getBookViewLabel(locale, view)}
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="neutral">{getWorkbenchLensLabel(locale, 'structure')}</Badge>
-        <Badge tone="neutral">{getBookViewLabel(locale, view)}</Badge>
-      </div>
-      <p className="w-full text-sm leading-6 text-text-muted">{summary}</p>
+    <div className="flex h-full flex-wrap items-center justify-end gap-2">
+      <LocaleToggle />
     </div>
   )
 }
@@ -109,7 +76,7 @@ export function BookStructureWorkspaceStory({
 
   return (
     <WorkbenchShell
-      topBar={<BookStoryTopBar title={workspace.title} summary={workspace.summary} view={route.view} />}
+      topBar={<BookStoryTopBar />}
       modeRail={
         <BookModeRail
           activeScope="book"

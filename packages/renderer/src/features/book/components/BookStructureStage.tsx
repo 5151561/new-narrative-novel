@@ -41,7 +41,6 @@ export function BookStructureStage({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PaneHeader
         title={locale === 'zh-CN' ? '书籍结构' : 'Book structure'}
-        description={workspace.summary}
         actions={
           <div className="flex flex-wrap gap-2">
             {availableViews.map((view) => (

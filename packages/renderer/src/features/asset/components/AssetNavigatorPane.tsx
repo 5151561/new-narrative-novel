@@ -76,7 +76,7 @@ export function AssetNavigatorPane({ groups, activeAssetId, onSelectAsset }: Ass
 
   return (
     <>
-      <PaneHeader title={dictionary.app.assets} description={dictionary.app.assetNavigatorDescription} />
+      <PaneHeader title={dictionary.app.assets} />
       <div className="min-h-0 space-y-4 overflow-auto p-3">
         {hasItems ? (
           <>
