@@ -261,7 +261,7 @@ describe('BookDraftCompareView', () => {
   it('renders changed, added, missing counts and scene excerpts for the selected chapter', () => {
     render(
       <AppProviders>
-        <BookDraftCompareView compare={buildCompareWorkspace()} onSelectChapter={vi.fn()} onOpenChapter={vi.fn()} />
+        <BookDraftCompareView compare={buildCompareWorkspace()} onOpenChapter={vi.fn()} />
       </AppProviders>,
     )
 
@@ -276,21 +276,16 @@ describe('BookDraftCompareView', () => {
     expect(screen.getByText('Checkpoint river excerpt')).toBeInTheDocument()
   })
 
-  it('highlights the selected chapter and clicking another chapter triggers selection', async () => {
-    const user = userEvent.setup()
-    const onSelectChapter = vi.fn()
-
+  it('does not render the duplicate chapter selector in the compare main stage', () => {
     render(
       <AppProviders>
-        <BookDraftCompareView compare={buildCompareWorkspace()} onSelectChapter={onSelectChapter} onOpenChapter={vi.fn()} />
+        <BookDraftCompareView compare={buildCompareWorkspace()} onOpenChapter={vi.fn()} />
       </AppProviders>,
     )
 
-    expect(screen.getByRole('button', { name: 'Chapter 2 Open Water Signals' })).toHaveAttribute('aria-pressed', 'true')
-
-    await user.click(screen.getByRole('button', { name: 'Chapter 1 Signals in Rain' }))
-
-    expect(onSelectChapter).toHaveBeenCalledWith('chapter-signals-in-rain')
+    expect(screen.getByRole('heading', { name: 'Open Water Signals' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Chapter 1 Signals in Rain' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Signals in Rain')).not.toBeInTheDocument()
   })
 
   it('fires Open in Draft and Open in Structure actions', async () => {
@@ -299,7 +294,7 @@ describe('BookDraftCompareView', () => {
 
     render(
       <AppProviders>
-        <BookDraftCompareView compare={buildCompareWorkspace()} onSelectChapter={vi.fn()} onOpenChapter={onOpenChapter} />
+        <BookDraftCompareView compare={buildCompareWorkspace()} onOpenChapter={onOpenChapter} />
       </AppProviders>,
     )
 

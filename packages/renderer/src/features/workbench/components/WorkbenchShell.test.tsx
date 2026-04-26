@@ -1,5 +1,5 @@
 import userEvent from '@testing-library/user-event'
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { renderWithProjectRuntime } from '@/app/project-runtime/project-runtime-test-utils'
@@ -314,6 +314,28 @@ describe('WorkbenchShell', () => {
 
     expect(shellRoot().style.gridTemplateRows).toContain(
       `${DEFAULT_WORKBENCH_LAYOUT_STATE.bottomDockHeight + 16}px`,
+    )
+  })
+
+  it('renders a visible bottom dock resize affordance with a larger hit target', () => {
+    renderWorkbenchShell()
+
+    const sash = screen.getByRole('separator', { name: 'Resize Bottom Dock' })
+
+    expect(sash).toHaveClass('h-4', 'cursor-row-resize')
+    expect(sash.firstElementChild).toHaveClass('h-1', 'w-40', 'bg-line-strong')
+  })
+
+  it('mouse drag on the bottom dock sash changes rows with inverted direction', () => {
+    renderWorkbenchShell()
+
+    const sash = screen.getByRole('separator', { name: 'Resize Bottom Dock' })
+    fireEvent.mouseDown(sash, { clientY: 240 })
+    fireEvent.mouseMove(sash, { clientY: 208 })
+    fireEvent.mouseUp(sash, { clientY: 208 })
+
+    expect(shellRoot().style.gridTemplateRows).toContain(
+      `${DEFAULT_WORKBENCH_LAYOUT_STATE.bottomDockHeight + 32}px`,
     )
   })
 

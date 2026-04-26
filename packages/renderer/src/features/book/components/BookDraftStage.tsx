@@ -194,7 +194,6 @@ export function BookDraftStage({
           <BookDraftCompareView
             compare={compare}
             errorMessage={compareError?.message ?? null}
-            onSelectChapter={onSelectChapter}
             onOpenChapter={onOpenChapter}
           />
         </>

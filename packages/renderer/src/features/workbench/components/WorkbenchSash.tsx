@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent, type PointerEvent } from 'react'
+import { useRef, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 
 import { cn } from '@/lib/cn'
 
@@ -24,9 +24,12 @@ export function WorkbenchSash({
   valueText,
 }: WorkbenchSashProps) {
   const activePointerIdRef = useRef<number | null>(null)
+  const activeMouseRef = useRef(false)
   const lastPositionRef = useRef<number | null>(null)
 
   const readPosition = (event: PointerEvent<HTMLDivElement>) =>
+    orientation === 'vertical' ? event.clientX : event.clientY
+  const readMousePosition = (event: MouseEvent<HTMLDivElement>) =>
     orientation === 'vertical' ? event.clientX : event.clientY
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
@@ -36,7 +39,9 @@ export function WorkbenchSash({
 
     activePointerIdRef.current = event.pointerId
     lastPositionRef.current = readPosition(event)
-    event.currentTarget.setPointerCapture(event.pointerId)
+    if (typeof event.currentTarget.setPointerCapture === 'function') {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    }
     event.preventDefault()
   }
 
@@ -66,9 +71,46 @@ export function WorkbenchSash({
     activePointerIdRef.current = null
     lastPositionRef.current = null
 
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+    if (
+      typeof event.currentTarget.hasPointerCapture === 'function' &&
+      event.currentTarget.hasPointerCapture(event.pointerId) &&
+      typeof event.currentTarget.releasePointerCapture === 'function'
+    ) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
+  }
+
+  const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+    if (disabled || activePointerIdRef.current !== null || activeMouseRef.current) {
+      return
+    }
+
+    activeMouseRef.current = true
+    lastPositionRef.current = readMousePosition(event)
+    event.preventDefault()
+  }
+
+  const handleMouseMove = (event: MouseEvent<HTMLDivElement>) => {
+    if (disabled || !activeMouseRef.current || lastPositionRef.current === null) {
+      return
+    }
+
+    const position = readMousePosition(event)
+    const delta = position - lastPositionRef.current
+    lastPositionRef.current = position
+
+    if (delta !== 0) {
+      onResize(delta)
+    }
+  }
+
+  const handleMouseEnd = () => {
+    if (!activeMouseRef.current) {
+      return
+    }
+
+    activeMouseRef.current = false
+    lastPositionRef.current = null
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -104,18 +146,24 @@ export function WorkbenchSash({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
       onPointerCancel={handlePointerEnd}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseEnd}
+      onMouseLeave={handleMouseEnd}
       onKeyDown={handleKeyDown}
       className={cn(
         'group flex shrink-0 items-center justify-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent',
-        orientation === 'vertical' ? 'min-h-0 w-2 cursor-col-resize' : 'h-2 min-w-0 cursor-row-resize',
+        orientation === 'vertical' ? 'min-h-0 w-2 cursor-col-resize' : 'h-4 min-w-0 cursor-row-resize',
         disabled ? 'cursor-not-allowed opacity-50' : 'hover:bg-surface-2/70',
       )}
     >
       <span
         aria-hidden="true"
         className={cn(
-          'block rounded-full bg-line-soft transition-colors group-hover:bg-line-strong',
-          orientation === 'vertical' ? 'h-full w-px' : 'h-px w-full',
+          'block rounded-full transition-colors group-hover:bg-line-strong group-focus-visible:bg-accent',
+          orientation === 'vertical'
+            ? 'h-full w-px bg-line-soft'
+            : 'h-1 w-40 max-w-[45%] bg-line-strong shadow-ringwarm',
           disabled && 'group-hover:bg-line-soft',
         )}
       />

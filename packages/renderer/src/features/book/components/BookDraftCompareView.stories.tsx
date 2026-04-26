@@ -16,7 +16,7 @@ function StoryComponent({ variant = 'default', selectedChapterId, checkpointId }
   const { locale } = useI18n()
   const compareData = buildBookDraftCompareStoryData(locale, { variant, selectedChapterId, checkpointId })
 
-  return <BookDraftCompareView compare={compareData.compare} onSelectChapter={() => undefined} onOpenChapter={() => undefined} />
+  return <BookDraftCompareView compare={compareData.compare} onOpenChapter={() => undefined} />
 }
 
 const meta = {

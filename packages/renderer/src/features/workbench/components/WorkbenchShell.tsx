@@ -201,7 +201,7 @@ export function WorkbenchShell({
             </div>
           </Pane>
           {!effectiveLayoutState.bottomDockMaximized ? (
-            <div className="absolute -top-3 left-0 z-10 flex w-full justify-center">
+            <div className="absolute -top-4 left-0 z-10 flex w-full justify-center">
               <WorkbenchSash
                 orientation="horizontal"
                 label={dictionary.shell.resizeBottomDock}
