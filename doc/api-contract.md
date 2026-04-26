@@ -32,6 +32,7 @@ PR20 的前端运行路径统一收敛到 `/api/projects/{projectId}/...`。
 | 领域 | 方法 | 路径 | 主要返回 |
 | --- | --- | --- | --- |
 | Book | `GET` | `/api/projects/{projectId}/books/{bookId}/structure` | `BookStructureRecord \| null` |
+| Book | `GET` | `/api/projects/{projectId}/books/{bookId}/draft-assembly` | `BookDraftAssemblyRecord \| null` |
 | Book | `GET` | `/api/projects/{projectId}/books/{bookId}/manuscript-checkpoints` | `BookManuscriptCheckpointRecord[]` |
 | Book | `GET` | `/api/projects/{projectId}/books/{bookId}/manuscript-checkpoints/{checkpointId}` | `BookManuscriptCheckpointRecord \| null` |
 | Book | `GET` | `/api/projects/{projectId}/books/{bookId}/export-profiles` | `BookExportProfileRecord[]` |
@@ -76,8 +77,29 @@ PR20 的前端运行路径统一收敛到 `/api/projects/{projectId}/...`。
 - 列表接口返回数组；没有数据时返回空数组，不返回 `null`。
 - 明细接口在“对象不存在”时返回 `null`，不抛前端自定义空对象。
 - Book / Chapter / Asset 的结构类接口返回的是“记录对象”，通常保留双语文本结构，例如 `{ en, 'zh-CN' }`，由前端再按 locale 映射。
+- `GET /books/{bookId}/draft-assembly` 是当前 live manuscript read model，不是 manuscript checkpoint，也不是 export artifact。
+- `draft-assembly` 可以携带正文 prose body，因为它是产品读面；run events 仍保持轻量摘要 + refs，不内联 prose body。
+- `draft-assembly` 不会在读取时创建或修改 manuscript checkpoint，也不会创建或修改 export artifact。
+- `draft-assembly` 保留稳定的 `bookId` / `chapterId` / `sceneId`，并按 `BookStructureRecord.chapterIds` 与 `ChapterStructureWorkspaceRecord.scenes[].order` 组装。
+- `draft-assembly` 对缺失 scene prose 返回显式 gap row，不把缺稿伪装成空正文成功态。
+- `draft-assembly` 会保留当前 scene prose read model 已暴露的来源引用与 trace rollup 元数据，用于 Book Draft / Review / Compare / Export-readiness 解释。
 - Scene 相关接口返回的是更贴近 UI 的 view model，默认可以直接驱动工作台渲染，不要求前端再拼装底层持久化结构。
 - `/runtime-info` 返回的是项目级 runtime health / source / capability 记录；旧的 scene 顶栏如果仍消费这一路径，应视为 client adaptation，而不是这条合同的主语义。
+
+### 3.1.1 PR38 Book Draft Live Assembly
+
+当前 book 级读边界明确区分为：
+
+- `manuscript-checkpoints` = 历史快照
+- `export-artifacts` = 已生成交付物
+- `draft-assembly` = 当前 live manuscript read model
+
+`BookDraftAssemblyRecord` 的语义要点：
+
+- 它从当前 fixture project data 里的 `book -> chapter -> scene prose read model` 组装，不通过 display title 匹配身份。
+- scene 行要么是带 prose 的 `draft`，要么是带 `gapReason` 的 `gap`。
+- scene provenance 只复用当前 read model 已有字段，例如 `sourcePatchId`、`sourceProposals`、`acceptedFactIds`、`relatedAssets`、trace rollup 计数与 `missingLinks`。
+- 这条端点不会改变 PR37 的 review decision 传播语义：`accept` / `accept-with-edit` 会让 live assembly 读取到最新 prose；`reject` / `request-rewrite` 不会覆盖现有 live assembly prose。
 
 ### 3.2 写接口
 

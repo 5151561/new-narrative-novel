@@ -10,6 +10,11 @@ export function registerBookRoutes({ app, apiBasePath, repository }: ApiRouteCon
     return repository.getBookStructure(projectId, bookId)
   })
 
+  app.get(`${projectBase}/books/:bookId/draft-assembly`, async (request) => {
+    const { projectId, bookId } = request.params as { projectId: string; bookId: string }
+    return repository.getBookDraftAssembly(projectId, bookId)
+  })
+
   app.get(`${projectBase}/books/:bookId/manuscript-checkpoints`, async (request) => {
     const { projectId, bookId } = request.params as { projectId: string; bookId: string }
     return repository.getBookManuscriptCheckpoints(projectId, bookId)

@@ -88,6 +88,73 @@ export interface BookManuscriptCheckpointRecord {
   chapters: BookManuscriptCheckpointChapterRecord[]
 }
 
+export interface BookDraftAssemblyTraceRollupRecord {
+  acceptedFactCount: number
+  relatedAssetCount: number
+  sourceProposalCount: number
+  missingLinks: string[]
+}
+
+export interface BookDraftAssemblySceneRecordBase {
+  sceneId: string
+  order: number
+  title: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  proseStatusLabel: LocalizedTextRecord
+  latestDiffSummary?: string
+  warningsCount: number
+  revisionQueueCount?: number
+  draftWordCount?: number
+  traceReady: boolean
+  traceRollup: BookDraftAssemblyTraceRollupRecord
+}
+
+export interface BookDraftAssemblySceneDraftRecord extends BookDraftAssemblySceneRecordBase {
+  kind: 'draft'
+  proseDraft: string
+  sourcePatchId?: string
+  sourceProposals: SceneTraceProposalRefModel[]
+  acceptedFactIds: string[]
+  relatedAssets: SceneTraceAssetRefModel[]
+}
+
+export interface BookDraftAssemblySceneGapRecord extends BookDraftAssemblySceneRecordBase {
+  kind: 'gap'
+  gapReason: LocalizedTextRecord
+}
+
+export type BookDraftAssemblySceneRecord =
+  | BookDraftAssemblySceneDraftRecord
+  | BookDraftAssemblySceneGapRecord
+
+export interface BookDraftAssemblyChapterRecord {
+  chapterId: string
+  order: number
+  title: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  sceneCount: number
+  draftedSceneCount: number
+  missingDraftCount: number
+  assembledWordCount: number
+  warningsCount: number
+  queuedRevisionCount: number
+  tracedSceneCount: number
+  missingTraceSceneCount: number
+  scenes: BookDraftAssemblySceneRecord[]
+}
+
+export interface BookDraftAssemblyRecord {
+  bookId: string
+  title: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  chapterCount: number
+  sceneCount: number
+  draftedSceneCount: number
+  missingDraftSceneCount: number
+  assembledWordCount: number
+  chapters: BookDraftAssemblyChapterRecord[]
+}
+
 export type BookExportProfileKind = 'review_packet' | 'submission_preview' | 'archive_snapshot'
 
 export interface BookExportProfileIncludesRecord {
