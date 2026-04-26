@@ -5,6 +5,7 @@
   "scripts": {
     "dev:api": "pnpm --filter @narrative-novel/api dev",
     "dev:desktop": "pnpm --filter @narrative-novel/desktop dev",
+    "desktop:dev": "pnpm dev:desktop",
     "dev:renderer": "pnpm --filter @narrative-novel/renderer dev",
     "build:desktop": "pnpm --filter @narrative-novel/desktop build",
     "test:desktop": "pnpm --filter @narrative-novel/desktop test",
