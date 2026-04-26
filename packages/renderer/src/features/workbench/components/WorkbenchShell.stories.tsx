@@ -34,20 +34,26 @@ const WORKBENCH_LAYOUT_STORY_KEYS = {
   bottomDockMaximized: 'storybook:workbench-layout:bottom-dock-maximized',
   narrowViewport: 'storybook:workbench-layout:narrow-viewport',
   chapterScope: 'storybook:workbench-layout:chapter-scope',
+  manyEditorTabs: 'storybook:workbench-layout:many-editor-tabs',
   multipleEditorTabs: 'storybook:workbench-layout:multiple-editor-tabs',
   activeSceneOrchestrate: 'storybook:workbench-layout:active-scene-orchestrate',
   activeBookDraft: 'storybook:workbench-layout:active-book-draft',
+  hiddenPanesWithEditorTabs: 'storybook:workbench-layout:hidden-panes-with-editor-tabs',
   editorTabsHiddenNavigator: 'storybook:workbench-layout:editor-tabs-hidden-navigator',
   editorTabsBottomDockMaximized: 'storybook:workbench-layout:editor-tabs-bottom-dock-maximized',
   editorTabsOverflow: 'storybook:workbench-layout:editor-tabs-overflow',
   overflowStress: 'storybook:workbench-layout:overflow-stress',
+  bottomDockFrameContract: 'storybook:workbench-layout:bottom-dock-frame-contract',
   unifiedDockTabs: 'storybook:workbench-layout:unified-dock-tabs',
+  fourScopeSurfaceContract: 'storybook:workbench-layout:four-scope-surface-contract',
 } as const
 
 const WORKBENCH_EDITOR_STORY_KEYS = {
+  manyEditorTabs: 'storybook:workbench-editors:many-editor-tabs',
   multipleEditorTabs: 'storybook:workbench-editors:multiple-editor-tabs',
   activeSceneOrchestrate: 'storybook:workbench-editors:active-scene-orchestrate',
   activeBookDraft: 'storybook:workbench-editors:active-book-draft',
+  hiddenPanesWithEditorTabs: 'storybook:workbench-editors:hidden-panes-with-editor-tabs',
   editorTabsHiddenNavigator: 'storybook:workbench-editors:editor-tabs-hidden-navigator',
   editorTabsBottomDockMaximized: 'storybook:workbench-editors:editor-tabs-bottom-dock-maximized',
   editorTabsOverflow: 'storybook:workbench-editors:editor-tabs-overflow',
@@ -397,6 +403,178 @@ function UnifiedDockTabsPreview({ layoutStorageKey }: { layoutStorageKey: string
   )
 }
 
+type ScopeContractSurface = {
+  id: WorkbenchRouteState['scope']
+  route: WorkbenchRouteState
+  title: string
+  lens: string
+  navigator: string
+  mainTask: string
+  inspector: string
+  dock: string
+}
+
+function getScopeContractSurfaces(locale: 'en' | 'zh-CN'): ScopeContractSurface[] {
+  const isChinese = locale === 'zh-CN'
+
+  return [
+    {
+      id: 'scene',
+      route: EDITOR_SCENE_ORCHESTRATE_ROUTE,
+      title: isChinese ? '午夜站台' : 'Midnight Platform',
+      lens: isChinese ? '场景 / 编排' : 'Scene / Orchestrate',
+      navigator: isChinese ? '场景队列与当前节拍。' : 'Scene queue and active beat.',
+      mainTask: isChinese ? '审阅 proposal 变化是否能进入 accepted canon。' : 'Review whether proposal changes can enter accepted canon.',
+      inspector: isChinese ? '已采纳状态、版本和运行上下文。' : 'Accepted state, versions, and runtime context.',
+      dock: isChinese ? '事件、问题和 trace 仍停在支持面。' : 'Events, problems, and trace stay in support.',
+    },
+    {
+      id: 'chapter',
+      route: EDITOR_CHAPTER_ROUTE,
+      title: isChinese ? '雨中信号' : 'Signals in Rain',
+      lens: isChinese ? '章节 / 结构' : 'Chapter / Structure',
+      navigator: isChinese ? '章节 binder 与 scene 顺序。' : 'Chapter binder and scene order.',
+      mainTask: isChinese ? '比较章节节奏和 scene 编排顺序。' : 'Compare chapter rhythm and scene sequence.',
+      inspector: isChinese ? '选中 scene 的结构判断和拼接提示。' : 'Selected scene judgment and assembly hints.',
+      dock: isChinese ? '结构问题与活动摘要。' : 'Structure problems and activity summary.',
+    },
+    {
+      id: 'asset',
+      route: EDITOR_ASSET_ROUTE,
+      title: isChinese ? '任·沃斯' : 'Ren Voss',
+      lens: isChinese ? '资产 / 知识' : 'Asset / Knowledge',
+      navigator: isChinese ? '类型化资产、mentions 与 relations。' : 'Typed assets, mentions, and relations.',
+      mainTask: isChinese ? '阅读 canonical profile 并核对跨 scope 引用。' : 'Read the canonical profile and check cross-scope references.',
+      inspector: isChinese ? '关系、状态和来源链摘要。' : 'Relations, status, and traceability summary.',
+      dock: isChinese ? '知识冲突和引用活动。' : 'Knowledge conflicts and reference activity.',
+    },
+    {
+      id: 'book',
+      route: EDITOR_BOOK_DRAFT_ROUTE,
+      title: isChinese ? '信号弧线' : 'Signal Arc',
+      lens: isChinese ? '书籍 / 成稿' : 'Book / Draft',
+      navigator: isChinese ? '章节顺序和 manuscript 检查点。' : 'Chapter order and manuscript checkpoints.',
+      mainTask: isChinese ? '对照 manuscript review issue 与章节来源。' : 'Compare manuscript review issues with chapter sources.',
+      inspector: isChinese ? '导出准备度、分支和 review 证据。' : 'Export readiness, branches, and review evidence.',
+      dock: isChinese ? '问题、活动和产物 trace。' : 'Problems, activity, and artifact trace.',
+    },
+  ]
+}
+
+function FourScopeSurfaceContractPreview({ layoutStorageKey }: { layoutStorageKey: string }) {
+  const { locale, dictionary } = useI18n()
+  const surfaces = getScopeContractSurfaces(locale)
+  const activeSurface = surfaces[0]
+
+  return (
+    <WorkbenchShell
+      layoutStorageKey={layoutStorageKey}
+      topBar={
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.08em] text-text-soft">
+              {dictionary.app.narrativeWorkbench}
+            </p>
+            <h2 className="mt-1 text-xl">
+              {locale === 'zh-CN' ? '四种 scope 共用工作台壳' : 'Four-scope Workbench shell'}
+            </h2>
+          </div>
+          <Badge tone="accent">{activeSurface.lens}</Badge>
+        </div>
+      }
+      modeRail={
+        <div className="flex h-full flex-col gap-2 p-3">
+          {surfaces.map((surface) => (
+            <button
+              key={surface.id}
+              type="button"
+              className={`rounded-md px-2 py-3 text-sm ${
+                surface.id === activeSurface.id ? 'bg-surface-2 text-text-main shadow-ringwarm' : 'text-text-muted'
+              }`}
+            >
+              {surface.id}
+            </button>
+          ))}
+        </div>
+      }
+      navigator={
+        <TimelineList
+          items={surfaces.map((surface) => ({
+            id: surface.id,
+            title: surface.title,
+            detail: surface.navigator,
+            meta: surface.lens,
+            tone: surface.id === activeSurface.id ? 'accent' : 'neutral',
+          }))}
+        />
+      }
+      mainStage={
+        <div className="flex h-full min-h-0 flex-col gap-4 p-5">
+          <div>
+            <p className="text-xs uppercase tracking-[0.08em] text-text-soft">
+              {locale === 'zh-CN' ? '主舞台任务' : 'Main Stage task'}
+            </p>
+            <h3 className="mt-2 text-2xl">{activeSurface.title}</h3>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-text-muted">{activeSurface.mainTask}</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {surfaces.map((surface) => (
+              <div key={surface.id} className="rounded-md border border-line-soft bg-surface-1 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-medium text-text-main">{surface.title}</p>
+                  <Badge tone={surface.id === activeSurface.id ? 'accent' : 'neutral'}>{surface.lens}</Badge>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-text-muted">{surface.mainTask}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      }
+      inspector={
+        <div className="flex h-full flex-col gap-4 p-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.08em] text-text-soft">
+              {dictionary.shell.inspectorTitle}
+            </p>
+            <h3 className="mt-1 text-lg">{activeSurface.title}</h3>
+          </div>
+          <TimelineList
+            items={surfaces.map((surface) => ({
+              id: `${surface.id}-inspector`,
+              title: surface.lens,
+              detail: surface.inspector,
+              meta: dictionary.shell.inspectorTitle,
+              tone: surface.id === activeSurface.id ? 'accent' : 'neutral',
+            }))}
+          />
+        </div>
+      }
+      bottomDock={
+        <WorkbenchBottomDockFrame
+          ariaLabel={dictionary.shell.bottomDockTitle}
+          tabs={[
+            { id: 'problems', label: locale === 'zh-CN' ? '问题' : 'Problems', badge: 4, tone: 'warn' },
+            { id: 'activity', label: locale === 'zh-CN' ? '活动' : 'Activity', badge: 4 },
+            { id: 'trace', label: locale === 'zh-CN' ? '追踪' : 'Trace', badge: 4, tone: 'accent' },
+          ]}
+          activeTab="problems"
+          onTabChange={() => {}}
+        >
+          <TimelineList
+            items={surfaces.map((surface) => ({
+              id: `${surface.id}-dock`,
+              title: surface.lens,
+              detail: surface.dock,
+              meta: dictionary.shell.bottomDockTitle,
+              tone: surface.id === activeSurface.id ? 'accent' : 'neutral',
+            }))}
+          />
+        </WorkbenchBottomDockFrame>
+      }
+    />
+  )
+}
+
 function renderEditorShellStory({
   layoutStorageKey,
   editorStorageKey,
@@ -516,6 +694,21 @@ export const UnifiedDockTabs: Story = {
   },
 }
 
+export const BottomDockFrameContract: Story = {
+  render: () => {
+    writeWorkbenchLayoutStoryState(
+      WORKBENCH_LAYOUT_STORY_KEYS.bottomDockFrameContract,
+      createWorkbenchLayoutState(),
+    )
+
+    return (
+      <WorkbenchStoryProviders>
+        <UnifiedDockTabsPreview layoutStorageKey={WORKBENCH_LAYOUT_STORY_KEYS.bottomDockFrameContract} />
+      </WorkbenchStoryProviders>
+    )
+  },
+}
+
 export const MultipleEditorTabs: Story = {
   render: () =>
     renderEditorShellStory({
@@ -529,6 +722,52 @@ export const MultipleEditorTabs: Story = {
         EDITOR_BOOK_DRAFT_ROUTE,
       ],
       activeRoute: EDITOR_ASSET_ROUTE,
+    }),
+}
+
+export const ManyEditorTabs: Story = {
+  render: () =>
+    renderEditorShellStory({
+      layoutStorageKey: WORKBENCH_LAYOUT_STORY_KEYS.manyEditorTabs,
+      editorStorageKey: WORKBENCH_EDITOR_STORY_KEYS.manyEditorTabs,
+      initialLayout: createWorkbenchLayoutState(),
+      routes: [
+        EDITOR_SCENE_ORCHESTRATE_ROUTE,
+        EDITOR_SCENE_DRAFT_ROUTE,
+        EDITOR_SCENE_STRUCTURE_ROUTE,
+        EDITOR_CHAPTER_ROUTE,
+        {
+          scope: 'chapter',
+          chapterId: 'chapter-open-water-signals',
+          lens: 'draft',
+          view: 'sequence',
+        },
+        EDITOR_ASSET_ROUTE,
+        {
+          scope: 'asset',
+          assetId: 'asset-mei-arden',
+          lens: 'knowledge',
+          view: 'relations',
+        },
+        {
+          scope: 'asset',
+          assetId: 'asset-eastbound-platform',
+          lens: 'knowledge',
+          view: 'context',
+        },
+        EDITOR_BOOK_STRUCTURE_ROUTE,
+        EDITOR_BOOK_DRAFT_ROUTE,
+        {
+          scope: 'book',
+          bookId: 'book-signal-arc',
+          lens: 'draft',
+          view: 'signals',
+          draftView: 'compare',
+          checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+          selectedChapterId: 'chapter-open-water-signals',
+        },
+      ],
+      activeRoute: EDITOR_BOOK_DRAFT_ROUTE,
     }),
 }
 
@@ -570,6 +809,26 @@ export const EditorTabsWithHiddenNavigator: Story = {
       layoutStorageKey: WORKBENCH_LAYOUT_STORY_KEYS.editorTabsHiddenNavigator,
       editorStorageKey: WORKBENCH_EDITOR_STORY_KEYS.editorTabsHiddenNavigator,
       initialLayout: createWorkbenchLayoutState({ navigatorVisible: false }),
+      routes: [
+        EDITOR_SCENE_ORCHESTRATE_ROUTE,
+        EDITOR_CHAPTER_ROUTE,
+        EDITOR_ASSET_ROUTE,
+        EDITOR_BOOK_DRAFT_ROUTE,
+      ],
+      activeRoute: EDITOR_SCENE_ORCHESTRATE_ROUTE,
+    }),
+}
+
+export const HiddenPanesWithEditorTabs: Story = {
+  render: () =>
+    renderEditorShellStory({
+      layoutStorageKey: WORKBENCH_LAYOUT_STORY_KEYS.hiddenPanesWithEditorTabs,
+      editorStorageKey: WORKBENCH_EDITOR_STORY_KEYS.hiddenPanesWithEditorTabs,
+      initialLayout: createWorkbenchLayoutState({
+        navigatorVisible: false,
+        inspectorVisible: false,
+        bottomDockVisible: false,
+      }),
       routes: [
         EDITOR_SCENE_ORCHESTRATE_ROUTE,
         EDITOR_CHAPTER_ROUTE,
@@ -829,6 +1088,23 @@ export const ChapterScope: Story = {
     return (
       <WorkbenchStoryProviders>
         <ChapterWorkbenchShellStoryPreview layoutStorageKey={WORKBENCH_LAYOUT_STORY_KEYS.chapterScope} />
+      </WorkbenchStoryProviders>
+    )
+  },
+}
+
+export const FourScopeSurfaceContract: Story = {
+  render: () => {
+    writeWorkbenchLayoutStoryState(
+      WORKBENCH_LAYOUT_STORY_KEYS.fourScopeSurfaceContract,
+      createWorkbenchLayoutState(),
+    )
+
+    return (
+      <WorkbenchStoryProviders>
+        <FourScopeSurfaceContractPreview
+          layoutStorageKey={WORKBENCH_LAYOUT_STORY_KEYS.fourScopeSurfaceContract}
+        />
       </WorkbenchStoryProviders>
     )
   },

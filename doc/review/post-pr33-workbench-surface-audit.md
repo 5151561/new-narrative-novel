@@ -5,8 +5,8 @@ codex/pr33-workbench-surface-contract-stabilization
 
 ## Summary
 - What feels wrong / fragile after PR33: the shared shell mostly owns layout already, but several shell regions still lack explicit stable test ids, and optional-pane controls are noop-only instead of visibly disabled when a surface does not exist.
-- Which issues this PR fixes: this PR hardens the WorkbenchShell contract around semantic shell regions, hidden-pane layout behavior, local-only layout reset, invalid layout storage safety, and bottom dock maximize preference preservation.
-- Which issues are intentionally deferred: broader Storybook state expansion, command surface, Quick Open, Status Bar, split editor, mobile layout, backend/API/desktop/SSE/Temporal work, prompt editing, and baseline duplicate React key warnings in BookDraftWorkspace tests are deferred.
+- Which issues this PR fixes: this PR hardens the WorkbenchShell contract around semantic shell regions, hidden-pane layout behavior, local-only layout reset, invalid layout storage safety, bottom dock maximize preference preservation, editor-context locality, shared bottom dock framing, and cross-scope Storybook contract states.
+- Which issues are intentionally deferred: command surface, Quick Open, Status Bar, split editor, mobile layout, backend/API/desktop/SSE/Temporal work, prompt editing, optional constitution guard scripting, and baseline duplicate React key warnings in BookDraftWorkspace tests are deferred.
 - Mandatory reading findings: `doc/frontend-workbench-constitution.md` requires WorkbenchShell-owned layout, route/layout separation, one primary Main Stage, Navigator/Inspector/Dock support roles, Storybook states, and route/layout/selection/restore tests. `doc/project-positioning-and-design-principles.md` and `doc/odd-frontend-comprehensive-design.md` confirm the product is a Narrative IDE using Scope x Lens and a VS Code-like five-surface workbench, not a page collection or dashboard. `doc/post-pr31-vscode-ux-roadmap-and-pr32-editor-context-execution-plan.md` confirms editor contexts are local UI preference while route remains the active business-state truth.
 - Source findings: `WorkbenchShell.tsx` owns shell grid rows/columns, pane visibility, shell controls, sashes, and contained scroll wrappers; `WorkbenchSurfaceBody.tsx` is the reusable scroll/overflow wrapper; `WorkbenchBottomDockFrame.tsx` keeps dock content inside a bounded flex/tabpanel frame; `useWorkbenchLayoutState.ts` keeps layout in localStorage and does not touch route/editor state; `workbench-layout.ts` clamps persisted layout and returns `0px` tracks for hidden panes; `workbench-route.ts` contains object/lens/view identity only; `WorkbenchEditorProvider.tsx`, `WorkbenchEditorTabs.tsx`, and `useWorkbenchEditorState.ts` keep opened editor contexts local and restore route snapshots through `replaceRoute`.
 - VS Code reference findings: `refer/vscode/src/vs/workbench/browser/layout.ts` and `layoutService.ts` model visibility, resize, and panel maximize as layout-service concerns; `layoutActions.ts` exposes layout actions as workbench-level commands; `sash.ts` treats drag separators as first-class accessible interaction primitives. Bundle 1 borrows the separation, not extra VS Code features.
@@ -53,18 +53,29 @@ codex/pr33-workbench-surface-contract-stabilization
 - Deferred broad violation: `SceneBottomDock` embeds `RunReviewGate` in active run support. This may be a primary run-review decision action in the dock; move only in a dedicated scene runtime UX slice.
 
 ## Storybook gaps before this PR
-Bundle 1 is limited to shell/layout contract and tests. Existing Storybook state expansion for affected workbench surfaces remains a later-bundle gap. Before this PR, the shell test surface was stronger than the Storybook handoff for explicit test ids and missing-pane control states.
-No Storybook MCP run was performed in Bundle 1 because the bundle plan assigns Storybook state expansion and final MCP verification to a later bundle.
+Bundle 1 was limited to shell/layout contract and tests. Bundle 2 verified the shared bottom dock frame, but the shell-level Storybook handoff still lacked the exact PR34 state names for hidden panes with editor tabs, many editor tabs, bottom dock frame contract, and a lightweight four-scope shell contract.
+No Storybook MCP run was performed in Bundle 1 because the bundle plan assigned Storybook state expansion and final MCP verification to a later bundle.
 
 ## Storybook states added in this PR
-None in Bundle 2; the bundle hardens existing editor/dock contracts and tests without adding new UI states.
+- Bundle 2 did not add new shell stories; it hardened existing editor/dock contracts and tests.
+- Bundle 3 updated `Mockups/Workbench/Shell` with the PR34 contract-state names: `BottomDockFrameContract`, `ManyEditorTabs`, `HiddenPanesWithEditorTabs`, and `FourScopeSurfaceContract`.
+- Existing shell states now cover the full requested set: `Default`, `NavigatorHidden`, `InspectorHidden`, `BottomDockHidden`, `BottomDockMaximized`, `ResizedPanes`, `NarrowViewport`, `ManyEditorTabs`, `HiddenPanesWithEditorTabs`, `BottomDockFrameContract`, and `FourScopeSurfaceContract`.
+- `FourScopeSurfaceContract` is intentionally lightweight: it uses one `WorkbenchShell` with representative Scene / Chapter / Asset / Book fixture payloads in shell slots, proving scopes provide content while the shell owns layout. It does not add a new product page or runtime dependency.
 
 ## Storybook MCP verification
 Bundle 2 ran Storybook at `http://127.0.0.1:6006/` and used MCP structured snapshot plus screenshot verification on `mockups-workbench-shell--unified-dock-tabs`. Snapshot showed the Bottom Dock frame as `tablist` / `tab` / `tabpanel` with active panel labeling. The only browser console error was a favicon 404.
 
+Bundle 3 ran Storybook at `http://127.0.0.1:6006/` and verified the updated shell stories with Storybook MCP plus Playwright MCP structured snapshot and screenshot:
+- Storybook MCP `getComponentList` returned `Mockups/Workbench/Shell`; `index.json` listed `mockups-workbench-shell--four-scope-surface-contract`, `mockups-workbench-shell--hidden-panes-with-editor-tabs`, `mockups-workbench-shell--many-editor-tabs`, and `mockups-workbench-shell--bottom-dock-frame-contract`.
+- `mockups-workbench-shell--four-scope-surface-contract` structured snapshot showed Mode Rail, Navigator, Main Stage, Inspector, Bottom Dock, layout controls, runtime status, and a Bottom Dock frame with `tablist` / `tab` / `tabpanel`. Screenshot showed Scene / Chapter / Asset / Book fixture payloads hosted by one shell.
+- `mockups-workbench-shell--hidden-panes-with-editor-tabs` structured snapshot showed Mode Rail and Main Stage with Open Editors tabs while Navigator, Inspector, and Bottom Dock were absent; the maximize dock control was disabled because the dock was hidden. Screenshot showed hidden panes and editor tabs clearly.
+- Console noise remained limited to baseline Storybook favicon 404 and React DevTools info.
+
+## Optional constitution guard script decision
+Bundle 3 skipped `scripts/check-workbench-constitution.mjs` and root `check:workbench` because this PR is already contract/story/test heavy, and the suggested static checks could become noisy around legitimate shell-owned layout code. Keep this as a follow-up only if the controller wants a conservative warning-only script after PR34 lands.
+
 ## Follow-up backlog
-- Add Storybook states that demonstrate all affected shell surfaces, missing optional panes, hidden navigator/inspector/bottom dock, and bottom dock maximized/restored.
-- Run final Storybook MCP structured snapshot plus screenshot verification again after later Storybook states land.
 - Move Scene run review decision controls out of `SceneBottomDock` active run support if the next scene runtime UX plan confirms that waiting-review acceptance/rewrite/reject is a Main Stage workflow.
 - Fix the deferred baseline duplicate React key warnings in BookDraftWorkspace tests in a dedicated book-draft cleanup slice.
 - Keep route/layout/editor boundary tests near WorkbenchShell and hook tests whenever shell controls or editor tabs change.
+- Consider a warning-only constitution guard script in a dedicated tooling slice after the PR34 contract work is reviewed.
