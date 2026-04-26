@@ -44,6 +44,10 @@ function getOpenReviewWarnings(reviewInbox: BookReviewInboxViewModel | null | un
   )
 }
 
+function buildGateReasonId(source: BookExportArtifactGateReasonViewModel['source'], issueId: string) {
+  return `${source}:${issueId}`
+}
+
 function getFixActionCount(reviewInbox: BookReviewInboxViewModel | null | undefined, status: 'checked' | 'blocked' | 'stale') {
   return (reviewInbox?.issues ?? []).filter((issue) => issue.fixAction.status === status).length
 }
@@ -194,7 +198,7 @@ export function buildBookExportArtifactGate({
     } else {
       reasons.push(
         ...exportBlockers.map((issue) => ({
-          id: issue.id,
+          id: buildGateReasonId('export-readiness', issue.id),
           severity: 'blocker' as const,
           title: issue.title,
           detail: issue.detail,
@@ -206,7 +210,7 @@ export function buildBookExportArtifactGate({
 
   reasons.push(
     ...reviewBlockers.map((issue) => ({
-      id: issue.id,
+      id: buildGateReasonId('review-open-blocker', issue.id),
       severity: 'blocker' as const,
       title: issue.title,
       detail: issue.detail,
@@ -232,7 +236,7 @@ export function buildBookExportArtifactGate({
   const reviewWarnings = getOpenReviewWarnings(reviewInbox)
   reasons.push(
     ...exportWarnings.map((issue) => ({
-      id: issue.id,
+      id: buildGateReasonId('export-readiness', issue.id),
       severity: 'warning' as const,
       title: issue.title,
       detail: issue.detail,
@@ -241,7 +245,7 @@ export function buildBookExportArtifactGate({
   )
   reasons.push(
     ...reviewWarnings.map((issue) => ({
-      id: issue.id,
+      id: buildGateReasonId('review-open-blocker', issue.id),
       severity: 'warning' as const,
       title: issue.title,
       detail: issue.detail,

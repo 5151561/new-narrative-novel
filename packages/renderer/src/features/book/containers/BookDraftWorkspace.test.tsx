@@ -428,6 +428,31 @@ describe('BookDraftWorkspace', () => {
     expect(within(bottomDock).getByText('Artifact review blockers')).toBeInTheDocument()
   })
 
+  it('does not emit duplicate React key warnings when export readiness and review blockers share source issues', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=export&checkpointId=checkpoint-book-signal-arc-pr11-baseline&exportProfileId=export-review-packet&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <AppProviders>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Book export preview' })).toBeInTheDocument()
+    expect((await screen.findAllByText('Artifact build blocked')).length).toBeGreaterThan(0)
+
+    const duplicateKeyWarnings = consoleError.mock.calls.filter((call) =>
+      call.some((value) => typeof value === 'string' && value.includes('Encountered two children with the same key')),
+    )
+
+    expect(duplicateKeyWarnings).toEqual([])
+  })
+
   it('builds a ready markdown artifact, copies it, downloads it, and records dock activity', async () => {
     const user = userEvent.setup()
     const writeText = vi.fn().mockResolvedValue(undefined)

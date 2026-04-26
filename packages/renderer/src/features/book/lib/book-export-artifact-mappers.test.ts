@@ -407,6 +407,25 @@ describe('book export artifact mappers', () => {
     expect(gate.reasons).toContainEqual(expect.objectContaining({ source: 'review-open-blocker', severity: 'blocker' }))
   })
 
+  it('keeps artifact gate reason ids unique when export readiness issues also appear in review', () => {
+    const gate = buildBookExportArtifactGate({
+      exportPreview: createExportPreview({ readinessBlocker: true }),
+      reviewInbox: createReviewInbox([
+        createReviewIssue({
+          id: 'export-blocker-1',
+          source: 'export',
+          sourceLabel: 'Export readiness',
+          title: 'Draft coverage incomplete',
+          detail: 'One scene is missing draft prose.',
+        }),
+      ]),
+    })
+    const reasonIds = gate.reasons.map((reason) => reason.id)
+
+    expect(reasonIds).toEqual(['export-readiness:export-blocker-1', 'review-open-blocker:export-blocker-1'])
+    expect(new Set(reasonIds).size).toBe(reasonIds.length)
+  })
+
   it('does not block for reviewed dismissed or deferred blockers', () => {
     for (const status of ['reviewed', 'dismissed', 'deferred'] as const) {
       const gate = buildBookExportArtifactGate({
