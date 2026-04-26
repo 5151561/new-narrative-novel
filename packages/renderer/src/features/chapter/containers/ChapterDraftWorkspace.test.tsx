@@ -1,12 +1,17 @@
+import { QueryClient } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
+import { createMockProjectRuntime } from '@/app/project-runtime'
+import type { ChapterClient } from '@/features/chapter/api/chapter-client'
 import { useChapterDraftTraceabilityQuery } from '@/features/traceability/hooks/useChapterDraftTraceabilityQuery'
+import type { SceneClient } from '@/features/scene/api/scene-client'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 
 import { resetMockChapterDb } from '../api/mock-chapter-db'
+import { mockChapterRecordSeeds } from '../api/mock-chapter-db'
 import { ChapterDraftWorkspace } from './ChapterDraftWorkspace'
 
 vi.mock('@/features/traceability/hooks/useChapterDraftTraceabilityQuery', async () => {
@@ -32,6 +37,18 @@ function ChapterRouteHarness() {
   const { route } = useWorkbenchRouteState()
 
   return route.scope === 'chapter' ? <ChapterDraftWorkspace /> : <div data-testid="route-scope">{route.scope}</div>
+}
+
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 30_000,
+        retry: false,
+        refetchOnWindowFocus: false,
+      },
+    },
+  })
 }
 
 describe('ChapterDraftWorkspace', () => {
@@ -277,5 +294,138 @@ describe('ChapterDraftWorkspace', () => {
     expect(screen.getByText('1 assets')).toBeInTheDocument()
     expect(screen.getByText('Crowd pressure stays visible')).toBeInTheDocument()
     expect(screen.getByText('Loading coverage')).toBeInTheDocument()
+  })
+
+  it('renders accepted prose, accept-with-edit prose, and explicit missing-draft gaps from the current chapter assembly', async () => {
+    mockedUseChapterDraftTraceabilityQuery.mockReturnValue({
+      traceability: {
+        chapterId: 'chapter-signals-in-rain',
+        selectedSceneId: 'scene-concourse-delay',
+        sceneSummariesBySceneId: {
+          'scene-midnight-platform': {
+            sceneId: 'scene-midnight-platform',
+            sourceFactCount: 2,
+            relatedAssetCount: 1,
+            status: 'ready',
+          },
+          'scene-concourse-delay': {
+            sceneId: 'scene-concourse-delay',
+            sourceFactCount: 1,
+            relatedAssetCount: 1,
+            status: 'ready',
+          },
+          'scene-ticket-window': {
+            sceneId: 'scene-ticket-window',
+            sourceFactCount: 0,
+            relatedAssetCount: 0,
+            status: 'missing',
+          },
+        },
+        selectedSceneTrace: {
+          sceneId: 'scene-concourse-delay',
+          acceptedFacts: [],
+          relatedAssets: [{ assetId: 'asset-mei-arden', title: 'Mei Arden', kind: 'character' }],
+          latestPatchSummary: 'Edited acceptance now drives the concourse handoff.',
+          latestDiffSummary: 'Witness pressure stays visible after the acceptance edit.',
+          sourceProposalCount: 1,
+          missingLinks: [],
+        },
+        chapterCoverage: {
+          chapterId: 'chapter-signals-in-rain',
+          tracedSceneCount: 2,
+          missingTraceSceneCount: 1,
+          sceneIdsMissingTrace: ['scene-ticket-window'],
+          sceneIdsMissingAssets: ['scene-ticket-window'],
+        },
+      },
+      selectedSceneTraceLoading: false,
+      chapterCoverageLoading: false,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    const chapterRecord = structuredClone(mockChapterRecordSeeds['chapter-signals-in-rain'])
+    chapterRecord.scenes = chapterRecord.scenes.slice(0, 3).map((scene) => structuredClone(scene))
+
+    const chapterClient: Pick<ChapterClient, 'getChapterStructureWorkspace'> = {
+      async getChapterStructureWorkspace() {
+        return structuredClone(chapterRecord)
+      },
+    }
+    const sceneClient: Pick<SceneClient, 'getSceneProse'> = {
+      async getSceneProse(sceneId: string) {
+        if (sceneId === 'scene-midnight-platform') {
+          return {
+            sceneId,
+            proseDraft: 'Accepted platform prose now reflects the selected review variant.',
+            revisionModes: ['rewrite'],
+            latestDiffSummary: 'Accepted review decision propagated the selected platform variant.',
+            warningsCount: 0,
+            focusModeAvailable: true,
+            revisionQueueCount: 0,
+            draftWordCount: 9,
+            statusLabel: 'Accepted variant propagated',
+          }
+        }
+
+        if (sceneId === 'scene-concourse-delay') {
+          return {
+            sceneId,
+            proseDraft: 'Edited concourse prose keeps the witness pressure visible after acceptance.',
+            revisionModes: ['rewrite'],
+            latestDiffSummary: 'Accept-with-edit preserved the revised witness handoff wording.',
+            warningsCount: 1,
+            focusModeAvailable: true,
+            revisionQueueCount: 0,
+            draftWordCount: 10,
+            statusLabel: 'Accepted with edit',
+          }
+        }
+
+        return {
+          sceneId,
+          revisionModes: ['rewrite'],
+          latestDiffSummary: 'No prose artifact has been materialized for this scene yet.',
+          warningsCount: 0,
+          focusModeAvailable: true,
+          revisionQueueCount: 1,
+          statusLabel: 'Waiting for prose artifact',
+        }
+      },
+    }
+
+    const runtime = createMockProjectRuntime({
+      chapterClient: chapterClient as ChapterClient,
+      sceneClient: sceneClient as SceneClient,
+      traceabilitySceneClient: sceneClient as SceneClient,
+      persistence: {
+        async loadProjectSnapshot() {
+          return null
+        },
+        async saveProjectSnapshot() {},
+        async clearProjectSnapshot() {},
+      },
+    })
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=draft&view=assembly&sceneId=scene-concourse-delay',
+    )
+
+    render(
+      <AppProviders runtime={runtime} queryClient={createQueryClient()}>
+        <ChapterRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Chapter draft' })).toBeInTheDocument()
+    expect(screen.getByText('Accepted platform prose now reflects the selected review variant.')).toBeInTheDocument()
+    expect(screen.getByText('Edited concourse prose keeps the witness pressure visible after acceptance.')).toBeInTheDocument()
+    expect(screen.getAllByText('No prose artifact has been materialized for this scene yet.').length).toBeGreaterThan(0)
+    expect(screen.getByText('Draft not started yet.')).toBeInTheDocument()
+    expect(screen.getAllByText('Accepted with edit').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Waiting for prose artifact').length).toBeGreaterThan(0)
   })
 })

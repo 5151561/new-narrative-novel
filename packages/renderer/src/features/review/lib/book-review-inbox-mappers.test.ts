@@ -497,6 +497,24 @@ function buildInbox(reviewFilter: 'all' | 'blockers' | 'branch-readiness' | 'sce
   })
 }
 
+function buildInboxFromWorkspaces({
+  currentDraftWorkspace,
+  compareWorkspace,
+  branchWorkspace,
+}: {
+  currentDraftWorkspace: BookDraftWorkspaceViewModel
+  compareWorkspace: BookManuscriptCompareWorkspaceViewModel | null
+  branchWorkspace: BookExperimentBranchWorkspaceViewModel | null
+}) {
+  return buildBookReviewInboxViewModel({
+    bookId: 'book-signal-arc',
+    currentDraftWorkspace,
+    compareWorkspace,
+    branchWorkspace,
+    reviewSeeds: getBookReviewSeeds('book-signal-arc'),
+  })
+}
+
 function createDecisionSignature(issue: {
   id: string
   kind: string
@@ -671,6 +689,127 @@ describe('buildBookReviewInboxViewModel', () => {
       source: 'branch',
       chapterId: 'chapter-2',
       sceneId: 'scene-4',
+    })
+  })
+
+  it('keeps review issue ids stable across chapter and scene relabeling', () => {
+    const originalDraftWorkspace = createCurrentDraftWorkspace()
+    const originalCompareWorkspace = createCompareWorkspace()
+    const originalBranchWorkspace = createBranchWorkspace()
+
+    const relabeledDraftWorkspace = createCurrentDraftWorkspace()
+    relabeledDraftWorkspace.chapters[0] = {
+      ...relabeledDraftWorkspace.chapters[0]!,
+      title: 'Chapter One Relabeled',
+      sections: relabeledDraftWorkspace.chapters[0]!.sections.map((section) =>
+        section.sceneId === 'scene-1'
+          ? {
+              ...section,
+              title: 'Scene One Relabeled',
+              summary: 'Relabeled missing prose summary',
+            }
+          : section.sceneId === 'scene-2'
+            ? {
+                ...section,
+                title: 'Scene Two Relabeled',
+                summary: 'Relabeled trace gap summary',
+              }
+            : section,
+      ),
+    }
+    relabeledDraftWorkspace.selectedChapter = relabeledDraftWorkspace.chapters[0]!
+    relabeledDraftWorkspace.inspector.selectedChapter = {
+      ...relabeledDraftWorkspace.inspector.selectedChapter!,
+      title: 'Chapter One Relabeled',
+      topMissingSceneTitles: ['Scene One Relabeled'],
+    }
+
+    const relabeledCompareWorkspace = createCompareWorkspace()
+    relabeledCompareWorkspace.chapters[1] = {
+      ...relabeledCompareWorkspace.chapters[1]!,
+      title: 'Chapter Two Relabeled',
+      scenes: relabeledCompareWorkspace.chapters[1]!.scenes.map((scene) =>
+        scene.sceneId === 'scene-3'
+          ? {
+              ...scene,
+              title: 'Scene Three Relabeled',
+              summary: 'Relabeled compare change scene',
+            }
+          : scene.sceneId === 'scene-4'
+            ? {
+                ...scene,
+                title: 'Scene Four Relabeled',
+                summary: 'Relabeled trace regression scene',
+              }
+            : scene,
+      ),
+    }
+    relabeledCompareWorkspace.selectedChapter = relabeledCompareWorkspace.chapters[1]!
+
+    const relabeledBranchWorkspace = createBranchWorkspace()
+    relabeledBranchWorkspace.chapters[1] = {
+      ...relabeledBranchWorkspace.chapters[1]!,
+      title: 'Chapter Two Branch Relabeled',
+      sceneDeltas: relabeledBranchWorkspace.chapters[1]!.sceneDeltas.map((scene) =>
+        scene.sceneId === 'scene-4'
+          ? {
+              ...scene,
+              title: 'Scene Four Branch Relabeled',
+              summary: 'Relabeled branch warning scene',
+            }
+          : scene.sceneId === 'scene-5'
+            ? {
+                ...scene,
+                title: 'Scene Five Branch Relabeled',
+                summary: 'Relabeled added-without-source scene',
+              }
+            : scene,
+      ),
+    }
+    relabeledBranchWorkspace.selectedChapter = relabeledBranchWorkspace.chapters[1]!
+
+    const originalInbox = buildInboxFromWorkspaces({
+      currentDraftWorkspace: originalDraftWorkspace,
+      compareWorkspace: originalCompareWorkspace,
+      branchWorkspace: originalBranchWorkspace,
+    })
+    const relabeledInbox = buildInboxFromWorkspaces({
+      currentDraftWorkspace: relabeledDraftWorkspace,
+      compareWorkspace: relabeledCompareWorkspace,
+      branchWorkspace: relabeledBranchWorkspace,
+    })
+
+    expect(relabeledInbox.issues.map((issue) => issue.id)).toEqual(
+      originalInbox.issues.map((issue) => issue.id),
+    )
+
+    const originalDraftIssue = originalInbox.issues.find((issue) => issue.id === 'draft-missing-chapter-1-scene-1')
+    const relabeledDraftIssue = relabeledInbox.issues.find((issue) => issue.id === 'draft-missing-chapter-1-scene-1')
+    expect(relabeledDraftIssue).toMatchObject({
+      id: 'draft-missing-chapter-1-scene-1',
+      chapterId: 'chapter-1',
+      sceneId: 'scene-1',
+      chapterTitle: 'Chapter One Relabeled',
+      sceneTitle: 'Scene One Relabeled',
+    })
+    expect(relabeledDraftIssue?.issueSignature).not.toBe(originalDraftIssue?.issueSignature)
+
+    const relabeledCompareIssue = relabeledInbox.issues.find((issue) => issue.id === 'compare-delta-chapter-2-scene-3')
+    expect(relabeledCompareIssue).toMatchObject({
+      id: 'compare-delta-chapter-2-scene-3',
+      chapterId: 'chapter-2',
+      sceneId: 'scene-3',
+      chapterTitle: 'Chapter Two Relabeled',
+      sceneTitle: 'Scene Three Relabeled',
+    })
+
+    const relabeledBranchIssue = relabeledInbox.issues.find((issue) => issue.id === 'branch-warning-scene-4')
+    expect(relabeledBranchIssue).toMatchObject({
+      id: 'branch-warning-scene-4',
+      chapterId: 'chapter-2',
+      sceneId: 'scene-4',
+      chapterTitle: 'Chapter Two Branch Relabeled',
+      sceneTitle: 'Scene Four Branch Relabeled',
     })
   })
 

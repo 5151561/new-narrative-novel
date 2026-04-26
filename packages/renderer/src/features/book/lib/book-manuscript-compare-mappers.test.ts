@@ -488,6 +488,87 @@ describe('book manuscript compare mappers', () => {
     })
   })
 
+  it('matches compare chapters and scenes by canonical ids instead of display labels', () => {
+    const current = buildCurrentManuscriptSnapshotFromBookDraft({
+      ...currentWorkspace,
+      chapters: currentWorkspace.chapters.map((chapter) =>
+        chapter.chapterId === 'chapter-open-water-signals'
+          ? {
+              ...chapter,
+              title: 'Open Water Signals (Current Draft)',
+              sections: chapter.sections.map((section) =>
+                section.sceneId === 'scene-warehouse-bridge'
+                  ? {
+                      ...section,
+                      title: 'Bridge Relay',
+                      summary: 'Current relay summary',
+                    }
+                  : section,
+              ),
+            }
+          : chapter,
+      ),
+    })
+    const checkpoint = normalizeBookManuscriptCheckpoint({
+      ...checkpointRecord,
+      chapters: checkpointRecord.chapters.map((chapter) =>
+        chapter.chapterId === 'chapter-open-water-signals'
+          ? {
+              ...chapter,
+              title: {
+                en: 'Open Water Signals (Checkpoint)',
+                'zh-CN': '开阔水域信号（检查点）',
+              },
+              scenes: chapter.scenes.map((scene) =>
+                scene.sceneId === 'scene-warehouse-bridge'
+                  ? {
+                      ...scene,
+                      title: {
+                        en: 'Warehouse Relay',
+                        'zh-CN': '仓桥转接',
+                      },
+                      summary: {
+                        en: 'Checkpoint relay summary',
+                        'zh-CN': '检查点转接摘要',
+                      },
+                    }
+                  : scene,
+              ),
+            }
+          : chapter,
+      ),
+    }, 'en')
+
+    const compare = compareBookManuscriptSnapshots({
+      current,
+      checkpoint,
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+
+    expect(compare.chapters[0]).toMatchObject({
+      chapterId: 'chapter-open-water-signals',
+      title: 'Open Water Signals (Current Draft)',
+    })
+    expect(compare.chapters[0]?.scenes.map((scene) => [scene.sceneId, scene.delta])).toEqual([
+      ['scene-warehouse-bridge', 'changed'],
+      ['scene-canal-watch', 'unchanged'],
+      ['scene-dawn-slip', 'added'],
+      ['scene-river-ledger', 'missing'],
+    ])
+    expect(compare.chapters[0]?.scenes[0]).toMatchObject({
+      sceneId: 'scene-warehouse-bridge',
+      title: 'Bridge Relay',
+      currentScene: expect.objectContaining({
+        sceneId: 'scene-warehouse-bridge',
+        title: 'Bridge Relay',
+      }),
+      checkpointScene: expect.objectContaining({
+        sceneId: 'scene-warehouse-bridge',
+        title: 'Warehouse Relay',
+      }),
+    })
+  })
+
   it('builds scene delta excerpts by trimming text and capping length', () => {
     const delta = buildSceneDelta({
       currentScene: {

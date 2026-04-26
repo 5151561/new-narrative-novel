@@ -213,6 +213,124 @@ describe('useChapterDraftWorkspaceQuery', () => {
     })
   })
 
+  it('surfaces accepted and accept-with-edit prose in chapter draft assembly while keeping canonical scene ids and explicit gaps', async () => {
+    const chapterRecord = structuredClone(
+      mockChapterRecordSeeds['chapter-signals-in-rain'],
+    ) as ChapterStructureWorkspaceRecord
+    chapterRecord.scenes = chapterRecord.scenes.slice(0, 3).map((scene) => structuredClone(scene))
+
+    const proseByScene: Record<string, SceneProseViewModel> = {
+      'scene-midnight-platform': {
+        sceneId: 'scene-midnight-platform',
+        proseDraft: 'Accepted platform prose now reflects the selected review variant.',
+        revisionModes: ['rewrite'],
+        latestDiffSummary: 'Accepted review decision propagated the selected platform variant.',
+        warningsCount: 0,
+        focusModeAvailable: true,
+        revisionQueueCount: 0,
+        draftWordCount: 9,
+        statusLabel: 'Accepted variant propagated',
+      },
+      'scene-concourse-delay': {
+        sceneId: 'scene-concourse-delay',
+        proseDraft: 'Edited concourse prose keeps the witness pressure visible after acceptance.',
+        revisionModes: ['rewrite'],
+        latestDiffSummary: 'Accept-with-edit preserved the revised witness handoff wording.',
+        warningsCount: 1,
+        focusModeAvailable: true,
+        revisionQueueCount: 0,
+        draftWordCount: 10,
+        statusLabel: 'Accepted with edit',
+      },
+      'scene-ticket-window': {
+        sceneId: 'scene-ticket-window',
+        revisionModes: ['rewrite'],
+        latestDiffSummary: 'No prose artifact has been materialized for this scene yet.',
+        warningsCount: 0,
+        focusModeAvailable: true,
+        revisionQueueCount: 1,
+        statusLabel: 'Waiting for prose artifact',
+      },
+    }
+
+    const chapterClient: Pick<ChapterClient, 'getChapterStructureWorkspace'> = {
+      async getChapterStructureWorkspace() {
+        return structuredClone(chapterRecord)
+      },
+    }
+    const sceneClient: Pick<SceneClient, 'getSceneProse'> = {
+      async getSceneProse(sceneId: string) {
+        return structuredClone(proseByScene[sceneId]!)
+      },
+    }
+
+    const hook = renderHook(
+      () =>
+        useChapterDraftWorkspaceQuery(
+          {
+            chapterId: 'chapter-signals-in-rain',
+            selectedSceneId: 'scene-concourse-delay',
+          },
+          {
+            chapterClient,
+            sceneClient,
+          },
+        ),
+      {
+        wrapper: createWrapper(),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(hook.result.current.workspace).toMatchObject({
+      chapterId: 'chapter-signals-in-rain',
+      selectedSceneId: 'scene-concourse-delay',
+      draftedSceneCount: 2,
+      missingDraftCount: 1,
+      assembledWordCount: 19,
+      selectedScene: {
+        sceneId: 'scene-concourse-delay',
+        proseDraft: 'Edited concourse prose keeps the witness pressure visible after acceptance.',
+        proseStatusLabel: 'Accepted with edit',
+        latestDiffSummary: 'Accept-with-edit preserved the revised witness handoff wording.',
+        isMissingDraft: false,
+      },
+      inspector: {
+        selectedScene: {
+          sceneId: 'scene-concourse-delay',
+          draftWordCount: 10,
+        },
+        chapterReadiness: {
+          draftedSceneCount: 2,
+          missingDraftCount: 1,
+          assembledWordCount: 19,
+        },
+      },
+    })
+
+    expect(hook.result.current.workspace?.scenes.map((scene) => scene.sceneId)).toEqual([
+      'scene-midnight-platform',
+      'scene-concourse-delay',
+      'scene-ticket-window',
+    ])
+    expect(hook.result.current.workspace?.scenes[0]).toMatchObject({
+      sceneId: 'scene-midnight-platform',
+      proseDraft: 'Accepted platform prose now reflects the selected review variant.',
+      proseStatusLabel: 'Accepted variant propagated',
+      isMissingDraft: false,
+    })
+    expect(hook.result.current.workspace?.scenes[2]).toMatchObject({
+      sceneId: 'scene-ticket-window',
+      proseDraft: undefined,
+      isMissingDraft: true,
+      draftWordCount: undefined,
+      latestDiffSummary: 'No prose artifact has been materialized for this scene yet.',
+    })
+  })
+
   it('keeps the chapter draft workspace available while one prose query is slow and another fails', async () => {
     let resolveSlowScene: ((value: SceneProseViewModel) => void) | undefined
     const slowScenePromise = new Promise<SceneProseViewModel>((resolve) => {

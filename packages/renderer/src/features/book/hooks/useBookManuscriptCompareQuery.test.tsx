@@ -234,6 +234,71 @@ describe('useBookManuscriptCompareQuery', () => {
     })
   })
 
+  it('keeps compare identities canonical when chapter and scene display titles drift', async () => {
+    const workspace = createWorkspace()
+    workspace.selectedChapterId = 'chapter-open-water-signals'
+    workspace.chapters[1] = {
+      ...workspace.chapters[1]!,
+      title: 'Open Water Signals (Current Draft)',
+      sections: workspace.chapters[1]!.sections.map((section) =>
+        section.sceneId === 'scene-warehouse-bridge'
+          ? {
+              ...section,
+              title: 'Bridge Relay',
+              summary: 'Current relay summary',
+            }
+          : section,
+      ),
+    }
+    workspace.selectedChapter = workspace.chapters[1]!
+
+    const hook = renderHook(
+      () =>
+        useBookManuscriptCompareQuery(
+          {
+            bookId: 'book-signal-arc',
+            currentDraftWorkspace: workspace,
+            checkpointId: DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID,
+          },
+          {
+            bookClient: createBookClient(),
+          },
+        ),
+      {
+        wrapper: createWrapper(),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    const openWaterChapter = hook.result.current.compareWorkspace?.chapters.find(
+      (chapter) => chapter.chapterId === 'chapter-open-water-signals',
+    )
+
+    expect(hook.result.current.compareWorkspace?.selectedChapterId).toBe('chapter-open-water-signals')
+    expect(openWaterChapter?.chapterId).toBe('chapter-open-water-signals')
+    expect(openWaterChapter?.scenes.map((scene) => [scene.sceneId, scene.delta])).toEqual([
+      ['scene-warehouse-bridge', 'changed'],
+      ['scene-canal-watch', 'missing'],
+      ['scene-river-ledger', 'missing'],
+    ])
+    expect(openWaterChapter?.scenes[0]).toMatchObject({
+      sceneId: 'scene-warehouse-bridge',
+      title: 'Bridge Relay',
+      delta: 'changed',
+      currentScene: expect.objectContaining({
+        sceneId: 'scene-warehouse-bridge',
+        title: 'Bridge Relay',
+      }),
+      checkpointScene: expect.objectContaining({
+        sceneId: 'scene-warehouse-bridge',
+        title: 'Warehouse Bridge',
+      }),
+    })
+  })
+
   it('returns a real error and null compare workspace when the checkpoint does not exist', async () => {
     const hook = renderHook(
       () =>

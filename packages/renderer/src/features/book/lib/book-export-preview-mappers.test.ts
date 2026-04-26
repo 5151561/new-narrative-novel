@@ -466,6 +466,69 @@ describe('book-export-preview-mappers', () => {
     expect(exportWorkspace.readiness.status).toBe('blocked')
   })
 
+  it('keeps export readiness issue ids stable when chapter and scene display labels change', () => {
+    const originalWorkspace = createDraftWorkspace()
+    const originalCompareWorkspace = createCompareWorkspace()
+    const profile = normalizeBookExportProfile(mockBookExportProfileSeeds['book-signal-arc']![0]!, 'en')
+
+    const renamedWorkspace = createDraftWorkspace()
+    renamedWorkspace.chapters[1] = {
+      ...renamedWorkspace.chapters[1]!,
+      title: 'Signals in Rain (Current Draft)',
+      sections: renamedWorkspace.chapters[1]!.sections.map((section) =>
+        section.sceneId === 'scene-departure-bell'
+          ? {
+              ...section,
+              title: 'Bell Aftermath',
+            }
+          : section,
+      ),
+    }
+    renamedWorkspace.selectedChapter = renamedWorkspace.chapters[0]!
+
+    const renamedCompareWorkspace = createCompareWorkspace()
+    renamedCompareWorkspace.chapters[1] = {
+      ...renamedCompareWorkspace.chapters[1]!,
+      title: 'Signals in Rain (Checkpoint)',
+      scenes: renamedCompareWorkspace.chapters[1]!.scenes.map((scene) =>
+        scene.sceneId === 'scene-departure-bell'
+          ? {
+              ...scene,
+              title: 'Checkpoint Bell Aftermath',
+            }
+          : scene,
+      ),
+    }
+    renamedCompareWorkspace.selectedChapter = renamedCompareWorkspace.chapters[0]!
+
+    const originalExportWorkspace = buildBookExportPreviewWorkspace({
+      currentDraftWorkspace: originalWorkspace,
+      compareWorkspace: originalCompareWorkspace,
+      profile,
+    })
+    const renamedExportWorkspace = buildBookExportPreviewWorkspace({
+      currentDraftWorkspace: renamedWorkspace,
+      compareWorkspace: renamedCompareWorkspace,
+      profile,
+    })
+
+    expect(renamedExportWorkspace.readiness.issues.map((issue) => issue.id)).toEqual(
+      originalExportWorkspace.readiness.issues.map((issue) => issue.id),
+    )
+    expect(renamedExportWorkspace.readiness.issues.map((issue) => issue.id)).toContain(
+      'missing-draft-chapter-signals-in-rain-scene-departure-bell',
+    )
+    expect(renamedExportWorkspace.readiness.issues.map((issue) => issue.id)).toContain(
+      'trace-gap-chapter-signals-in-rain-scene-departure-bell',
+    )
+    expect(renamedExportWorkspace.readiness.issues.map((issue) => issue.id)).toContain(
+      'compare-draft-missing-chapter-signals-in-rain',
+    )
+    expect(renamedExportWorkspace.readiness.issues.map((issue) => issue.id)).toContain(
+      'compare-missing-chapter-open-water-signals',
+    )
+  })
+
   it('localizes export readiness labels and issue copy for zh-CN', () => {
     const workspace = createDraftWorkspace()
     const compareWorkspace = createCompareWorkspace()
