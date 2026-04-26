@@ -159,6 +159,26 @@ describe('useWorkbenchLayoutState', () => {
     expect(result.current.state.bottomDockHeight).toBe(normalHeight)
   })
 
+  it('toggles bottom dock maximized without changing side pane visibility preferences', () => {
+    const { result } = renderHook(() => useWorkbenchLayoutState(TEST_STORAGE_KEY))
+
+    act(() => {
+      result.current.setPartVisible('navigator', false)
+      result.current.setPartVisible('inspector', false)
+      result.current.toggleBottomDockMaximized()
+    })
+
+    expect(result.current.state.bottomDockMaximized).toBe(true)
+    expect(result.current.state.navigatorVisible).toBe(false)
+    expect(result.current.state.inspectorVisible).toBe(false)
+
+    act(() => result.current.toggleBottomDockMaximized())
+
+    expect(result.current.state.bottomDockMaximized).toBe(false)
+    expect(result.current.state.navigatorVisible).toBe(false)
+    expect(result.current.state.inspectorVisible).toBe(false)
+  })
+
   it('sets bottom dock maximized directly', () => {
     const { result } = renderHook(() => useWorkbenchLayoutState(TEST_STORAGE_KEY))
 

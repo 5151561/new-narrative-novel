@@ -66,13 +66,19 @@ export function WorkbenchShell({
       className="grid h-screen min-h-0 overflow-hidden bg-app text-text-main"
       style={{ gridTemplateRows }}
     >
-      <header className="border-b border-line-soft bg-surface-1/90 px-5 py-3 backdrop-blur">
+      <header
+        data-testid="workbench-top-bar"
+        className="border-b border-line-soft bg-surface-1/90 px-5 py-3 backdrop-blur"
+      >
         <div className="flex flex-col gap-2">
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">{topBar}</div>
             <div className="shrink-0">
               <WorkbenchLayoutControls
                 layout={effectiveLayoutState}
+                navigatorAvailable={hasNavigator}
+                inspectorAvailable={hasInspector}
+                bottomDockAvailable={hasBottomDock}
                 onToggleNavigator={hasNavigator ? () => layout.togglePart('navigator') : noop}
                 onToggleInspector={hasInspector ? () => layout.togglePart('inspector') : noop}
                 onToggleBottomDock={hasBottomDock ? () => layout.togglePart('bottomDock') : noop}
@@ -93,7 +99,14 @@ export function WorkbenchShell({
         className="grid min-h-0 px-3 py-3"
         style={{ gridTemplateColumns }}
       >
-        <Pane muted className="min-h-0" style={{ gridColumn: 1 }}>
+        <Pane
+          muted
+          className="min-h-0"
+          role="region"
+          aria-label="Mode Rail"
+          data-testid="workbench-mode-rail"
+          style={{ gridColumn: 1 }}
+        >
           <WorkbenchSurfaceBody data-testid="workbench-mode-rail-scroll-body">
             {modeRail}
           </WorkbenchSurfaceBody>
@@ -127,12 +140,14 @@ export function WorkbenchShell({
         <Pane className="ml-3 min-h-0" style={{ gridColumn: 3 }}>
           {editor ? (
             <main data-testid="workbench-main-stage" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <WorkbenchEditorTabs
-                contexts={editor.state.contexts}
-                activeContextId={editor.state.activeContextId}
-                onActivateContext={editor.activateContext}
-                onCloseContext={editor.closeContext}
-              />
+              <div data-testid="workbench-editor-tabs" className="shrink-0">
+                <WorkbenchEditorTabs
+                  contexts={editor.state.contexts}
+                  activeContextId={editor.state.activeContextId}
+                  onActivateContext={editor.activateContext}
+                  onCloseContext={editor.closeContext}
+                />
+              </div>
               <WorkbenchSurfaceBody data-testid="workbench-main-stage-scroll-body">
                 {mainStage}
               </WorkbenchSurfaceBody>

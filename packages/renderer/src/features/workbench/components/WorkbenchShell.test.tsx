@@ -90,6 +90,15 @@ describe('WorkbenchShell', () => {
   it('renders the default workbench regions', () => {
     renderWorkbenchShell()
 
+    expect(screen.getByTestId('workbench-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('workbench-top-bar')).toHaveTextContent('Shell Top Bar')
+    expect(screen.getByTestId('workbench-layout-controls')).toBeInTheDocument()
+    expect(screen.getByRole('toolbar', { name: 'Workbench Layout Controls' })).toHaveAttribute(
+      'data-testid',
+      'workbench-layout-controls',
+    )
+    expect(screen.getByTestId('workbench-body')).toBeInTheDocument()
+    expect(screen.getByTestId('workbench-mode-rail')).toHaveTextContent('Mode Rail')
     expect(screen.getByRole('navigation', { name: 'Mode Rail' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Navigator' })).toHaveAttribute(
       'data-testid',
@@ -122,8 +131,10 @@ describe('WorkbenchShell', () => {
     renderWorkbenchShellWithEditor()
 
     const tablist = await screen.findByRole('tablist', { name: 'Open Editors' })
+    const editorTabsRegion = await screen.findByTestId('workbench-editor-tabs')
     const mainContent = screen.getByText('Main Stage Content')
 
+    expect(editorTabsRegion).toContainElement(tablist)
     expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*scene-midnight-platform/i })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -190,6 +201,21 @@ describe('WorkbenchShell', () => {
     expect(screen.queryByRole('region', { name: 'Navigator' })).not.toBeInTheDocument()
     expect(screen.getByTestId('workbench-main-stage')).toHaveTextContent('Main Stage Content')
     expect(await screen.findByRole('tablist', { name: 'Open Editors' })).toBeInTheDocument()
+  })
+
+  it('keeps the main stage rendered when navigator, inspector, and dock are hidden', async () => {
+    const user = userEvent.setup()
+    renderWorkbenchShell()
+
+    await user.click(screen.getByRole('button', { name: 'Toggle Navigator' }))
+    await user.click(screen.getByRole('button', { name: 'Toggle Inspector' }))
+    await user.click(screen.getByRole('button', { name: 'Toggle Bottom Dock' }))
+
+    expect(screen.queryByTestId('workbench-navigator')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('workbench-inspector')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('workbench-bottom-dock')).not.toBeInTheDocument()
+    expect(screen.getByTestId('workbench-main-stage')).toHaveTextContent('Main Stage Content')
+    expect(screen.getByTestId('workbench-main-stage-scroll-body')).toHaveClass('overflow-auto')
   })
 
   it('keeps editor tabs accessible when the bottom dock is maximized', async () => {
@@ -303,6 +329,21 @@ describe('WorkbenchShell', () => {
     expect(screen.getByRole('button', { name: 'Restore Bottom Dock' })).toBeInTheDocument()
   })
 
+  it('bottom dock maximize preserves navigator and inspector visibility preferences', async () => {
+    const user = userEvent.setup()
+    renderWorkbenchShell()
+
+    await user.click(screen.getByRole('button', { name: 'Toggle Navigator' }))
+    await user.click(screen.getByRole('button', { name: 'Toggle Inspector' }))
+    await user.click(screen.getByRole('button', { name: 'Maximize Bottom Dock' }))
+    await user.click(screen.getByRole('button', { name: 'Restore Bottom Dock' }))
+
+    expect(screen.queryByRole('region', { name: 'Navigator' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Inspector' })).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Bottom Dock' })).toBeInTheDocument()
+    expect(screen.getByTestId('workbench-main-stage')).toHaveTextContent('Main Stage Content')
+  })
+
   it('remount restores persisted localStorage layout', async () => {
     const user = userEvent.setup()
     const firstRender = renderWorkbenchShell()
@@ -388,29 +429,54 @@ describe('WorkbenchShell', () => {
     expect(window.location.search).toBe(initialSearch)
   })
 
+  it('reset layout preserves route state and editor contexts', async () => {
+    const user = userEvent.setup()
+    renderWorkbenchShellWithEditor()
+    const initialSearch = window.location.search
+
+    expect(await screen.findByTestId('workbench-editor-tabs')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Toggle Navigator' }))
+    await user.click(screen.getByRole('button', { name: 'Reset Workbench Layout' }))
+
+    expect(window.location.search).toBe(initialSearch)
+    expect(screen.getByTestId('workbench-editor-tabs')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Scene.*Orchestrate.*scene-midnight-platform/i })).toBeInTheDocument()
+  })
+
+  it('ignores invalid persisted layout when rendering the shell', () => {
+    window.localStorage.setItem(TEST_STORAGE_KEY, '{broken json')
+
+    renderWorkbenchShell()
+
+    expect(screen.getByRole('region', { name: 'Navigator' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Inspector' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Bottom Dock' })).toBeInTheDocument()
+    expect(bodyColumns()).toBe(getWorkbenchBodyGridColumns(DEFAULT_WORKBENCH_LAYOUT_STATE))
+  })
+
   it('missing optional panes stay absent when their controls are toggled', async () => {
     const user = userEvent.setup()
     renderWorkbenchShell({ navigator: undefined, inspector: undefined, bottomDock: undefined })
 
-    await user.click(screen.getByRole('button', { name: 'Toggle Navigator' }))
-    await user.click(screen.getByRole('button', { name: 'Toggle Inspector' }))
-    await user.click(screen.getByRole('button', { name: 'Toggle Bottom Dock' }))
+    const navigatorControl = screen.getByRole('button', { name: 'Toggle Navigator' })
+    const inspectorControl = screen.getByRole('button', { name: 'Toggle Inspector' })
+    const bottomDockControl = screen.getByRole('button', { name: 'Toggle Bottom Dock' })
+
+    expect(navigatorControl).toBeDisabled()
+    expect(inspectorControl).toBeDisabled()
+    expect(bottomDockControl).toBeDisabled()
+
+    await user.click(navigatorControl)
+    await user.click(inspectorControl)
+    await user.click(bottomDockControl)
 
     expect(screen.queryByRole('region', { name: 'Navigator' })).not.toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Inspector' })).not.toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Bottom Dock' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Toggle Navigator' })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    )
-    expect(screen.getByRole('button', { name: 'Toggle Inspector' })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    )
-    expect(screen.getByRole('button', { name: 'Toggle Bottom Dock' })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    )
+    expect(navigatorControl).toHaveAttribute('aria-pressed', 'false')
+    expect(inspectorControl).toHaveAttribute('aria-pressed', 'false')
+    expect(bottomDockControl).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('null and false optional panes are treated as absent', () => {

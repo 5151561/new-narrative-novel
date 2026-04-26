@@ -14,6 +14,9 @@ import { cn } from '@/lib/cn'
 
 interface WorkbenchLayoutControlsProps {
   layout: WorkbenchLayoutState
+  navigatorAvailable?: boolean
+  inspectorAvailable?: boolean
+  bottomDockAvailable?: boolean
   onToggleNavigator: () => void
   onToggleInspector: () => void
   onToggleBottomDock: () => void
@@ -53,6 +56,9 @@ function IconButton({ label, icon: Icon, onClick, pressed, disabled = false }: I
 
 export function WorkbenchLayoutControls({
   layout,
+  navigatorAvailable = true,
+  inspectorAvailable = true,
+  bottomDockAvailable = true,
   onToggleNavigator,
   onToggleInspector,
   onToggleBottomDock,
@@ -66,30 +72,38 @@ export function WorkbenchLayoutControls({
   const BottomDockMaximizeIcon = layout.bottomDockMaximized ? Minimize2 : Maximize2
 
   return (
-    <div className="inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-2 p-1">
+    <div
+      role="toolbar"
+      aria-label={dictionary.shell.layoutControls}
+      className="inline-flex items-center gap-1 rounded-md border border-line-soft bg-surface-2 p-1"
+      data-testid="workbench-layout-controls"
+    >
       <IconButton
         label={dictionary.shell.toggleNavigator}
         icon={PanelLeft}
         onClick={onToggleNavigator}
         pressed={layout.navigatorVisible}
+        disabled={!navigatorAvailable}
       />
       <IconButton
         label={dictionary.shell.toggleInspector}
         icon={PanelRight}
         onClick={onToggleInspector}
         pressed={layout.inspectorVisible}
+        disabled={!inspectorAvailable}
       />
       <IconButton
         label={dictionary.shell.toggleBottomDock}
         icon={PanelBottom}
         onClick={onToggleBottomDock}
         pressed={layout.bottomDockVisible}
+        disabled={!bottomDockAvailable}
       />
       <IconButton
         label={bottomDockMaximizeLabel}
         icon={BottomDockMaximizeIcon}
         onClick={onToggleBottomDockMaximized}
-        disabled={!layout.bottomDockVisible}
+        disabled={!bottomDockAvailable || !layout.bottomDockVisible}
       />
       <IconButton
         label={dictionary.shell.resetWorkbenchLayout}

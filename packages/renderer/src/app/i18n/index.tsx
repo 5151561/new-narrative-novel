@@ -484,6 +484,7 @@ const dictionaries = {
       inspectorReadyMessage:
         'Accepted state, versions, and local overrides stay one step away from the stage.',
       bottomDockTitle: 'Bottom Dock',
+      layoutControls: 'Workbench Layout Controls',
       toggleNavigator: 'Toggle Navigator',
       toggleInspector: 'Toggle Inspector',
       toggleBottomDock: 'Toggle Bottom Dock',
@@ -618,6 +619,7 @@ const dictionaries = {
       inspectorReadyTitle: '检查器已就绪',
       inspectorReadyMessage: '已采纳状态、版本和本地覆盖项都会停在舞台旁边一层。',
       bottomDockTitle: '底部面板',
+      layoutControls: '工作台布局控制',
       toggleNavigator: '开关导航栏',
       toggleInspector: '开关检查器',
       toggleBottomDock: '开关底部面板',
