@@ -14,6 +14,7 @@ import {
 } from '../types/workbench-layout'
 import { WorkbenchLayoutControls } from './WorkbenchLayoutControls'
 import { WorkbenchSash } from './WorkbenchSash'
+import { WorkbenchSurfaceBody } from './WorkbenchSurfaceBody'
 
 interface WorkbenchShellProps {
   topBar: ReactNode
@@ -62,7 +63,7 @@ export function WorkbenchShell({
   return (
     <div
       data-testid="workbench-shell"
-      className="grid min-h-screen bg-app text-text-main"
+      className="grid h-screen min-h-0 overflow-hidden bg-app text-text-main"
       style={{ gridTemplateRows }}
     >
       <header className="border-b border-line-soft bg-surface-1/90 px-5 py-3 backdrop-blur">
@@ -93,7 +94,9 @@ export function WorkbenchShell({
         style={{ gridTemplateColumns }}
       >
         <Pane muted className="min-h-0" style={{ gridColumn: 1 }}>
-          {modeRail}
+          <WorkbenchSurfaceBody data-testid="workbench-mode-rail-scroll-body">
+            {modeRail}
+          </WorkbenchSurfaceBody>
         </Pane>
         {showNavigator ? (
           <div className="relative ml-3 min-h-0" style={{ gridColumn: 2 }}>
@@ -104,7 +107,9 @@ export function WorkbenchShell({
               aria-label={dictionary.shell.navigatorTitle}
               data-testid="workbench-navigator"
             >
-              <div className="min-h-0 flex-1 overflow-hidden">{navigator}</div>
+              <WorkbenchSurfaceBody data-testid="workbench-navigator-scroll-body">
+                {navigator}
+              </WorkbenchSurfaceBody>
             </Pane>
             <div className="absolute -right-3 top-0 z-10 flex h-full justify-center">
               <WorkbenchSash
@@ -128,11 +133,15 @@ export function WorkbenchShell({
                 onActivateContext={editor.activateContext}
                 onCloseContext={editor.closeContext}
               />
-              <div className="min-h-0 flex-1 overflow-auto">{mainStage}</div>
+              <WorkbenchSurfaceBody data-testid="workbench-main-stage-scroll-body">
+                {mainStage}
+              </WorkbenchSurfaceBody>
             </main>
           ) : (
-            <main data-testid="workbench-main-stage" className="min-h-0 flex-1 overflow-hidden">
-              {mainStage}
+            <main data-testid="workbench-main-stage" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <WorkbenchSurfaceBody data-testid="workbench-main-stage-scroll-body">
+                {mainStage}
+              </WorkbenchSurfaceBody>
             </main>
           )}
         </Pane>
@@ -145,7 +154,9 @@ export function WorkbenchShell({
               aria-label={dictionary.shell.inspectorTitle}
               data-testid="workbench-inspector"
             >
-              <div className="min-h-0 flex-1 overflow-hidden">{inspector}</div>
+              <WorkbenchSurfaceBody data-testid="workbench-inspector-scroll-body">
+                {inspector}
+              </WorkbenchSurfaceBody>
             </Pane>
             <div className="absolute -left-3 top-0 z-10 flex h-full justify-center">
               <WorkbenchSash
@@ -170,7 +181,9 @@ export function WorkbenchShell({
             aria-label={dictionary.shell.bottomDockTitle}
             data-testid="workbench-bottom-dock"
           >
-            <div className="min-h-0 flex-1 overflow-hidden">{bottomDock}</div>
+            <div className="min-h-0 min-w-0 flex-1 overflow-hidden" data-testid="workbench-bottom-dock-body">
+              {bottomDock}
+            </div>
           </Pane>
           {!effectiveLayoutState.bottomDockMaximized ? (
             <div className="absolute -top-3 left-0 z-10 flex w-full justify-center">

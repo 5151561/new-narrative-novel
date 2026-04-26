@@ -98,10 +98,12 @@ const activeRunEvents: RunEventRecord[] = [
 ]
 
 describe('SceneBottomDock', () => {
-  it('labels the dock by its supported secondary tabs instead of presenting as another stage', () => {
+  it('renders the shared dock frame without the old combined explanatory title', () => {
     render(<SceneBottomDock data={dockData} activeTab="events" onTabChange={vi.fn()} />)
 
-    expect(screen.getByText('Events / Trace / Consistency / Problems / Cost')).toBeInTheDocument()
+    expect(screen.getByTestId('workbench-bottom-dock-frame')).toBeInTheDocument()
+    expect(screen.getByTestId('workbench-bottom-dock-frame-scroll-body')).toBeInTheDocument()
+    expect(screen.queryByText('Events / Trace / Consistency / Problems / Cost')).not.toBeInTheDocument()
   })
 
   it('surfaces active run support in the events area without turning the dock into a raw debugger', async () => {

@@ -78,6 +78,14 @@ export const CharacterProfile: Story = {
   },
 }
 
+export const StableTopBar: Story = {
+  parameters: {
+    assetStory: {
+      search: getAssetStorySearch('character', 'mentions'),
+    },
+  },
+}
+
 export const LocationMentions: Story = {
   parameters: {
     assetStory: {

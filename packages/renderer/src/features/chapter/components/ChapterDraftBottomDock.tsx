@@ -1,9 +1,11 @@
+import { useState } from 'react'
+
 import { EmptyState } from '@/components/ui/EmptyState'
 import { FactList } from '@/components/ui/FactList'
-import { PaneHeader } from '@/components/ui/PaneHeader'
 import { SectionCard } from '@/components/ui/SectionCard'
 import { TimelineList } from '@/components/ui/TimelineList'
 import { useI18n } from '@/app/i18n'
+import { WorkbenchBottomDockFrame } from '@/features/workbench/components/WorkbenchBottomDockFrame'
 
 import type { ChapterDraftActivityItem } from '../hooks/useChapterDraftActivity'
 import type { ChapterDraftDockSummaryItem, ChapterDraftDockSummaryViewModel } from '../types/chapter-draft-view-models'
@@ -12,6 +14,8 @@ interface ChapterDraftBottomDockProps {
   summary: ChapterDraftDockSummaryViewModel
   activity: ChapterDraftActivityItem[]
 }
+
+type ChapterDraftBottomDockTab = 'problems' | 'activity'
 
 function SupportList({
   title,
@@ -45,92 +49,104 @@ function SupportList({
 
 export function ChapterDraftBottomDock({ summary, activity }: ChapterDraftBottomDockProps) {
   const { locale } = useI18n()
+  const [activeTab, setActiveTab] = useState<ChapterDraftBottomDockTab>('problems')
+  const issueCount = summary.missingDraftCount + summary.warningsCount + summary.queuedRevisionCount
 
   return (
-    <section
-      aria-label={locale === 'zh-CN' ? '章节草稿底部面板' : 'Chapter draft bottom dock'}
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+    <WorkbenchBottomDockFrame
+      ariaLabel={locale === 'zh-CN' ? '章节草稿底部面板' : 'Chapter draft bottom dock'}
+      tabs={[
+        {
+          id: 'problems',
+          label: locale === 'zh-CN' ? '问题' : 'Problems',
+          badge: issueCount,
+          tone: issueCount > 0 ? 'warn' : 'success',
+        },
+        {
+          id: 'activity',
+          label: locale === 'zh-CN' ? '活动' : 'Activity',
+          badge: activity.length,
+        },
+      ]}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
     >
-      <PaneHeader
-        title={locale === 'zh-CN' ? '问题 / 活动' : 'Problems / Activity'}
-        description={
-          locale === 'zh-CN'
-            ? '底部面板继续只承接判断支持和最近活动，不接管主阅读区。'
-            : 'The bottom dock keeps judgment support and recent activity close without taking over the reading surface.'
-        }
-      />
-      <div className="grid min-h-0 flex-1 gap-4 overflow-auto p-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <SectionCard title={locale === 'zh-CN' ? '问题' : 'Problems'} eyebrow={locale === 'zh-CN' ? '阅读支持' : 'Reading Support'}>
-          <div className="space-y-4">
-            <FactList
-              items={[
-                {
-                  id: 'missing-draft-count',
-                  label: locale === 'zh-CN' ? '缺稿场景' : 'Missing drafts',
-                  value: `${summary.missingDraftCount}`,
-                },
-                {
-                  id: 'warnings-count',
-                  label: locale === 'zh-CN' ? '警告场景' : 'Warnings',
-                  value: `${summary.warningsCount}`,
-                },
-                {
-                  id: 'queued-revisions-count',
-                  label: locale === 'zh-CN' ? '待处理修订' : 'Queued revisions',
-                  value: `${summary.queuedRevisionCount}`,
-                },
-              ]}
-            />
-            <SupportList
-              title={locale === 'zh-CN' ? '缺稿' : 'Missing drafts'}
-              items={summary.missingDraftScenes}
-              emptyTitle={locale === 'zh-CN' ? '没有缺稿场景' : 'No missing drafts'}
-              emptyMessage={locale === 'zh-CN' ? '当前章节的每个场景都有阅读稿。' : 'Every scene currently has draft prose.'}
-            />
-            <SupportList
-              title={locale === 'zh-CN' ? '警告' : 'Warnings'}
-              items={summary.warningScenes}
-              emptyTitle={locale === 'zh-CN' ? '没有警告' : 'No warnings'}
-              emptyMessage={locale === 'zh-CN' ? '当前章节没有额外警告。' : 'No warning scenes need attention right now.'}
-            />
-            <SupportList
-              title={locale === 'zh-CN' ? '待处理修订' : 'Queued revisions'}
-              items={summary.queuedRevisionScenes}
-              emptyTitle={locale === 'zh-CN' ? '没有待处理修订' : 'No queued revisions'}
-              emptyMessage={locale === 'zh-CN' ? '当前章节没有排队中的 prose 修订。' : 'No scene currently has queued prose revisions.'}
-            />
-          </div>
-        </SectionCard>
-        <SectionCard title={locale === 'zh-CN' ? '活动' : 'Activity'} eyebrow={locale === 'zh-CN' ? '会话日志' : 'Session Log'}>
-          {activity.length > 0 ? (
-            <TimelineList
-              items={activity.map((item) => ({
-                id: item.id,
-                title: item.title,
-                detail: item.detail,
-                tone: item.tone,
-                meta:
-                  item.kind === 'lens'
-                    ? locale === 'zh-CN'
-                      ? 'Lens'
-                      : 'Lens'
-                    : locale === 'zh-CN'
-                      ? '场景'
-                      : 'Scene',
-              }))}
-            />
-          ) : (
-            <EmptyState
-              title={locale === 'zh-CN' ? '会话很安静' : 'Quiet session'}
-              message={
-                locale === 'zh-CN'
-                  ? '进入 draft lens 或切换场景时，最近活动会在这里出现。'
-                  : 'Recent draft-lens and scene focus changes will appear here.'
-              }
-            />
-          )}
-        </SectionCard>
+      <div className="p-4">
+        <div hidden={activeTab !== 'problems'} aria-hidden={activeTab !== 'problems'}>
+          <SectionCard title={locale === 'zh-CN' ? '问题' : 'Problems'} eyebrow={locale === 'zh-CN' ? '阅读支持' : 'Reading Support'}>
+            <div className="space-y-4">
+              <FactList
+                items={[
+                  {
+                    id: 'missing-draft-count',
+                    label: locale === 'zh-CN' ? '缺稿场景' : 'Missing drafts',
+                    value: `${summary.missingDraftCount}`,
+                  },
+                  {
+                    id: 'warnings-count',
+                    label: locale === 'zh-CN' ? '警告场景' : 'Warnings',
+                    value: `${summary.warningsCount}`,
+                  },
+                  {
+                    id: 'queued-revisions-count',
+                    label: locale === 'zh-CN' ? '待处理修订' : 'Queued revisions',
+                    value: `${summary.queuedRevisionCount}`,
+                  },
+                ]}
+              />
+              <SupportList
+                title={locale === 'zh-CN' ? '缺稿' : 'Missing drafts'}
+                items={summary.missingDraftScenes}
+                emptyTitle={locale === 'zh-CN' ? '没有缺稿场景' : 'No missing drafts'}
+                emptyMessage={locale === 'zh-CN' ? '当前章节的每个场景都有阅读稿。' : 'Every scene currently has draft prose.'}
+              />
+              <SupportList
+                title={locale === 'zh-CN' ? '警告' : 'Warnings'}
+                items={summary.warningScenes}
+                emptyTitle={locale === 'zh-CN' ? '没有警告' : 'No warnings'}
+                emptyMessage={locale === 'zh-CN' ? '当前章节没有额外警告。' : 'No warning scenes need attention right now.'}
+              />
+              <SupportList
+                title={locale === 'zh-CN' ? '待处理修订' : 'Queued revisions'}
+                items={summary.queuedRevisionScenes}
+                emptyTitle={locale === 'zh-CN' ? '没有待处理修订' : 'No queued revisions'}
+                emptyMessage={locale === 'zh-CN' ? '当前章节没有排队中的 prose 修订。' : 'No scene currently has queued prose revisions.'}
+              />
+            </div>
+          </SectionCard>
+        </div>
+        <div hidden={activeTab !== 'activity'} aria-hidden={activeTab !== 'activity'}>
+          <SectionCard title={locale === 'zh-CN' ? '活动' : 'Activity'} eyebrow={locale === 'zh-CN' ? '会话日志' : 'Session Log'}>
+            {activity.length > 0 ? (
+              <TimelineList
+                items={activity.map((item) => ({
+                  id: item.id,
+                  title: item.title,
+                  detail: item.detail,
+                  tone: item.tone,
+                  meta:
+                    item.kind === 'lens'
+                      ? locale === 'zh-CN'
+                        ? 'Lens'
+                        : 'Lens'
+                      : locale === 'zh-CN'
+                        ? '场景'
+                        : 'Scene',
+                }))}
+              />
+            ) : (
+              <EmptyState
+                title={locale === 'zh-CN' ? '会话很安静' : 'Quiet session'}
+                message={
+                  locale === 'zh-CN'
+                    ? '进入 draft lens 或切换场景时，最近活动会在这里出现。'
+                    : 'Recent draft-lens and scene focus changes will appear here.'
+                }
+              />
+            )}
+          </SectionCard>
+        </div>
       </div>
-    </section>
+    </WorkbenchBottomDockFrame>
   )
 }

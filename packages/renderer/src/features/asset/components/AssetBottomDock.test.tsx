@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
@@ -75,18 +76,19 @@ const activity: AssetDockActivityItem[] = [
 ]
 
 describe('AssetBottomDock', () => {
-  it('renders problems and activity content for the asset workspace', () => {
+  it('renders problems and activity content for the asset workspace', async () => {
+    const user = userEvent.setup()
+
     render(
       <I18nProvider>
         <AssetBottomDock summary={summary} activity={activity} />
       </I18nProvider>,
     )
 
+    expect(screen.getByTestId('workbench-bottom-dock-frame')).toBeInTheDocument()
     const problemsSection = screen.getByRole('heading', { name: 'Problems' }).closest('section')
-    const activitySection = screen.getByRole('heading', { name: 'Activity' }).closest('section')
 
     expect(problemsSection).not.toBeNull()
-    expect(activitySection).not.toBeNull()
     expect(within(problemsSection!).getByText('Warning')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Missing profile section')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Mentions without canon backing')).toBeInTheDocument()
@@ -99,6 +101,11 @@ describe('AssetBottomDock', () => {
     expect(within(problemsSection!).getByText('Without canon backing')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Missing scene trace')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Narrative backing gaps')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: /Activity/i }))
+    const activitySection = screen.getByRole('heading', { name: 'Activity' }).closest('section')
+
+    expect(activitySection).not.toBeNull()
     expect(within(activitySection!).getByText('Switched to Mentions')).toBeInTheDocument()
     expect(within(activitySection!).getByText('Focused Ren Voss')).toBeInTheDocument()
   })

@@ -66,13 +66,11 @@ describe('ChapterStructureWorkspace', () => {
     const dockRegion = screen.getByRole('region', { name: 'Chapter bottom dock' })
     const summarySection = screen.getByRole('heading', { name: 'Summary' }).closest('section')
     const dockProblemsSection = within(dockRegion).getByRole('heading', { name: 'Problems' }).closest('section')
-    const dockActivitySection = within(dockRegion).getByRole('heading', { name: 'Activity' }).closest('section')
 
     expect(binderScene).toHaveAttribute('aria-pressed', 'true')
     expect(outlinerRow).toHaveAttribute('aria-current', 'true')
     expect(summarySection).not.toBeNull()
     expect(dockProblemsSection).not.toBeNull()
-    expect(dockActivitySection).not.toBeNull()
     expect(within(summarySection!).getByText('Midnight Platform · Unresolved 3')).toBeInTheDocument()
     expect(within(dockRegion).getByText('Midnight Platform · Unresolved 3')).toBeInTheDocument()
     expect(
@@ -83,6 +81,10 @@ describe('ChapterStructureWorkspace', () => {
     expect(within(summarySection!).getByText('Witness scrutiny belongs in the auxiliary context, not the stage copy.')).toBeInTheDocument()
     expect(within(dockProblemsSection!).getByText('Departure bell timing')).toBeInTheDocument()
     expect(within(dockProblemsSection!).getByText('Carry platform pressure')).toBeInTheDocument()
+    await user.click(within(dockRegion).getByRole('tab', { name: /Activity/i }))
+    const dockActivitySection = within(dockRegion).getByRole('heading', { name: 'Activity' }).closest('section')
+
+    expect(dockActivitySection).not.toBeNull()
     expect(within(dockActivitySection!).getByText('Entered Outliner')).toBeInTheDocument()
     expect(within(dockActivitySection!).getByText('Focused Midnight Platform')).toBeInTheDocument()
 

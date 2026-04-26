@@ -15,28 +15,38 @@ interface ChapterBottomDockStoryProps {
   selectedSceneId: string
   variant?: ChapterStructureStoryVariant
   quiet?: boolean
+  longActivity?: boolean
 }
 
 function ChapterBottomDockStory({
   selectedSceneId,
   variant = 'problems-heavy',
   quiet = false,
+  longActivity = false,
 }: ChapterBottomDockStoryProps) {
   const { locale } = useI18n()
   const workspace = useLocalizedChapterStructureWorkspace(selectedSceneId, variant)
+  const activity = quiet
+    ? []
+    : buildChapterStructureStoryActivity(locale, workspace, {
+        activeView: 'outliner',
+        includeAssemblySwitch: true,
+        movedSceneTitle: locale === 'zh-CN' ? '售票窗' : 'Ticket Window',
+      })
+  const storyActivity = longActivity
+    ? Array.from({ length: 8 }, (_, batch) =>
+        activity.map((item) => ({
+          ...item,
+          id: `${item.id}-${batch}`,
+          title: `${item.title} ${batch + 1}`,
+        })),
+      ).flat()
+    : activity
 
   return (
     <ChapterBottomDock
       problems={buildChapterBottomDockProblems(workspace)}
-      activity={
-        quiet
-          ? []
-          : buildChapterStructureStoryActivity(locale, workspace, {
-              activeView: 'outliner',
-              includeAssemblySwitch: true,
-              movedSceneTitle: locale === 'zh-CN' ? '售票窗' : 'Ticket Window',
-            })
-      }
+      activity={storyActivity}
     />
   )
 }
@@ -70,5 +80,13 @@ export const QuietSession: Story = {
     selectedSceneId: 'scene-concourse-delay',
     variant: 'default',
     quiet: true,
+  },
+}
+
+export const LongActivity: Story = {
+  args: {
+    selectedSceneId: 'scene-midnight-platform',
+    variant: 'problems-heavy',
+    longActivity: true,
   },
 }

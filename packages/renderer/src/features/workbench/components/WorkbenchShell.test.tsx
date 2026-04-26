@@ -135,13 +135,50 @@ describe('WorkbenchShell', () => {
     renderWorkbenchShell()
 
     const mainStage = screen.getByTestId('workbench-main-stage')
+    const mainStageBody = screen.getByTestId('workbench-main-stage-scroll-body')
     const mainContent = screen.getByText('Main Stage Content')
 
     expect(mainStage).toHaveTextContent('Main Stage Content')
-    expect(mainStage).toHaveClass('min-h-0', 'flex-1', 'overflow-hidden')
-    expect(mainStage).not.toHaveClass('flex-col', 'overflow-auto')
-    expect(mainContent.parentElement).toBe(mainStage)
+    expect(mainStage).toHaveClass('min-h-0', 'flex-1', 'flex-col', 'overflow-hidden')
+    expect(mainStageBody).toHaveClass('min-h-0', 'min-w-0', 'flex-1', 'overflow-auto')
+    expect(mainContent.parentElement).toBe(mainStageBody)
     expect(screen.queryByRole('tablist', { name: 'Open Editors' })).not.toBeInTheDocument()
+  })
+
+  it('gives shell surfaces explicit internal scroll regions', () => {
+    renderWorkbenchShell()
+
+    expect(screen.getByTestId('workbench-mode-rail-scroll-body')).toHaveClass('overflow-auto')
+    expect(screen.getByTestId('workbench-navigator-scroll-body')).toHaveClass('overflow-auto')
+    expect(screen.getByTestId('workbench-main-stage-scroll-body')).toHaveClass('overflow-auto')
+    expect(screen.getByTestId('workbench-inspector-scroll-body')).toHaveClass('overflow-auto')
+    expect(screen.getByTestId('workbench-bottom-dock-body')).toHaveClass('overflow-hidden')
+  })
+
+  it('keeps long bottom dock content bounded in the shell-owned dock region', () => {
+    const longRows = Array.from({ length: 80 }, (_, index) => (
+      <div key={index}>Dock row {index + 1}</div>
+    ))
+
+    renderWorkbenchShell({
+      navigator: <div>{Array.from({ length: 60 }, (_, index) => <div key={index}>Navigator row {index + 1}</div>)}</div>,
+      mainStage: <div>{Array.from({ length: 120 }, (_, index) => <div key={index}>Main row {index + 1}</div>)}</div>,
+      inspector: <div>{Array.from({ length: 60 }, (_, index) => <div key={index}>Inspector row {index + 1}</div>)}</div>,
+      bottomDock: <div>{longRows}</div>,
+    })
+
+    const bottomDock = screen.getByRole('region', { name: 'Bottom Dock' })
+    const bottomDockBody = screen.getByTestId('workbench-bottom-dock-body')
+
+    expect(bottomDock).toHaveAttribute('data-testid', 'workbench-bottom-dock')
+    expect(bottomDock).toHaveClass('h-full', 'min-h-0')
+    expect(bottomDockBody).toHaveClass('min-h-0', 'min-w-0', 'flex-1', 'overflow-hidden')
+    expect(bottomDockBody.parentElement).toBe(bottomDock)
+    expect(shellRoot()).toHaveClass('h-screen', 'min-h-0', 'overflow-hidden')
+    expect(shellRoot().style.gridTemplateRows).toContain(
+      `${DEFAULT_WORKBENCH_LAYOUT_STATE.bottomDockHeight}px`,
+    )
+    expect(screen.getByText('Dock row 80')).toBeInTheDocument()
   })
 
   it('keeps main stage and editor tabs accessible when the navigator is hidden', async () => {

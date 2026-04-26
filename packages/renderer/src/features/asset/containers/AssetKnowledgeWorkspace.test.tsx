@@ -62,12 +62,15 @@ describe('AssetKnowledgeWorkspace', () => {
     const navigatorRen = screen.getByRole('button', { name: /Ren Voss/i })
     const inspectorSummary = screen.getByRole('heading', { name: 'Summary' }).closest('section')
     const dockRegion = screen.getByRole('region', { name: 'Asset bottom dock' })
+    const topBar = screen.getByTestId('asset-top-bar')
 
     expect(navigatorRen).toHaveClass('border-line-strong')
     expect(screen.getByText('Primary POV')).toBeInTheDocument()
     expect(screen.getByText('Canon-backed')).toBeInTheDocument()
     expect(inspectorSummary).not.toBeNull()
     expect(within(inspectorSummary!).getByText('Ren Voss')).toBeInTheDocument()
+    expect(within(topBar).queryByText('Courier-side negotiator who keeps the ledger closed while trying to buy time in public.')).not.toBeInTheDocument()
+    await user.click(within(dockRegion).getByRole('tab', { name: /Activity/i }))
     expect(within(dockRegion).getByText('Focused Ren Voss')).toBeInTheDocument()
     expect(requests).toContainEqual(
       expect.objectContaining({
@@ -149,10 +152,11 @@ describe('AssetKnowledgeWorkspace', () => {
     expect(inspectorConsistency).not.toBeNull()
     expect(within(inspectorSummary!).getByText('Ren Voss')).toBeInTheDocument()
     expect(within(inspectorConsistency!).getByText('Canon-backed mentions')).toBeInTheDocument()
-    expect(within(dockRegion).getByText('Switched to Mentions')).toBeInTheDocument()
-    expect(within(dockRegion).getByText('Focused Ren Voss')).toBeInTheDocument()
     expect(within(dockRegion).getByText('Mentions without canon backing')).toBeInTheDocument()
     expect(within(dockRegion).getByText('Relations present but no narrative backing')).toBeInTheDocument()
+    await user.click(within(dockRegion).getByRole('tab', { name: /Activity/i }))
+    expect(within(dockRegion).getByText('Switched to Mentions')).toBeInTheDocument()
+    expect(within(dockRegion).getByText('Focused Ren Voss')).toBeInTheDocument()
 
     await user.click(draftHandoff)
 
@@ -200,6 +204,7 @@ describe('AssetKnowledgeWorkspace', () => {
     expect(screen.getByText('Pressures')).toBeInTheDocument()
     expect(meiSummary).not.toBeNull()
     expect(within(meiSummary!).getByText('Mei Arden')).toBeInTheDocument()
+    await user.click(within(updatedDockRegion).getByRole('tab', { name: /Activity/i }))
     expect(within(updatedDockRegion).getByText('Focused Mei Arden')).toBeInTheDocument()
 
     window.history.back()
@@ -250,9 +255,10 @@ describe('AssetKnowledgeWorkspace', () => {
     expect(screen.getByText('Primary POV context')).toBeInTheDocument()
     expect(inspectorPolicy).not.toBeNull()
     expect(within(inspectorPolicy!).getByText('Active')).toBeInTheDocument()
+    expect(within(dockRegion).getByText('Private/spoiler policy requires caution')).toBeInTheDocument()
+    await user.click(within(dockRegion).getByRole('tab', { name: /Activity/i }))
     expect(within(dockRegion).getByText('Switched to Context')).toBeInTheDocument()
     expect(within(dockRegion).getByText('Focused Ren Voss')).toBeInTheDocument()
-    expect(within(dockRegion).getByText('Private/spoiler policy requires caution')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Mentions' }))
 
@@ -273,6 +279,8 @@ describe('AssetKnowledgeWorkspace', () => {
   })
 
   it('renders a quiet missing-policy context route without crashing', async () => {
+    const user = userEvent.setup()
+
     window.history.replaceState({}, '', '/workbench?scope=asset&id=asset-ticket-window&lens=knowledge&view=context')
 
     render(
@@ -286,6 +294,7 @@ describe('AssetKnowledgeWorkspace', () => {
     expect(screen.getByRole('button', { name: /Ticket Window/i })).toHaveClass('border-line-strong')
     expect(screen.getAllByText('No context policy yet').length).toBeGreaterThan(0)
     expect(within(dockRegion).queryByText('Missing context policy')).not.toBeInTheDocument()
+    await user.click(within(dockRegion).getByRole('tab', { name: /Activity/i }))
     expect(within(dockRegion).getByText('Switched to Context')).toBeInTheDocument()
   })
 

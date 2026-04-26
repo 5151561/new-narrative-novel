@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
@@ -6,7 +7,9 @@ import { I18nProvider } from '@/app/i18n'
 import { BookBottomDock } from './BookBottomDock'
 
 describe('BookBottomDock', () => {
-  it('renders problems and session-local activity for the book workspace', () => {
+  it('renders problems and session-local activity for the book workspace', async () => {
+    const user = userEvent.setup()
+
     render(
       <I18nProvider>
         <BookBottomDock
@@ -69,13 +72,16 @@ describe('BookBottomDock', () => {
     )
 
     const problemsSection = screen.getByRole('heading', { name: 'Problems' }).closest('section')
-    const activitySection = screen.getByRole('heading', { name: 'Activity' }).closest('section')
 
     expect(problemsSection).not.toBeNull()
-    expect(activitySection).not.toBeNull()
     expect(within(problemsSection!).getByText('Departure bell timing')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('1 scene still missing trace')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Signals in Rain')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: /Activity/i }))
+    const activitySection = screen.getByRole('heading', { name: 'Activity' }).closest('section')
+
+    expect(activitySection).not.toBeNull()
     expect(within(activitySection!).getByText('Entered Sequence')).toBeInTheDocument()
     expect(within(activitySection!).getByText('Focused Signals in Rain')).toBeInTheDocument()
   })

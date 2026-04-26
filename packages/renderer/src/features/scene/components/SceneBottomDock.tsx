@@ -2,11 +2,8 @@ import { getDockTabLabel, getGenericStatusLabel, useI18n, type Locale } from '@/
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { FactList } from '@/components/ui/FactList'
-import { PaneHeader } from '@/components/ui/PaneHeader'
 import { SectionCard } from '@/components/ui/SectionCard'
 import { TimelineList } from '@/components/ui/TimelineList'
-
-import { cn } from '@/lib/cn'
 
 import type { RunArtifactDetailRecord, RunArtifactSummaryRecord } from '@/features/run/api/run-artifact-records'
 import type {
@@ -19,44 +16,11 @@ import type { RunTraceResponse } from '@/features/run/api/run-trace-records'
 import { RunEventInspectorPanel, type RunEventInspectorMode } from '@/features/run/components/RunEventInspectorPanel'
 import { RunEventStreamPanel } from '@/features/run/components/RunEventStreamPanel'
 import { RunReviewGate } from '@/features/run/components/RunReviewGate'
+import { WorkbenchBottomDockFrame } from '@/features/workbench/components/WorkbenchBottomDockFrame'
 
 import type { SceneDockTabId, SceneDockViewModel } from '../types/scene-view-models'
 
-const dockTabs: Array<{ id: SceneDockTabId; label: string }> = [
-  { id: 'events', label: 'Events' },
-  { id: 'trace', label: 'Trace' },
-  { id: 'consistency', label: 'Consistency' },
-  { id: 'problems', label: 'Problems' },
-  { id: 'cost', label: 'Cost' },
-]
-
-function DockTabs({
-  activeTab,
-  onChange,
-}: {
-  activeTab: SceneDockTabId
-  onChange: (tab: SceneDockTabId) => void
-}) {
-  const { locale } = useI18n()
-
-  return (
-    <div className="flex flex-wrap gap-2 border-b border-line-soft px-4 py-3">
-      {dockTabs.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onChange(tab.id)}
-          className={cn(
-            'rounded-md px-3 py-2 text-sm',
-            activeTab === tab.id ? 'bg-surface-2 text-text-main shadow-ringwarm' : 'text-text-muted hover:bg-surface-2',
-          )}
-        >
-          {getDockTabLabel(locale, tab.id)}
-        </button>
-      ))}
-    </div>
-  )
-}
+const dockTabs: SceneDockTabId[] = ['events', 'trace', 'consistency', 'problems', 'cost']
 
 function EventsTab({ items }: { items: SceneDockViewModel['events'] }) {
   const { locale } = useI18n()
@@ -425,42 +389,30 @@ export function SceneBottomDock({ data, activeTab, isHydratingTab = false, runSu
   const { locale } = useI18n()
 
   return (
-    <>
-      <PaneHeader
-        title={
-          locale === 'zh-CN' ? '事件 / 追踪 / 一致性 / 问题 / 成本' : 'Events / Trace / Consistency / Problems / Cost'
-        }
-        description={
-          locale === 'zh-CN'
-            ? '这个底部面板承接事件流、追踪、一致性问题、故障与成本，让评审舞台保持在编辑态。'
-            : 'This dock owns the event stream, trace, consistency issues, problems, and cost so the review stage can stay editorial.'
-        }
-      />
-      <DockTabs activeTab={activeTab} onChange={onTabChange} />
-      <div className="min-h-0 overflow-y-auto">
-        {isHydratingTab ? (
-          <div className="p-4">
-            <EmptyState
-              title={locale === 'zh-CN' ? `正在加载${getDockTabLabel(locale, activeTab)}` : `Loading ${activeTab}`}
-              message={
-                locale === 'zh-CN'
-                  ? '正在为当前底部标签补齐内容，而不会一次把全部细节拉上来。'
-                  : 'Hydrating the active dock tab without pulling every detail up front.'
-              }
-            />
-          </div>
-        ) : activeTab === 'events' ? (
-          <EventsSupportArea items={data.events} runSupport={runSupport} />
-        ) : activeTab === 'trace' ? (
-          <TraceTab items={data.trace} />
-        ) : activeTab === 'consistency' ? (
-          <ConsistencyTab consistency={data.consistency} />
-        ) : activeTab === 'problems' ? (
-          <ProblemsTab problems={data.problems} />
-        ) : (
-          <CostTab cost={data.cost} />
-        )}
-      </div>
-    </>
+    <WorkbenchBottomDockFrame
+      ariaLabel={locale === 'zh-CN' ? '场景底部面板' : 'Scene bottom dock'}
+      tabs={dockTabs.map((id) => ({ id, label: getDockTabLabel(locale, id) }))}
+      activeTab={activeTab}
+      onTabChange={onTabChange}
+    >
+      {isHydratingTab ? (
+        <div className="p-4">
+          <EmptyState
+            title={locale === 'zh-CN' ? `正在加载${getDockTabLabel(locale, activeTab)}` : `Loading ${getDockTabLabel(locale, activeTab)}`}
+            message={locale === 'zh-CN' ? '正在读取当前底部标签内容。' : 'Reading the active dock tab.'}
+          />
+        </div>
+      ) : activeTab === 'events' ? (
+        <EventsSupportArea items={data.events} runSupport={runSupport} />
+      ) : activeTab === 'trace' ? (
+        <TraceTab items={data.trace} />
+      ) : activeTab === 'consistency' ? (
+        <ConsistencyTab consistency={data.consistency} />
+      ) : activeTab === 'problems' ? (
+        <ProblemsTab problems={data.problems} />
+      ) : (
+        <CostTab cost={data.cost} />
+      )}
+    </WorkbenchBottomDockFrame>
   )
 }

@@ -55,19 +55,17 @@ function AssetPaneState({ title, message }: { title: string; message: string }) 
 
 function AssetTopBar({
   title,
-  summary,
   kind,
   view,
 }: {
   title?: string
-  summary?: string
   kind?: 'character' | 'location' | 'rule'
   view: 'profile' | 'mentions' | 'relations' | 'context'
 }) {
   const { locale, dictionary } = useI18n()
 
   return (
-    <div className="flex h-full flex-wrap items-center justify-between gap-3">
+    <div className="flex h-full flex-wrap items-center justify-between gap-3" data-testid="asset-top-bar">
       <div className="min-w-0 space-y-1">
         <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.narrativeWorkbench}</p>
         <div className="flex flex-wrap items-center gap-2">
@@ -84,7 +82,6 @@ function AssetTopBar({
         <Badge tone="neutral">{getWorkbenchLensLabel(locale, 'knowledge')}</Badge>
         <Badge tone="neutral">{getAssetKnowledgeViewLabel(locale, view)}</Badge>
       </div>
-      {summary ? <p className="w-full text-sm leading-6 text-text-muted">{summary}</p> : null}
     </div>
   )
 }
@@ -234,7 +231,6 @@ export function AssetKnowledgeWorkspace() {
       topBar={
         <AssetTopBar
           title={traceAwareWorkspace.title}
-          summary={traceAwareWorkspace.summary}
           kind={traceAwareWorkspace.kind}
           view={route.view}
         />

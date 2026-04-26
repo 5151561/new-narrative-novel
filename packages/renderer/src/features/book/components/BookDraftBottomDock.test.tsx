@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
@@ -96,7 +97,8 @@ function createReviewInbox(issues: ReviewIssueViewModel[]): BookReviewInboxViewM
 }
 
 describe('BookDraftBottomDock', () => {
-  it('shows compare-mode problems and activity', () => {
+  it('shows compare-mode problems and activity', async () => {
+    const user = userEvent.setup()
     const activity: BookWorkbenchActivityItem[] = [
       {
         id: 'draft-view-0',
@@ -158,12 +160,14 @@ describe('BookDraftBottomDock', () => {
     expect(screen.getAllByText('Trace regressions').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Warnings increased chapters').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Checkpoint missing sections').length).toBeGreaterThan(0)
+    await user.click(screen.getByRole('tab', { name: /Activity/i }))
     expect(screen.getByText('Entered Compare')).toBeInTheDocument()
     expect(screen.getByText('Selected checkpoint PR11 Baseline')).toBeInTheDocument()
     expect(screen.getByText('Returned to Read')).toBeInTheDocument()
   })
 
-  it('shows export-mode blockers, warnings, and export activity', () => {
+  it('shows export-mode blockers, warnings, and export activity', async () => {
+    const user = userEvent.setup()
     const activity: BookWorkbenchActivityItem[] = [
       {
         id: 'draft-view-0',
@@ -225,11 +229,13 @@ describe('BookDraftBottomDock', () => {
     expect(screen.getAllByText('Trace gaps').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Missing drafts').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Compare regressions').length).toBeGreaterThan(0)
+    await user.click(screen.getByRole('tab', { name: /Activity/i }))
     expect(screen.getByText('Entered Export Preview')).toBeInTheDocument()
     expect(screen.getByText('Selected export profile Submission Preview')).toBeInTheDocument()
   })
 
-  it('shows export artifact gate problems without replacing export readiness problems', () => {
+  it('shows export artifact gate problems without replacing export readiness problems', async () => {
+    const user = userEvent.setup()
     render(
       <AppProviders>
         <BookDraftBottomDock
@@ -298,6 +304,7 @@ describe('BookDraftBottomDock', () => {
     expect(screen.getByText('Artifact blocked by export readiness')).toBeInTheDocument()
     expect(screen.getByText('Artifact blocked by review open blockers')).toBeInTheDocument()
     expect(screen.getByText('Latest artifact stale')).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /Activity/i }))
     expect(screen.getByText('Built Markdown package signal-arc-review-packet.md')).toBeInTheDocument()
   })
 
@@ -380,7 +387,8 @@ describe('BookDraftBottomDock', () => {
     expect(screen.queryByText('Missing draft chapters')).not.toBeInTheDocument()
   })
 
-  it('shows branch blockers, warnings, regressions, and baseline activity in branch mode', () => {
+  it('shows branch blockers, warnings, regressions, and baseline activity in branch mode', async () => {
+    const user = userEvent.setup()
     const activity: BookWorkbenchActivityItem[] = [
       {
         id: 'draft-view-0',
@@ -445,12 +453,14 @@ describe('BookDraftBottomDock', () => {
     expect(screen.getAllByText('Trace regressions').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Warning increases').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Added without source').length).toBeGreaterThan(0)
+    await user.click(screen.getByRole('tab', { name: /Activity/i }))
     expect(screen.getByText('Entered Branch Review')).toBeInTheDocument()
     expect(screen.getByText('Selected branch High Pressure')).toBeInTheDocument()
     expect(screen.getByText('Selected checkpoint baseline')).toBeInTheDocument()
   })
 
-  it('shows review-mode blockers, trace gaps, missing drafts, and review activity', () => {
+  it('shows review-mode blockers, trace gaps, missing drafts, and review activity', async () => {
+    const user = userEvent.setup()
     const activity: BookWorkbenchActivityItem[] = [
       {
         id: 'draft-view-0',
@@ -533,6 +543,7 @@ describe('BookDraftBottomDock', () => {
     expect(screen.getByText('Blocked source fixes')).toBeInTheDocument()
     expect(screen.getByText('Stale source fixes')).toBeInTheDocument()
     expect(screen.getByText('Checked but still open')).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /Activity/i }))
     expect(screen.getByText('Entered Review')).toBeInTheDocument()
     expect(screen.getByText('Selected review issue Export packet is blocked')).toBeInTheDocument()
     expect(screen.getByText('Opened issue source Open export readiness')).toBeInTheDocument()

@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
 describe('ChapterBottomDock', () => {
   it('shows unresolved support, problem summaries, and assembly hints in the problems area', async () => {
@@ -32,6 +33,7 @@ describe('ChapterBottomDock', () => {
       />,
     )
 
+    expect(screen.getByTestId('workbench-bottom-dock-frame')).toBeInTheDocument()
     const problemsSection = screen.getByRole('heading', { name: 'Problems' }).closest('section')
 
     expect(problemsSection).not.toBeNull()
@@ -43,6 +45,7 @@ describe('ChapterBottomDock', () => {
   })
 
   it('shows recent view and scene activity in the activity area', async () => {
+    const user = userEvent.setup()
     const { ChapterBottomDock } = await import('./ChapterBottomDock')
 
     render(
@@ -83,6 +86,7 @@ describe('ChapterBottomDock', () => {
       />,
     )
 
+    await user.click(screen.getByRole('tab', { name: /Activity/i }))
     const activitySection = screen.getByRole('heading', { name: 'Activity' }).closest('section')
 
     expect(activitySection).not.toBeNull()
@@ -93,6 +97,7 @@ describe('ChapterBottomDock', () => {
   })
 
   it('keeps activity display-only so it cannot become a second selected-scene source', async () => {
+    const user = userEvent.setup()
     const { ChapterBottomDock } = await import('./ChapterBottomDock')
 
     render(
@@ -119,11 +124,12 @@ describe('ChapterBottomDock', () => {
       />,
     )
 
+    expect(screen.getByText('Concourse Delay · Unresolved 2')).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /Activity/i }))
     const activitySection = screen.getByRole('heading', { name: 'Activity' }).closest('section')
 
     expect(activitySection).not.toBeNull()
     expect(within(activitySection!).queryByRole('button')).not.toBeInTheDocument()
     expect(within(activitySection!).queryByRole('link')).not.toBeInTheDocument()
-    expect(screen.getByText('Concourse Delay · Unresolved 2')).toBeInTheDocument()
   })
 })

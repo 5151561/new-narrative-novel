@@ -116,3 +116,15 @@ export const QuietChapter: Story = {
     variant: 'quiet',
   },
 }
+
+export const LongDraftKeepsDockVisible: Story = {
+  args: {
+    selectedSceneId: 'scene-concourse-delay',
+    variant: 'missing',
+  },
+  render: (args) => (
+    <ChapterStoryShell frameClassName="h-screen min-h-[720px] overflow-hidden">
+      <ChapterDraftWorkspaceStory {...args} />
+    </ChapterStoryShell>
+  ),
+}

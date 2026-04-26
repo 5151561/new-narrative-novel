@@ -22,6 +22,7 @@ import {
   serializeWorkbenchLayoutState,
   type WorkbenchLayoutState,
 } from '../types/workbench-layout'
+import { WorkbenchBottomDockFrame } from './WorkbenchBottomDockFrame'
 import { WorkbenchShell } from './WorkbenchShell'
 
 const WORKBENCH_LAYOUT_STORY_KEYS = {
@@ -39,6 +40,8 @@ const WORKBENCH_LAYOUT_STORY_KEYS = {
   editorTabsHiddenNavigator: 'storybook:workbench-layout:editor-tabs-hidden-navigator',
   editorTabsBottomDockMaximized: 'storybook:workbench-layout:editor-tabs-bottom-dock-maximized',
   editorTabsOverflow: 'storybook:workbench-layout:editor-tabs-overflow',
+  overflowStress: 'storybook:workbench-layout:overflow-stress',
+  unifiedDockTabs: 'storybook:workbench-layout:unified-dock-tabs',
 } as const
 
 const WORKBENCH_EDITOR_STORY_KEYS = {
@@ -220,8 +223,8 @@ function WorkbenchShellStoryPreview({
             <h2 className="text-3xl">{isChinese ? '主舞台' : 'Main Stage'}</h2>
             <p className="max-w-xl text-sm leading-6 text-text-muted">
               {isChinese
-                ? '这个外壳 story 用来做布局评审，不依赖 Scene 功能容器本身。'
-                : 'This shell story exists so layout review does not depend on the Scene feature container.'}
+                ? '当前任务：收束站台交易节拍，并保留公开见证压力。'
+                : 'Current task: tighten the platform bargain beat while preserving public witness pressure.'}
             </p>
           </div>
         </div>
@@ -311,6 +314,86 @@ function renderShellStory(
     </div>
   ) : (
     preview
+  )
+}
+
+function OverflowStressPreview({ layoutStorageKey }: { layoutStorageKey: string }) {
+  const { locale, dictionary } = useI18n()
+  const rows = Array.from({ length: 32 }, (_, index) => ({
+    id: `stress-${index + 1}`,
+    title: locale === 'zh-CN' ? `压力条目 ${index + 1}` : `Stress item ${index + 1}`,
+    detail:
+      locale === 'zh-CN'
+        ? '站台延误仍挂在当前审阅队列上。'
+        : 'The platform delay remains attached to the active review queue.',
+    meta: locale === 'zh-CN' ? '滚动' : 'Scroll',
+    tone: index % 3 === 0 ? 'warn' : 'neutral',
+  })) satisfies Parameters<typeof TimelineList>[0]['items']
+
+  return (
+    <WorkbenchShell
+      layoutStorageKey={layoutStorageKey}
+      topBar={
+        <div className="flex items-center justify-between px-4 py-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.08em] text-text-soft">{dictionary.app.narrativeWorkbench}</p>
+            <h2 className="text-xl">{locale === 'zh-CN' ? '溢出压力' : 'Overflow Stress'}</h2>
+          </div>
+          <Badge tone="accent">{locale === 'zh-CN' ? '运行 07' : 'Run 07'}</Badge>
+        </div>
+      }
+      modeRail={
+        <div className="flex flex-col gap-2 p-3">
+          {rows.slice(0, 18).map((row, index) => (
+            <button key={row.id} type="button" className={`rounded-md px-2 py-3 text-sm ${index === 0 ? 'bg-surface-2 text-text-main shadow-ringwarm' : 'text-text-muted'}`}>
+              {row.title}
+            </button>
+          ))}
+        </div>
+      }
+      navigator={<TimelineList items={rows} />}
+      mainStage={<TimelineList items={rows.map((row) => ({ ...row, id: `main-${row.id}` }))} />}
+      inspector={<TimelineList items={rows.slice(0, 24).map((row) => ({ ...row, id: `inspector-${row.id}` }))} />}
+      bottomDock={<TimelineList items={rows.slice(0, 20).map((row) => ({ ...row, id: `dock-${row.id}` }))} />}
+    />
+  )
+}
+
+function UnifiedDockTabsPreview({ layoutStorageKey }: { layoutStorageKey: string }) {
+  const { locale } = useI18n()
+  const [activeTab, setActiveTab] = useState<'problems' | 'activity' | 'trace'>('problems')
+
+  return (
+    <WorkbenchShell
+      layoutStorageKey={layoutStorageKey}
+      topBar={<div className="px-4 py-3 text-lg">{locale === 'zh-CN' ? '统一底部标签' : 'Unified Dock Tabs'}</div>}
+      modeRail={<div className="p-3 text-sm text-text-muted">{locale === 'zh-CN' ? 'Scene / Chapter / Asset / Book' : 'Scene / Chapter / Asset / Book'}</div>}
+      navigator={<TimelineList items={[{ id: 'nav', title: 'Signal Arc', detail: 'Book scope', meta: 'Book' }]} />}
+      mainStage={<div className="p-4 text-sm text-text-muted">{locale === 'zh-CN' ? '当前任务：收束站台交易节拍。' : 'Current task: tighten the platform bargain beat.'}</div>}
+      inspector={<div className="p-4 text-sm text-text-muted">{locale === 'zh-CN' ? '风险：铃声时点过早释放压力。' : 'Risk: bell timing releases pressure too early.'}</div>}
+      bottomDock={
+        <WorkbenchBottomDockFrame
+          ariaLabel={locale === 'zh-CN' ? '统一底部面板' : 'Unified bottom dock'}
+          tabs={[
+            { id: 'problems', label: locale === 'zh-CN' ? '问题' : 'Problems', badge: 4, tone: 'warn' },
+            { id: 'activity', label: locale === 'zh-CN' ? '活动' : 'Activity', badge: 8 },
+            { id: 'trace', label: locale === 'zh-CN' ? '追踪' : 'Trace', badge: 2, tone: 'accent' },
+          ]}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        >
+          <TimelineList
+            items={Array.from({ length: activeTab === 'activity' ? 18 : 8 }, (_, index) => ({
+              id: `${activeTab}-${index}`,
+              title: `${activeTab} ${index + 1}`,
+              detail: locale === 'zh-CN' ? '运行摘要已挂到当前问题队列。' : 'Run summary is attached to the active issue queue.',
+              meta: activeTab,
+              tone: index % 4 === 0 ? 'accent' : 'neutral',
+            }))}
+          />
+        </WorkbenchBottomDockFrame>
+      }
+    />
   )
 }
 
@@ -407,6 +490,30 @@ export const BottomDockMaximized: Story = {
         bottomDockMaximized: true,
       }),
     ),
+}
+
+export const OverflowStress: Story = {
+  render: () => {
+    writeWorkbenchLayoutStoryState(WORKBENCH_LAYOUT_STORY_KEYS.overflowStress, createWorkbenchLayoutState())
+
+    return (
+      <WorkbenchStoryProviders>
+        <OverflowStressPreview layoutStorageKey={WORKBENCH_LAYOUT_STORY_KEYS.overflowStress} />
+      </WorkbenchStoryProviders>
+    )
+  },
+}
+
+export const UnifiedDockTabs: Story = {
+  render: () => {
+    writeWorkbenchLayoutStoryState(WORKBENCH_LAYOUT_STORY_KEYS.unifiedDockTabs, createWorkbenchLayoutState())
+
+    return (
+      <WorkbenchStoryProviders>
+        <UnifiedDockTabsPreview layoutStorageKey={WORKBENCH_LAYOUT_STORY_KEYS.unifiedDockTabs} />
+      </WorkbenchStoryProviders>
+    )
+  },
 }
 
 export const MultipleEditorTabs: Story = {

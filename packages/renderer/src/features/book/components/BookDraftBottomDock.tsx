@@ -1,11 +1,13 @@
+import { useState } from 'react'
+
 import { EmptyState } from '@/components/ui/EmptyState'
 import { FactList } from '@/components/ui/FactList'
-import { PaneHeader } from '@/components/ui/PaneHeader'
 import { SectionCard } from '@/components/ui/SectionCard'
 import { TimelineList } from '@/components/ui/TimelineList'
 
 import { useI18n } from '@/app/i18n'
 import type { BookDraftView } from '@/features/workbench/types/workbench-route'
+import { WorkbenchBottomDockFrame } from '@/features/workbench/components/WorkbenchBottomDockFrame'
 
 import type { BookWorkbenchActivityItem } from '../hooks/useBookWorkbenchActivity'
 import type { BookDraftCompareProblems } from '../lib/book-draft-compare-presentation'
@@ -74,6 +76,8 @@ interface BookDraftBottomDockProps {
   reviewProblems?: BookDraftReviewProblems | null
   exportError?: Error | null
 }
+
+type BookDraftBottomDockTab = 'problems' | 'activity'
 
 function SupportList({
   title,
@@ -162,6 +166,7 @@ export function BookDraftBottomDock({
   exportError = null,
 }: BookDraftBottomDockProps) {
   const { locale } = useI18n()
+  const [activeTab, setActiveTab] = useState<BookDraftBottomDockTab>('problems')
   const compareMode = activeDraftView === 'compare' && compareProblems !== null
   const branchMode = activeDraftView === 'branch' && branchProblems !== null
   const exportMode = activeDraftView === 'export' && exportProblems !== null
@@ -249,96 +254,137 @@ export function BookDraftBottomDock({
             { id: 'warnings-count', label: locale === 'zh-CN' ? '警告章节' : 'Warning chapters', value: `${summary.warningsChapterCount}` },
             { id: 'queued-count', label: locale === 'zh-CN' ? '待处理修订章节' : 'Queued revision chapters', value: `${summary.queuedRevisionChapterCount}` },
           ]
+  const issueCount =
+    compareMode
+      ? compareProblems.draftMissingSceneCount + compareProblems.traceRegressionCount + compareProblems.warningsIncreasedChapterCount
+      : branchMode
+        ? branchProblems.blockerCount + branchProblems.warningCount + branchProblems.draftMissingSceneCount
+        : exportMode
+          ? exportProblems.blockerCount + exportProblems.warningCount + exportProblems.traceGapCount + exportProblems.missingDraftCount
+          : reviewMode
+            ? reviewProblems.blockerCount + reviewProblems.traceGapCount + reviewProblems.missingDraftCount + reviewProblems.openCount
+            : summary.missingDraftChapterCount + summary.missingTraceChapterCount + summary.warningsChapterCount
+  const activitySection = (
+    <SectionCard title={locale === 'zh-CN' ? '活动' : 'Activity'} eyebrow={locale === 'zh-CN' ? '会话日志' : 'Session Log'}>
+      {activity.length > 0 ? (
+        <TimelineList
+          items={activity.map((item) => ({
+            id: item.id,
+            title: item.title,
+            detail: item.detail,
+            tone: item.tone,
+            meta: getActivityMeta(locale, item),
+          }))}
+        />
+      ) : (
+        <EmptyState
+          title={locale === 'zh-CN' ? '会话很安静' : 'Quiet session'}
+          message={
+            locale === 'zh-CN'
+              ? '进入 draft lens、聚焦章节或发起 handoff 后，最近活动会在这里出现。'
+              : 'Recent draft-lens entries, chapter focus changes, and handoffs will appear here.'
+          }
+        />
+      )}
+    </SectionCard>
+  )
 
   return (
-    <section
-      aria-label={locale === 'zh-CN' ? '书籍草稿底部面板' : 'Book draft bottom dock'}
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+    <WorkbenchBottomDockFrame
+      ariaLabel={locale === 'zh-CN' ? '书籍草稿底部面板' : 'Book draft bottom dock'}
+      tabs={[
+        {
+          id: 'problems',
+          label: locale === 'zh-CN' ? '问题' : 'Problems',
+          badge: issueCount,
+          tone: issueCount > 0 ? 'warn' : 'success',
+        },
+        {
+          id: 'activity',
+          label: locale === 'zh-CN' ? '活动' : 'Activity',
+          badge: activity.length,
+        },
+      ]}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
     >
-      <PaneHeader
-        title={locale === 'zh-CN' ? '问题 / 活动' : 'Problems / Activity'}
-        description={
-          locale === 'zh-CN'
-            ? '底部面板继续只承接书籍级判断支持和会话活动，不复制主阅读区。'
-            : 'The dock keeps book-level judgment support and session activity close without duplicating the manuscript reader.'
-        }
-      />
-      <div className="grid min-h-0 flex-1 gap-4 overflow-auto p-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <SectionCard title={locale === 'zh-CN' ? '问题' : 'Problems'} eyebrow={locale === 'zh-CN' ? '阅读支持' : 'Reading Support'}>
-          {exportErrorMode ? (
-            <EmptyState
-              title={locale === 'zh-CN' ? '导出基线不可用' : 'Export baseline unavailable'}
-              message={exportError.message}
-            />
-          ) : (
-          <div className="space-y-4">
-            <FactList items={problemFactItems} />
-            <SupportList
-              title={
-                compareMode
-                  ? locale === 'zh-CN'
-                    ? '变更章节'
-                    : 'Changed chapters'
-                  : branchMode
+      <div className="p-4">
+        <div hidden={activeTab !== 'problems'} aria-hidden={activeTab !== 'problems'}>
+          <SectionCard title={locale === 'zh-CN' ? '问题' : 'Problems'} eyebrow={locale === 'zh-CN' ? '阅读支持' : 'Reading Support'}>
+            {exportErrorMode ? (
+              <EmptyState
+                title={locale === 'zh-CN' ? '导出基线不可用' : 'Export baseline unavailable'}
+                message={exportError.message}
+              />
+            ) : (
+            <div className="space-y-4">
+              <FactList items={problemFactItems} />
+              <SupportList
+                title={
+                  compareMode
                     ? locale === 'zh-CN'
-                      ? '实验稿阻塞'
-                      : 'Branch blockers'
-                  : exportMode
-                    ? locale === 'zh-CN'
-                      ? '阻塞项'
-                      : 'Blockers'
-                    : reviewMode
+                      ? '变更章节'
+                      : 'Changed chapters'
+                    : branchMode
+                      ? locale === 'zh-CN'
+                        ? '实验稿阻塞'
+                        : 'Branch blockers'
+                    : exportMode
                       ? locale === 'zh-CN'
                         ? '阻塞项'
                         : 'Blockers'
+                      : reviewMode
+                        ? locale === 'zh-CN'
+                          ? '阻塞项'
+                          : 'Blockers'
+                      : locale === 'zh-CN'
+                        ? '缺稿'
+                        : 'Missing drafts'
+                }
+                items={compareMode ? compareProblems.changedChapters : branchMode ? branchProblems.blockers : exportMode ? exportProblems.blockers : reviewMode ? reviewProblems.blockers : summary.missingDraftChapters}
+                emptyTitle={
+                  compareMode
+                    ? locale === 'zh-CN'
+                      ? '当前没有变更章节'
+                      : 'No changed chapters'
+                    : branchMode
+                      ? locale === 'zh-CN'
+                        ? '当前没有实验稿阻塞'
+                        : 'No branch blockers'
+                    : exportMode
+                      ? locale === 'zh-CN'
+                        ? '当前没有阻塞项'
+                        : 'No blockers'
+                    : reviewMode
+                      ? locale === 'zh-CN'
+                        ? '当前没有阻塞项'
+                        : 'No blockers'
                     : locale === 'zh-CN'
-                      ? '缺稿'
-                      : 'Missing drafts'
-              }
-              items={compareMode ? compareProblems.changedChapters : branchMode ? branchProblems.blockers : exportMode ? exportProblems.blockers : reviewMode ? reviewProblems.blockers : summary.missingDraftChapters}
-              emptyTitle={
-                compareMode
-                  ? locale === 'zh-CN'
-                    ? '当前没有变更章节'
-                    : 'No changed chapters'
-                  : branchMode
+                      ? '没有缺稿章节'
+                      : 'No missing draft chapters'
+                }
+                emptyMessage={
+                  compareMode
                     ? locale === 'zh-CN'
-                      ? '当前没有实验稿阻塞'
-                      : 'No branch blockers'
-                  : exportMode
-                    ? locale === 'zh-CN'
-                      ? '当前没有阻塞项'
-                      : 'No blockers'
-                  : reviewMode
-                    ? locale === 'zh-CN'
-                      ? '当前没有阻塞项'
-                      : 'No blockers'
-                  : locale === 'zh-CN'
-                    ? '没有缺稿章节'
-                    : 'No missing draft chapters'
-              }
-              emptyMessage={
-                compareMode
-                  ? locale === 'zh-CN'
-                    ? '当前 compare 结果没有章节级变更。'
-                    : 'The current compare pass has no chapter-level changes.'
-                  : branchMode
-                    ? locale === 'zh-CN'
-                      ? '当前实验稿相对基线没有阻塞项。'
-                      : 'The current branch has no blockers against the selected baseline.'
-                  : exportMode
-                    ? locale === 'zh-CN'
-                      ? '当前导出预览没有阻塞项。'
-                      : 'The current export preview has no blockers.'
-                  : reviewMode
-                    ? locale === 'zh-CN'
-                      ? '当前 review 队列里没有阻塞项。'
-                      : 'The current review queue has no blockers.'
-                  : locale === 'zh-CN'
-                    ? '当前每个章节都有可读正文。'
-                    : 'Every chapter currently has readable draft prose.'
-              }
-            />
+                      ? '当前 compare 结果没有章节级变更。'
+                      : 'The current compare pass has no chapter-level changes.'
+                    : branchMode
+                      ? locale === 'zh-CN'
+                        ? '当前实验稿相对基线没有阻塞项。'
+                        : 'The current branch has no blockers against the selected baseline.'
+                    : exportMode
+                      ? locale === 'zh-CN'
+                        ? '当前导出预览没有阻塞项。'
+                        : 'The current export preview has no blockers.'
+                    : reviewMode
+                      ? locale === 'zh-CN'
+                        ? '当前 review 队列里没有阻塞项。'
+                        : 'The current review queue has no blockers.'
+                    : locale === 'zh-CN'
+                      ? '当前每个章节都有可读正文。'
+                      : 'Every chapter currently has readable draft prose.'
+                }
+              />
             <SupportList
               title={
                 compareMode
@@ -584,32 +630,14 @@ export function BookDraftBottomDock({
                 />
               </>
             ) : null}
-          </div>
-          )}
-        </SectionCard>
-        <SectionCard title={locale === 'zh-CN' ? '活动' : 'Activity'} eyebrow={locale === 'zh-CN' ? '会话日志' : 'Session Log'}>
-          {activity.length > 0 ? (
-            <TimelineList
-              items={activity.map((item) => ({
-                id: item.id,
-                title: item.title,
-                detail: item.detail,
-                tone: item.tone,
-                meta: getActivityMeta(locale, item),
-              }))}
-            />
-          ) : (
-            <EmptyState
-              title={locale === 'zh-CN' ? '会话很安静' : 'Quiet session'}
-              message={
-                locale === 'zh-CN'
-                  ? '进入 draft lens、聚焦章节或发起 handoff 后，最近活动会在这里出现。'
-                  : 'Recent draft-lens entries, chapter focus changes, and handoffs will appear here.'
-              }
-            />
-          )}
-        </SectionCard>
+            </div>
+            )}
+          </SectionCard>
+        </div>
+        <div hidden={activeTab !== 'activity'} aria-hidden={activeTab !== 'activity'}>
+          {activitySection}
+        </div>
       </div>
-    </section>
+    </WorkbenchBottomDockFrame>
   )
 }

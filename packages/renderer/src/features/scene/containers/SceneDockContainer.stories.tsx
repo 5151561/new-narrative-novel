@@ -46,6 +46,22 @@ export const EventsWithClickableRefs: Story = {
   },
 }
 
+export const LongEvents: Story = {
+  args: {
+    sceneId: 'scene-midnight-platform',
+    initialSelectedArtifactId: 'proposal-set-scene-midnight-platform-run-001',
+    initialInspectorMode: 'artifact',
+  },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution',
+      uiState: {
+        dockTab: 'events',
+      },
+    },
+  },
+}
+
 export const ContextPacketActivationTrace: Story = {
   args: {
     sceneId: 'scene-midnight-platform',
