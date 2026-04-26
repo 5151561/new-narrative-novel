@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/app/project-runtime'
+import { bookQueryKeys } from '@/features/book/hooks/book-query-keys'
 import { chapterClient, type ChapterClient, type ReorderChapterSceneInput } from '../api/chapter-client'
 import { reorderChapterRecordScenes } from '../api/chapter-record-mutations'
 import type { ChapterStructureWorkspaceRecord } from '../api/chapter-records'
@@ -52,6 +53,9 @@ export function useReorderChapterSceneMutation({
     },
     onSuccess: (record, _variables, context) => {
       commitChapterWorkspaceOptimisticUpdate(queryClient, queryKey, context, record)
+      if (record) {
+        void queryClient.invalidateQueries({ queryKey: bookQueryKeys.all })
+      }
     },
     onError: (_error, _variables, context) => {
       rollbackChapterWorkspaceOptimisticUpdate(queryClient, queryKey, context)

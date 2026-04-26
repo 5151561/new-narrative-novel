@@ -22,6 +22,7 @@ import type { BookSceneTraceRollup } from '../types/book-view-models'
 
 export interface BookWorkspaceSourcesInput {
   bookId: string
+  enabled?: boolean
 }
 
 interface BookWorkspaceSourcesDeps {
@@ -55,7 +56,7 @@ function buildTraceRollup(
 }
 
 export function useBookWorkspaceSources(
-  { bookId }: BookWorkspaceSourcesInput,
+  { bookId, enabled = true }: BookWorkspaceSourcesInput,
   {
     bookClient: customBookClient,
     chapterClient: customChapterClient,
@@ -65,40 +66,50 @@ export function useBookWorkspaceSources(
 ) {
   const runtime = useOptionalProjectRuntime()
   const { locale } = useI18n()
-  const effectiveBookClient = resolveProjectRuntimeDependency(
-    customBookClient,
-    runtime?.bookClient,
-    'useBookWorkspaceSources',
-    'deps.bookClient',
-  )
-  const effectiveChapterClient = resolveProjectRuntimeDependency(
-    customChapterClient,
-    runtime?.chapterClient,
-    'useBookWorkspaceSources',
-    'deps.chapterClient',
-  )
-  const effectiveSceneClient = resolveProjectRuntimeDependency(
-    customSceneClient,
-    runtime?.sceneClient,
-    'useBookWorkspaceSources',
-    'deps.sceneClient',
-  )
-  const effectiveTraceabilitySceneClient = resolveProjectRuntimeDependency(
-    customTraceabilitySceneClient,
-    runtime?.traceabilitySceneClient,
-    'useBookWorkspaceSources',
-    'deps.traceabilitySceneClient',
-  )
+  const effectiveBookClient = enabled
+    ? resolveProjectRuntimeDependency(
+        customBookClient,
+        runtime?.bookClient,
+        'useBookWorkspaceSources',
+        'deps.bookClient',
+      )
+    : (customBookClient ?? runtime?.bookClient ?? bookClient)
+  const effectiveChapterClient = enabled
+    ? resolveProjectRuntimeDependency(
+        customChapterClient,
+        runtime?.chapterClient,
+        'useBookWorkspaceSources',
+        'deps.chapterClient',
+      )
+    : (customChapterClient ?? runtime?.chapterClient ?? chapterClient)
+  const effectiveSceneClient = enabled
+    ? resolveProjectRuntimeDependency(
+        customSceneClient,
+        runtime?.sceneClient,
+        'useBookWorkspaceSources',
+        'deps.sceneClient',
+      )
+    : (customSceneClient ?? runtime?.sceneClient ?? sceneClient)
+  const effectiveTraceabilitySceneClient = enabled
+    ? resolveProjectRuntimeDependency(
+        customTraceabilitySceneClient,
+        runtime?.traceabilitySceneClient,
+        'useBookWorkspaceSources',
+        'deps.traceabilitySceneClient',
+      )
+    : (customTraceabilitySceneClient ?? runtime?.traceabilitySceneClient ?? sceneClient)
   const bookRecordQuery = useQuery({
     queryKey: bookQueryKeys.workspace(bookId, locale),
     queryFn: () => effectiveBookClient.getBookStructureRecord({ bookId }),
+    enabled,
   })
 
-  const orderedChapterIds = bookRecordQuery.data?.chapterIds ?? []
+  const orderedChapterIds = enabled ? bookRecordQuery.data?.chapterIds ?? [] : []
   const chapterQueries = useQueries({
     queries: orderedChapterIds.map((chapterId) => ({
       queryKey: chapterQueryKeys.workspace(chapterId),
       queryFn: () => effectiveChapterClient.getChapterStructureWorkspace({ chapterId }),
+      enabled,
     })),
   })
 
@@ -148,6 +159,7 @@ export function useBookWorkspaceSources(
     queries: orderedSceneIds.map((sceneId) => ({
       queryKey: sceneQueryKeys.prose(sceneId, locale),
       queryFn: () => effectiveSceneClient.getSceneProse(sceneId),
+      enabled,
     })),
   })
 
@@ -178,7 +190,7 @@ export function useBookWorkspaceSources(
     [orderedSceneIds, sceneProseStateBySceneId],
   )
 
-  const traceability = useTraceabilitySceneSources(orderedSceneIds, effectiveTraceabilitySceneClient, {
+  const traceability = useTraceabilitySceneSources(enabled ? orderedSceneIds : [], effectiveTraceabilitySceneClient, {
     sceneSourceSeedsBySceneId: Object.fromEntries(
       orderedSceneIds.map((sceneId) => [
         sceneId,
@@ -208,22 +220,25 @@ export function useBookWorkspaceSources(
   })
 
   const error =
-    (bookRecordQuery.error as Error | null | undefined) ??
-    missingChapterWorkspaceError ??
-    chapterQueries.find((query) => query.error instanceof Error)?.error ??
-    proseQueries.find((query) => query.error instanceof Error)?.error ??
-    traceability.error ??
-    null
+    !enabled
+      ? null
+      : (bookRecordQuery.error as Error | null | undefined) ??
+        missingChapterWorkspaceError ??
+        chapterQueries.find((query) => query.error instanceof Error)?.error ??
+        proseQueries.find((query) => query.error instanceof Error)?.error ??
+        traceability.error ??
+        null
 
   const isLoading =
-    bookRecordQuery.isLoading ||
-    (bookRecordQuery.data !== null &&
-      bookRecordQuery.data !== undefined &&
-      error === null &&
-      (!chaptersReady || !proseReady || !traceReady))
+    enabled &&
+    (bookRecordQuery.isLoading ||
+      (bookRecordQuery.data !== null &&
+        bookRecordQuery.data !== undefined &&
+        error === null &&
+        (!chaptersReady || !proseReady || !traceReady)))
 
   return {
-    bookRecord: bookRecordQuery.data as BookStructureRecord | null | undefined,
+    bookRecord: enabled ? (bookRecordQuery.data as BookStructureRecord | null | undefined) : undefined,
     orderedChapterIds,
     orderedSceneIds,
     chapterWorkspacesById,
@@ -236,6 +251,9 @@ export function useBookWorkspaceSources(
     isLoading,
     error,
     refetch: async () => {
+      if (!enabled) {
+        return
+      }
       await Promise.all([
         bookRecordQuery.refetch(),
         ...chapterQueries.map((query) => query.refetch()),

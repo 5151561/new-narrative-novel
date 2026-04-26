@@ -258,6 +258,14 @@ export function createMockProjectRuntime({
         await ensureHydrated()
         return baseBookClient.getBookStructureRecord(input)
       },
+      ...(baseBookClient.getBookDraftAssembly
+        ? {
+            async getBookDraftAssembly(input) {
+              await ensureHydrated()
+              return baseBookClient.getBookDraftAssembly?.(input) ?? null
+            },
+          }
+        : {}),
       async getBookManuscriptCheckpoints(input) {
         await ensureHydrated()
         return baseBookClient.getBookManuscriptCheckpoints(input)

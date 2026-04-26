@@ -2,6 +2,10 @@ import type { Locale } from '@/app/i18n'
 
 export const bookQueryKeys = {
   all: ['book'] as const,
+  draftAssembly: (bookId: string, locale?: Locale) =>
+    locale
+      ? ([...bookQueryKeys.all, 'draftAssembly', bookId, locale] as const)
+      : ([...bookQueryKeys.all, 'draftAssembly', bookId] as const),
   workspace: (bookId: string, locale?: Locale) =>
     locale ? ([...bookQueryKeys.all, 'workspace', bookId, locale] as const) : ([...bookQueryKeys.all, 'workspace', bookId] as const),
   checkpoints: (bookId: string, locale?: Locale) =>

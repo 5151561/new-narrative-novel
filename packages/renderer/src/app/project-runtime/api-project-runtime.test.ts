@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { BuildBookExportArtifactInput } from '@/features/book/api/book-export-artifact-records'
+import type { BookDraftAssemblyRecord } from '@/features/book/api/book-draft-assembly-records'
 import type { ChapterStructureWorkspaceRecord } from '@/features/chapter/api/chapter-records'
 import type { ReviewIssueDecisionRecord } from '@/features/review/api/review-decision-records'
 import type { ReviewIssueFixActionRecord } from '@/features/review/api/review-fix-action-records'
@@ -41,6 +42,60 @@ function createTransportMock() {
 
     if (method === 'GET' && path === '/api/projects/project-1/books/book-1/structure') {
       return { bookId: 'book-1', title: { en: 'Signal Arc', 'zh-CN': '信号弧' }, chapterIds: [] }
+    }
+
+    if (method === 'GET' && path === '/api/projects/project-1/books/book-1/draft-assembly') {
+      return {
+        bookId: 'book-1',
+        title: { en: 'Signal Arc', 'zh-CN': '信号弧' },
+        summary: { en: 'Current live draft assembly', 'zh-CN': '当前实时草稿装配' },
+        chapterCount: 1,
+        sceneCount: 1,
+        draftedSceneCount: 1,
+        missingDraftSceneCount: 0,
+        assembledWordCount: 12,
+        chapters: [
+          {
+            chapterId: 'chapter-1',
+            order: 1,
+            title: { en: 'Opening Signals', 'zh-CN': '开场信号' },
+            summary: { en: 'Assembly chapter', 'zh-CN': '装配章节' },
+            sceneCount: 1,
+            draftedSceneCount: 1,
+            missingDraftCount: 0,
+            assembledWordCount: 12,
+            warningsCount: 0,
+            queuedRevisionCount: 0,
+            tracedSceneCount: 1,
+            missingTraceSceneCount: 0,
+            scenes: [
+              {
+                kind: 'draft',
+                sceneId: 'scene-1',
+                order: 1,
+                title: { en: 'Platform', 'zh-CN': '站台' },
+                summary: { en: 'Drafted scene', 'zh-CN': '已成稿场景' },
+                proseStatusLabel: { en: 'Ready', 'zh-CN': '已就绪' },
+                proseDraft: 'Current manuscript prose.',
+                warningsCount: 0,
+                revisionQueueCount: 0,
+                draftWordCount: 3,
+                traceReady: true,
+                traceRollup: {
+                  acceptedFactCount: 2,
+                  relatedAssetCount: 1,
+                  sourceProposalCount: 1,
+                  missingLinks: [],
+                },
+                sourcePatchId: 'patch-1',
+                sourceProposals: [],
+                acceptedFactIds: ['fact-1'],
+                relatedAssets: [],
+              },
+            ],
+          },
+        ],
+      } satisfies BookDraftAssemblyRecord
     }
 
     if (method === 'POST' && path === '/api/projects/project-1/books/book-1/export-artifacts') {
@@ -214,6 +269,20 @@ describe('api project runtime', () => {
     expect(transport).toHaveBeenCalledWith({
       method: 'GET',
       path: '/api/projects/project-1/books/book-1/structure',
+    })
+  })
+
+  it('uses the live book draft assembly endpoint', async () => {
+    const transport = createTransportMock()
+    const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })
+
+    await expect(runtime.bookClient.getBookDraftAssembly({ bookId: 'book-1' })).resolves.toMatchObject({
+      bookId: 'book-1',
+      assembledWordCount: 12,
+    })
+    expect(transport).toHaveBeenCalledWith({
+      method: 'GET',
+      path: '/api/projects/project-1/books/book-1/draft-assembly',
     })
   })
 

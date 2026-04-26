@@ -48,6 +48,9 @@ export const apiRouteContract = {
   bookStructure({ projectId, bookId }: { projectId: string; bookId: string }) {
     return `${bookBase(projectId, bookId)}/structure`
   },
+  bookDraftAssembly({ projectId, bookId }: { projectId: string; bookId: string }) {
+    return `${bookBase(projectId, bookId)}/draft-assembly`
+  },
   bookManuscriptCheckpoints({ projectId, bookId }: { projectId: string; bookId: string }) {
     return bookManuscriptCheckpointsPath(projectId, bookId)
   },

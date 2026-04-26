@@ -5,6 +5,12 @@ import {
 import { ApiRequestError, type ApiQueryValue, type ApiRequestOptions } from './api-transport'
 import { createApiProjectRuntime } from './api-project-runtime'
 import { createProjectRuntimeInfoRecord } from './project-runtime-info'
+import type {
+  BookDraftAssemblyChapterRecord,
+  BookDraftAssemblyRecord,
+  BookDraftAssemblySceneRecord,
+} from '@/features/book/api/book-draft-assembly-records'
+import { buildSceneTraceabilityViewModel } from '@/features/traceability/lib/traceability-mappers'
 
 export interface FakeApiRequest<TBody = unknown> extends ApiRequestOptions<TBody> {}
 
@@ -170,6 +176,143 @@ function readLocale(query: ApiRequestOptions['query']) {
   return query?.locale === 'zh-CN' ? 'zh-CN' : 'en'
 }
 
+function localizeFallback(value: string) {
+  return {
+    en: value,
+    'zh-CN': value,
+  }
+}
+
+async function buildFakeBookDraftAssembly(
+  mockRuntime: ReturnType<typeof createMockProjectRuntime>,
+  bookId: string,
+): Promise<BookDraftAssemblyRecord | null> {
+  const bookRecord = await mockRuntime.bookClient.getBookStructureRecord({ bookId })
+  if (!bookRecord) {
+    return null
+  }
+
+  const chapters = (
+    await Promise.all(
+      bookRecord.chapterIds.map(async (chapterId, index) => {
+        const chapterRecord = await mockRuntime.chapterClient.getChapterStructureWorkspace({ chapterId })
+        if (!chapterRecord) {
+          return null
+        }
+
+        const scenes = (
+          await Promise.all(
+            [...chapterRecord.scenes]
+              .sort((left, right) => left.order - right.order)
+              .map(async (scene): Promise<BookDraftAssemblySceneRecord> => {
+                const prose = await mockRuntime.sceneClient.getSceneProse(scene.id)
+                const execution = await mockRuntime.traceabilitySceneClient.getSceneExecution(scene.id)
+                const inspector = await mockRuntime.traceabilitySceneClient.getSceneInspector(scene.id)
+                const patchPreview = await mockRuntime.traceabilitySceneClient.previewAcceptedPatch(scene.id)
+                const trace = buildSceneTraceabilityViewModel({
+                  sceneId: scene.id,
+                  execution,
+                  prose,
+                  inspector,
+                  patchPreview,
+                })
+                const proseDraft = prose?.proseDraft?.trim()
+                const proseStatusLabel = prose?.statusLabel ?? (proseDraft ? 'Ready' : 'Waiting for prose artifact')
+                const traceRollup = {
+                  acceptedFactCount: trace.acceptedFacts.length,
+                  relatedAssetCount: trace.relatedAssets.length,
+                  sourceProposalCount: trace.sourceProposals.length,
+                  missingLinks: trace.missingLinks,
+                }
+
+                if (proseDraft) {
+                  return {
+                    kind: 'draft',
+                    sceneId: scene.id,
+                    order: scene.order,
+                    title: scene.title,
+                    summary: scene.summary,
+                    proseStatusLabel: localizeFallback(proseStatusLabel),
+                    proseDraft,
+                    latestDiffSummary: prose?.latestDiffSummary,
+                    warningsCount: prose?.warningsCount ?? 0,
+                    revisionQueueCount: prose?.revisionQueueCount,
+                    draftWordCount: prose?.draftWordCount,
+                    traceReady: !trace.missingLinks.includes('trace'),
+                    traceRollup,
+                    sourcePatchId: prose?.traceSummary?.sourcePatchId,
+                    sourceProposals: prose?.traceSummary?.sourceProposals ?? trace.sourceProposals,
+                    acceptedFactIds: prose?.traceSummary?.acceptedFactIds ?? trace.acceptedFacts.map((fact) => fact.id),
+                    relatedAssets: prose?.traceSummary?.relatedAssets ?? trace.relatedAssets,
+                  }
+                }
+
+                const gapReason =
+                  prose?.latestDiffSummary ??
+                  (trace.missingLinks.includes('trace')
+                    ? 'Trace coverage is still missing for this scene.'
+                    : 'No prose artifact has been materialized for this scene yet.')
+
+                return {
+                  kind: 'gap',
+                  sceneId: scene.id,
+                  order: scene.order,
+                  title: scene.title,
+                  summary: scene.summary,
+                  proseStatusLabel: localizeFallback(proseStatusLabel),
+                  latestDiffSummary: prose?.latestDiffSummary,
+                  warningsCount: prose?.warningsCount ?? 0,
+                  revisionQueueCount: prose?.revisionQueueCount,
+                  draftWordCount: prose?.draftWordCount,
+                  traceReady: !trace.missingLinks.includes('trace'),
+                  traceRollup,
+                  gapReason: localizeFallback(gapReason),
+                }
+              }),
+          )
+        ).sort((left, right) => left.order - right.order)
+
+        const draftedSceneCount = scenes.filter((scene) => scene.kind === 'draft').length
+        const tracedSceneCount = scenes.filter((scene) => scene.traceReady).length
+        const warningsCount = scenes.reduce((total, scene) => total + scene.warningsCount, 0)
+        const queuedRevisionCount = scenes.reduce((total, scene) => total + (scene.revisionQueueCount ?? 0), 0)
+        const assembledWordCount = scenes.reduce(
+          (total, scene) => total + (scene.kind === 'draft' ? scene.draftWordCount ?? 0 : 0),
+          0,
+        )
+
+        return {
+          chapterId: chapterRecord.chapterId,
+          order: index + 1,
+          title: chapterRecord.title,
+          summary: chapterRecord.summary,
+          sceneCount: scenes.length,
+          draftedSceneCount,
+          missingDraftCount: scenes.length - draftedSceneCount,
+          assembledWordCount,
+          warningsCount,
+          queuedRevisionCount,
+          tracedSceneCount,
+          missingTraceSceneCount: scenes.length - tracedSceneCount,
+          scenes,
+        } satisfies BookDraftAssemblyChapterRecord
+      }),
+    )
+  ).filter((chapter): chapter is BookDraftAssemblyChapterRecord => chapter !== null)
+
+  return {
+    bookId: bookRecord.bookId,
+    title: bookRecord.title,
+    summary: bookRecord.summary,
+    chapterCount: chapters.length,
+    sceneCount: chapters.reduce((total, chapter) => total + chapter.sceneCount, 0),
+    draftedSceneCount: chapters.reduce((total, chapter) => total + chapter.draftedSceneCount, 0),
+    missingDraftSceneCount: chapters.reduce((total, chapter) => total + chapter.missingDraftCount, 0),
+    assembledWordCount: chapters.reduce((total, chapter) => total + chapter.assembledWordCount, 0),
+    chapters,
+  }
+}
+
 async function handleFakeApiRequest<TResponse, TBody>(
   projectId: string,
   mockRuntime: ReturnType<typeof createMockProjectRuntime>,
@@ -206,6 +349,11 @@ async function handleFakeApiRequest<TResponse, TBody>(
     return mockRuntime.bookClient.getBookStructureRecord({
       bookId: decodeSegment(bookStructureMatch[1]!),
     }) as Promise<TResponse>
+  }
+
+  const bookDraftAssemblyMatch = path.match(new RegExp(`${projectBasePattern}/books/([^/]+)/draft-assembly$`))
+  if (method === 'GET' && bookDraftAssemblyMatch) {
+    return buildFakeBookDraftAssembly(mockRuntime, decodeSegment(bookDraftAssemblyMatch[1]!)) as Promise<TResponse>
   }
 
   const bookCheckpointsMatch = path.match(new RegExp(`${projectBasePattern}/books/([^/]+)/manuscript-checkpoints$`))

@@ -3,6 +3,7 @@ import {
   getMockBookExperimentBranches,
   type BookExperimentBranchRecord,
 } from './book-experiment-branches'
+import type { BookDraftAssemblyRecord } from './book-draft-assembly-records'
 import {
   getMockBookExportProfile,
   getMockBookExportProfiles,
@@ -18,6 +19,10 @@ import type { BookStructureRecord } from './book-records'
 import { getMockBookRecordById } from './mock-book-db'
 
 export interface GetBookStructureRecordInput {
+  bookId: string
+}
+
+export interface GetBookDraftAssemblyInput {
   bookId: string
 }
 
@@ -54,8 +59,24 @@ export interface GetBookExperimentBranchInput {
   branchId: string
 }
 
+const unsupportedBookDraftAssemblyErrorCode = 'BOOK_DRAFT_ASSEMBLY_UNSUPPORTED'
+
+export function createUnsupportedBookDraftAssemblyError(message = 'Book draft assembly is unavailable.') {
+  const error = new Error(message)
+  ;(error as Error & { code?: string }).code = unsupportedBookDraftAssemblyErrorCode
+  return error
+}
+
+export function isUnsupportedBookDraftAssemblyError(error: unknown): error is Error & { code: string } {
+  return (
+    error instanceof Error &&
+    (error as Error & { code?: string }).code === unsupportedBookDraftAssemblyErrorCode
+  )
+}
+
 export interface BookClient {
   getBookStructureRecord(input: GetBookStructureRecordInput): Promise<BookStructureRecord | null>
+  getBookDraftAssembly?(input: GetBookDraftAssemblyInput): Promise<BookDraftAssemblyRecord | null>
   getBookManuscriptCheckpoints(input: GetBookManuscriptCheckpointsInput): Promise<BookManuscriptCheckpointRecord[]>
   getBookManuscriptCheckpoint(input: GetBookManuscriptCheckpointInput): Promise<BookManuscriptCheckpointRecord | null>
   getBookExportProfiles(input: GetBookExportProfilesInput): Promise<BookExportProfileRecord[]>
@@ -68,6 +89,7 @@ export interface BookClient {
 
 interface CreateBookClientOptions {
   getBookById?: (bookId: string) => BookStructureRecord | null
+  getBookDraftAssemblyByBookId?: (bookId: string) => BookDraftAssemblyRecord | null
   getBookManuscriptCheckpointsByBookId?: (bookId: string) => BookManuscriptCheckpointRecord[]
   getBookExportProfilesByBookId?: (bookId: string) => BookExportProfileRecord[]
   getBookExportProfileById?: (bookId: string, exportProfileId: string) => BookExportProfileRecord | null
@@ -83,6 +105,7 @@ function clone<T>(value: T): T {
 
 export function createBookClient({
   getBookById = getMockBookRecordById,
+  getBookDraftAssemblyByBookId,
   getBookManuscriptCheckpointsByBookId = getMockBookManuscriptCheckpoints,
   getBookExportProfilesByBookId = getMockBookExportProfiles,
   getBookExportProfileById = getMockBookExportProfile,
@@ -96,6 +119,14 @@ export function createBookClient({
       const record = getBookById(bookId)
       return record ? clone(record) : null
     },
+    ...(getBookDraftAssemblyByBookId
+      ? {
+          async getBookDraftAssembly({ bookId }: GetBookDraftAssemblyInput) {
+            const record = getBookDraftAssemblyByBookId(bookId)
+            return record ? clone(record) : null
+          },
+        }
+      : {}),
     async getBookManuscriptCheckpoints({ bookId }) {
       return clone(getBookManuscriptCheckpointsByBookId(bookId))
     },

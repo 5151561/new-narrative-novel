@@ -1,5 +1,6 @@
 import type { AssetClient } from '@/features/asset/api/asset-client'
 import type { BookClient } from '@/features/book/api/book-client'
+import type { BookDraftAssemblyRecord } from '@/features/book/api/book-draft-assembly-records'
 import type { BookExportArtifactRecord, BuildBookExportArtifactInput } from '@/features/book/api/book-export-artifact-records'
 import type { BookExperimentBranchRecord } from '@/features/book/api/book-experiment-branches'
 import type { BookExportProfileRecord } from '@/features/book/api/book-export-profiles'
@@ -50,6 +51,12 @@ function createBookClient(projectId: string, transport: ApiTransport): BookClien
       return transport.requestJson<BookStructureRecord | null>({
         method: 'GET',
         path: apiRouteContract.bookStructure({ projectId, bookId }),
+      })
+    },
+    async getBookDraftAssembly({ bookId }) {
+      return transport.requestJson<BookDraftAssemblyRecord | null>({
+        method: 'GET',
+        path: apiRouteContract.bookDraftAssembly({ projectId, bookId }),
       })
     },
     async getBookManuscriptCheckpoints({ bookId }) {

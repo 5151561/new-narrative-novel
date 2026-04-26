@@ -2,6 +2,11 @@ import type { Locale } from '@/app/i18n'
 import { readLocalizedChapterText, type ChapterStructureWorkspaceRecord } from '@/features/chapter/api/chapter-records'
 import type { SceneProseViewModel } from '@/features/scene/types/scene-view-models'
 
+import type {
+  BookDraftAssemblyChapterRecord,
+  BookDraftAssemblyRecord,
+  BookDraftAssemblySceneRecord,
+} from '../api/book-draft-assembly-records'
 import { readLocalizedBookText, type BookStructureRecord } from '../api/book-records'
 import type { BookSceneTraceRollup } from '../types/book-view-models'
 import type {
@@ -147,6 +152,40 @@ function buildSectionViewModel(
   }
 }
 
+function buildChapterViewModelFromSections(input: {
+  chapterId: string
+  order: number
+  title: string
+  summary: string
+  sections: BookDraftSceneSectionViewModel[]
+}): BookDraftChapterViewModel {
+  const { chapterId, order, title, summary, sections } = input
+  const draftedSceneCount = sections.filter((section) => !section.isMissingDraft).length
+  const tracedSceneCount = sections.filter((section) => section.traceReady).length
+  const missingDraftCount = sections.filter((section) => section.isMissingDraft).length
+  const warningsCount = sections.reduce((total, section) => total + section.warningsCount, 0)
+  const queuedRevisionCount = sections.reduce((total, section) => total + (section.revisionQueueCount ?? 0), 0)
+  const assembledWordCount = sections.reduce((total, section) => total + (section.draftWordCount ?? 0), 0)
+
+  return {
+    chapterId,
+    order,
+    title,
+    summary,
+    sceneCount: sections.length,
+    draftedSceneCount,
+    missingDraftCount,
+    assembledWordCount,
+    warningsCount,
+    queuedRevisionCount,
+    tracedSceneCount,
+    missingTraceSceneCount: sections.length - tracedSceneCount,
+    sections,
+    assembledProseSections: sections.map((section) => section.proseDraft?.trim()).filter(Boolean) as string[],
+    coverageStatus: buildCoverageStatus(sections.length, draftedSceneCount, tracedSceneCount),
+  }
+}
+
 function buildChapterViewModel(
   chapterRecord: ChapterStructureWorkspaceRecord,
   order: number,
@@ -164,30 +203,59 @@ function buildChapterViewModel(
         traceRollupsBySceneId,
       }),
     )
-  const draftedSceneCount = sections.filter((section) => !section.isMissingDraft).length
-  const tracedSceneCount = sections.filter((section) => section.traceReady).length
-  const missingDraftCount = sections.filter((section) => section.isMissingDraft).length
-  const warningsCount = sections.reduce((total, section) => total + section.warningsCount, 0)
-  const queuedRevisionCount = sections.reduce((total, section) => total + (section.revisionQueueCount ?? 0), 0)
-  const assembledWordCount = sections.reduce((total, section) => total + (section.draftWordCount ?? 0), 0)
 
-  return {
+  return buildChapterViewModelFromSections({
     chapterId: chapterRecord.chapterId,
     order,
     title: readLocalizedChapterText(chapterRecord.title, locale),
     summary: readLocalizedChapterText(chapterRecord.summary, locale),
-    sceneCount: sections.length,
-    draftedSceneCount,
-    missingDraftCount,
-    assembledWordCount,
-    warningsCount,
-    queuedRevisionCount,
-    tracedSceneCount,
-    missingTraceSceneCount: sections.length - tracedSceneCount,
     sections,
-    assembledProseSections: sections.map((section) => section.proseDraft?.trim()).filter(Boolean) as string[],
-    coverageStatus: buildCoverageStatus(sections.length, draftedSceneCount, tracedSceneCount),
+  })
+}
+
+function buildAssemblySectionViewModel(
+  sceneRecord: BookDraftAssemblySceneRecord,
+  locale: Locale,
+): BookDraftSceneSectionViewModel {
+  const proseDraft = sceneRecord.kind === 'draft' ? sceneRecord.proseDraft : undefined
+  const draftWordCount = deriveWordCount(proseDraft, sceneRecord.draftWordCount)
+  const latestDiffSummary =
+    sceneRecord.kind === 'gap'
+      ? readLocalizedBookText(sceneRecord.gapReason, locale)
+      : sceneRecord.latestDiffSummary
+
+  return {
+    sceneId: sceneRecord.sceneId,
+    order: sceneRecord.order,
+    title: readLocalizedChapterText(sceneRecord.title, locale),
+    summary: readLocalizedChapterText(sceneRecord.summary, locale),
+    proseDraft,
+    draftWordCount,
+    isMissingDraft: sceneRecord.kind === 'gap' || !(proseDraft && proseDraft.trim().length > 0),
+    warningsCount: sceneRecord.warningsCount,
+    revisionQueueCount: sceneRecord.revisionQueueCount,
+    traceReady: sceneRecord.traceReady,
+    relatedAssetCount: sceneRecord.traceRollup.relatedAssetCount,
+    sourceProposalCount: sceneRecord.traceRollup.sourceProposalCount,
+    latestDiffSummary,
   }
+}
+
+function buildAssemblyChapterViewModel(
+  chapterRecord: BookDraftAssemblyChapterRecord,
+  locale: Locale,
+): BookDraftChapterViewModel {
+  const sections = [...chapterRecord.scenes]
+    .sort((left, right) => left.order - right.order)
+    .map((sceneRecord) => buildAssemblySectionViewModel(sceneRecord, locale))
+
+  return buildChapterViewModelFromSections({
+    chapterId: chapterRecord.chapterId,
+    order: chapterRecord.order,
+    title: readLocalizedChapterText(chapterRecord.title, locale),
+    summary: readLocalizedChapterText(chapterRecord.summary, locale),
+    sections,
+  })
 }
 
 function buildInspectorSelectedChapter(
@@ -239,33 +307,15 @@ function buildDockItem(chapter: BookDraftChapterViewModel, detail: string): Book
   }
 }
 
-export function buildBookDraftWorkspaceViewModel({
-  record,
-  locale,
-  selectedChapterId,
-  chapterWorkspacesById,
-  sceneProseBySceneId,
-  sceneProseStateBySceneId,
-  traceRollupsBySceneId,
-}: BuildBookDraftWorkspaceViewModelInput): BookDraftWorkspaceViewModel {
-  const chapters = record.chapterIds.flatMap((chapterId, index) => {
-    const chapterRecord = chapterWorkspacesById[chapterId]
-    if (!chapterRecord) {
-      return []
-    }
-
-    return [
-      buildChapterViewModel(
-        chapterRecord,
-        index + 1,
-        locale,
-        sceneProseBySceneId,
-        sceneProseStateBySceneId,
-        traceRollupsBySceneId,
-      ),
-    ]
-  })
-
+function buildBookDraftWorkspaceFromChapters(input: {
+  bookId: string
+  title: string
+  summary: string
+  locale: Locale
+  selectedChapterId?: string | null
+  chapters: BookDraftChapterViewModel[]
+}): BookDraftWorkspaceViewModel {
+  const { bookId, title, summary, locale, selectedChapterId, chapters } = input
   const selectedChapter = chapters.find((chapter) => chapter.chapterId === selectedChapterId) ?? chapters[0] ?? null
   const draftedChapterCount = chapters.filter((chapter) => chapter.draftedSceneCount > 0).length
   const missingDraftChapterCount = chapters.filter((chapter) => chapter.missingDraftCount > 0).length
@@ -325,9 +375,9 @@ export function buildBookDraftWorkspaceViewModel({
   }
 
   return {
-    bookId: record.bookId,
-    title: readLocalizedBookText(record.title, locale),
-    summary: readLocalizedBookText(record.summary, locale),
+    bookId,
+    title,
+    summary,
     selectedChapterId: selectedChapter?.chapterId ?? null,
     chapters,
     selectedChapter,
@@ -353,4 +403,64 @@ export function buildBookDraftWorkspaceViewModel({
     },
     dockSummary,
   }
+}
+
+export function buildBookDraftWorkspaceViewModel({
+  record,
+  locale,
+  selectedChapterId,
+  chapterWorkspacesById,
+  sceneProseBySceneId,
+  sceneProseStateBySceneId,
+  traceRollupsBySceneId,
+}: BuildBookDraftWorkspaceViewModelInput): BookDraftWorkspaceViewModel {
+  const chapters = record.chapterIds.flatMap((chapterId, index) => {
+    const chapterRecord = chapterWorkspacesById[chapterId]
+    if (!chapterRecord) {
+      return []
+    }
+
+    return [
+      buildChapterViewModel(
+        chapterRecord,
+        index + 1,
+        locale,
+        sceneProseBySceneId,
+        sceneProseStateBySceneId,
+        traceRollupsBySceneId,
+      ),
+    ]
+  })
+
+  return buildBookDraftWorkspaceFromChapters({
+    bookId: record.bookId,
+    title: readLocalizedBookText(record.title, locale),
+    summary: readLocalizedBookText(record.summary, locale),
+    locale,
+    selectedChapterId,
+    chapters,
+  })
+}
+
+export function buildBookDraftWorkspaceViewModelFromAssemblyRecord({
+  record,
+  locale,
+  selectedChapterId,
+}: {
+  record: BookDraftAssemblyRecord
+  locale: Locale
+  selectedChapterId?: string | null
+}): BookDraftWorkspaceViewModel {
+  const chapters = [...record.chapters]
+    .sort((left, right) => left.order - right.order)
+    .map((chapterRecord) => buildAssemblyChapterViewModel(chapterRecord, locale))
+
+  return buildBookDraftWorkspaceFromChapters({
+    bookId: record.bookId,
+    title: readLocalizedBookText(record.title, locale),
+    summary: readLocalizedBookText(record.summary, locale),
+    locale,
+    selectedChapterId,
+    chapters,
+  })
 }

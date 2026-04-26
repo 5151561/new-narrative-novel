@@ -4,6 +4,7 @@ import type { PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
+import { bookQueryKeys } from '@/features/book/hooks/book-query-keys'
 import { createChapterClient } from '../api/chapter-client'
 import { patchChapterRecordScene, reorderChapterRecordScenes } from '../api/chapter-record-mutations'
 import type { ChapterStructureWorkspaceRecord } from '../api/chapter-records'
@@ -196,6 +197,9 @@ describe('useUpdateChapterSceneStructureMutation', () => {
         queryKey: chapterQueryKeys.workspace('chapter-signals-in-rain'),
         refetchType: 'active',
       })
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: bookQueryKeys.all,
     })
   })
 
