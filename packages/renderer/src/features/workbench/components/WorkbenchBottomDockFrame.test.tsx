@@ -26,6 +26,22 @@ function TestDockFrame() {
   )
 }
 
+function InvalidActiveDockFrame() {
+  return (
+    <WorkbenchBottomDockFrame
+      ariaLabel="Review dock"
+      tabs={[
+        { id: 'problems', label: 'Problems' },
+        { id: 'activity', label: 'Activity' },
+      ]}
+      activeTab={'missing' as TestTab}
+      onTabChange={() => {}}
+    >
+      <div>fallback content</div>
+    </WorkbenchBottomDockFrame>
+  )
+}
+
 describe('WorkbenchBottomDockFrame', () => {
   it('wires tabs to the active tabpanel and supports roving keyboard navigation', async () => {
     const user = userEvent.setup()
@@ -35,7 +51,7 @@ describe('WorkbenchBottomDockFrame', () => {
     const problemsTab = within(tablist).getByRole('tab', { name: /Problems/i })
     const activityTab = within(tablist).getByRole('tab', { name: /Activity/i })
     const traceTab = within(tablist).getByRole('tab', { name: /Trace/i })
-    let panel = screen.getByRole('tabpanel')
+    let panel = screen.getByRole('tabpanel', { name: /Problems/i })
 
     expect(problemsTab).toHaveAttribute('aria-selected', 'true')
     expect(problemsTab).toHaveProperty('tabIndex', 0)
@@ -46,7 +62,7 @@ describe('WorkbenchBottomDockFrame', () => {
 
     problemsTab.focus()
     await user.keyboard('{ArrowRight}')
-    panel = screen.getByRole('tabpanel')
+    panel = screen.getByRole('tabpanel', { name: /Activity/i })
 
     expect(activityTab).toHaveFocus()
     expect(activityTab).toHaveAttribute('aria-selected', 'true')
@@ -57,7 +73,7 @@ describe('WorkbenchBottomDockFrame', () => {
     expect(panel).toHaveTextContent('activity content')
 
     await user.keyboard('{End}')
-    panel = screen.getByRole('tabpanel')
+    panel = screen.getByRole('tabpanel', { name: /Trace/i })
 
     expect(traceTab).toHaveFocus()
     expect(traceTab).toHaveAttribute('aria-selected', 'true')
@@ -65,7 +81,7 @@ describe('WorkbenchBottomDockFrame', () => {
     expect(panel).toHaveTextContent('trace content')
 
     await user.keyboard('{Home}')
-    panel = screen.getByRole('tabpanel')
+    panel = screen.getByRole('tabpanel', { name: /Problems/i })
 
     expect(problemsTab).toHaveFocus()
     expect(problemsTab).toHaveAttribute('aria-selected', 'true')
@@ -76,5 +92,19 @@ describe('WorkbenchBottomDockFrame', () => {
 
     expect(traceTab).toHaveFocus()
     expect(traceTab).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('falls back to the first tab for active panel labeling when activeTab is invalid', () => {
+    render(<InvalidActiveDockFrame />)
+
+    const tablist = screen.getByRole('tablist', { name: 'Review dock tabs' })
+    const problemsTab = within(tablist).getByRole('tab', { name: /Problems/i })
+    const activityTab = within(tablist).getByRole('tab', { name: /Activity/i })
+    const panel = screen.getByRole('tabpanel', { name: /Problems/i })
+
+    expect(problemsTab).toHaveAttribute('aria-selected', 'true')
+    expect(activityTab).toHaveAttribute('aria-selected', 'false')
+    expect(panel).toHaveAttribute('aria-labelledby', problemsTab.id)
+    expect(problemsTab).toHaveAttribute('aria-controls', panel.id)
   })
 })

@@ -23,6 +23,18 @@ const sceneDraftRoute = (sceneId = 'scene-midnight-platform'): WorkbenchRouteSta
   tab: 'prose',
 })
 
+const bookReviewRoute = (reviewIssueId = 'issue-1'): WorkbenchRouteState => ({
+  scope: 'book',
+  bookId: 'book-signal-arc',
+  lens: 'draft',
+  view: 'signals',
+  draftView: 'review',
+  reviewFilter: 'blockers',
+  reviewStatusFilter: 'open',
+  reviewIssueId,
+  selectedChapterId: 'chapter-signals-in-rain',
+})
+
 function renderEditorState(storageKey = TEST_STORAGE_KEY) {
   return renderHook(() => useWorkbenchEditorState({ storageKey }))
 }
@@ -83,6 +95,17 @@ describe('useWorkbenchEditorState', () => {
     expect(result.current.state.contexts[0].route).toMatchObject({
       proposalId: 'proposal-new',
     })
+  })
+
+  it('context ids ignore fine-grained scene proposal and book review route parameters', () => {
+    const sceneRoute = sceneOrchestrateRoute()
+    const firstBookRoute = bookReviewRoute('issue-1')
+    const secondBookRoute = bookReviewRoute('issue-2')
+
+    expect(getWorkbenchEditorContextId({ ...sceneRoute, proposalId: 'proposal-a' })).toBe(
+      getWorkbenchEditorContextId({ ...sceneRoute, proposalId: 'proposal-b' }),
+    )
+    expect(getWorkbenchEditorContextId(firstBookRoute)).toBe(getWorkbenchEditorContextId(secondBookRoute))
   })
 
   it('scene orchestrate and scene draft are different contexts', () => {
@@ -267,6 +290,78 @@ describe('useWorkbenchEditorState', () => {
       'asset',
       'book',
     ])
+  })
+
+  it('ignores malformed old and unknown stored contexts while restoring valid route snapshots', () => {
+    window.localStorage.setItem(
+      TEST_STORAGE_KEY,
+      JSON.stringify({
+        version: 0,
+        contextIds: [
+          'scene:scene-valid:orchestrate',
+          'scene:missing-tab:orchestrate',
+          'review:issue-1:detail',
+          'book:book-signal-arc:draft',
+        ],
+        activeContextId: 'review:issue-1:detail',
+        contexts: [
+          {
+            id: 'scene:scene-valid:orchestrate',
+            route: sceneOrchestrateRoute('scene-valid'),
+            title: 'Scene · Orchestrate',
+            subtitle: 'scene-valid',
+            updatedAt: 10,
+            lastActiveAt: 10,
+          },
+          {
+            id: 'scene:missing-tab:orchestrate',
+            route: {
+              scope: 'scene',
+              sceneId: 'missing-tab',
+              lens: 'orchestrate',
+            },
+            title: 'Old scene',
+            subtitle: 'missing-tab',
+            updatedAt: 9,
+            lastActiveAt: 9,
+          },
+          {
+            id: 'review:issue-1:detail',
+            route: {
+              scope: 'review',
+              reviewIssueId: 'issue-1',
+            },
+            title: 'Unknown review route',
+            subtitle: 'issue-1',
+            updatedAt: 8,
+            lastActiveAt: 12,
+          },
+          {
+            id: 'book:book-signal-arc:draft',
+            route: {
+              scope: 'book',
+              bookId: 'book-signal-arc',
+              lens: 'draft',
+              view: 'signals',
+              draftView: 'review',
+              reviewIssueId: 'issue-2',
+            },
+            title: 'Book · Draft',
+            subtitle: 'book-signal-arc',
+            updatedAt: 11,
+            lastActiveAt: 11,
+          },
+        ],
+      }),
+    )
+
+    const { result } = renderEditorState()
+
+    expect(result.current.state.contexts.map((context) => context.id)).toEqual([
+      'scene:scene-valid:orchestrate',
+      'book:book-signal-arc:draft',
+    ])
+    expect(result.current.state.activeContextId).toBe('book:book-signal-arc:draft')
   })
 
   it('returns empty state when localStorage read throws', () => {

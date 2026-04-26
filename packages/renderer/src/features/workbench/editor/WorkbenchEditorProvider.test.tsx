@@ -147,6 +147,21 @@ describe('WorkbenchEditorProvider', () => {
     expect(replaceRoute).toHaveBeenCalledWith(sceneRoute('scene-a'))
   })
 
+  it('closing the only active tab does not invent or replace a route', async () => {
+    const user = userEvent.setup()
+    const { replaceRoute } = renderProvider(sceneRoute('scene-a'))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('active-context-id')).toHaveTextContent('scene:scene-a:orchestrate'),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Close A' }))
+
+    expect(replaceRoute).not.toHaveBeenCalled()
+    expect(screen.getByTestId('context-ids')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('active-context-id')).toHaveTextContent('none')
+  })
+
   it('optional hook returns null outside provider', () => {
     render(<OptionalProbe />)
 

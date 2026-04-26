@@ -86,7 +86,7 @@ export function WorkbenchBottomDockFrame<TabId extends string = string>({
         aria-label={`${ariaLabel} tabs`}
       >
         {tabs.map((tab, index) => {
-          const isActive = activeTab === tab.id
+          const isActive = activeTabId === tab.id
           const tabDomId = `${baseId}-tab-${toDomIdPart(tab.id)}`
           const panelDomId = `${baseId}-panel-${toDomIdPart(tab.id)}`
 
