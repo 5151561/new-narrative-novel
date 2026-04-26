@@ -53,6 +53,19 @@ export const ExecutionSelection: Story = {
   },
 }
 
+export const WaitingReviewMainStageGate: Story = {
+  name: 'Scene / Orchestrate / WaitingReviewMainStageGate',
+  args: {
+    sceneId: 'scene-midnight-platform',
+    defaultTab: 'execution',
+  },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution',
+    },
+  },
+}
+
 export const PatchPreviewOpen: Story = {
   args: {
     sceneId: 'scene-midnight-platform',

@@ -9,13 +9,10 @@ import type { RunArtifactDetailRecord, RunArtifactSummaryRecord } from '@/featur
 import type {
   RunEventRecord,
   RunRecord,
-  RunReviewDecisionKind,
-  RunSelectedProposalVariantRecord,
 } from '@/features/run/api/run-records'
 import type { RunTraceResponse } from '@/features/run/api/run-trace-records'
 import { RunEventInspectorPanel, type RunEventInspectorMode } from '@/features/run/components/RunEventInspectorPanel'
 import { RunEventStreamPanel } from '@/features/run/components/RunEventStreamPanel'
-import { RunReviewGate } from '@/features/run/components/RunReviewGate'
 import { WorkbenchBottomDockFrame } from '@/features/workbench/components/WorkbenchBottomDockFrame'
 
 import type { SceneDockTabId, SceneDockViewModel } from '../types/scene-view-models'
@@ -90,16 +87,8 @@ interface SceneBottomDockRunSupport {
   onInspectorModeChange?: (mode: RunEventInspectorMode) => void
   onSelectArtifact?: (artifactId: string) => void
   selectedVariants?: Record<string, string>
-  selectedVariantsForSubmit?: RunSelectedProposalVariantRecord[]
   onSelectProposalVariant?: (proposalId: string, variantId: string) => void
   onOpenAssetContext?: (assetId: string) => void
-  isSubmittingReviewDecision?: boolean
-  onSubmitReviewDecision?: (input: {
-    decision: RunReviewDecisionKind
-    note?: string
-    patchId?: string
-    selectedVariants?: RunSelectedProposalVariantRecord[]
-  }) => Promise<void> | void
 }
 
 const dockProductMilestoneKinds = new Set<RunEventRecord['kind']>([
@@ -133,16 +122,14 @@ function ActiveRunSupport({
   inspectorMode,
   onInspectorModeChange,
   onSelectArtifact,
-  selectedVariants,
-  selectedVariantsForSubmit = [],
+  selectedVariants = {},
   onSelectProposalVariant,
   onOpenAssetContext,
-  isSubmittingReviewDecision = false,
-  onSubmitReviewDecision,
 }: SceneBottomDockRunSupport) {
   const { locale } = useI18n()
   const recentEvents = events.filter((event) => dockProductMilestoneKinds.has(event.kind))
   const hasRunSupport = Boolean(run) || isLoading || Boolean(error) || recentEvents.length > 0
+  const selectedVariantCount = Object.keys(selectedVariants).length
 
   if (!hasRunSupport) {
     return null
@@ -175,21 +162,24 @@ function ActiveRunSupport({
           ) : null}
         </div>
       </SectionCard>
-      {run?.status === 'waiting_review' && run.pendingReviewId && onSubmitReviewDecision ? (
-        <RunReviewGate
-          runTitle={locale === 'zh-CN' ? '候选版本评审决策' : 'Variant review decision'}
-          pendingReviewId={run.pendingReviewId}
-          isSubmitting={isSubmittingReviewDecision}
-          selectedVariants={selectedVariantsForSubmit}
-          variantSelectionSummary={
-            selectedVariantsForSubmit.length > 0
-              ? locale === 'zh-CN'
-                ? `${selectedVariantsForSubmit.length} 个 variant 将随采纳决策提交。`
-                : `${selectedVariantsForSubmit.length} selected variant${selectedVariantsForSubmit.length === 1 ? '' : 's'} will travel with Accept.`
-              : undefined
+      {run?.status === 'waiting_review' && run.pendingReviewId ? (
+        <SectionCard
+          eyebrow={locale === 'zh-CN' ? '评审交接' : 'Review Handoff'}
+          title={locale === 'zh-CN' ? '等待主舞台评审' : 'Waiting for Main Stage Review'}
+          actions={
+            <Badge tone="warn">
+              {locale === 'zh-CN'
+                ? `${selectedVariantCount} 个候选版本`
+                : `${selectedVariantCount} selected variant${selectedVariantCount === 1 ? '' : 's'}`}
+            </Badge>
           }
-          onSubmitDecision={onSubmitReviewDecision}
-        />
+        >
+          <p className="text-sm leading-6 text-text-muted">
+            {locale === 'zh-CN'
+              ? '这里保留事件、产物和追踪支持。候选版本选择只是草稿上下文；请回到 Scene / Orchestrate 主舞台提交评审决定，随后才会进入 canon patch 与 prose draft。'
+              : 'Events, artifacts, and trace stay here as support context. Variant choices are draft context; submit the review decision from the Scene / Orchestrate Main Stage before canon patch and prose draft are written.'}
+          </p>
+        </SectionCard>
       ) : null}
       <div className="grid min-h-[360px] gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.95fr)]">
         <RunEventStreamPanel

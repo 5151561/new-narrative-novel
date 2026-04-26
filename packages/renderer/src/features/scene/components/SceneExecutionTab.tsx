@@ -2,7 +2,13 @@ import { useI18n, type Locale } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { SectionCard } from '@/components/ui/SectionCard'
 
-import type { RunEventRecord, RunMode, RunRecord, RunReviewDecisionKind } from '@/features/run/api/run-records'
+import type {
+  RunEventRecord,
+  RunMode,
+  RunRecord,
+  RunReviewDecisionKind,
+  RunSelectedProposalVariantRecord,
+} from '@/features/run/api/run-records'
 import { RunEventStreamPanel } from '@/features/run/components/RunEventStreamPanel'
 import { RunReviewGate } from '@/features/run/components/RunReviewGate'
 
@@ -24,6 +30,8 @@ export interface SceneExecutionRunSessionViewModel {
   events: RunEventRecord[]
   pendingReviewId: string | null
   isReviewPending: boolean
+  selectedVariantsForSubmit: RunSelectedProposalVariantRecord[]
+  variantSelectionSummary?: string
   isLoading: boolean
   error: Error | null
   isStartingRun: boolean
@@ -33,6 +41,7 @@ export interface SceneExecutionRunSessionViewModel {
     decision: RunReviewDecisionKind
     note?: string
     patchId?: string
+    selectedVariants?: RunSelectedProposalVariantRecord[]
   }) => Promise<void> | void
 }
 
@@ -198,6 +207,8 @@ export function SceneExecutionTab({
             runTitle={activeRun.title}
             pendingReviewId={runSession.pendingReviewId}
             isSubmitting={runSession.isSubmittingDecision}
+            selectedVariants={runSession.selectedVariantsForSubmit}
+            variantSelectionSummary={runSession.variantSelectionSummary}
             onSubmitDecision={runSession.onSubmitDecision}
           />
         ) : null}

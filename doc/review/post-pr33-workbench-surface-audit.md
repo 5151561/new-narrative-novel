@@ -74,8 +74,15 @@ Bundle 3 ran Storybook at `http://127.0.0.1:6006/` and verified the updated shel
 ## Optional constitution guard script decision
 Bundle 3 skipped `scripts/check-workbench-constitution.mjs` and root `check:workbench` because this PR is already contract/story/test heavy, and the suggested static checks could become noisy around legitimate shell-owned layout code. Keep this as a follow-up only if the controller wants a conservative warning-only script after PR34 lands.
 
+## PR35 follow-up: Scene run review gate ownership
+- Moved primary waiting-review decision controls out of `SceneBottomDock`.
+- Main Stage now owns accept / accept-with-edit / request-rewrite / reject for active scene runs.
+- Bottom Dock remains support-only for events / artifacts / trace / problems.
+- Selected proposal variants remain draft context and travel with Main Stage accept decisions.
+- Tests / Storybook states added: `SceneExecutionTab.test.tsx`, `SceneBottomDock.test.tsx`, `SceneExecutionContainer.test.tsx`, `SceneDockContainer.test.tsx`, `scene-run-session-context.test.tsx`, `RunReviewGate.test.tsx`, `Scene / Orchestrate / WaitingReviewMainStageGate`, and `Scene / Dock / WaitingReviewSupportOnly`.
+
 ## Follow-up backlog
-- Move Scene run review decision controls out of `SceneBottomDock` active run support if the next scene runtime UX plan confirms that waiting-review acceptance/rewrite/reject is a Main Stage workflow.
+- Keep Scene run review decision controls out of `SceneBottomDock`; future runtime UX slices should preserve Main Stage ownership for waiting-review decisions.
 - Fix the deferred baseline duplicate React key warnings in BookDraftWorkspace tests in a dedicated book-draft cleanup slice.
 - Keep route/layout/editor boundary tests near WorkbenchShell and hook tests whenever shell controls or editor tabs change.
 - Consider a warning-only constitution guard script in a dedicated tooling slice after the PR34 contract work is reviewed.

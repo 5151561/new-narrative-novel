@@ -94,6 +94,23 @@ export const ProposalVariants: Story = {
   },
 }
 
+export const WaitingReviewSupportOnly: Story = {
+  name: 'Scene / Dock / WaitingReviewSupportOnly',
+  args: {
+    sceneId: 'scene-midnight-platform',
+    initialSelectedArtifactId: 'proposal-set-scene-midnight-platform-run-001',
+    initialInspectorMode: 'artifact',
+  },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution',
+      uiState: {
+        dockTab: 'events',
+      },
+    },
+  },
+}
+
 export const EventsTraceInspector: Story = {
   args: {
     sceneId: 'scene-midnight-platform',

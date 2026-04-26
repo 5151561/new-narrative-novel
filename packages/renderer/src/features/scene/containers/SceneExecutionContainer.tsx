@@ -23,6 +23,13 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
   const runSession = useSharedSceneRunSession()
   const { route, setRoute } = useSceneRouteState()
   const { filters, setFilters, resetFilters } = useProposalFilters()
+  const selectedVariantCount = runSession.reviewVariants.selectedVariantsForSubmit.length
+  const variantSelectionSummary =
+    selectedVariantCount > 0
+      ? locale === 'zh-CN'
+        ? `${selectedVariantCount} 个候选版本已准备为主舞台评审决定的草稿上下文。`
+        : `${selectedVariantCount} proposal variant${selectedVariantCount === 1 ? '' : 's'} prepared as draft context for this Main Stage review decision.`
+      : undefined
 
   const selectedBeatId = route.sceneId === sceneId ? route.beatId : undefined
   const selectedProposalId = route.sceneId === sceneId ? route.proposalId : undefined
@@ -129,6 +136,8 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
         events: runSession.events,
         pendingReviewId: runSession.pendingReviewId,
         isReviewPending: runSession.isReviewPending,
+        selectedVariantsForSubmit: runSession.reviewVariants.selectedVariantsForSubmit,
+        variantSelectionSummary,
         isLoading: runSession.isLoading,
         error: runSession.error,
         isStartingRun: runSession.isStartingRun,

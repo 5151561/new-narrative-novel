@@ -39,6 +39,24 @@ function mockRunArtifactQueries() {
   }))
 }
 
+function createReviewVariants(overrides: Partial<{
+  proposalSetArtifactId: string | null
+  selectedVariantsByProposalId: Record<string, string>
+  selectedVariantsForSubmit: Array<{ proposalId: string; variantId: string }>
+  selectVariant: (proposalId: string, variantId: string) => void
+}> = {}) {
+  return {
+    proposalSetArtifactId: null,
+    selectedVariantsByProposalId: {},
+    selectedVariantsForSubmit: [],
+    selectVariant: vi.fn(),
+    resetVariants: vi.fn(),
+    isLoadingProposalSet: false,
+    proposalSetError: null,
+    ...overrides,
+  }
+}
+
 describe('SceneDockContainer', () => {
   beforeEach(async () => {
     vi.resetModules()
@@ -101,6 +119,7 @@ describe('SceneDockContainer', () => {
       isStartingRun: false,
       submitDecision: vi.fn(),
       isSubmittingDecision: false,
+      reviewVariants: createReviewVariants(),
     }))
     const forbiddenUseSceneRunSession = vi.fn(() => {
       throw new Error('SceneDockContainer should consume the shared scene run session, not mount its own.')
@@ -180,6 +199,7 @@ describe('SceneDockContainer', () => {
       isStartingRun: false,
       submitDecision: vi.fn(),
       isSubmittingDecision: false,
+      reviewVariants: createReviewVariants(),
     }))
     let dockProps: Record<string, unknown> | undefined
 
@@ -256,6 +276,7 @@ describe('SceneDockContainer', () => {
       isStartingRun: false,
       submitDecision: vi.fn(),
       isSubmittingDecision: false,
+      reviewVariants: createReviewVariants(),
     }))
 
     vi.doMock('../hooks/useSceneDockData', () => ({
@@ -338,6 +359,7 @@ describe('SceneDockContainer', () => {
       isStartingRun: false,
       submitDecision: vi.fn(),
       isSubmittingDecision: false,
+      reviewVariants: createReviewVariants(),
     }))
 
     vi.doMock('../hooks/useSceneDockData', () => ({
@@ -413,10 +435,11 @@ describe('SceneDockContainer', () => {
     expect(screen.getByTestId('inspector-mode')).toHaveTextContent('trace')
   })
 
-  it('submits locally selected proposal variants through the dock review gate accept action', async () => {
+  it('keeps proposal variant selection as dock support without dock-owned review decisions', async () => {
     const user = userEvent.setup()
     vi.doUnmock('../components/SceneBottomDock')
     const submitDecision = vi.fn()
+    const selectVariant = vi.fn()
     const runId = 'run-scene-midnight-platform-001'
     const proposalSetId = 'proposal-set-scene-midnight-platform-run-001'
     const proposalId = `${proposalSetId}-proposal-001`
@@ -446,6 +469,10 @@ describe('SceneDockContainer', () => {
       isStartingRun: false,
       submitDecision,
       isSubmittingDecision: false,
+      reviewVariants: createReviewVariants({
+        proposalSetArtifactId: proposalSetId,
+        selectVariant,
+      }),
     }))
 
     vi.doMock('../hooks/useSceneDockData', () => ({
@@ -544,19 +571,14 @@ describe('SceneDockContainer', () => {
     )
 
     await user.click(await screen.findByRole('radio', { name: /Higher conflict/ }))
-    await user.click(screen.getByRole('button', { name: 'Accept' }))
 
-    await waitFor(() => {
-      expect(submitDecision).toHaveBeenCalledWith({
-        decision: 'accept',
-        selectedVariants: [
-          {
-            proposalId,
-            variantId: 'variant-midnight-platform-raise-conflict',
-          },
-        ],
-      })
-    })
+    expect(selectVariant).toHaveBeenCalledWith(proposalId, 'variant-midnight-platform-raise-conflict')
+    expect(screen.getByRole('heading', { name: 'Waiting for Main Stage Review' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Accept' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Accept With Edit' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Request Rewrite' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument()
+    expect(submitDecision).not.toHaveBeenCalled()
   })
 
   it('opens run event refs, refreshes accepted artifacts, and exposes trace links inside the events dock', async () => {

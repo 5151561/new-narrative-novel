@@ -109,7 +109,6 @@ describe('SceneBottomDock', () => {
   it('surfaces active run support in the events area without turning the dock into a raw debugger', async () => {
     const user = userEvent.setup()
     const onSelectArtifact = vi.fn()
-    const onSubmitReviewDecision = vi.fn()
 
     render(
       createElement(SceneBottomDock as unknown as typeof SceneBottomDock, {
@@ -127,14 +126,18 @@ describe('SceneBottomDock', () => {
           selectedArtifact: null,
           trace: null,
           onSelectArtifact,
-          onSubmitReviewDecision,
+          selectedVariants: {
+            'proposal-set-scene-midnight-platform-run-002-proposal-001': 'variant-midnight-platform-raise-conflict',
+          },
         },
       }),
     )
 
     expect(screen.getByText('Active Run Support')).toBeInTheDocument()
     expect(screen.getAllByText('Midnight platform rewrite run')).toHaveLength(1)
-    expect(screen.getByRole('heading', { name: 'Variant review decision' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Waiting for Main Stage Review' })).toBeInTheDocument()
+    expect(screen.getByText('1 selected variant')).toBeInTheDocument()
+    expect(screen.getByText(/submit the review decision from the Scene \/ Orchestrate Main Stage/)).toBeInTheDocument()
     expect(screen.getByText('Waiting Review')).toBeInTheDocument()
     expect(screen.getByText('Run Timeline')).toBeInTheDocument()
     expect(screen.getByText('Run Inspector')).toBeInTheDocument()
@@ -144,6 +147,10 @@ describe('SceneBottomDock', () => {
     expect(screen.queryByText('Planner invocation started')).not.toBeInTheDocument()
     expect(screen.queryByText('run-scene-midnight-platform-002')).not.toBeInTheDocument()
     expect(screen.queryByText('review-scene-midnight-platform-002')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Accept' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Accept With Edit' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Request Rewrite' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Open agent-invocation' }))
     expect(onSelectArtifact).toHaveBeenCalledWith('agent-invocation-scene-midnight-platform-run-002-001')

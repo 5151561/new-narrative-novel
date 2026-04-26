@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 
@@ -123,6 +123,13 @@ describe('SceneExecutionTab', () => {
             events: runEvents,
             pendingReviewId: run.pendingReviewId ?? null,
             isReviewPending: true,
+            selectedVariantsForSubmit: [
+              {
+                proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+                variantId: 'variant-midnight-platform-raise-conflict',
+              },
+            ],
+            variantSelectionSummary: '1 proposal variant prepared as draft context for this Main Stage review decision.',
             isLoading: false,
             error: null,
             isStartingRun: false,
@@ -154,6 +161,8 @@ describe('SceneExecutionTab', () => {
     expect(screen.getAllByText('Review requested').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Pending review').length).toBeGreaterThan(0)
     expect(screen.getAllByRole('button', { name: 'Accept With Edit' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('1 proposal variant prepared as draft context for this Main Stage review decision.').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Variant choices still require this review decision and do not write canon on their own.').length).toBeGreaterThan(0)
     expect(screen.queryByText('run-scene-midnight-platform-001')).not.toBeInTheDocument()
     expect(screen.queryByText('review-scene-midnight-platform-001')).not.toBeInTheDocument()
   })
@@ -176,6 +185,7 @@ describe('SceneExecutionTab', () => {
             events: runEvents,
             pendingReviewId: run.pendingReviewId ?? null,
             isReviewPending: true,
+            selectedVariantsForSubmit: [],
             isLoading: false,
             error: null,
             isStartingRun: false,
@@ -208,5 +218,65 @@ describe('SceneExecutionTab', () => {
     expect(onStartRun).toHaveBeenNthCalledWith(1, 'continue')
     expect(onStartRun).toHaveBeenNthCalledWith(2, 'rewrite')
     expect(onStartRun).toHaveBeenNthCalledWith(3, 'from-scratch')
+  })
+
+  it('submits waiting-review decisions from the Main Stage with prepared proposal variants', async () => {
+    const user = userEvent.setup()
+    const onSubmitDecision = vi.fn(async () => {})
+    const selectedVariantsForSubmit = [
+      {
+        proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+        variantId: 'variant-midnight-platform-raise-conflict',
+      },
+    ]
+
+    render(
+      <I18nProvider>
+        <SceneExecutionTab
+          objective={objective}
+          beats={beats}
+          proposals={proposals}
+          actorOptions={[{ id: 'scene-manager', label: 'Scene Manager' }]}
+          filters={{ beatId: 'beat-bargain' }}
+          acceptedSummary={acceptedSummary}
+          runSession={{
+            run,
+            events: runEvents,
+            pendingReviewId: run.pendingReviewId ?? null,
+            isReviewPending: true,
+            selectedVariantsForSubmit,
+            variantSelectionSummary: '1 proposal variant prepared as draft context for this Main Stage review decision.',
+            isLoading: false,
+            error: null,
+            isStartingRun: false,
+            isSubmittingDecision: false,
+            onStartRun: vi.fn(),
+            onSubmitDecision,
+          }}
+          canContinueRun
+          canOpenProse
+          onContinueRun={vi.fn()}
+          onOpenPatchPreview={vi.fn()}
+          onOpenProse={vi.fn()}
+          onSelectBeat={vi.fn()}
+          onSelectProposal={vi.fn()}
+          onAccept={vi.fn()}
+          onEditAccept={vi.fn()}
+          onRequestRewrite={vi.fn()}
+          onReject={vi.fn()}
+          onChangeFilters={vi.fn()}
+          onClearFilters={vi.fn()}
+        />
+      </I18nProvider>,
+    )
+
+    const reviewGate = screen.getAllByRole('heading', { name: 'Midnight platform scene run' }).at(-1)?.closest('section')
+    expect(reviewGate).not.toBeNull()
+    await user.click(within(reviewGate!).getByRole('button', { name: 'Accept' }))
+
+    expect(onSubmitDecision).toHaveBeenCalledWith({
+      decision: 'accept',
+      selectedVariants: selectedVariantsForSubmit,
+    })
   })
 })

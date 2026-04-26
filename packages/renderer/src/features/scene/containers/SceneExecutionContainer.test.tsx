@@ -5,6 +5,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
 
+function createReviewVariants(overrides: Partial<{
+  proposalSetArtifactId: string | null
+  selectedVariantsByProposalId: Record<string, string>
+  selectedVariantsForSubmit: Array<{ proposalId: string; variantId: string }>
+}> = {}) {
+  return {
+    proposalSetArtifactId: null,
+    selectedVariantsByProposalId: {},
+    selectedVariantsForSubmit: [],
+    selectVariant: vi.fn(),
+    resetVariants: vi.fn(),
+    isLoadingProposalSet: false,
+    proposalSetError: null,
+    ...overrides,
+  }
+}
+
 describe('SceneExecutionContainer', () => {
   beforeEach(async () => {
     vi.resetModules()
@@ -39,6 +56,7 @@ describe('SceneExecutionContainer', () => {
       isSubmittingDecision: false,
       startRun,
       submitDecision: vi.fn(),
+      reviewVariants: createReviewVariants(),
     }))
     let sceneExecutionTabProps: Record<string, unknown> | undefined
 
@@ -171,6 +189,18 @@ describe('SceneExecutionContainer', () => {
         isSubmittingDecision: false,
         startRun: vi.fn(),
         submitDecision: vi.fn(),
+        reviewVariants: createReviewVariants({
+          proposalSetArtifactId: 'proposal-set-scene-midnight-platform-run-001',
+          selectedVariantsByProposalId: {
+            'proposal-set-scene-midnight-platform-run-001-proposal-001': 'variant-midnight-platform-raise-conflict',
+          },
+          selectedVariantsForSubmit: [
+            {
+              proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+              variantId: 'variant-midnight-platform-raise-conflict',
+            },
+          ],
+        }),
       }),
     }))
 
@@ -289,6 +319,7 @@ describe('SceneExecutionContainer', () => {
     expect(screen.getByText('Rewrite state-change proposal')).toBeInTheDocument()
     expect(screen.getAllByText('Midnight platform scene run').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Review requested').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('1 proposal variant prepared as draft context for this Main Stage review decision.').length).toBeGreaterThan(0)
 
     await user.selectOptions(screen.getByLabelText('Status'), 'accepted')
 

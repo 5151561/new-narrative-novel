@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { useI18n } from '@/app/i18n'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -6,7 +6,6 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { type SceneClient } from '@/features/scene/api/scene-client'
 import { useRunArtifactDetailQuery } from '@/features/run/hooks/useRunArtifactDetailQuery'
 import { useRunArtifactsQuery } from '@/features/run/hooks/useRunArtifactsQuery'
-import { useRunProposalVariantDraft } from '@/features/run/hooks/useRunProposalVariantDraft'
 import { useRunTraceQuery } from '@/features/run/hooks/useRunTraceQuery'
 import type { RunEventInspectorMode } from '@/features/run/components/RunEventInspectorPanel'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
@@ -43,26 +42,6 @@ export function SceneDockContainer({
   const artifactDetailQuery = useRunArtifactDetailQuery({
     runId: activeEventsRunId,
     artifactId: selectedArtifactId,
-  })
-  const firstProposalSetArtifactId = useMemo(
-    () => artifactsQuery.artifacts.find((artifact) => artifact.kind === 'proposal-set')?.id ?? null,
-    [artifactsQuery.artifacts],
-  )
-  const activeProposalSetArtifactId =
-    artifactDetailQuery.artifact?.kind === 'proposal-set' ? artifactDetailQuery.artifact.id : firstProposalSetArtifactId
-  const activeProposalSetDetailQuery = useRunArtifactDetailQuery({
-    runId: activeEventsRunId,
-    artifactId: activeProposalSetArtifactId,
-  })
-  const activeProposalSetArtifact =
-    artifactDetailQuery.artifact?.kind === 'proposal-set'
-      ? artifactDetailQuery.artifact
-      : activeProposalSetDetailQuery.artifact?.kind === 'proposal-set'
-        ? activeProposalSetDetailQuery.artifact
-        : null
-  const variantDraft = useRunProposalVariantDraft({
-    runId: activeEventsRunId,
-    proposalSetArtifact: activeProposalSetArtifact,
   })
   const traceQuery = useRunTraceQuery(activeEventsRunId)
 
@@ -109,12 +88,9 @@ export function SceneDockContainer({
           inspectorMode,
           onInspectorModeChange: setInspectorMode,
           onSelectArtifact: handleSelectArtifact,
-          selectedVariants: variantDraft.selectedVariantsByProposalId,
-          selectedVariantsForSubmit: variantDraft.selectedVariantsForSubmit,
-          onSelectProposalVariant: variantDraft.selectVariant,
+          selectedVariants: runSession.reviewVariants.selectedVariantsByProposalId,
+          onSelectProposalVariant: runSession.reviewVariants.selectVariant,
           onOpenAssetContext: handleOpenAssetContext,
-          isSubmittingReviewDecision: runSession.isSubmittingDecision,
-          onSubmitReviewDecision: runSession.submitDecision,
         }
       : undefined
 
