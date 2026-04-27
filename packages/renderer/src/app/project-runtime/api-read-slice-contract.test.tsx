@@ -16,11 +16,14 @@ import {
   API_READ_SLICE_BOOK_ID,
   API_READ_SLICE_BRANCH_ID,
   API_READ_SLICE_CHECKPOINT_ID,
+  API_READ_SLICE_CHAPTER_IDS,
   API_READ_SLICE_EXPORT_PROFILE_ID,
   API_READ_SLICE_PROJECT_ID,
   API_READ_SLICE_ROUTE,
   buildApiReadSliceExpectedQueryKeys,
   buildApiReadSliceExpectedRequests,
+  buildLegacyApiReadSliceExpectedQueryKeys,
+  buildLegacyApiReadSliceExpectedRequests,
 } from './api-read-slice-fixtures'
 
 function BookRouteHarness() {
@@ -63,6 +66,40 @@ function serializeRequest(request: { method: string; path: string; query?: Recor
     path: request.path,
     query: queryEntries,
   })
+}
+
+function serializeQueryKey(queryKey: readonly unknown[]) {
+  return JSON.stringify(queryKey)
+}
+
+function expectQueryKeysToMatchContract(
+  queryKeys: readonly (readonly unknown[])[],
+  expectedQueryKeys: readonly (readonly unknown[])[],
+  allowedExtraQueryKeys: readonly (readonly unknown[])[] = [],
+) {
+  const serializedQueryKeys = queryKeys.map(serializeQueryKey)
+  const serializedExpectedQueryKeys = expectedQueryKeys.map(serializeQueryKey)
+  const serializedAllowedExtraQueryKeys = allowedExtraQueryKeys.map(serializeQueryKey)
+
+  expect(serializedQueryKeys).toEqual(
+    expect.arrayContaining(serializedExpectedQueryKeys),
+  )
+
+  const unexpectedQueryKeys = serializedQueryKeys.filter(
+    (queryKey) =>
+      !serializedExpectedQueryKeys.includes(queryKey) &&
+      !serializedAllowedExtraQueryKeys.includes(queryKey),
+  )
+
+  expect(unexpectedQueryKeys).toEqual([])
+}
+
+function getResolvedQueryKeys(queryClient: QueryClient) {
+  return queryClient
+    .getQueryCache()
+    .getAll()
+    .filter((query) => query.state.status === 'success')
+    .map((query) => query.queryKey)
 }
 
 describe('api read-slice contract', () => {
@@ -126,8 +163,112 @@ describe('api read-slice contract', () => {
     expect(within(bottomDock).getAllByText('Departure Bell still lacks trace readiness for this export profile.').length).toBeGreaterThan(0)
 
     // Query dependency graph for this read-only review route:
-    // book -> chapters -> scene prose + traceability; book + checkpoint -> compare;
-    // compare + export profile -> export preview/artifacts; draft + compare/export/branch -> review inbox.
+    // draft assembly + compare/export/branch support reads + review inbox, with no legacy scene fanout on the live path.
+    const normalizedRequests = requests.map((request) => ({
+      method: request.method,
+      path: request.path,
+      query: normalizeRequestQuery(request.query as Record<string, unknown> | undefined),
+    }))
+
+    const expectedRequests = buildApiReadSliceExpectedRequests(API_READ_SLICE_PROJECT_ID)
+    expect(requests.every((request) => request.method === 'GET')).toBe(true)
+    expect(normalizedRequests).toHaveLength(expectedRequests.length)
+    expect(normalizedRequests.map(serializeRequest).sort()).toEqual(
+      expectedRequests.map(serializeRequest).sort(),
+    )
+    expect(normalizedRequests).toContainEqual({
+      method: 'GET',
+      path: apiRouteContract.bookDraftAssembly({
+        projectId: API_READ_SLICE_PROJECT_ID,
+        bookId: API_READ_SLICE_BOOK_ID,
+      }),
+      query: undefined,
+    })
+    expect(normalizedRequests).not.toContainEqual({
+      method: 'GET',
+      path: apiRouteContract.bookStructure({
+        projectId: API_READ_SLICE_PROJECT_ID,
+        bookId: API_READ_SLICE_BOOK_ID,
+      }),
+      query: undefined,
+    })
+    for (const chapterId of API_READ_SLICE_CHAPTER_IDS) {
+      expect(normalizedRequests).not.toContainEqual({
+        method: 'GET',
+        path: apiRouteContract.chapterStructure({
+          projectId: API_READ_SLICE_PROJECT_ID,
+          chapterId,
+        }),
+        query: undefined,
+      })
+    }
+
+    const queryKeys = getResolvedQueryKeys(queryClient)
+    const expectedQueryKeys = [
+      ['project-runtime', API_READ_SLICE_PROJECT_ID, 'health'],
+      ...buildApiReadSliceExpectedQueryKeys(),
+    ]
+
+    expectQueryKeysToMatchContract(queryKeys, expectedQueryKeys)
+    expect(queryKeys).toContainEqual(['book', 'draftAssembly', API_READ_SLICE_BOOK_ID, 'en'])
+    expect(queryKeys).not.toContainEqual(['book', 'workspace', API_READ_SLICE_BOOK_ID, 'en'])
+    expect(queryKeys).not.toContainEqual(['chapter', 'workspace', API_READ_SLICE_CHAPTER_IDS[0]])
+    expect(queryKeys).not.toContainEqual(['chapter', 'workspace', API_READ_SLICE_CHAPTER_IDS[1]])
+
+    const params = new URLSearchParams(window.location.search)
+    expect(params.get('selectedChapterId')).toBeTruthy()
+    expect(params.get('reviewFilter')).toBe('all')
+    expect(params.get('reviewStatusFilter')).toBe('open')
+    expect(params.get('checkpointId')).toBe(API_READ_SLICE_CHECKPOINT_ID)
+    expect(params.get('exportProfileId')).toBe(API_READ_SLICE_EXPORT_PROFILE_ID)
+    expect(params.get('branchId')).toBe(API_READ_SLICE_BRANCH_ID)
+  })
+
+  it('falls back to the legacy book/chapter/scene read graph when draft assembly is unsupported', async () => {
+    const queryClient = createQueryClient()
+    const { requests, runtime } = createFakeApiRuntime({
+      projectId: API_READ_SLICE_PROJECT_ID,
+    })
+    const { getBookDraftAssembly: _getBookDraftAssembly, ...legacyBookClient } = runtime.bookClient
+    const fallbackRuntime = {
+      ...runtime,
+      bookClient: legacyBookClient,
+    }
+
+    window.history.replaceState({}, '', API_READ_SLICE_ROUTE)
+
+    render(
+      <AppProviders runtime={fallbackRuntime} queryClient={queryClient}>
+        <BookRouteHarness />
+      </AppProviders>,
+    )
+
+    await screen.findByRole('heading', { name: 'Review inbox' })
+
+    await waitFor(() => {
+      expect(
+        queryClient.getQueryState(
+          reviewQueryKeys.fixActions(API_READ_SLICE_BOOK_ID),
+        )?.status,
+      ).toBe('success')
+      expect(
+        queryClient.getQueryState(
+          reviewQueryKeys.decisions(API_READ_SLICE_BOOK_ID),
+        )?.status,
+      ).toBe('success')
+    })
+
+    await waitFor(() => {
+      const exportArtifactsState = queryClient.getQueryState([
+        'book',
+        'exportArtifacts',
+        API_READ_SLICE_BOOK_ID,
+        API_READ_SLICE_EXPORT_PROFILE_ID,
+        API_READ_SLICE_CHECKPOINT_ID,
+      ])
+      expect(exportArtifactsState?.status).toBe('success')
+    })
+
     const normalizedRequests = requests.map((request) => ({
       method: request.method,
       path: request.path,
@@ -141,31 +282,38 @@ describe('api read-slice contract', () => {
           projectId: API_READ_SLICE_PROJECT_ID,
         }),
       },
-      ...buildApiReadSliceExpectedRequests(API_READ_SLICE_PROJECT_ID),
+      ...buildLegacyApiReadSliceExpectedRequests(API_READ_SLICE_PROJECT_ID),
     ]
     expect(requests.every((request) => request.method === 'GET')).toBe(true)
     expect(normalizedRequests).toHaveLength(expectedRequests.length)
     expect(normalizedRequests.map(serializeRequest).sort()).toEqual(
       expectedRequests.map(serializeRequest).sort(),
     )
+    expect(normalizedRequests).not.toContainEqual({
+      method: 'GET',
+      path: apiRouteContract.bookDraftAssembly({
+        projectId: API_READ_SLICE_PROJECT_ID,
+        bookId: API_READ_SLICE_BOOK_ID,
+      }),
+      query: undefined,
+    })
+    expect(normalizedRequests).toContainEqual({
+      method: 'GET',
+      path: apiRouteContract.bookStructure({
+        projectId: API_READ_SLICE_PROJECT_ID,
+        bookId: API_READ_SLICE_BOOK_ID,
+      }),
+      query: undefined,
+    })
 
-    const queryKeys = queryClient.getQueryCache().getAll().map((query) => query.queryKey)
+    const queryKeys = getResolvedQueryKeys(queryClient)
     const expectedQueryKeys = [
       ['project-runtime', API_READ_SLICE_PROJECT_ID, 'health'],
-      ...buildApiReadSliceExpectedQueryKeys(),
+      ...buildLegacyApiReadSliceExpectedQueryKeys(),
     ]
 
-    expect(queryKeys).toHaveLength(expectedQueryKeys.length)
-    for (const expectedQueryKey of expectedQueryKeys) {
-      expect(queryKeys).toContainEqual(expectedQueryKey)
-    }
-
-    const params = new URLSearchParams(window.location.search)
-    expect(params.get('selectedChapterId')).toBeTruthy()
-    expect(params.get('reviewFilter')).toBe('all')
-    expect(params.get('reviewStatusFilter')).toBe('open')
-    expect(params.get('checkpointId')).toBe(API_READ_SLICE_CHECKPOINT_ID)
-    expect(params.get('exportProfileId')).toBe(API_READ_SLICE_EXPORT_PROFILE_ID)
-    expect(params.get('branchId')).toBe(API_READ_SLICE_BRANCH_ID)
+    expectQueryKeysToMatchContract(queryKeys, expectedQueryKeys)
+    expect(queryKeys).toContainEqual(['book', 'workspace', API_READ_SLICE_BOOK_ID, 'en'])
+    expect(queryKeys).not.toContainEqual(['book', 'draftAssembly', API_READ_SLICE_BOOK_ID, 'en'])
   })
 })

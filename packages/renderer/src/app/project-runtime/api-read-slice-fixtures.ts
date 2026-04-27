@@ -33,6 +33,91 @@ export function buildApiReadSliceExpectedRequests(
   return [
     {
       method: 'GET',
+      path: apiRouteContract.projectRuntimeInfo({ projectId }),
+    },
+    {
+      method: 'GET',
+      path: apiRouteContract.bookDraftAssembly({ projectId, bookId: API_READ_SLICE_BOOK_ID }),
+    },
+    {
+      method: 'GET',
+      path: apiRouteContract.bookManuscriptCheckpoints({
+        projectId,
+        bookId: API_READ_SLICE_BOOK_ID,
+      }),
+    },
+    {
+      method: 'GET',
+      path: apiRouteContract.bookManuscriptCheckpoint({
+        projectId,
+        bookId: API_READ_SLICE_BOOK_ID,
+        checkpointId: API_READ_SLICE_CHECKPOINT_ID,
+      }),
+    },
+    {
+      method: 'GET',
+      path: apiRouteContract.bookExportProfiles({
+        projectId,
+        bookId: API_READ_SLICE_BOOK_ID,
+      }),
+    },
+    {
+      method: 'GET',
+      path: apiRouteContract.bookExportProfile({
+        projectId,
+        bookId: API_READ_SLICE_BOOK_ID,
+        exportProfileId: API_READ_SLICE_EXPORT_PROFILE_ID,
+      }),
+    },
+    {
+      method: 'GET',
+      path: apiRouteContract.bookExportArtifacts({
+        projectId,
+        bookId: API_READ_SLICE_BOOK_ID,
+      }),
+      query: {
+        exportProfileId: API_READ_SLICE_EXPORT_PROFILE_ID,
+        checkpointId: API_READ_SLICE_CHECKPOINT_ID,
+      },
+    },
+    {
+      method: 'GET',
+      path: apiRouteContract.bookExperimentBranches({
+        projectId,
+        bookId: API_READ_SLICE_BOOK_ID,
+      }),
+    },
+    {
+      method: 'GET',
+      path: apiRouteContract.bookExperimentBranch({
+        projectId,
+        bookId: API_READ_SLICE_BOOK_ID,
+        branchId: API_READ_SLICE_BRANCH_ID,
+      }),
+    },
+    {
+      method: 'GET',
+      path: apiRouteContract.reviewDecisions({
+        projectId,
+        bookId: API_READ_SLICE_BOOK_ID,
+      }),
+    },
+    {
+      method: 'GET',
+      path: apiRouteContract.reviewFixActions({
+        projectId,
+        bookId: API_READ_SLICE_BOOK_ID,
+      }),
+    },
+  ]
+}
+
+export function buildLegacyApiReadSliceExpectedRequests(
+  projectId: string = API_READ_SLICE_PROJECT_ID,
+): ExpectedApiReadRequest[] {
+  return [
+    {
+      method: 'GET',
       path: apiRouteContract.bookStructure({ projectId, bookId: API_READ_SLICE_BOOK_ID }),
     },
     {
@@ -131,6 +216,21 @@ export function buildApiReadSliceExpectedRequests(
 }
 
 export function buildApiReadSliceExpectedQueryKeys() {
+  return [
+    ['book', 'draftAssembly', API_READ_SLICE_BOOK_ID, 'en'],
+    ['book', 'checkpoints', API_READ_SLICE_BOOK_ID, 'en'],
+    ['book', 'checkpoint', API_READ_SLICE_BOOK_ID, API_READ_SLICE_CHECKPOINT_ID, 'en'],
+    ['book', 'exportProfiles', API_READ_SLICE_BOOK_ID, 'en'],
+    ['book', 'exportProfile', API_READ_SLICE_BOOK_ID, API_READ_SLICE_EXPORT_PROFILE_ID, 'en'],
+    ['book', 'exportArtifacts', API_READ_SLICE_BOOK_ID, API_READ_SLICE_EXPORT_PROFILE_ID, API_READ_SLICE_CHECKPOINT_ID],
+    ['book', 'branches', API_READ_SLICE_BOOK_ID, 'en'],
+    ['book', 'branch', API_READ_SLICE_BOOK_ID, API_READ_SLICE_BRANCH_ID, 'en'],
+    ['review', 'decisions', API_READ_SLICE_BOOK_ID],
+    ['review', 'fix-actions', API_READ_SLICE_BOOK_ID],
+  ]
+}
+
+export function buildLegacyApiReadSliceExpectedQueryKeys() {
   return [
     ['book', 'workspace', API_READ_SLICE_BOOK_ID, 'en'],
     ['book', 'checkpoints', API_READ_SLICE_BOOK_ID, 'en'],
