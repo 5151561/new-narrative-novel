@@ -24,6 +24,10 @@ import type {
   SceneRunCanonicalPlannerProposalRecord,
   SceneRunCanonicalPlannerVariantRecord,
 } from './sceneRunRecords.js'
+import {
+  isSceneContextPacketRecord,
+  type SceneContextPacketRecord,
+} from '../contextBuilder/sceneContextBuilder.js'
 import { parseSceneProseWriterOutput, type SceneProseWriterOutput } from '../modelGateway/sceneProseWriterOutputSchema.js'
 
 interface ArtifactSummaryLabelOverrides {
@@ -62,6 +66,7 @@ export interface BuildCanonPatchDetailInput extends BuildArtifactDetailBaseInput
 
 export interface BuildProseDraftDetailInput extends BuildArtifactDetailBaseInput {
   sourceCanonPatchId?: string
+  contextPacketId?: string
   sourceProposalIds?: string[]
   selectedVariants?: RunSelectedProposalVariantRecord[]
   traceLinkIds?: string[]
@@ -298,7 +303,7 @@ function readGeneratedRefs(artifact: SceneRunArtifactRecord): RunArtifactGenerat
     && typeof ref.label.en === 'string'
     && typeof ref.label['zh-CN'] === 'string'
   ))
-    ? generatedRefs as RunArtifactGeneratedRefRecord[]
+    ? generatedRefs as unknown as RunArtifactGeneratedRefRecord[]
     : undefined
 }
 
@@ -313,6 +318,11 @@ function readSceneProseWriterOutput(artifact: SceneRunArtifactRecord): ScenePros
   } catch {
     return undefined
   }
+}
+
+function readSceneContextPacket(artifact: SceneRunArtifactRecord): SceneContextPacketRecord | undefined {
+  const packet = artifact.meta?.contextPacket
+  return isSceneContextPacketRecord(packet) ? packet : undefined
 }
 
 function readAgentRole(artifact: SceneRunArtifactRecord): AgentInvocationArtifactDetailRecord['agentRole'] {
@@ -936,20 +946,21 @@ export function buildContextPacketDetail(
 ): ContextPacketArtifactDetailRecord {
   assertArtifactKind(input.artifact, 'context-packet')
   const sequence = parseRunSequenceNumber(input.artifact.runId)
+  const persistedPacket = readSceneContextPacket(input.artifact)
   const assetActivations = buildDefaultAssetActivations(input.artifact)
 
   return {
     ...buildArtifactSummary(input),
     kind: 'context-packet',
     sceneId: input.artifact.sceneId,
-    sections: buildDefaultContextSections(input.artifact),
-    includedCanonFacts: buildDefaultIncludedCanonFacts(input.artifact),
-    includedAssets: buildDefaultIncludedAssets(),
-    excludedPrivateFacts: buildDefaultExcludedPrivateFacts(input.artifact),
-    assetActivations,
-    activationSummary: summarizeDefaultAssetActivations(assetActivations),
-    outputSchemaLabel: localize('Scene context packet schema', '场景上下文包结构'),
-    tokenBudgetLabel: localize(`Target budget ${1500 + sequence * 100} tokens`, `目标预算 ${1500 + sequence * 100} tokens`),
+    sections: persistedPacket?.sections ?? buildDefaultContextSections(input.artifact),
+    includedCanonFacts: persistedPacket?.includedCanonFacts ?? buildDefaultIncludedCanonFacts(input.artifact),
+    includedAssets: persistedPacket?.includedAssets ?? buildDefaultIncludedAssets(),
+    excludedPrivateFacts: persistedPacket?.excludedPrivateFacts ?? buildDefaultExcludedPrivateFacts(input.artifact),
+    assetActivations: persistedPacket?.assetActivations ?? assetActivations,
+    activationSummary: persistedPacket?.activationSummary ?? summarizeDefaultAssetActivations(assetActivations),
+    outputSchemaLabel: persistedPacket?.outputSchemaLabel ?? localize('Scene context packet schema', '场景上下文包结构'),
+    tokenBudgetLabel: persistedPacket?.tokenBudgetLabel ?? localize(`Target budget ${1500 + sequence * 100} tokens`, `目标预算 ${1500 + sequence * 100} tokens`),
   }
 }
 
@@ -1093,6 +1104,7 @@ export function buildProseDraftDetail(
     }),
     kind: 'prose-draft',
     sourceCanonPatchId: input.sourceCanonPatchId ?? buildCanonPatchId(input.artifact.sceneId, sequence),
+    contextPacketId: input.contextPacketId ?? buildContextPacketId(input.artifact.sceneId, sequence),
     sourceProposalIds,
     ...(selectedVariants
       ? { selectedVariants }

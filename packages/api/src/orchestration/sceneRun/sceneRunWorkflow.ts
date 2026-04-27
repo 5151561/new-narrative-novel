@@ -26,7 +26,15 @@ function createArtifactRef(ref: { kind: RunEventRefRecord['kind']; id: string },
   }
 }
 
-function createContextPacketEventMetadata() {
+function createContextPacketEventMetadata(contextPacket?: SceneRunWorkflowStartInput['contextPacket']) {
+  if (contextPacket?.activationSummary) {
+    return {
+      includedAssetCount: contextPacket.activationSummary.includedAssetCount,
+      excludedAssetCount: contextPacket.activationSummary.excludedAssetCount,
+      redactedAssetCount: contextPacket.activationSummary.redactedAssetCount,
+    }
+  }
+
   return {
     includedAssetCount: 3,
     excludedAssetCount: 1,
@@ -50,6 +58,7 @@ export function startSceneRunWorkflow(
     runId,
     sceneId: input.sceneId,
     sequence: input.sequence,
+    contextPacket: input.contextPacket,
   })
   const plannerInvocationArtifact = createAgentInvocationArtifact({
     runId,
@@ -87,7 +96,7 @@ export function startSceneRunWorkflow(
     createArtifactRef(contextPacketArtifact, 'Scene context packet'),
   ], {
     ...eventOptions,
-    metadata: createContextPacketEventMetadata(),
+    metadata: createContextPacketEventMetadata(input.contextPacket),
   })
   appendRunEvent(events, runId, 'agent_invocation_started', 'Planner invocation started', 'Planning agent invocation started.', [
     createArtifactRef(plannerInvocationArtifact, 'Planner'),

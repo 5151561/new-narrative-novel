@@ -1,4 +1,5 @@
 import type {
+  RunArtifactGeneratedRefRecord,
   RunEventRecord,
   RunRecord,
   RunReviewDecisionKind,
@@ -9,6 +10,7 @@ import type { ScenePlannerGatewayProvenance } from '../modelGateway/scenePlanner
 import type { ScenePlannerOutput } from '../modelGateway/scenePlannerOutputSchema.js'
 import type { SceneProseWriterGatewayProvenance } from '../modelGateway/sceneProseWriterGateway.js'
 import type { SceneProseWriterOutput } from '../modelGateway/sceneProseWriterOutputSchema.js'
+import type { SceneContextPacketRecord } from '../contextBuilder/sceneContextBuilder.js'
 
 export type SceneRunArtifactKind =
   | 'context-packet'
@@ -22,6 +24,9 @@ export type SceneRunArtifactMetaValue =
   | number
   | boolean
   | null
+  | RunArtifactGeneratedRefRecord
+  | SceneProseWriterOutput
+  | SceneContextPacketRecord
   | SceneRunArtifactMetaValue[]
   | SceneRunArtifactMetaRecord
 
@@ -62,6 +67,7 @@ export interface SceneRunWorkflowStartInput extends StartSceneRunInput {
   sequence: number
   plannerOutput: ScenePlannerOutput
   plannerProvenance: ScenePlannerGatewayProvenance
+  contextPacket?: SceneContextPacketRecord
 }
 
 export type SceneRunTimelineLabelBuilder = (order: number) => string

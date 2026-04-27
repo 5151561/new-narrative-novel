@@ -1,4 +1,5 @@
 import type { RunArtifactGeneratedRefRecord } from '../../contracts/api-records.js'
+import type { SceneContextPacketRecord } from '../contextBuilder/sceneContextBuilder.js'
 import type { ScenePlannerGatewayProvenance } from '../modelGateway/scenePlannerGateway.js'
 import type { SceneProseWriterGatewayProvenance } from '../modelGateway/sceneProseWriterGateway.js'
 import type { SceneProseWriterOutput } from '../modelGateway/sceneProseWriterOutputSchema.js'
@@ -20,6 +21,10 @@ interface SceneRunArtifactBaseInput {
   runId: string
   sceneId: string
   sequence: number
+}
+
+interface ContextPacketArtifactInput extends SceneRunArtifactBaseInput {
+  contextPacket?: SceneContextPacketRecord
 }
 
 interface AgentInvocationArtifactInput extends SceneRunArtifactBaseInput {
@@ -127,7 +132,7 @@ function canonicalizePlannerProposals(
   })
 }
 
-export function createContextPacketArtifact(input: SceneRunArtifactBaseInput): SceneRunArtifactRecord {
+export function createContextPacketArtifact(input: ContextPacketArtifactInput): SceneRunArtifactRecord {
   return {
     kind: 'context-packet',
     id: buildContextPacketId(input.sceneId, input.sequence),
@@ -136,6 +141,13 @@ export function createContextPacketArtifact(input: SceneRunArtifactBaseInput): S
     title: 'Scene context packet',
     summary: 'Runtime assembled the scene context packet for the run.',
     status: 'built',
+    ...(input.contextPacket
+      ? {
+          meta: {
+            contextPacket: input.contextPacket,
+          },
+        }
+      : {}),
   }
 }
 

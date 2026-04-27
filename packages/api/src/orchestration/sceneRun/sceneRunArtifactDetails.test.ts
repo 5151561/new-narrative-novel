@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import type { LocalizedTextRecord } from '../../contracts/api-records.js'
+import { buildSceneContextPacket } from '../contextBuilder/sceneContextBuilder.js'
+import { createFixtureDataSnapshot } from '../../repositories/fixture-data.js'
 import {
   createAgentInvocationArtifact,
   createCanonPatchArtifact,
@@ -27,11 +29,17 @@ describe('sceneRunArtifactDetails', () => {
   const runId = 'run-scene-midnight-platform-002'
   const sceneId = 'scene-midnight-platform'
 
-  it('builds deterministic context packet product content and accepts localized label overrides', () => {
+  it('builds persisted context packet detail from project data and accepts localized label overrides', () => {
+    const snapshot = createFixtureDataSnapshot('http://127.0.0.1:4174/api')
     const artifact = createContextPacketArtifact({
       runId,
       sceneId,
       sequence: 2,
+      contextPacket: buildSceneContextPacket({
+        project: snapshot.projects['book-signal-arc'],
+        sceneId,
+        sequence: 2,
+      }),
     })
 
     const detail = buildContextPacketDetail({
@@ -51,48 +59,56 @@ describe('sceneRunArtifactDetails', () => {
     expect(detail.createdAtLabel).toEqual(text('Timeline step 003', '时间线步骤 003'))
     expect(detail.sections).toEqual([
       {
-        id: 'ctx-scene-midnight-platform-run-002-section-brief',
-        title: text('Scene brief', '场景摘要'),
+        id: 'ctx-scene-midnight-platform-run-002-section-narrative',
+        title: text('Narrative brief', '叙事摘要'),
         summary: text(
-          'Scene setup, continuity, and editorial intent were packed for Midnight Platform.',
-          '已为 Midnight Platform 整理场景设定、连续性和编辑意图。',
+          'Signal Arc premise, Signals in Rain chapter goal, and the live scene objective were packed together.',
+          '已整理 信号弧线 的书级 premise、雨中信号 的章节目标与当前场景目标。',
         ),
-        itemCount: 3,
+        itemCount: 5,
       },
       {
         id: 'ctx-scene-midnight-platform-run-002-section-canon',
         title: text('Canon anchors', '正典锚点'),
         summary: text(
-          'Approved canon facts were selected as guardrails for run 002.',
-          '已为第 002 次运行选出作为护栏的正典事实。',
+          'Accepted canon facts and current scene state remain the guardrails for planning and prose.',
+          '已接受的正典事实与当前场景状态继续作为规划和正文的护栏。',
         ),
-        itemCount: 2,
+        itemCount: 3,
       },
       {
         id: 'ctx-scene-midnight-platform-run-002-section-assets',
-        title: text('Asset cues', '资产线索'),
+        title: text('Asset activation', '资产激活'),
         summary: text(
-          'Characters, locations, and rules were attached for downstream generation.',
-          '已附带角色、地点与规则供后续生成使用。',
+          'Cast, location, constraints, and review-only rules were filtered through visibility policy before inclusion.',
+          '登场角色、地点、约束与仅供评审的规则会先经过可见性策略过滤，再决定是否纳入。',
         ),
-        itemCount: 3,
+        itemCount: 5,
       },
     ])
     expect(detail.includedCanonFacts).toEqual([
       {
-        id: 'ctx-scene-midnight-platform-run-002-canon-fact-001',
-        label: text('Midnight Platform objective', 'Midnight Platform 目标'),
+        id: 'ctx-scene-midnight-platform-run-002-canon-objective',
+        label: text('Scene objective', '场景目标'),
         value: text(
-          'This run preserves the next visible beat before any new reveal is introduced.',
-          '本次运行会先保住下一个可见节拍，再引入新的揭示。',
+          'Lock the bargain before the witness can turn the ledger into public leverage.',
+          'Lock the bargain before the witness can turn the ledger into public leverage.',
         ),
       },
       {
-        id: 'ctx-scene-midnight-platform-run-002-canon-fact-002',
-        label: text('Run 002 continuity guardrail', '第 002 次运行连续性护栏'),
+        id: 'ctx-scene-midnight-platform-run-002-canon-current-state',
+        label: text('Current scene state', '当前场景状态'),
         value: text(
-          'Existing scene state must remain stable until review decides what can change.',
-          '在审阅决定可变更内容之前，现有场景状态必须保持稳定。',
+          'The platform bargain remains public while Ren keeps the ledger unread.',
+          'The platform bargain remains public while Ren keeps the ledger unread.',
+        ),
+      },
+      {
+        id: 'fact-ledger-closed',
+        label: text('Ledger remains closed', 'Ledger remains closed'),
+        value: text(
+          'No public beat opens the ledger.',
+          'No public beat opens the ledger.',
         ),
       },
     ])
@@ -102,8 +118,8 @@ describe('sceneRunArtifactDetails', () => {
         kind: 'character',
         label: text('Ren Voss', '任·沃斯'),
         reason: text(
-          'Carries the primary point of view through the platform bargain.',
-          '承担站台谈判中的主要视角。',
+          'Courier-side negotiator who keeps the ledger closed while trying to buy time in public. Role: Courier negotiator; Agenda: Lock the bargain before witnesses harden the price.',
+          'Courier-side negotiator who keeps the ledger closed while trying to buy time in public. Role: Courier negotiator; Agenda: Lock the bargain before witnesses harden the price.',
         ),
       },
       {
@@ -111,8 +127,8 @@ describe('sceneRunArtifactDetails', () => {
         kind: 'character',
         label: text('Mei Arden', '美伊·阿登'),
         reason: text(
-          'Supplies the visible counter-pressure for the exchange.',
-          '为交换提供可见的对抗压力。',
+          'Counterparty who keeps raising the visible cost until Ren gives her a usable commitment. Role: Counterparty broker',
+          'Counterparty who keeps raising the visible cost until Ren gives her a usable commitment. Role: Counterparty broker',
         ),
       },
       {
@@ -120,21 +136,22 @@ describe('sceneRunArtifactDetails', () => {
         kind: 'location',
         label: text('Midnight Platform', '午夜站台'),
         reason: text(
-          'Keeps witness pressure and staging anchored to the platform.',
-          '将目击压力和场面调度固定在月台上。',
+          'Open platform where every hesitation turns into public leverage and witness pressure. Type: Transit platform; Pressure: Crowd visibility makes secrets expensive.',
+          'Open platform where every hesitation turns into public leverage and witness pressure. Type: Transit platform; Pressure: Crowd visibility makes secrets expensive.',
         ),
       },
     ])
-    expect(detail.excludedPrivateFacts).toEqual([
-      {
-        id: 'ctx-scene-midnight-platform-run-002-excluded-001',
-        label: text('Deferred reveal', '延后揭示'),
-        reason: text(
-          'Private reveal notes stay out of the shared packet until a review decision lands.',
-          '在审阅决定落定前，私有揭示备注不会进入共享上下文包。',
-        ),
-      },
-    ])
+    expect(detail.excludedPrivateFacts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        label: text('Courier signal private key', '信使暗号私钥'),
+      }),
+      expect.objectContaining({
+        label: text('Full ledger proof', '完整账本证明'),
+      }),
+      expect.objectContaining({
+        label: text('Editor timing guardrail', '编辑时序护栏'),
+      }),
+    ]))
     expect(detail.outputSchemaLabel).toEqual(text('Scene context packet schema', '场景上下文包结构'))
     expect(detail.tokenBudgetLabel).toEqual(text('Target budget 1700 tokens', '目标预算 1700 tokens'))
     expect(detail.assetActivations).toEqual([
@@ -632,10 +649,12 @@ describe('sceneRunArtifactDetails', () => {
       artifact: proseDraftArtifact,
       sourceEventIds: ['run-event-scene-midnight-platform-002-012'],
       sourceCanonPatchId: canonPatchDetail.id,
+      contextPacketId: 'ctx-scene-midnight-platform-run-002',
       sourceProposalIds: canonPatchDetail.acceptedProposalIds,
       selectedVariants: canonPatchDetail.selectedVariants,
     })
 
+    expect(proseDraftDetail.contextPacketId).toBe('ctx-scene-midnight-platform-run-002')
     expect(proseDraftDetail.selectedVariants).toEqual([selectedVariant])
     expect(proseDraftDetail.body?.en).toContain(selectedVariant.variantId)
     expect(proseDraftDetail.body?.en).toContain('rationale retained')
@@ -688,10 +707,12 @@ describe('sceneRunArtifactDetails', () => {
       artifact: proseDraftArtifact,
       sourceEventIds: ['run-event-scene-midnight-platform-002-012'],
       sourceCanonPatchId: 'canon-patch-editorial-777',
+      contextPacketId: 'ctx-scene-midnight-platform-run-002',
       sourceProposalIds: ['proposal-set-explicit-777-proposal-001'],
     })
 
     expect(proseDraftDetail.sourceCanonPatchId).toBe('canon-patch-editorial-777')
+    expect(proseDraftDetail.contextPacketId).toBe('ctx-scene-midnight-platform-run-002')
     expect(proseDraftDetail.sourceProposalIds).toEqual(['proposal-set-explicit-777-proposal-001'])
   })
 
@@ -732,6 +753,7 @@ describe('sceneRunArtifactDetails', () => {
 
     expect(detail).toMatchObject({
       sourceCanonPatchId: 'canon-patch-scene-midnight-platform-002',
+      contextPacketId: 'ctx-scene-midnight-platform-run-002',
       sourceProposalIds: ['proposal-set-scene-midnight-platform-run-002-proposal-001'],
       body: text(
         'Midnight Platform opens from the accepted run artifact rather than a hard-coded scene field. Accepted proposal proposal-set-scene-midnight-platform-run-002-proposal-001 anchors the draft. No selected proposal variant was submitted, so the draft follows the default accepted proposal path. The scene resolves into generated prose that can be traced back to the canon patch.',

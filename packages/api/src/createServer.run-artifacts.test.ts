@@ -71,41 +71,64 @@ describe('fixture API server run artifact read surfaces', () => {
         url: `/api/projects/book-signal-arc/runs/${run.id}/artifacts/${contextPacketRef!.id}`,
       })
       expect(contextPacketResponse.statusCode).toBe(200)
-      expect(contextPacketResponse.json()).toMatchObject({
-        artifact: {
-          id: contextPacketRef!.id,
-          kind: 'context-packet',
-          sceneId: 'scene-midnight-platform',
-          assetActivations: expect.arrayContaining([
-            expect.objectContaining({
-              assetId: 'asset-ren-voss',
-              assetKind: 'character',
-              decision: 'included',
-              reasonKind: 'scene-cast',
-              visibility: 'character-known',
-              budget: 'selected-facts',
-              policyRuleIds: ['ren-scene-cast'],
-            }),
-            expect.objectContaining({
-              assetId: 'asset-ledger-stays-shut',
-              decision: 'excluded',
-              visibility: 'spoiler',
-            }),
-            expect.objectContaining({
-              assetId: 'asset-departure-bell-timing',
-              decision: 'redacted',
-              visibility: 'editor-only',
-            }),
-          ]),
-          activationSummary: {
-            includedAssetCount: 3,
-            excludedAssetCount: 1,
-            redactedAssetCount: 1,
-            targetAgentCount: 4,
-            warningCount: 1,
-          },
+      const contextPacketArtifact = contextPacketResponse.json().artifact
+      expect(contextPacketArtifact).toMatchObject({
+        id: contextPacketRef!.id,
+        kind: 'context-packet',
+        sceneId: 'scene-midnight-platform',
+        activationSummary: {
+          includedAssetCount: 3,
+          excludedAssetCount: 1,
+          redactedAssetCount: 1,
+          targetAgentCount: 4,
+          warningCount: 1,
         },
       })
+      expect(contextPacketArtifact.sections).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          title: expect.objectContaining({
+            en: 'Narrative brief',
+          }),
+        }),
+      ]))
+      expect(contextPacketArtifact.includedCanonFacts).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          label: expect.objectContaining({
+            en: 'Scene objective',
+          }),
+          value: expect.objectContaining({
+            en: 'Lock the bargain before the witness can turn the ledger into public leverage.',
+          }),
+        }),
+      ]))
+      expect(contextPacketArtifact.excludedPrivateFacts).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          label: expect.objectContaining({
+            en: 'Courier signal private key',
+          }),
+        }),
+      ]))
+      expect(contextPacketArtifact.assetActivations).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          assetId: 'asset-ren-voss',
+          assetKind: 'character',
+          decision: 'included',
+          reasonKind: 'scene-cast',
+          visibility: 'character-known',
+          budget: 'selected-facts',
+          policyRuleIds: ['ren-scene-cast'],
+        }),
+        expect.objectContaining({
+          assetId: 'asset-ledger-stays-shut',
+          decision: 'excluded',
+          visibility: 'spoiler',
+        }),
+        expect.objectContaining({
+          assetId: 'asset-departure-bell-timing',
+          decision: 'redacted',
+          visibility: 'editor-only',
+        }),
+      ]))
 
       const proposalSetResponse = await app.inject({
         method: 'GET',
@@ -245,6 +268,7 @@ describe('fixture API server run artifact read surfaces', () => {
           id: proseDraftRef!.id,
           kind: 'prose-draft',
           sourceCanonPatchId: canonPatchRef!.id,
+          contextPacketId: contextPacketRef!.id,
           sourceProposalIds: ['proposal-set-scene-midnight-platform-run-002-proposal-001'],
           selectedVariants: [selectedVariant],
           body: {

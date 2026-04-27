@@ -393,7 +393,7 @@ describe('fixture API server local project-state persistence', () => {
     const secondServer = createTestServer({ projectStateFilePath })
 
     try {
-      const [proposalSetResponse, plannerInvocationResponse] = await Promise.all([
+      const [proposalSetResponse, plannerInvocationResponse, contextPacketResponse] = await Promise.all([
         secondServer.app.inject({
           method: 'GET',
           url: `/api/projects/book-signal-arc/runs/${runId}/artifacts/proposal-set-scene-midnight-platform-run-002`,
@@ -401,6 +401,10 @@ describe('fixture API server local project-state persistence', () => {
         secondServer.app.inject({
           method: 'GET',
           url: `/api/projects/book-signal-arc/runs/${runId}/artifacts/agent-invocation-scene-midnight-platform-run-002-001`,
+        }),
+        secondServer.app.inject({
+          method: 'GET',
+          url: `/api/projects/book-signal-arc/runs/${runId}/artifacts/ctx-scene-midnight-platform-run-002`,
         }),
       ])
 
@@ -429,6 +433,26 @@ describe('fixture API server local project-state persistence', () => {
           },
         },
       })
+      expect(contextPacketResponse.statusCode).toBe(200)
+      const contextPacketArtifact = contextPacketResponse.json().artifact
+      expect(contextPacketArtifact).toMatchObject({
+        id: 'ctx-scene-midnight-platform-run-002',
+        kind: 'context-packet',
+      })
+      expect(contextPacketArtifact.sections).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          title: expect.objectContaining({
+            en: 'Narrative brief',
+          }),
+        }),
+      ]))
+      expect(contextPacketArtifact.excludedPrivateFacts).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          label: expect.objectContaining({
+            en: 'Courier signal private key',
+          }),
+        }),
+      ]))
 
       const restartedEvents = await fetchAllRunEventPages(secondServer.app, runId)
       const serializedEvents = JSON.stringify(restartedEvents)

@@ -1050,6 +1050,7 @@ export interface CanonPatchArtifactDetailRecord extends RunArtifactSummaryRecord
 export interface ProseDraftArtifactDetailRecord extends RunArtifactSummaryRecord {
   kind: 'prose-draft'
   sourceCanonPatchId: string
+  contextPacketId: string
   sourceProposalIds: string[]
   selectedVariants?: RunSelectedProposalVariantRecord[]
   body?: LocalizedTextRecord

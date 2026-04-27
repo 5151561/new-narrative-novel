@@ -1,9 +1,70 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import type {
+  ContextPacketArtifactDetailRecord,
+  RunContextAssetActivationRecord,
+} from '../contracts/api-records.js'
+import { buildSceneContextPacket } from '../orchestration/contextBuilder/sceneContextBuilder.js'
 import { createRunFixtureStore } from './runFixtureStore.js'
+import { createFixtureDataSnapshot } from './fixture-data.js'
 import { createTestServer } from '../test/support/test-server.js'
 
 describe('runFixtureStore', () => {
+  function createProjectContextPacketBuilder() {
+    const snapshot = createFixtureDataSnapshot('http://127.0.0.1:4174/api')
+
+    return ({ projectId, sceneId, sequence }: { projectId: string; sceneId: string; sequence: number }) =>
+      buildSceneContextPacket({
+        project: snapshot.projects[projectId] ?? snapshot.projects['book-signal-arc']!,
+        sceneId,
+        sequence,
+      })
+  }
+
+  function createProjectContextPacketBuilderWithExtraCounts() {
+    const buildPacket = createProjectContextPacketBuilder()
+
+    return (input: { projectId: string; sceneId: string; sequence: number }) => {
+      const packet = buildPacket(input)
+
+      return {
+        ...packet,
+        assetActivations: [
+          ...packet.assetActivations,
+          {
+            id: `${packet.packetId}-activation-extra-excluded`,
+            assetId: 'asset-extra-excluded',
+            assetTitle: { en: 'Extra excluded', 'zh-CN': '额外排除项' },
+            assetKind: 'rule' as const,
+            decision: 'excluded' as const,
+            reasonKind: 'rule-dependency' as const,
+            reasonLabel: { en: 'Extra excluded rule', 'zh-CN': '额外排除规则' },
+            visibility: 'spoiler' as const,
+            budget: 'summary-only' as const,
+            targetAgents: ['scene-manager'],
+          } satisfies RunContextAssetActivationRecord,
+          {
+            id: `${packet.packetId}-activation-extra-redacted`,
+            assetId: 'asset-extra-redacted',
+            assetTitle: { en: 'Extra redacted', 'zh-CN': '额外遮蔽项' },
+            assetKind: 'rule' as const,
+            decision: 'redacted' as const,
+            reasonKind: 'review-issue' as const,
+            reasonLabel: { en: 'Extra redacted rule', 'zh-CN': '额外遮蔽规则' },
+            visibility: 'editor-only' as const,
+            budget: 'summary-only' as const,
+            targetAgents: ['continuity-reviewer'],
+          } satisfies RunContextAssetActivationRecord,
+        ],
+        activationSummary: {
+          ...packet.activationSummary,
+          excludedAssetCount: packet.activationSummary.excludedAssetCount + 1,
+          redactedAssetCount: packet.activationSummary.redactedAssetCount + 1,
+        },
+      }
+    }
+  }
+
   function createPlannerResult(overrides?: Partial<{
     provider: 'fixture' | 'openai'
     modelId: string
@@ -268,6 +329,7 @@ describe('runFixtureStore', () => {
   it('awaits planner gateway output and persists canonical planner metadata before artifact details are derived', async () => {
     const generate = vi.fn().mockResolvedValue(createPlannerResult())
     const store = createRunFixtureStore({
+      buildSceneContextPacket: createProjectContextPacketBuilder(),
       scenePlannerGateway: {
         generate,
       },
@@ -283,10 +345,23 @@ describe('runFixtureStore', () => {
     expect(generate).toHaveBeenCalledWith({
       sceneId: 'scene-midnight-platform',
       instructions: 'Return scene-planning proposals only.',
-      input: expect.stringContaining('Midnight Platform'),
+      input: expect.stringContaining('Context packet ctx-scene-midnight-platform-run-001.'),
     })
 
     const runState = findPersistedRunState(store, 'project-artifacts', run.id)
+    expect(runState.artifacts.find((artifact) => artifact.id === 'ctx-scene-midnight-platform-run-001')).toMatchObject({
+      meta: {
+        contextPacket: {
+          version: 'scene-context-v1',
+          packetId: 'ctx-scene-midnight-platform-run-001',
+          narrative: {
+            sceneObjective: {
+              en: 'Lock the bargain before the witness can turn the ledger into public leverage.',
+            },
+          },
+        },
+      },
+    })
     expect(runState.artifacts.find((artifact) => artifact.id === 'agent-invocation-scene-midnight-platform-run-001-001')).toMatchObject({
       meta: {
         role: 'planner',
@@ -319,6 +394,82 @@ describe('runFixtureStore', () => {
       },
     })
     expect(JSON.stringify(runState)).not.toContain('Return scene-planning proposals only.')
+  })
+
+  it('derives context packet detail from injected project truth instead of default placeholder copy', async () => {
+    const store = createRunFixtureStore({
+      buildSceneContextPacket: createProjectContextPacketBuilder(),
+    })
+
+    const run = await store.startSceneRun('book-signal-arc', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+      note: 'Use the live fixture truth.',
+    })
+
+    const contextPacket = store.getRunArtifact('book-signal-arc', run.id, 'ctx-scene-midnight-platform-run-002')
+    expect(contextPacket).toMatchObject({
+      kind: 'context-packet',
+    })
+    expect(contextPacket?.kind).toBe('context-packet')
+    const contextPacketDetail = contextPacket as ContextPacketArtifactDetailRecord
+    expect(contextPacketDetail.sections).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        title: expect.objectContaining({
+          en: 'Narrative brief',
+        }),
+      }),
+    ]))
+    expect(contextPacketDetail.includedCanonFacts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        label: expect.objectContaining({
+          en: 'Scene objective',
+        }),
+        value: expect.objectContaining({
+          en: 'Lock the bargain before the witness can turn the ledger into public leverage.',
+        }),
+      }),
+      expect.objectContaining({
+        label: expect.objectContaining({
+          en: 'Ledger remains closed',
+        }),
+      }),
+    ]))
+    expect(contextPacketDetail.excludedPrivateFacts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        label: expect.objectContaining({
+          en: 'Courier signal private key',
+        }),
+      }),
+    ]))
+  })
+
+  it('publishes context packet event metadata from packet-derived activation counts during startSceneRun', async () => {
+    const store = createRunFixtureStore({
+      buildSceneContextPacket: createProjectContextPacketBuilderWithExtraCounts(),
+    })
+
+    const run = await store.startSceneRun('book-signal-arc', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+    })
+
+    const allEvents = listAllEventPages(store, 'book-signal-arc', run.id)
+    expect(allEvents.find((event) => event.kind === 'context_packet_built')).toMatchObject({
+      metadata: {
+        includedAssetCount: 3,
+        excludedAssetCount: 2,
+        redactedAssetCount: 2,
+      },
+    })
+    expect(store.getRunArtifact('book-signal-arc', run.id, 'ctx-scene-midnight-platform-run-002')).toMatchObject({
+      kind: 'context-packet',
+      activationSummary: {
+        includedAssetCount: 3,
+        excludedAssetCount: 2,
+        redactedAssetCount: 2,
+      },
+    })
   })
 
   it('surfaces stored non-default planner proposals and provenance through getRunArtifact', async () => {
@@ -619,6 +770,7 @@ describe('runFixtureStore', () => {
     expect(store.getRunArtifact('project-accept-artifacts', run.id, 'prose-draft-scene-midnight-platform-001')).toMatchObject({
       kind: 'prose-draft',
       sourceCanonPatchId: 'canon-patch-scene-midnight-platform-001',
+      contextPacketId: 'ctx-scene-midnight-platform-run-001',
       sourceProposalIds: ['proposal-set-scene-midnight-platform-run-001-proposal-001'],
     })
     expect(store.getRunArtifact('project-accept-artifacts', run.id, 'proposal-set-scene-midnight-platform-run-001')).toMatchObject({
@@ -931,6 +1083,70 @@ describe('runFixtureStore', () => {
       code: 'RUN_ARTIFACT_ID_CONFLICT',
     })
     expect(generate).not.toHaveBeenCalled()
+  })
+
+  it('reuses the persisted context packet when building the accepted prose writer request', async () => {
+    const writerGenerate = vi.fn().mockResolvedValue({
+      output: {
+        body: {
+          en: 'Accepted prose body.',
+          'zh-CN': '已接受的正文。',
+        },
+        excerpt: {
+          en: 'Accepted prose excerpt.',
+          'zh-CN': '已接受的正文摘录。',
+        },
+        wordCount: 42,
+        relatedAssets: [
+          {
+            assetId: 'asset-ren-voss',
+            kind: 'character',
+            label: {
+              en: 'Ren Voss',
+              'zh-CN': '任·沃斯',
+            },
+          },
+        ],
+      },
+      provenance: {
+        provider: 'fixture',
+        modelId: 'fixture-scene-prose-writer',
+      },
+    })
+    const store = createRunFixtureStore({
+      buildSceneContextPacket: createProjectContextPacketBuilder(),
+      sceneProseWriterGateway: {
+        generate: writerGenerate,
+      },
+    })
+
+    const run = await store.startSceneRun('book-signal-arc', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+      note: 'Planner note should stay outside run events.',
+    })
+
+    await store.submitRunReviewDecision('book-signal-arc', {
+      runId: run.id,
+      reviewId: run.pendingReviewId!,
+      decision: 'accept',
+      note: 'Keep the accepted packet visible to the writer.',
+      selectedVariants: [
+        {
+          proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+          variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-002',
+        },
+      ],
+    })
+
+    expect(writerGenerate).toHaveBeenCalledWith(expect.objectContaining({
+      sceneId: 'scene-midnight-platform',
+      instructions: 'Return accepted scene prose only.',
+      input: expect.stringContaining('Context packet ctx-scene-midnight-platform-run-002.'),
+    }))
+    expect(writerGenerate.mock.calls[0]?.[0].input).toContain('Book premise: Fixture-backed project root for the BE-PR1 API server skeleton.')
+    expect(writerGenerate.mock.calls[0]?.[0].input).toContain('Accepted proposals: proposal-set-scene-midnight-platform-run-002-proposal-001.')
+    expect(writerGenerate.mock.calls[0]?.[0].input).toContain('Selected variants: proposal-set-scene-midnight-platform-run-002-proposal-001-variant-002.')
   })
 
   it('accepts valid custom patch ids and keeps artifact lookup and trace complete', async () => {

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
+import type { RunContextAssetActivationRecord } from '../../contracts/api-records.js'
+import { createFixtureDataSnapshot } from '../../repositories/fixture-data.js'
+import { buildSceneContextPacket } from '../contextBuilder/sceneContextBuilder.js'
 import { startSceneRunWorkflow } from './sceneRunWorkflow.js'
 
 describe('startSceneRunWorkflow', () => {
@@ -302,5 +305,90 @@ describe('startSceneRunWorkflow', () => {
       'proposal-set-scene-midnight-platform-run-002',
     ])
     expect(refIds.every((id) => artifactIds.has(id))).toBe(true)
+  })
+
+  it('derives context packet event metadata counts from the persisted packet instead of hard-coded defaults', () => {
+    const snapshot = createFixtureDataSnapshot('http://127.0.0.1:4174/api')
+    const basePacket = buildSceneContextPacket({
+      project: snapshot.projects['book-signal-arc'],
+      sceneId: 'scene-midnight-platform',
+      sequence: 2,
+    })
+    const contextPacket = {
+      ...basePacket,
+      assetActivations: [
+        ...basePacket.assetActivations,
+        {
+          id: `${basePacket.packetId}-activation-extra-excluded`,
+          assetId: 'asset-extra-excluded',
+          assetTitle: { en: 'Extra excluded', 'zh-CN': '额外排除项' },
+          assetKind: 'rule' as const,
+          decision: 'excluded' as const,
+          reasonKind: 'rule-dependency' as const,
+          reasonLabel: { en: 'Extra excluded rule', 'zh-CN': '额外排除规则' },
+          visibility: 'spoiler' as const,
+          budget: 'summary-only' as const,
+          targetAgents: ['scene-manager'],
+        } satisfies RunContextAssetActivationRecord,
+        {
+          id: `${basePacket.packetId}-activation-extra-redacted`,
+          assetId: 'asset-extra-redacted',
+          assetTitle: { en: 'Extra redacted', 'zh-CN': '额外遮蔽项' },
+          assetKind: 'rule' as const,
+          decision: 'redacted' as const,
+          reasonKind: 'review-issue' as const,
+          reasonLabel: { en: 'Extra redacted rule', 'zh-CN': '额外遮蔽规则' },
+          visibility: 'editor-only' as const,
+          budget: 'summary-only' as const,
+          targetAgents: ['continuity-reviewer'],
+        } satisfies RunContextAssetActivationRecord,
+      ],
+      activationSummary: {
+        ...basePacket.activationSummary,
+        excludedAssetCount: basePacket.activationSummary.excludedAssetCount + 1,
+        redactedAssetCount: basePacket.activationSummary.redactedAssetCount + 1,
+      },
+    }
+
+    const workflow = startSceneRunWorkflow({
+      sceneId: 'scene-midnight-platform',
+      sequence: 2,
+      plannerOutput: {
+        proposals: [
+          {
+            title: 'Anchor the arrival beat',
+            summary: 'Open on Midnight Platform before introducing any new reveal.',
+            changeKind: 'action',
+            riskLabel: 'Low continuity risk',
+          },
+        ],
+      },
+      plannerProvenance: {
+        provider: 'fixture',
+        modelId: 'fixture-scene-planner',
+      },
+      contextPacket,
+    })
+
+    expect(workflow.events[2]).toMatchObject({
+      kind: 'context_packet_built',
+      metadata: {
+        includedAssetCount: 3,
+        excludedAssetCount: 2,
+        redactedAssetCount: 2,
+      },
+    })
+    expect(JSON.stringify(workflow.events[2])).not.toContain('activation-extra-excluded')
+    expect(workflow.artifacts[0]).toMatchObject({
+      meta: {
+        contextPacket: {
+          activationSummary: {
+            includedAssetCount: 3,
+            excludedAssetCount: 2,
+            redactedAssetCount: 2,
+          },
+        },
+      },
+    })
   })
 })

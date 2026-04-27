@@ -50,6 +50,8 @@ import type {
   SceneProseWriterGatewayRequest,
   SceneProseWriterGatewayResult,
 } from '../orchestration/modelGateway/sceneProseWriterGateway.js'
+import { createSceneProseWriterGateway } from '../orchestration/modelGateway/sceneProseWriterGateway.js'
+import { buildSceneContextPacket } from '../orchestration/contextBuilder/sceneContextBuilder.js'
 import {
   buildAcceptedFactsFromCanonPatch,
   buildSceneProseFromProseDraftArtifact,
@@ -368,24 +370,51 @@ export function createFixtureRepository(options: {
   scenePlannerGateway: {
     generate(request: ScenePlannerGatewayRequest): Promise<ScenePlannerGatewayResult>
   }
-  sceneProseWriterGateway: {
+  sceneProseWriterGateway?: {
     generate(request: SceneProseWriterGatewayRequest): Promise<SceneProseWriterGatewayResult>
   }
   projectStatePersistence?: FixtureRepositoryProjectStatePersistence
   runEventStreamEnabled?: boolean
 }): FixtureRepository {
-  const createSeedSnapshot = () => createFixtureDataSnapshot(options.apiBaseUrl)
-  const createSeedRunStore = () => createRunFixtureStore({
-    scenePlannerGateway: options.scenePlannerGateway,
-    sceneProseWriterGateway: options.sceneProseWriterGateway,
-    runEventStreamEnabled: options.runEventStreamEnabled,
+  const sceneProseWriterGateway = options.sceneProseWriterGateway ?? createSceneProseWriterGateway({
+    modelProvider: 'fixture',
   })
+  const createSeedSnapshot = () => createFixtureDataSnapshot(options.apiBaseUrl)
+  const createSeedRunStore = () => {
+    const seedSnapshot = createSeedSnapshot()
+
+    return createRunFixtureStore({
+      scenePlannerGateway: options.scenePlannerGateway,
+      sceneProseWriterGateway,
+      runEventStreamEnabled: options.runEventStreamEnabled,
+      buildSceneContextPacket: ({ projectId, sceneId, sequence }) => {
+        const project = seedSnapshot.projects[projectId]
+        if (!project) {
+          throw notFound(`Project ${projectId} was not found.`, {
+            code: 'PROJECT_NOT_FOUND',
+            detail: { projectId },
+          })
+        }
+
+        return buildSceneContextPacket({
+          project,
+          sceneId,
+          sequence,
+        })
+      },
+    })
+  }
 
   let snapshot = createSeedSnapshot()
   const runStore: RunFixtureStore = createRunFixtureStore({
     scenePlannerGateway: options.scenePlannerGateway,
-    sceneProseWriterGateway: options.sceneProseWriterGateway,
+    sceneProseWriterGateway,
     runEventStreamEnabled: options.runEventStreamEnabled,
+    buildSceneContextPacket: ({ projectId, sceneId, sequence }) => buildSceneContextPacket({
+      project: getProject(projectId),
+      sceneId,
+      sequence,
+    }),
   })
   let persistenceQueue = Promise.resolve()
 

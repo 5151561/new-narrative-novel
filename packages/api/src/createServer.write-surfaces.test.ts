@@ -141,6 +141,37 @@ describe('fixture API server write surfaces', () => {
         title: 'Midnight Platform Revised',
         activeThreadId: 'thread-platform-02',
       })
+
+      const runResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
+          note: 'Confirm the updated setup flows into the context packet.',
+        },
+      })
+      expect(runResponse.statusCode).toBe(200)
+
+      const contextPacketResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${runResponse.json().id}/artifacts/ctx-scene-midnight-platform-run-002`,
+      })
+      expect(contextPacketResponse.statusCode).toBe(200)
+      const contextPacketArtifact = contextPacketResponse.json().artifact
+      expect(contextPacketArtifact.includedCanonFacts).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          label: expect.objectContaining({
+            en: 'Scene objective',
+          }),
+        }),
+      ]))
+      expect(contextPacketArtifact.sections).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          title: expect.objectContaining({
+            en: 'Narrative brief',
+          }),
+        }),
+      ]))
     })
   })
 

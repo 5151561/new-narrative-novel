@@ -33,11 +33,19 @@ import {
   buildProseDraftDetail,
 } from '../orchestration/sceneRun/sceneRunArtifactDetails.js'
 import {
+  isSceneContextPacketRecord,
+  renderSceneContextPacketForPlanner,
+  renderSceneContextPacketForWriter,
+  type SceneContextPacketRecord,
+} from '../orchestration/contextBuilder/sceneContextBuilder.js'
+import {
   buildDefaultPlannerOutput,
+  createContextPacketArtifact,
   createAgentInvocationArtifact,
   createCanonPatchArtifact,
   createProseDraftArtifact,
 } from '../orchestration/sceneRun/sceneRunArtifacts.js'
+import { buildRunId } from '../orchestration/sceneRun/sceneRunIds.js'
 import { applySceneRunReviewDecisionTransition } from '../orchestration/sceneRun/sceneRunTransitions.js'
 import type { SceneRunArtifactRecord } from '../orchestration/sceneRun/sceneRunRecords.js'
 import {
@@ -109,6 +117,18 @@ function toJsonClone<T>(value: T): T {
 
 function cloneSelectedVariants(selectedVariants?: RunSelectedProposalVariantRecord[]) {
   return selectedVariants ? clone(selectedVariants) : []
+}
+
+function localizeText(en: string) {
+  return {
+    en,
+    'zh-CN': en,
+  }
+}
+
+function readPersistedContextPacket(artifact: SceneRunArtifactRecord | undefined) {
+  const packet = artifact?.meta?.contextPacket
+  return isSceneContextPacketRecord(packet) ? packet : undefined
 }
 
 function findProposalSetDetail(state: RunState): ProposalSetArtifactDetailRecord | undefined {
@@ -342,6 +362,7 @@ function indexRunReadSurfaces(state: RunState) {
         artifact: proseDraftArtifact,
         sourceEventIds: collectArtifactSourceEventIds(state.events, proseDraftArtifact),
         sourceCanonPatchId: canonPatchDetail.id,
+        contextPacketId: contextPacketDetail?.id,
         sourceProposalIds: canonPatchDetail.acceptedProposalIds,
         selectedVariants: canonPatchDetail.selectedVariants,
       })
@@ -414,21 +435,23 @@ function buildFixturePlannerResult(sceneId: string): ScenePlannerGatewayResult {
   }
 }
 
-function createScenePlannerRequest(input: StartSceneRunInput): ScenePlannerGatewayRequest {
-  const modeLabel = input.mode ?? 'continue'
-  const note = trimNote(input.note)
-  const sceneName = formatSceneName(input.sceneId)
-
+function createScenePlannerRequest(
+  input: StartSceneRunInput,
+  contextPacket: SceneContextPacketRecord,
+): ScenePlannerGatewayRequest {
   return {
     sceneId: input.sceneId,
     instructions: 'Return scene-planning proposals only.',
-    input: note
-      ? `Context packet for ${sceneName}. Requested mode: ${modeLabel}. Editorial note: ${note}.`
-      : `Context packet for ${sceneName}. Requested mode: ${modeLabel}.`,
+    input: renderSceneContextPacketForPlanner(contextPacket, {
+      mode: input.mode,
+      note: input.note,
+    }),
   }
 }
 
-function createSeedRun(): {
+function createSeedRun(
+  buildPersistedContextPacket?: (input: { projectId: string; sceneId: string; sequence: number }) => SceneContextPacketRecord,
+): {
   projectId: string
   sceneId: string
   sequence: number
@@ -441,11 +464,17 @@ function createSeedRun(): {
   const sceneId = 'scene-midnight-platform'
   const sequence = 1
   const plannerResult = buildFixturePlannerResult(sceneId)
+  const contextPacket = buildPersistedContextPacket?.({
+    projectId,
+    sceneId,
+    sequence,
+  })
   const workflow = startSceneRunWorkflow({
     sceneId,
     sequence,
     plannerOutput: plannerResult.output,
     plannerProvenance: plannerResult.provenance,
+    ...(contextPacket ? { contextPacket } : {}),
   }, {
     buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
   })
@@ -468,7 +497,22 @@ function createSeedRun(): {
     sequence,
     run,
     events,
-    artifacts: workflow.artifacts,
+    artifacts: workflow.artifacts.map((artifact) => {
+      if (artifact.kind !== 'context-packet' || !buildPersistedContextPacket) {
+        return artifact
+      }
+
+      return createContextPacketArtifact({
+        runId: run.id,
+        sceneId,
+        sequence,
+        contextPacket: buildPersistedContextPacket({
+          projectId,
+          sceneId,
+          sequence,
+        }),
+      })
+    }),
   }
 }
 
@@ -492,6 +536,7 @@ export function createRunFixtureStore(options: {
   scenePlannerGateway?: ScenePlannerGatewayLike
   sceneProseWriterGateway?: SceneProseWriterGatewayLike
   runEventStreamEnabled?: boolean
+  buildSceneContextPacket?: (input: { projectId: string; sceneId: string; sequence: number }) => SceneContextPacketRecord
 } = {}): RunFixtureStore {
   const runStatesByProjectId = new Map<string, Map<string, RunState>>()
   const sceneRunSequenceByProjectId = new Map<string, Map<string, number>>()
@@ -503,6 +548,88 @@ export function createRunFixtureStore(options: {
   const sceneProseWriterGateway = options.sceneProseWriterGateway ?? createSceneProseWriterGateway({
     modelProvider: 'fixture',
   })
+  const buildPersistedContextPacket = options.buildSceneContextPacket
+    ?? ((input: { projectId: string; sceneId: string; sequence: number }) => {
+      const sceneName = formatSceneName(input.sceneId)
+      const packetId = `ctx-${input.sceneId}-run-${String(input.sequence).padStart(3, '0')}`
+
+      return {
+        version: 'scene-context-v1' as const,
+        packetId,
+        sceneId: input.sceneId,
+        narrative: {
+          bookPremise: localizeText(`Fixture premise for ${sceneName}.`),
+          chapterGoal: localizeText(`Fixture chapter goal for ${sceneName}.`),
+          sceneObjective: localizeText(`Preserve the next visible beat for ${sceneName}.`),
+          sceneSetup: localizeText(`${sceneName} remains staged for a fixture-only planning pass.`),
+          currentState: localizeText('Current scene state remains fixture-backed until project truth is injected.'),
+          castSummary: localizeText(`Fixture cast summary for ${sceneName}.`),
+          locationSummary: localizeText(`Fixture location summary for ${sceneName}.`),
+          styleInstruction: localizeText('Keep the fixture output concise and traceable.'),
+          visibilityExplanation: localizeText('Fixture packet keeps the same included, excluded, and redacted counts.'),
+          budgetSummary: localizeText(`Budget ${1500 + input.sequence * 100} tokens.`),
+        },
+        sections: [
+          {
+            id: `${packetId}-section-brief`,
+            title: localizeText('Scene brief'),
+            summary: localizeText(`Fixture context packet keeps ${sceneName} readable for planning.`),
+            itemCount: 3,
+          },
+        ],
+        includedCanonFacts: [
+          {
+            id: `${packetId}-canon-fact-001`,
+            label: localizeText('Scene objective'),
+            value: localizeText(`Preserve the next visible beat for ${sceneName}.`),
+          },
+        ],
+        includedAssets: [
+          {
+            assetId: 'asset-ren-voss',
+            label: localizeText('Ren Voss'),
+            kind: 'character',
+            reason: localizeText('Fixture POV anchor.'),
+          },
+          {
+            assetId: 'asset-mei-arden',
+            label: localizeText('Mei Arden'),
+            kind: 'character',
+            reason: localizeText('Fixture counter-pressure anchor.'),
+          },
+          {
+            assetId: 'asset-midnight-platform',
+            label: localizeText('Midnight Platform'),
+            kind: 'location',
+            reason: localizeText('Fixture staging anchor.'),
+          },
+        ],
+        excludedPrivateFacts: [
+          {
+            id: `${packetId}-excluded-001`,
+            label: localizeText('Deferred reveal'),
+            reason: localizeText('Fixture private reveal remains excluded.'),
+          },
+        ],
+        assetActivations: buildContextPacketDetail({
+          artifact: createContextPacketArtifact({
+            runId: buildRunId(input.sceneId, input.sequence),
+            sceneId: input.sceneId,
+            sequence: input.sequence,
+          }),
+          sourceEventIds: [],
+        }).assetActivations ?? [],
+        activationSummary: {
+          includedAssetCount: 3,
+          excludedAssetCount: 1,
+          redactedAssetCount: 1,
+          targetAgentCount: 4,
+          warningCount: 1,
+        },
+        outputSchemaLabel: localizeText('Scene context packet schema'),
+        tokenBudgetLabel: localizeText(`Target budget ${1500 + input.sequence * 100} tokens`),
+      }
+    })
 
   function getRunBucket(projectId: string, createIfMissing = false) {
     const existing = runStatesByProjectId.get(projectId)
@@ -586,11 +713,7 @@ export function createRunFixtureStore(options: {
   ): SceneProseWriterGatewayRequest {
     const proposalSet = findProposalSetDetail(state)
     const acceptedProposalIds = collectAcceptedProposalIds(proposalSet, input.selectedVariants)
-    const selectedVariantLabel = input.selectedVariants?.length
-      ? ` Selected variants: ${input.selectedVariants.map((variant) => variant.variantId).join(', ')}.`
-      : ''
-    const note = trimNote(input.note)
-    const noteLabel = note ? ` Editorial note: ${note}.` : ''
+    const contextPacket = readPersistedContextPacket(state.artifacts.find((artifact) => artifact.kind === 'context-packet'))
 
     return {
       sceneId: state.run.scopeId,
@@ -598,7 +721,14 @@ export function createRunFixtureStore(options: {
       acceptedProposalIds,
       selectedVariants: cloneSelectedVariants(input.selectedVariants),
       instructions: 'Return accepted scene prose only.',
-      input: `Scene: ${formatSceneName(state.run.scopeId)}. Decision: ${input.decision}. Accepted proposals: ${acceptedProposalIds.join(', ') || 'default accepted proposal'}.${selectedVariantLabel}${noteLabel}`,
+      input: contextPacket
+        ? renderSceneContextPacketForWriter(contextPacket, {
+          decision: input.decision,
+          acceptedProposalIds,
+          selectedVariantIds: input.selectedVariants?.map((variant) => variant.variantId),
+          note: input.note,
+        })
+        : `Scene: ${formatSceneName(state.run.scopeId)}. Decision: ${input.decision}. Accepted proposals: ${acceptedProposalIds.join(', ') || 'default accepted proposal'}.`,
     }
   }
 
@@ -692,7 +822,7 @@ export function createRunFixtureStore(options: {
     sceneRunSequenceByProjectId.clear()
     runEventStreamBroker.reset()
 
-    const seed = createSeedRun()
+    const seed = createSeedRun(buildPersistedContextPacket)
     storeRunState(seed.projectId, createRunState(
       seed.sequence,
       seed.run,
@@ -772,13 +902,19 @@ export function createRunFixtureStore(options: {
       const sequenceBucket = getSequenceBucket(projectId, true)
       const nextSequence = (sequenceBucket?.get(input.sceneId) ?? 0) + 1
       sequenceBucket!.set(input.sceneId, nextSequence)
-      const plannerResult = await scenePlannerGateway.generate(createScenePlannerRequest(input))
+      const contextPacket = buildPersistedContextPacket({
+        projectId,
+        sceneId: input.sceneId,
+        sequence: nextSequence,
+      })
+      const plannerResult = await scenePlannerGateway.generate(createScenePlannerRequest(input, contextPacket))
 
       const workflow = startSceneRunWorkflow({
         ...input,
         sequence: nextSequence,
         plannerOutput: plannerResult.output,
         plannerProvenance: plannerResult.provenance,
+        contextPacket,
       }, {
         buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
       })
@@ -787,7 +923,18 @@ export function createRunFixtureStore(options: {
         nextSequence,
         workflow.run,
         workflow.events,
-        workflow.artifacts,
+        workflow.artifacts.map((artifact) => {
+          if (artifact.kind !== 'context-packet') {
+            return artifact
+          }
+
+          return createContextPacketArtifact({
+            runId: workflow.run.id,
+            sceneId: input.sceneId,
+            sequence: nextSequence,
+            contextPacket,
+          })
+        }),
       )
       storeRunState(projectId, state)
       if (runEventStreamEnabled) {

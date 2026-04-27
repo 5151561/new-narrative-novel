@@ -671,6 +671,7 @@ function buildProseDraftDetail(state: MockRunState, entry: MockArtifactEntry): P
     ...buildArtifactSummary(state, entry),
     kind: 'prose-draft',
     sourceCanonPatchId: getCanonPatchId(state),
+    contextPacketId: getContextPacketId(state),
     sourceProposalIds: acceptedProposalIds,
     ...(selectedVariants.length > 0 ? { selectedVariants } : {}),
     body: text(

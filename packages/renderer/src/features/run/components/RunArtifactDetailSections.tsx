@@ -318,6 +318,7 @@ export function ProseDraftArtifactPanel({ artifact }: { artifact: ProseDraftArti
         <FactList
           items={[
             { id: 'source-canon-patch', label: locale === 'zh-CN' ? 'Source canon patch id' : 'Source canon patch id', value: artifact.sourceCanonPatchId },
+            { id: 'context-packet', label: locale === 'zh-CN' ? 'Context packet id' : 'Context packet id', value: artifact.contextPacketId },
             { id: 'source-proposals', label: locale === 'zh-CN' ? 'Source proposal ids' : 'Source proposal ids', value: artifact.sourceProposalIds.join(', ') },
             { id: 'word-count', label: locale === 'zh-CN' ? '字数' : 'Word count', value: `${artifact.wordCount} words` },
           ]}

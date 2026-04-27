@@ -158,6 +158,7 @@ describe('RunArtifactInspectorPanel', () => {
     expect(screen.getByText('The scene opens from the accepted run artifact, keeping the selected review material visible in the draft.')).toBeInTheDocument()
     expect(screen.getByText('143 words')).toBeInTheDocument()
     expect(screen.getByText(canonPatchId)).toBeInTheDocument()
+    expect(screen.getByText(contextPacketId)).toBeInTheDocument()
     expect(screen.getByText(`${proposalSetId}-proposal-001`)).toBeInTheDocument()
   })
 

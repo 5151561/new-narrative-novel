@@ -120,6 +120,12 @@ export const ProseDraft: Story = {
   },
 }
 
+export const ProseDraftLinkedContext: Story = {
+  args: {
+    artifact: proseDraft,
+  },
+}
+
 export const ErrorArtifactNotFound: Story = {
   args: {
     artifact: null,
