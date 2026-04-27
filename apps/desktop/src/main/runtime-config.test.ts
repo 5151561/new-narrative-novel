@@ -5,11 +5,18 @@ import { describe, expect, it } from 'vitest'
 import { createDesktopRuntimeConfig, createLocalApiProcessConfig } from './runtime-config.js'
 
 describe('createLocalApiProcessConfig', () => {
-  it('creates the desktop-local runtime config with the expected API and health URLs', () => {
-    expect(createDesktopRuntimeConfig(4888)).toEqual({
+  it('creates the desktop-local runtime config with the selected project identity and expected API URLs', () => {
+    expect(createDesktopRuntimeConfig(4888, {
+      currentProject: {
+        projectId: 'book-signal-arc',
+        projectTitle: 'Local Alpha',
+      },
+    })).toEqual({
       apiBaseUrl: 'http://127.0.0.1:4888/api',
       apiHealthUrl: 'http://127.0.0.1:4888/api/health',
       port: 4888,
+      projectId: 'book-signal-arc',
+      projectTitle: 'Local Alpha',
       runtimeMode: 'desktop-local',
     })
   })

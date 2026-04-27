@@ -70,6 +70,8 @@ describe('LocalApiSupervisor', () => {
       apiBaseUrl: 'http://127.0.0.1:4888/api',
       apiHealthUrl: 'http://127.0.0.1:4888/api/health',
       port: 4888,
+      projectId: 'book-signal-arc',
+      projectTitle: 'Desktop Local Prototype',
       runtimeMode: 'desktop-local',
     })
     expect(spawnConfigs).toHaveLength(1)
@@ -214,6 +216,8 @@ describe('LocalApiSupervisor', () => {
     await expect(secondStart).resolves.toMatchObject({
       runtimeConfig: {
         apiBaseUrl: 'http://127.0.0.1:4888/api',
+        projectId: 'book-signal-arc',
+        projectTitle: 'book-signal-arc',
       },
       status: 'ready',
     })
@@ -243,6 +247,8 @@ describe('LocalApiSupervisor', () => {
     await expect(startPromise).resolves.toMatchObject({
       runtimeConfig: {
         apiBaseUrl: 'http://127.0.0.1:4888/api',
+        projectId: 'book-signal-arc',
+        projectTitle: 'book-signal-arc',
       },
       status: 'ready',
     })
@@ -282,6 +288,8 @@ describe('LocalApiSupervisor', () => {
         apiBaseUrl: 'http://127.0.0.1:4888/api',
         apiHealthUrl: 'http://127.0.0.1:4888/api/health',
         port: 4888,
+        projectId: 'book-signal-arc',
+        projectTitle: 'book-signal-arc',
         runtimeMode: 'desktop-local',
       },
       status: 'ready',

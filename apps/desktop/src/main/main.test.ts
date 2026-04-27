@@ -55,6 +55,8 @@ describe('desktop main bridge registration', () => {
           apiBaseUrl: 'http://127.0.0.1:4888/api',
           apiHealthUrl: 'http://127.0.0.1:4888/api/health',
           port: 4888,
+          projectId: 'book-signal-arc',
+          projectTitle: 'Desktop Local Prototype',
           runtimeMode: 'desktop-local' as const,
         },
         status: 'ready' as const,
@@ -66,6 +68,8 @@ describe('desktop main bridge registration', () => {
           apiBaseUrl: 'http://127.0.0.1:4888/api',
           apiHealthUrl: 'http://127.0.0.1:4888/api/health',
           port: 4888,
+          projectId: 'book-signal-arc',
+          projectTitle: 'Desktop Local Prototype',
           runtimeMode: 'desktop-local' as const,
         },
         status: 'ready' as const,
@@ -77,6 +81,8 @@ describe('desktop main bridge registration', () => {
           apiBaseUrl: 'http://127.0.0.1:4888/api',
           apiHealthUrl: 'http://127.0.0.1:4888/api/health',
           port: 4888,
+          projectId: 'book-signal-arc',
+          projectTitle: 'Desktop Local Prototype',
           runtimeMode: 'desktop-local' as const,
         },
         status: 'ready' as const,
@@ -132,10 +138,19 @@ describe('desktop main bridge registration', () => {
     expect(registrations.has(DESKTOP_API_CHANNELS.getWorkerStatus)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.restartWorker)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.getCurrentProject)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.getRuntimeConfig)).toBe(true)
 
     expect(registrations.get(DESKTOP_API_CHANNELS.getCurrentProject)?.()).toEqual({
       projectId: 'book-signal-arc',
       projectTitle: 'Desktop Local Prototype',
+    })
+    await expect(registrations.get(DESKTOP_API_CHANNELS.getRuntimeConfig)?.()).resolves.toEqual({
+      apiBaseUrl: 'http://127.0.0.1:4888/api',
+      apiHealthUrl: 'http://127.0.0.1:4888/api/health',
+      port: 4888,
+      projectId: 'book-signal-arc',
+      projectTitle: 'Desktop Local Prototype',
+      runtimeMode: 'desktop-local',
     })
     expect(registrations.get(DESKTOP_API_CHANNELS.getWorkerStatus)?.()).toEqual({
       implementation: 'placeholder',

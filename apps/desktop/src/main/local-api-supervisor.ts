@@ -143,7 +143,9 @@ export class LocalApiSupervisor {
         throw new Error('No desktop project is selected.')
       }
 
-      this.runtimeConfig = createDesktopRuntimeConfig(port)
+      this.runtimeConfig = createDesktopRuntimeConfig(port, {
+        currentProject,
+      })
       const spawnConfig = createLocalApiProcessConfig({
         currentProject,
         port,

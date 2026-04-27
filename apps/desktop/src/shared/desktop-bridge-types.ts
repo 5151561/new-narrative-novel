@@ -9,6 +9,8 @@ export interface DesktopRuntimeConfig {
   apiBaseUrl: string
   apiHealthUrl: string
   port: number
+  projectId: string
+  projectTitle: string
 }
 
 export interface LocalApiStatusSnapshot {

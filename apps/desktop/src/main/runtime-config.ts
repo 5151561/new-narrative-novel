@@ -10,6 +10,8 @@ export interface DesktopRuntimeConfig {
   apiBaseUrl: string
   apiHealthUrl: string
   port: number
+  projectId: string
+  projectTitle: string
 }
 
 export interface LocalApiProcessConfig {
@@ -22,11 +24,16 @@ export interface LocalApiProcessConfig {
 export interface CreateDesktopRuntimeConfigOptions {
   host?: string
   apiBasePath?: string
+  currentProject: Pick<SelectedProjectSession, 'projectId' | 'projectTitle'>
 }
 
 export function createDesktopRuntimeConfig(
   port: number,
-  { host = '127.0.0.1', apiBasePath = '/api' }: CreateDesktopRuntimeConfigOptions = {},
+  {
+    host = '127.0.0.1',
+    apiBasePath = '/api',
+    currentProject,
+  }: CreateDesktopRuntimeConfigOptions,
 ): DesktopRuntimeConfig {
   const normalizedBasePath = apiBasePath.startsWith('/') ? apiBasePath : `/${apiBasePath}`
   const apiBaseUrl = `http://${host}:${port}${normalizedBasePath}`
@@ -35,6 +42,8 @@ export function createDesktopRuntimeConfig(
     apiBaseUrl,
     apiHealthUrl: `${apiBaseUrl}/health`,
     port,
+    projectId: currentProject.projectId,
+    projectTitle: currentProject.projectTitle,
     runtimeMode: 'desktop-local',
   }
 }
