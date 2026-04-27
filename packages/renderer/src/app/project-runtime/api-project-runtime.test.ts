@@ -711,17 +711,73 @@ describe('api project runtime', () => {
     })
   })
 
-  it('posts scene prose revision requests with the selected revision mode', async () => {
+  it('posts scene prose revision requests with the selected revision mode and instruction', async () => {
     const transport = createTransportMock()
     const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })
 
-    await runtime.sceneClient.reviseSceneProse('scene-1', 'compress')
+    await runtime.sceneClient.reviseSceneProse('scene-1', {
+      revisionMode: 'compress',
+      instruction: 'Tighten the bargaining exchange while preserving the accepted canon facts.',
+    })
 
     expect(transport).toHaveBeenCalledWith({
       method: 'POST',
       path: '/api/projects/project-1/scenes/scene-1/prose/revision',
       body: {
         revisionMode: 'compress',
+        instruction: 'Tighten the bargaining exchange while preserving the accepted canon facts.',
+      },
+    })
+  })
+
+  it('trims scene prose revision instruction and rejects overlength briefs before transport', async () => {
+    const transport = createTransportMock()
+    const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })
+
+    await runtime.sceneClient.reviseSceneProse('scene-1', {
+      revisionMode: 'compress',
+      instruction: '  Tighten the bargaining exchange while preserving the accepted canon facts.  ',
+    })
+
+    expect(transport).toHaveBeenCalledWith({
+      method: 'POST',
+      path: '/api/projects/project-1/scenes/scene-1/prose/revision',
+      body: {
+        revisionMode: 'compress',
+        instruction: 'Tighten the bargaining exchange while preserving the accepted canon facts.',
+      },
+    })
+
+    await expect(
+      runtime.sceneClient.reviseSceneProse('scene-1', {
+        revisionMode: 'compress',
+        instruction: 'x'.repeat(281),
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'instruction must be at most 280 characters.',
+      code: 'INVALID_REVISION_INSTRUCTION',
+      detail: {
+        body: {
+          revisionMode: 'compress',
+          instruction: 'x'.repeat(281),
+        },
+        maxLength: 280,
+      },
+    })
+  })
+
+  it('posts scene prose revision accept requests with the revision id', async () => {
+    const transport = createTransportMock()
+    const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })
+
+    await runtime.sceneClient.acceptSceneProseRevision('scene-1', 'revision-scene-1-001')
+
+    expect(transport).toHaveBeenCalledWith({
+      method: 'POST',
+      path: '/api/projects/project-1/scenes/scene-1/prose/revision/accept',
+      body: {
+        revisionId: 'revision-scene-1-001',
       },
     })
   })

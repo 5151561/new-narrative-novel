@@ -10,12 +10,17 @@ import type { SceneProseViewModel } from '../types/scene-view-models'
 interface SceneProseTabProps {
   prose: SceneProseViewModel
   selectedMode: SceneProseViewModel['revisionModes'][number]
+  revisionBrief: string
+  isRevisionBriefTooLong: boolean
   isFocusModeActive: boolean
   isRevising: boolean
+  isAcceptingRevision: boolean
   canReviseDraft: boolean
   onSelectMode: (mode: SceneProseViewModel['revisionModes'][number]) => void
+  onRevisionBriefChange: (value: string) => void
   onToggleFocusMode: () => void
   onRevise: () => void
+  onAcceptRevision: () => void
 }
 
 export function ProseDraftReader({ proseDraft }: Pick<SceneProseViewModel, 'proseDraft'>) {
@@ -183,11 +188,21 @@ function getDraftWordCountLabel(
 export function RevisionActionBar({
   revisionModes,
   selectedMode,
+  revisionBrief,
+  isRevisionBriefTooLong,
   isRevising,
   canReviseDraft,
   onSelectMode,
+  onRevisionBriefChange,
   onRevise,
-}: Pick<SceneProseTabProps, 'selectedMode' | 'isRevising' | 'canReviseDraft' | 'onSelectMode' | 'onRevise'> &
+  hasPendingRevisionCandidate,
+}: Pick<
+  SceneProseTabProps,
+  'selectedMode' | 'revisionBrief' | 'isRevising' | 'canReviseDraft' | 'onSelectMode' | 'onRevisionBriefChange' | 'onRevise'
+> & {
+  hasPendingRevisionCandidate: boolean
+  isRevisionBriefTooLong: boolean
+} &
   Pick<SceneProseViewModel, 'revisionModes'>) {
   const { locale } = useI18n()
   const revisionLabels: Record<SceneProseViewModel['revisionModes'][number], string> = {
@@ -230,15 +245,47 @@ export function RevisionActionBar({
         <button
           type="button"
           onClick={onRevise}
-          disabled={isRevising || !canReviseDraft}
+          disabled={isRevising || !canReviseDraft || hasPendingRevisionCandidate || isRevisionBriefTooLong}
           className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
         >
-          {locale === 'zh-CN' ? '开始修订' : 'Revise Draft'}
+          {locale === 'zh-CN' ? '请求修订' : 'Request Revision'}
         </button>
+      </div>
+      <div className="mt-4 space-y-2">
+        <label htmlFor="scene-prose-revision-brief" className="text-sm font-medium text-text-main">
+          {locale === 'zh-CN' ? '修订简报' : 'Revision brief'}
+        </label>
+        <input
+          id="scene-prose-revision-brief"
+          type="text"
+          value={revisionBrief}
+          onChange={(event) => onRevisionBriefChange(event.target.value)}
+          placeholder={
+            locale === 'zh-CN'
+              ? '简要说明这一轮修订要解决什么。'
+              : 'Briefly note what this revision pass should improve.'
+          }
+          aria-invalid={isRevisionBriefTooLong}
+          className="w-full rounded-md border border-line-soft bg-surface-2 px-3 py-2 text-sm text-text-main placeholder:text-text-soft"
+        />
+        {isRevisionBriefTooLong ? (
+          <p className="text-sm text-warn">
+            {locale === 'zh-CN'
+              ? '修订简报不能超过 280 个字符。'
+              : 'Revision brief must be 280 characters or fewer.'}
+          </p>
+        ) : null}
       </div>
       {!canReviseDraft ? (
         <p className="mt-3 text-sm text-text-muted">
           {locale === 'zh-CN' ? '需要先生成正文草稿，才能排队新的修订。' : 'A prose draft is required before queuing a revision.'}
+        </p>
+      ) : null}
+      {hasPendingRevisionCandidate ? (
+        <p className="mt-3 text-sm text-text-muted">
+          {locale === 'zh-CN'
+            ? '当前已有待审阅的修订候选，请先接受它，再请求下一轮。'
+            : 'A revision candidate is already pending review. Accept it before requesting another pass.'}
         </p>
       ) : null}
     </SectionCard>
@@ -318,6 +365,77 @@ export function ProseToolbar({
   )
 }
 
+export function PendingRevisionCandidateCard({
+  prose,
+  isAcceptingRevision,
+  onAcceptRevision,
+}: Pick<SceneProseTabProps, 'prose' | 'isAcceptingRevision' | 'onAcceptRevision'>) {
+  const { locale } = useI18n()
+  const candidate = prose.revisionCandidate
+
+  if (!candidate) {
+    return null
+  }
+
+  const revisionLabels: Record<SceneProseViewModel['revisionModes'][number], string> = {
+    rewrite: locale === 'zh-CN' ? '重写' : 'Rewrite',
+    compress: locale === 'zh-CN' ? '压缩' : 'Compress',
+    expand: locale === 'zh-CN' ? '扩写' : 'Expand',
+    tone_adjust: locale === 'zh-CN' ? '语气调整' : 'Tone Adjust',
+    continuity_fix: locale === 'zh-CN' ? '连续性修复' : 'Continuity Fix',
+  }
+
+  return (
+    <SectionCard
+      eyebrow={locale === 'zh-CN' ? '候选正文' : 'Candidate prose'}
+      title={locale === 'zh-CN' ? '待审阅修订候选' : 'Pending revision candidate'}
+    >
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="accent">{revisionLabels[candidate.revisionMode]}</Badge>
+          <Badge tone="neutral">{candidate.revisionId}</Badge>
+          {candidate.fallbackProvenance ? <Badge tone="warn">{candidate.fallbackProvenance.modelId}</Badge> : null}
+        </div>
+        {candidate.instruction ? (
+          <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-2">
+            <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">
+              {locale === 'zh-CN' ? '修订简报' : 'Revision brief'}
+            </p>
+            <p className="mt-1 text-sm leading-6 text-text-main">{candidate.instruction}</p>
+          </div>
+        ) : null}
+        <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-3">
+          <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">
+            {locale === 'zh-CN' ? '候选正文' : 'Candidate prose'}
+          </p>
+          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-text-main">{candidate.proseBody}</p>
+        </div>
+        <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-2">
+          <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">
+            {locale === 'zh-CN' ? '差异摘要' : 'Diff summary'}
+          </p>
+          <p className="mt-1 text-sm leading-6 text-text-main">{candidate.diffSummary}</p>
+        </div>
+        <div className="grid gap-2 text-sm text-text-muted">
+          <p>{locale === 'zh-CN' ? `来源正文：${candidate.sourceProseDraftId}` : `Source prose: ${candidate.sourceProseDraftId}`}</p>
+          <p>{locale === 'zh-CN' ? `来源补丁：${candidate.sourceCanonPatchId}` : `Source patch: ${candidate.sourceCanonPatchId}`}</p>
+          <p>{locale === 'zh-CN' ? `上下文包：${candidate.contextPacketId}` : `Context packet: ${candidate.contextPacketId}`}</p>
+        </div>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onAcceptRevision}
+            disabled={isAcceptingRevision}
+            className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+          >
+            {locale === 'zh-CN' ? '接受修订' : 'Accept Revision'}
+          </button>
+        </div>
+      </div>
+    </SectionCard>
+  )
+}
+
 export function ProseStatusFooter({ prose, selectedMode }: Pick<SceneProseTabProps, 'prose' | 'selectedMode'>) {
   const { locale } = useI18n()
   const revisionQueueCount = prose.revisionQueueCount ?? 0
@@ -353,7 +471,7 @@ export function ProseStatusFooter({ prose, selectedMode }: Pick<SceneProseTabPro
           <Badge tone="neutral">{getDraftWordCountLabel(locale, hasDraft, prose.proseDraft, prose.draftWordCount)}</Badge>
           <Badge tone="accent">{revisionLabel}</Badge>
           {revisionQueueCount > 0 ? (
-            <Badge tone="accent">{locale === 'zh-CN' ? `修订 ${revisionQueueCount}` : `Queue ${revisionQueueCount}`}</Badge>
+            <Badge tone="accent">{locale === 'zh-CN' ? `队列 ${revisionQueueCount}` : `Queue ${revisionQueueCount}`}</Badge>
           ) : null}
         </div>
         <div className="space-y-1 text-right">
@@ -380,14 +498,20 @@ export function ProseStatusFooter({ prose, selectedMode }: Pick<SceneProseTabPro
 export function SceneProseTab({
   prose,
   selectedMode,
+  revisionBrief,
+  isRevisionBriefTooLong,
   isFocusModeActive,
   isRevising,
+  isAcceptingRevision,
   canReviseDraft,
   onSelectMode,
+  onRevisionBriefChange,
   onToggleFocusMode,
   onRevise,
+  onAcceptRevision,
 }: SceneProseTabProps) {
   const { locale } = useI18n()
+  const pendingDiffSummary = prose.revisionCandidate?.diffSummary ?? prose.latestDiffSummary
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -405,14 +529,23 @@ export function SceneProseTab({
           <RevisionActionBar
             revisionModes={prose.revisionModes}
             selectedMode={selectedMode}
+            revisionBrief={revisionBrief}
+            isRevisionBriefTooLong={isRevisionBriefTooLong}
             isRevising={isRevising}
             canReviseDraft={canReviseDraft}
             onSelectMode={onSelectMode}
+            onRevisionBriefChange={onRevisionBriefChange}
             onRevise={onRevise}
+            hasPendingRevisionCandidate={Boolean(prose.revisionCandidate)}
+          />
+          <PendingRevisionCandidateCard
+            prose={prose}
+            isAcceptingRevision={isAcceptingRevision}
+            onAcceptRevision={onAcceptRevision}
           />
           <SectionCard eyebrow={locale === 'zh-CN' ? '差异摘要' : 'Diff Summary'} title={locale === 'zh-CN' ? '最新修订' : 'Latest Revision'}>
             <p className="text-sm leading-6 text-text-muted">
-              {prose.latestDiffSummary ?? (locale === 'zh-CN' ? '尚未请求新的正文修订。' : 'No prose revision requested yet.')}
+              {pendingDiffSummary ?? (locale === 'zh-CN' ? '尚未请求新的正文修订。' : 'No prose revision requested yet.')}
             </p>
           </SectionCard>
           <ProseSourceSummary traceSummary={prose.traceSummary} />

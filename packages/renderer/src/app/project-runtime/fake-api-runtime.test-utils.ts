@@ -10,6 +10,7 @@ import type {
   BookDraftAssemblyRecord,
   BookDraftAssemblySceneRecord,
 } from '@/features/book/api/book-draft-assembly-records'
+import { MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH } from '@/features/scene/api/scene-runtime'
 import { buildSceneTraceabilityViewModel } from '@/features/traceability/lib/traceability-mappers'
 
 export interface FakeApiRequest<TBody = unknown> extends ApiRequestOptions<TBody> {}
@@ -597,7 +598,10 @@ async function handleFakeApiRequest<TResponse, TBody>(
   if (method === 'POST' && sceneProseRevisionMatch) {
     const sceneId = decodeSegment(sceneProseRevisionMatch[1]!)
     const revisionBody = body as {
-      revisionMode: Parameters<typeof mockRuntime.sceneClient.reviseSceneProse>[1]
+      revisionMode: Parameters<typeof mockRuntime.sceneClient.reviseSceneProse>[1] extends string
+        ? Parameters<typeof mockRuntime.sceneClient.reviseSceneProse>[1]
+        : Parameters<typeof mockRuntime.sceneClient.reviseSceneProse>[1]['revisionMode']
+      instruction?: string
     }
     const prose = await mockRuntime.sceneClient.getSceneProse(sceneId)
 
@@ -614,7 +618,54 @@ async function handleFakeApiRequest<TResponse, TBody>(
       })
     }
 
-    await mockRuntime.sceneClient.reviseSceneProse(sceneId, revisionBody.revisionMode)
+    const trimmedInstruction = revisionBody.instruction?.trim()
+    if (trimmedInstruction && trimmedInstruction.length > MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH) {
+      throw new ApiRequestError({
+        status: 400,
+        message: `instruction must be at most ${MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH} characters.`,
+        code: 'INVALID_REVISION_INSTRUCTION',
+        detail: {
+          body: {
+            revisionMode: revisionBody.revisionMode,
+            instruction: revisionBody.instruction,
+          },
+          maxLength: MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH,
+        },
+      })
+    }
+
+    await mockRuntime.sceneClient.reviseSceneProse(sceneId, {
+      revisionMode: revisionBody.revisionMode,
+      instruction: trimmedInstruction,
+    })
+    return undefined as TResponse
+  }
+
+  const sceneProseRevisionAcceptMatch = path.match(new RegExp(`${projectBasePattern}/scenes/([^/]+)/prose/revision/accept$`))
+  if (method === 'POST' && sceneProseRevisionAcceptMatch) {
+    const sceneId = decodeSegment(sceneProseRevisionAcceptMatch[1]!)
+    const acceptBody = body as {
+      revisionId: string
+    }
+
+    try {
+      await mockRuntime.sceneClient.acceptSceneProseRevision(sceneId, acceptBody.revisionId)
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.code !== 'SCENE_PROSE_REVISION_NOT_FOUND') {
+        throw error
+      }
+
+      throw new ApiRequestError({
+        status: 409,
+        message: `Scene ${sceneId} does not have revision candidate ${acceptBody.revisionId}.`,
+        code: 'SCENE_PROSE_REVISION_NOT_FOUND',
+        detail: {
+          projectId,
+          sceneId,
+          revisionId: acceptBody.revisionId,
+        },
+      })
+    }
     return undefined as TResponse
   }
 

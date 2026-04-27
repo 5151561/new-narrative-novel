@@ -134,18 +134,44 @@ export interface SceneExecutionViewModel {
   canOpenProse: boolean
 }
 
+export type SceneProseRevisionMode = 'rewrite' | 'compress' | 'expand' | 'tone_adjust' | 'continuity_fix'
+
+export interface SceneProseRevisionRequestInput {
+  revisionMode: SceneProseRevisionMode
+  instruction?: string
+}
+
+export interface SceneProseRevisionCandidateModel {
+  revisionId: string
+  revisionMode: SceneProseRevisionMode
+  instruction?: string
+  proseBody: string
+  diffSummary: string
+  sourceProseDraftId: string
+  sourceCanonPatchId: string
+  contextPacketId: string
+  fallbackProvenance?: {
+    provider: 'fixture'
+    modelId: string
+    fallbackReason?: 'missing-config' | 'provider-error' | 'invalid-output'
+  }
+}
+
 export interface SceneProseViewModel {
   sceneId: string
   proseDraft?: string
-  revisionModes: Array<'rewrite' | 'compress' | 'expand' | 'tone_adjust' | 'continuity_fix'>
+  revisionModes: SceneProseRevisionMode[]
   latestDiffSummary?: string
   warningsCount: number
   focusModeAvailable: boolean
   revisionQueueCount?: number
   draftWordCount?: number
   statusLabel?: string
+  revisionCandidate?: SceneProseRevisionCandidateModel
   traceSummary?: {
     sourcePatchId?: string
+    sourceProseDraftId?: string
+    contextPacketId?: string
     sourceProposals?: SceneTraceProposalRefModel[]
     acceptedFactIds?: string[]
     relatedAssets?: SceneTraceAssetRefModel[]

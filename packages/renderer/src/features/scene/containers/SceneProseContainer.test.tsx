@@ -10,7 +10,7 @@ import { ProjectRuntimeProvider, createTestProjectRuntime } from '@/app/project-
 import { createFakeApiRuntime } from '@/app/project-runtime/fake-api-runtime.test-utils'
 import { createSceneClient } from '@/features/scene/api/scene-client'
 import type { SceneProseViewModel } from '@/features/scene/types/scene-view-models'
-import { applyProseRevision, createSceneMockDatabase } from '@/mock/scene-fixtures'
+import { createSceneMockDatabase } from '@/mock/scene-fixtures'
 
 import { SceneProseContainer } from './SceneProseContainer'
 
@@ -246,10 +246,11 @@ describe('SceneProseContainer', () => {
     expect(screen.queryByText(/local mock state/i)).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Compress' }))
-    await user.click(screen.getByRole('button', { name: 'Revise Draft' }))
+    await user.click(screen.getByRole('button', { name: 'Request Revision' }))
 
-    expect(await screen.findAllByText('Latest revision: compress pass prepared for review.')).toHaveLength(2)
-    expect(screen.getByText('1 revision queued')).toBeInTheDocument()
+    expect((await screen.findAllByText('Compressed repeated witness beats while preserving accepted provenance.')).length).toBeGreaterThan(0)
+    expect(screen.getByText('Pending revision candidate')).toBeInTheDocument()
+    expect(screen.getByText('Queue 1')).toBeInTheDocument()
   })
 
   it('shows a prose toolbar and exposes focus mode only when prose focus is available', async () => {
@@ -280,12 +281,16 @@ describe('SceneProseContainer', () => {
     const user = userEvent.setup()
     const localDatabase = createSceneMockDatabase()
     const bridgeDatabase = createSceneMockDatabase()
+    const bridgeStateClient = createSceneClient({
+      database: bridgeDatabase,
+      bridgeResolver: () => undefined,
+    })
     const runtimeClient = createSceneClient({
       database: localDatabase,
       bridgeResolver: () => ({
-        getSceneProse: async () => structuredClone(bridgeDatabase.scenes['scene-midnight-platform']!.prose),
-        reviseSceneProse: async (_sceneId, revisionMode) => {
-          applyProseRevision(bridgeDatabase, 'scene-midnight-platform', revisionMode)
+        getSceneProse: async () => bridgeStateClient.getSceneProse('scene-midnight-platform'),
+        reviseSceneProse: async (_sceneId, input) => {
+          await bridgeStateClient.reviseSceneProse('scene-midnight-platform', input)
         },
       }),
     })
@@ -311,15 +316,18 @@ describe('SceneProseContainer', () => {
     })
 
     await user.click(screen.getByRole('button', { name: 'Compress' }))
-    await user.click(screen.getByRole('button', { name: 'Revise Draft' }))
+    await user.click(screen.getByRole('button', { name: 'Request Revision' }))
 
-    expect(await screen.findAllByText('Latest revision: compress pass prepared for review.')).toHaveLength(2)
-    expect(screen.getByText('1 revision queued')).toBeInTheDocument()
-    expect(runtime.sceneClient.reviseSceneProse).toHaveBeenCalledWith('scene-midnight-platform', 'compress')
+    expect((await screen.findAllByText('Compressed repeated witness beats while preserving accepted provenance.')).length).toBeGreaterThan(0)
+    expect(screen.getByText('Queue 1')).toBeInTheDocument()
+    expect(runtime.sceneClient.reviseSceneProse).toHaveBeenCalledWith('scene-midnight-platform', {
+      revisionMode: 'compress',
+      instruction: undefined,
+    })
     expect(runtime.sceneClient.getSceneProse).toHaveBeenCalledTimes(2)
 
     const fallbackProse = await fallbackClient.getSceneProse('scene-midnight-platform')
-    expect(fallbackProse.latestDiffSummary).not.toBe('Latest revision: compress pass prepared for review.')
+    expect(fallbackProse.latestDiffSummary).not.toBe('Compressed repeated witness beats while preserving accepted provenance.')
     expect(fallbackProse.revisionQueueCount ?? 0).toBe(0)
   })
 
@@ -328,30 +336,95 @@ describe('SceneProseContainer', () => {
     const { projectId, requests, runtime, mockRuntime } = createFakeApiRuntime()
     const getSceneProseSpy = vi.spyOn(mockRuntime.sceneClient, 'getSceneProse')
     const reviseSceneProseSpy = vi.spyOn(mockRuntime.sceneClient, 'reviseSceneProse')
+    const acceptSceneProseRevisionSpy = vi.spyOn(mockRuntime.sceneClient, 'acceptSceneProseRevision')
     const initialProse = await mockRuntime.sceneClient.getSceneProse('scene-midnight-platform')
     const Wrapper = wrapperFactory(runtime)
+
+    window.history.replaceState({}, '', '/workbench?scope=scene&id=scene-midnight-platform&lens=draft&tab=prose')
 
     render(<SceneProseContainer sceneId="scene-midnight-platform" />, {
       wrapper: Wrapper,
     })
 
     expect(await screen.findByText(initialProse.proseDraft!)).toBeInTheDocument()
+    const stableSearch = window.location.search
 
     await user.click(screen.getByRole('button', { name: 'Compress' }))
-    await user.click(screen.getByRole('button', { name: 'Revise Draft' }))
+    expect(window.location.search).toBe(stableSearch)
+    await user.type(screen.getByLabelText('Revision brief'), 'Tighten the witness pressure without changing the accepted facts.')
+    expect(window.location.search).toBe(stableSearch)
+    await user.click(screen.getByRole('button', { name: 'Request Revision' }))
 
-    expect(await screen.findAllByText('Latest revision: compress pass prepared for review.')).toHaveLength(2)
-    expect(screen.getByText('1 revision queued')).toBeInTheDocument()
+    expect((await screen.findAllByText('Compressed repeated witness beats while preserving accepted provenance.')).length).toBeGreaterThan(0)
+    expect(screen.getByText('Pending revision candidate')).toBeInTheDocument()
     expect(screen.getByText('Queue 1')).toBeInTheDocument()
     expect(screen.getByText(initialProse.proseDraft!)).toBeInTheDocument()
-    expect(reviseSceneProseSpy).toHaveBeenCalledWith('scene-midnight-platform', 'compress')
-    expect(getSceneProseSpy).toHaveBeenCalledTimes(4)
+    expect(reviseSceneProseSpy).toHaveBeenCalledWith('scene-midnight-platform', {
+      revisionMode: 'compress',
+      instruction: 'Tighten the witness pressure without changing the accepted facts.',
+    })
     expect(requests).toContainEqual({
       method: 'POST',
       path: `/api/projects/${projectId}/scenes/scene-midnight-platform/prose/revision`,
       body: {
         revisionMode: 'compress',
+        instruction: 'Tighten the witness pressure without changing the accepted facts.',
       },
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Accept Revision' }))
+
+    expect(window.location.search).toBe(stableSearch)
+    await waitFor(() => {
+      expect(screen.queryByText('Pending revision candidate')).not.toBeInTheDocument()
+      expect(screen.getByText(/Editorial instruction: Tighten the witness pressure without changing the accepted facts\./)).toBeInTheDocument()
+    })
+
+    expect(acceptSceneProseRevisionSpy).toHaveBeenCalledTimes(1)
+    expect(requests).toContainEqual({
+      method: 'POST',
+      path: `/api/projects/${projectId}/scenes/scene-midnight-platform/prose/revision/accept`,
+      body: {
+        revisionId: expect.any(String),
+      },
+    })
+    expect(getSceneProseSpy.mock.calls.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('resets the local revision brief when switching scenes on the prose tab', async () => {
+    const user = userEvent.setup()
+    const sceneAClient = createSceneClient()
+    const sceneBClient = createSceneClient()
+    const client = {
+      ...sceneAClient,
+      getSceneProse: vi.fn(async (sceneId: string) =>
+        sceneId === 'scene-midnight-platform'
+          ? sceneAClient.getSceneProse(sceneId)
+          : sceneBClient.getSceneProse('scene-concourse-delay'),
+      ),
+      reviseSceneProse: vi.fn(async () => undefined),
+    }
+    const Wrapper = wrapperFactory()
+
+    const { rerender } = render(<SceneProseContainer sceneId="scene-midnight-platform" client={client} />, {
+      wrapper: Wrapper,
+    })
+
+    expect(await screen.findByText('Current manuscript draft')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('Revision brief'), 'Carry the witness pressure from scene A.')
+    expect(screen.getByLabelText('Revision brief')).toHaveValue('Carry the witness pressure from scene A.')
+
+    rerender(<SceneProseContainer sceneId="scene-concourse-delay" client={client} />)
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Revision brief')).toHaveValue('')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Request Revision' }))
+
+    expect(client.reviseSceneProse).toHaveBeenCalledWith('scene-concourse-delay', {
+      revisionMode: 'rewrite',
+      instruction: undefined,
     })
   })
 
@@ -371,11 +444,145 @@ describe('SceneProseContainer', () => {
     expect(screen.getByText('A prose draft is required before queuing a revision.')).toBeInTheDocument()
     expect(screen.getByText('No draft')).toBeInTheDocument()
 
-    const reviseButton = screen.getByRole('button', { name: 'Revise Draft' })
+    const reviseButton = screen.getByRole('button', { name: 'Request Revision' })
     expect(reviseButton).toBeDisabled()
 
     await user.click(reviseButton)
 
     expect(requests.some((request) => request.method === 'POST' && request.path.endsWith('/prose/revision'))).toBe(false)
   })
+
+  it('trims revision briefs before submit and blocks overlength requests locally', async () => {
+    const user = userEvent.setup()
+    const { requests, runtime } = createFakeApiRuntime()
+    const Wrapper = wrapperFactory(runtime)
+    const overlongBrief = 'x'.repeat(281)
+
+    render(<SceneProseContainer sceneId="scene-midnight-platform" />, {
+      wrapper: Wrapper,
+    })
+
+    expect(await screen.findByText('Current manuscript draft')).toBeInTheDocument()
+
+    await user.clear(screen.getByLabelText('Revision brief'))
+    await user.type(screen.getByLabelText('Revision brief'), '  Tighten the witness pressure.  ')
+    await user.click(screen.getByRole('button', { name: 'Request Revision' }))
+
+    expect(requests).toContainEqual({
+      method: 'POST',
+      path: '/api/projects/project-smoke/scenes/scene-midnight-platform/prose/revision',
+      body: {
+        revisionMode: 'rewrite',
+        instruction: 'Tighten the witness pressure.',
+      },
+    })
+
+    await user.clear(screen.getByLabelText('Revision brief'))
+    await user.type(screen.getByLabelText('Revision brief'), overlongBrief)
+
+    const requestButton = screen.getByRole('button', { name: 'Request Revision' })
+    expect(requestButton).toBeDisabled()
+    expect(screen.getByText('Revision brief must be 280 characters or fewer.')).toBeInTheDocument()
+  })
+
+  it('keeps revision mode and brief local while current prose stays visible until accept swaps in the candidate', async () => {
+    const user = userEvent.setup()
+    const initialDraft = 'Current draft stays visible until acceptance.'
+    const acceptedDraft = 'Accepted candidate becomes the new current prose.'
+    let proseState: SceneProseViewModel = {
+      sceneId: 'scene-midnight-platform',
+      proseDraft: initialDraft,
+      revisionModes: ['rewrite', 'compress', 'expand'],
+      latestDiffSummary: 'A fixture prose draft was rendered for Midnight Platform.',
+      warningsCount: 0,
+      focusModeAvailable: true,
+      revisionQueueCount: 0,
+      draftWordCount: 7,
+      statusLabel: 'Generated',
+      traceSummary: {
+        sourcePatchId: 'canon-patch-scene-midnight-platform-002',
+      },
+    }
+
+    const client = {
+      ...createSceneClient(),
+      getSceneProse: vi.fn(async () => structuredClone(proseState)),
+      reviseSceneProse: vi.fn(async (_sceneId: string, input: { revisionMode: 'rewrite' | 'compress' | 'expand'; instruction?: string }) => {
+        proseState = {
+          ...proseState,
+          revisionModes: ['rewrite', 'expand', 'compress'],
+          latestDiffSummary: 'Expanded witness-facing beats while preserving accepted provenance.',
+          revisionQueueCount: 1,
+          statusLabel: 'Revision candidate ready',
+          revisionCandidate: {
+            revisionId: 'revision-scene-midnight-platform-001',
+            revisionMode: input.revisionMode,
+            instruction: input.instruction,
+            proseBody: acceptedDraft,
+            diffSummary: 'Expanded witness-facing beats while preserving accepted provenance.',
+            sourceProseDraftId: 'prose-draft-scene-midnight-platform-002',
+            sourceCanonPatchId: 'canon-patch-scene-midnight-platform-002',
+            contextPacketId: 'ctx-scene-midnight-platform-run-002',
+          },
+        }
+      }),
+      acceptSceneProseRevision: vi.fn(async (_sceneId: string, revisionId: string) => {
+        expect(revisionId).toBe('revision-scene-midnight-platform-001')
+        proseState = {
+          ...proseState,
+          revisionModes: ['rewrite', 'expand', 'compress'],
+          proseDraft: acceptedDraft,
+          latestDiffSummary: 'Expanded witness-facing beats while preserving accepted provenance.',
+          revisionQueueCount: 0,
+          statusLabel: 'Updated',
+          revisionCandidate: undefined,
+        }
+      }),
+    }
+    const Wrapper = wrapperFactory()
+
+    window.history.replaceState({}, '', '/workbench?scope=scene&id=scene-midnight-platform&lens=draft&tab=prose')
+
+    render(<SceneProseContainer sceneId="scene-midnight-platform" client={client} />, {
+      wrapper: Wrapper,
+    })
+
+    expect(await screen.findByText(initialDraft)).toBeInTheDocument()
+    const stableSearch = window.location.search
+
+    await user.click(screen.getByRole('button', { name: 'Expand' }))
+    expect(screen.getByRole('button', { name: 'Expand' }).className).toContain('bg-accent')
+    expect(window.location.search).toBe(stableSearch)
+    await user.type(screen.getByLabelText('Revision brief'), 'Add a clearer witness-facing aftermath.')
+    expect(window.location.search).toBe(stableSearch)
+    await user.click(screen.getByRole('button', { name: 'Request Revision' }))
+
+    expect(await screen.findByText('Pending revision candidate')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Expand' }).className).toContain('bg-accent')
+    expect(screen.getByRole('button', { name: 'Rewrite' }).className).not.toContain('bg-accent')
+    expect(screen.getByText(initialDraft)).toBeInTheDocument()
+    expect(screen.getByText(acceptedDraft)).toBeInTheDocument()
+    expect(window.location.search).toBe(stableSearch)
+
+    await user.click(screen.getByRole('button', { name: 'Accept Revision' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Pending revision candidate')).not.toBeInTheDocument()
+      expect(screen.queryByText(initialDraft)).not.toBeInTheDocument()
+      expect(screen.getByText(acceptedDraft)).toBeInTheDocument()
+    })
+
+    expect(window.location.search).toBe(stableSearch)
+    expect(screen.getByRole('button', { name: 'Expand' }).className).toContain('bg-accent')
+    expect(screen.getByRole('button', { name: 'Rewrite' }).className).not.toContain('bg-accent')
+    expect(client.reviseSceneProse).toHaveBeenCalledWith('scene-midnight-platform', {
+      revisionMode: 'expand',
+      instruction: 'Add a clearer witness-facing aftermath.',
+    })
+    expect(client.acceptSceneProseRevision).toHaveBeenCalledWith(
+      'scene-midnight-platform',
+      'revision-scene-midnight-platform-001',
+    )
+  })
+
 })

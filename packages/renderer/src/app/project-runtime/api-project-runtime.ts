@@ -27,6 +27,7 @@ import type {
   SceneExecutionViewModel,
   SceneInspectorViewModel,
   ScenePatchPreviewViewModel,
+  SceneProseRevisionRequestInput,
   SceneProseViewModel,
   SceneSetupViewModel,
   SceneWorkspaceViewModel,
@@ -34,6 +35,7 @@ import type {
 import type { TraceabilitySceneClient } from '@/features/traceability/hooks/useTraceabilitySceneSources'
 import type { AssetKnowledgeWorkspaceRecord } from '@/features/asset/api/asset-records'
 import { sceneRuntimeCapabilities, type SceneRuntimeInfo } from '@/features/scene/api/scene-runtime'
+import { MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH } from '@/features/scene/api/scene-runtime'
 
 import { ApiRequestError, type ApiStreamRequestOptions, type ApiTransport, type ApiQueryValue } from './api-transport'
 import { apiRouteContract } from './api-route-contract'
@@ -494,6 +496,43 @@ function createSceneClient(projectId: string, transport: ApiTransport): SceneCli
     })
   }
 
+  function normalizeRevisionInput(
+    input: SceneProseRevisionRequestInput | SceneProseViewModel['revisionModes'][number],
+    instruction?: string,
+  ): SceneProseRevisionRequestInput {
+    const normalizedInstruction =
+      typeof input === 'string'
+        ? instruction?.trim()
+        : input.instruction?.trim()
+
+    if (normalizedInstruction && normalizedInstruction.length > MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH) {
+      throw new ApiRequestError({
+        status: 400,
+        message: `instruction must be at most ${MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH} characters.`,
+        code: 'INVALID_REVISION_INSTRUCTION',
+        detail: {
+          body:
+            typeof input === 'string'
+              ? { revisionMode: input, instruction }
+              : { revisionMode: input.revisionMode, instruction: input.instruction },
+          maxLength: MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH,
+        },
+      })
+    }
+
+    if (typeof input === 'string') {
+      return {
+        revisionMode: input,
+        ...(normalizedInstruction ? { instruction: normalizedInstruction } : {}),
+      }
+    }
+
+    return {
+      revisionMode: input.revisionMode,
+      ...(normalizedInstruction ? { instruction: normalizedInstruction } : {}),
+    }
+  }
+
   return {
     async getRuntimeInfo() {
       return adaptProjectRuntimeInfoToSceneRuntimeInfo(await requestProjectRuntimeInfo(projectId, transport))
@@ -532,8 +571,11 @@ function createSceneClient(projectId: string, transport: ApiTransport): SceneCli
         body: setup,
       })
     },
-    async reviseSceneProse(sceneId, revisionMode: SceneProseViewModel['revisionModes'][number]) {
-      await postSceneJson(apiRouteContract.sceneProseRevision({ projectId, sceneId }), { revisionMode })
+    async reviseSceneProse(sceneId, input, instruction) {
+      await postSceneJson(apiRouteContract.sceneProseRevision({ projectId, sceneId }), normalizeRevisionInput(input, instruction))
+    },
+    async acceptSceneProseRevision(sceneId, revisionId) {
+      await postSceneJson(apiRouteContract.sceneProseRevisionAccept({ projectId, sceneId }), { revisionId })
     },
     async continueSceneRun(sceneId) {
       await postSceneJson(apiRouteContract.sceneExecutionContinue({ projectId, sceneId }))

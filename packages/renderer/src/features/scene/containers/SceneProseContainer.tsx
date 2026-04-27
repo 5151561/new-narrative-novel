@@ -5,6 +5,7 @@ import { resolveProjectRuntimeDependency, useOptionalProjectRuntime } from '@/ap
 import { EmptyState } from '@/components/ui/EmptyState'
 
 import type { SceneClient } from '@/features/scene/api/scene-client'
+import { MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH } from '@/features/scene/api/scene-runtime'
 
 import { SceneProseTab } from '../components/SceneProseTab'
 import { useSceneProseQuery } from '../hooks/useSceneProseQuery'
@@ -28,11 +29,20 @@ export function SceneProseContainer({ sceneId, client }: SceneProseContainerProp
     'rewrite',
   )
   const [isRevising, setIsRevising] = useState(false)
+  const [isAcceptingRevision, setIsAcceptingRevision] = useState(false)
   const [isFocusModeActive, setIsFocusModeActive] = useState(false)
+  const [revisionBrief, setRevisionBrief] = useState('')
+  const trimmedRevisionBrief = revisionBrief.trim()
+  const isRevisionBriefTooLong = trimmedRevisionBrief.length > MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH
 
   useEffect(() => {
-    if (proseQuery.prose?.revisionModes.length) {
-      setSelectedMode(proseQuery.prose.revisionModes[0])
+    setRevisionBrief('')
+  }, [sceneId])
+
+  useEffect(() => {
+    const revisionModes = proseQuery.prose?.revisionModes
+    if (revisionModes?.length) {
+      setSelectedMode((current) => (revisionModes.includes(current) ? current : revisionModes[0]))
     }
     if (!proseQuery.prose?.focusModeAvailable) {
       setIsFocusModeActive(false)
@@ -69,22 +79,43 @@ export function SceneProseContainer({ sceneId, client }: SceneProseContainerProp
     <SceneProseTab
       prose={prose}
       selectedMode={selectedMode}
+      revisionBrief={revisionBrief}
+      isRevisionBriefTooLong={isRevisionBriefTooLong}
       isFocusModeActive={isFocusModeActive}
       isRevising={isRevising}
+      isAcceptingRevision={isAcceptingRevision}
       canReviseDraft={canReviseDraft}
       onSelectMode={setSelectedMode}
+      onRevisionBriefChange={setRevisionBrief}
       onToggleFocusMode={() => setIsFocusModeActive((current) => !current)}
       onRevise={async () => {
-        if (!canReviseDraft) {
+        if (!canReviseDraft || isRevisionBriefTooLong) {
           return
         }
 
         setIsRevising(true)
         try {
-          await effectiveClient.reviseSceneProse(sceneId, selectedMode)
+          await effectiveClient.reviseSceneProse(sceneId, {
+            revisionMode: selectedMode,
+            instruction: trimmedRevisionBrief || undefined,
+          })
           await proseQuery.refetch()
         } finally {
           setIsRevising(false)
+        }
+      }}
+      onAcceptRevision={async () => {
+        const revisionId = prose.revisionCandidate?.revisionId
+        if (!revisionId) {
+          return
+        }
+
+        setIsAcceptingRevision(true)
+        try {
+          await effectiveClient.acceptSceneProseRevision(sceneId, revisionId)
+          await proseQuery.refetch()
+        } finally {
+          setIsAcceptingRevision(false)
         }
       }}
     />

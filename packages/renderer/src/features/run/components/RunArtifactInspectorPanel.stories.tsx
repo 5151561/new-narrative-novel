@@ -126,6 +126,8 @@ export const ProseDraftLinkedContext: Story = {
   },
 }
 
+export const ProseDraftWithContextRef: Story = ProseDraftLinkedContext
+
 export const ErrorArtifactNotFound: Story = {
   args: {
     artifact: null,

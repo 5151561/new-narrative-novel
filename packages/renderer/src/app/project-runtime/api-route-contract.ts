@@ -191,6 +191,9 @@ export const apiRouteContract = {
   sceneProseRevision({ projectId, sceneId }: { projectId: string; sceneId: string }) {
     return `${sceneBase(projectId, sceneId)}/prose/revision`
   },
+  sceneProseRevisionAccept({ projectId, sceneId }: { projectId: string; sceneId: string }) {
+    return `${sceneBase(projectId, sceneId)}/prose/revision/accept`
+  },
   sceneExecutionContinue({ projectId, sceneId }: { projectId: string; sceneId: string }) {
     return `${sceneBase(projectId, sceneId)}/execution/continue`
   },

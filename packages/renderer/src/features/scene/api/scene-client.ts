@@ -1,7 +1,7 @@
 import { resolveAppLocale, type Locale } from '@/app/i18n'
+import { ApiRequestError } from '@/app/project-runtime/api-transport'
 import {
   applyProposalAction,
-  applyProseRevision,
   commitAcceptedPatch,
   continueSceneRun,
   createSceneMockDatabase,
@@ -20,11 +20,13 @@ import type {
   SceneExecutionViewModel,
   SceneInspectorViewModel,
   ScenePatchPreviewViewModel,
+  SceneProseRevisionRequestInput,
   SceneProseViewModel,
   SceneSetupViewModel,
   SceneWorkspaceViewModel,
 } from '../types/scene-view-models'
 import {
+  MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH,
   SceneRuntimeCapabilityError,
   type SceneClient,
   type SceneRuntimeBridge,
@@ -105,6 +107,173 @@ function requireBridgeCapability<K extends SceneRuntimeCapability>(
   return method as NonNullable<SceneRuntimeBridge[K]>
 }
 
+function normalizeRevisionInput(
+  input: SceneProseRevisionRequestInput | SceneProseViewModel['revisionModes'][number],
+  instruction?: string,
+): SceneProseRevisionRequestInput {
+  const normalizedInstruction =
+    typeof input === 'string'
+      ? instruction?.trim()
+      : input.instruction?.trim()
+
+  if (normalizedInstruction && normalizedInstruction.length > MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH) {
+    throw new ApiRequestError({
+      status: 400,
+      message: `instruction must be at most ${MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH} characters.`,
+      code: 'INVALID_REVISION_INSTRUCTION',
+      detail: {
+        body:
+          typeof input === 'string'
+            ? { revisionMode: input, instruction }
+            : { revisionMode: input.revisionMode, instruction: input.instruction },
+        maxLength: MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH,
+      },
+    })
+  }
+
+  if (typeof input === 'string') {
+    return {
+      revisionMode: input,
+      ...(normalizedInstruction ? { instruction: normalizedInstruction } : {}),
+    }
+  }
+
+  return {
+    revisionMode: input.revisionMode,
+    ...(normalizedInstruction ? { instruction: normalizedInstruction } : {}),
+  }
+}
+
+function countDraftWords(locale: Locale, proseDraft: string) {
+  const trimmed = proseDraft.trim()
+  if (trimmed.length === 0) {
+    return 0
+  }
+
+  if (locale === 'zh-CN') {
+    return trimmed.replace(/\s+/g, '').length
+  }
+
+  return trimmed.split(/\s+/).filter(Boolean).length
+}
+
+function buildMockRevisionDiffSummary(revisionMode: SceneProseViewModel['revisionModes'][number]) {
+  switch (revisionMode) {
+    case 'compress':
+      return 'Compressed repeated witness beats while preserving accepted provenance.'
+    case 'expand':
+      return 'Expanded witness-facing beats while preserving accepted provenance.'
+    case 'tone_adjust':
+      return 'Adjusted bargaining tone while preserving accepted provenance.'
+    case 'continuity_fix':
+      return 'Reconciled continuity edges while preserving accepted provenance.'
+    case 'rewrite':
+    default:
+      return 'Rebuilt witness-facing beats while preserving accepted provenance.'
+  }
+}
+
+function buildMockRevisionBody(input: {
+  sceneId: string
+  proseDraft: string
+  revisionMode: SceneProseViewModel['revisionModes'][number]
+  instruction?: string
+  sourceProseDraftId: string
+  sourceCanonPatchId: string
+}) {
+  const sceneLabel = input.sceneId.replace(/^scene-/, '').replace(/-/g, ' ')
+  const revisionLabel =
+    input.revisionMode === 'tone_adjust'
+      ? 'tone-adjust'
+      : input.revisionMode === 'continuity_fix'
+        ? 'continuity-fix'
+        : input.revisionMode
+  const instructionLine = input.instruction?.trim() ? ` Editorial instruction: ${input.instruction.trim()}.` : ''
+
+  return `${sceneLabel} now runs a ${revisionLabel} revision pass against the accepted draft. ${input.proseDraft}${instructionLine} The candidate keeps provenance anchored to ${input.sourceProseDraftId} and ${input.sourceCanonPatchId} while remaining reviewable in the main stage.`
+}
+
+function applyMockSceneProseRevision(
+  prose: SceneProseViewModel,
+  sceneId: string,
+  locale: Locale,
+  input: SceneProseRevisionRequestInput,
+) {
+  const proseDraft = prose.proseDraft?.trim()
+  if (!proseDraft) {
+    throw new Error(`Scene ${sceneId} requires a prose draft before revision can be requested.`)
+  }
+
+  const sourceProseDraftId = prose.traceSummary?.sourceProseDraftId?.trim() || `prose-draft-${sceneId}-current`
+  const sourceCanonPatchId = prose.traceSummary?.sourcePatchId?.trim() || `canon-patch-${sceneId}-current`
+  const contextPacketId = prose.traceSummary?.contextPacketId?.trim() || `ctx-${sceneId}-current`
+  const diffSummary = buildMockRevisionDiffSummary(input.revisionMode)
+
+  return {
+    ...prose,
+    latestDiffSummary: diffSummary,
+    revisionQueueCount: 1,
+    statusLabel: 'Revision candidate ready',
+    warningsCount: input.revisionMode === 'continuity_fix' ? 0 : prose.warningsCount,
+    revisionCandidate: {
+      revisionId: `revision-${sceneId}-${globalThis.crypto.randomUUID()}`,
+      revisionMode: input.revisionMode,
+      ...(input.instruction ? { instruction: input.instruction } : {}),
+      proseBody: buildMockRevisionBody({
+        sceneId,
+        proseDraft,
+        revisionMode: input.revisionMode,
+        instruction: input.instruction,
+        sourceProseDraftId,
+        sourceCanonPatchId,
+      }),
+      diffSummary,
+      sourceProseDraftId,
+      sourceCanonPatchId,
+      contextPacketId,
+      fallbackProvenance: {
+        provider: 'fixture',
+        modelId: locale === 'zh-CN' ? 'fixture-scene-prose-writer-zh' : 'fixture-scene-prose-writer',
+      },
+    },
+  } satisfies SceneProseViewModel
+}
+
+function acceptMockSceneProseRevision(
+  prose: SceneProseViewModel,
+  locale: Locale,
+  revisionId: string,
+) {
+  const candidate = prose.revisionCandidate
+  if (!candidate || candidate.revisionId !== revisionId) {
+    throw new ApiRequestError({
+      status: 409,
+      message: `Scene ${prose.sceneId} does not have revision candidate ${revisionId}.`,
+      code: 'SCENE_PROSE_REVISION_NOT_FOUND',
+      detail: {
+        sceneId: prose.sceneId,
+        revisionId,
+      },
+    })
+  }
+
+  return {
+    ...prose,
+    proseDraft: candidate.proseBody,
+    draftWordCount: countDraftWords(locale, candidate.proseBody),
+    latestDiffSummary: candidate.diffSummary,
+    revisionQueueCount: 0,
+    statusLabel: 'Updated',
+    revisionCandidate: undefined,
+    traceSummary: {
+      ...prose.traceSummary,
+      sourcePatchId: candidate.sourceCanonPatchId,
+      sourceProseDraftId: `accepted-prose-revision-${candidate.revisionId}`,
+      contextPacketId: candidate.contextPacketId,
+    },
+  } satisfies SceneProseViewModel
+}
+
 export function createSceneClient({
   database,
   databaseFactory = (locale) => createSceneMockDatabase(locale),
@@ -164,8 +333,13 @@ export function createSceneClient({
       async saveSceneSetup(sceneId, setup) {
         saveSceneSetup(activeDatabase, sceneId, setup)
       },
-      async reviseSceneProse(sceneId, revisionMode) {
-        applyProseRevision(activeDatabase, sceneId, revisionMode)
+      async reviseSceneProse(sceneId, input, instruction) {
+        const scene = getScene(activeDatabase, sceneId)
+        scene.prose = applyMockSceneProseRevision(scene.prose, sceneId, locale, normalizeRevisionInput(input, instruction))
+      },
+      async acceptSceneProseRevision(sceneId, revisionId) {
+        const scene = getScene(activeDatabase, sceneId)
+        scene.prose = acceptMockSceneProseRevision(scene.prose, locale, revisionId)
       },
       async continueSceneRun(sceneId) {
         continueSceneRun(activeDatabase, sceneId)
@@ -223,8 +397,14 @@ export function createSceneClient({
       async saveSceneSetup(sceneId, setup) {
         await requireBridgeCapability(bridge, 'saveSceneSetup', runtimeInfo)(sceneId, setup)
       },
-      async reviseSceneProse(sceneId, revisionMode) {
-        await requireBridgeCapability(bridge, 'reviseSceneProse', runtimeInfo)(sceneId, revisionMode)
+      async reviseSceneProse(sceneId, input, instruction) {
+        await requireBridgeCapability(bridge, 'reviseSceneProse', runtimeInfo)(
+          sceneId,
+          normalizeRevisionInput(input, instruction),
+        )
+      },
+      async acceptSceneProseRevision(sceneId, revisionId) {
+        await requireBridgeCapability(bridge, 'acceptSceneProseRevision', runtimeInfo)(sceneId, revisionId)
       },
       async continueSceneRun(sceneId) {
         await requireBridgeCapability(bridge, 'continueSceneRun', runtimeInfo)(sceneId)
@@ -287,8 +467,11 @@ export function createSceneClient({
     async saveSceneSetup(sceneId, setup) {
       await resolveRuntime().saveSceneSetup(sceneId, setup)
     },
-    async reviseSceneProse(sceneId, revisionMode) {
-      await resolveRuntime().reviseSceneProse(sceneId, revisionMode)
+    async reviseSceneProse(sceneId, input, instruction) {
+      await resolveRuntime().reviseSceneProse(sceneId, input, instruction)
+    },
+    async acceptSceneProseRevision(sceneId, revisionId) {
+      await resolveRuntime().acceptSceneProseRevision(sceneId, revisionId)
     },
     async continueSceneRun(sceneId) {
       await resolveRuntime().continueSceneRun(sceneId)

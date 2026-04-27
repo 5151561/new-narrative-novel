@@ -7,12 +7,14 @@ import type {
   SceneExecutionViewModel,
   SceneInspectorViewModel,
   ScenePatchPreviewViewModel,
+  SceneProseRevisionRequestInput,
   SceneProseViewModel,
   SceneSetupViewModel,
   SceneWorkspaceViewModel,
 } from '../types/scene-view-models'
 
 export type SceneRuntimeSource = 'preload-bridge' | 'mock-fallback'
+export const MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH = 280
 
 export const sceneRuntimeCapabilities = [
   'getSceneWorkspace',
@@ -26,6 +28,7 @@ export const sceneRuntimeCapabilities = [
   'commitAcceptedPatch',
   'saveSceneSetup',
   'reviseSceneProse',
+  'acceptSceneProseRevision',
   'continueSceneRun',
   'switchSceneThread',
   'acceptProposal',
@@ -53,7 +56,12 @@ export interface SceneRuntimeBridge {
   previewAcceptedPatch?: (sceneId: string, locale?: Locale) => Promise<ScenePatchPreviewViewModel | null>
   commitAcceptedPatch?: (sceneId: string, patchId: string) => Promise<void>
   saveSceneSetup?: (sceneId: string, setup: SceneSetupViewModel) => Promise<void>
-  reviseSceneProse?: (sceneId: string, revisionMode: SceneProseViewModel['revisionModes'][number]) => Promise<void>
+  reviseSceneProse?: (
+    sceneId: string,
+    input: SceneProseRevisionRequestInput | SceneProseViewModel['revisionModes'][number],
+    instruction?: string,
+  ) => Promise<void>
+  acceptSceneProseRevision?: (sceneId: string, revisionId: string) => Promise<void>
   continueSceneRun?: (sceneId: string) => Promise<void>
   switchSceneThread?: (sceneId: string, threadId: string) => Promise<void>
   acceptProposal?: (sceneId: string, input: ProposalActionInput) => Promise<void>
@@ -74,7 +82,12 @@ export interface SceneClient {
   previewAcceptedPatch(sceneId: string): Promise<ScenePatchPreviewViewModel | null>
   commitAcceptedPatch(sceneId: string, patchId: string): Promise<void>
   saveSceneSetup(sceneId: string, setup: SceneSetupViewModel): Promise<void>
-  reviseSceneProse(sceneId: string, revisionMode: SceneProseViewModel['revisionModes'][number]): Promise<void>
+  reviseSceneProse(
+    sceneId: string,
+    input: SceneProseRevisionRequestInput | SceneProseViewModel['revisionModes'][number],
+    instruction?: string,
+  ): Promise<void>
+  acceptSceneProseRevision(sceneId: string, revisionId: string): Promise<void>
   continueSceneRun(sceneId: string): Promise<void>
   switchSceneThread(sceneId: string, threadId: string): Promise<void>
   acceptProposal(sceneId: string, input: ProposalActionInput): Promise<void>

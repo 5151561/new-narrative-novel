@@ -183,7 +183,33 @@ describe('App scene runtime smoke', () => {
     expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
     expect(within(bottomDock).getByText('Active Run Support')).toBeInTheDocument()
     expect(within(bottomDock).getAllByText('Proposal set accepted with editor adjustments applied to canon and prose.').length).toBeGreaterThan(0)
-    expect(screen.getByText(/Midnight Platform opens from the accepted run artifact/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Midnight Platform opens from the accepted run artifact/i).length).toBeGreaterThan(0)
+    const proseSearch = window.location.search
+    const revisionBrief = 'Keep the witness pressure public.'
+
+    await user.click(screen.getByRole('button', { name: 'Expand' }))
+    expect(window.location.search).toBe(proseSearch)
+    await user.type(screen.getByLabelText('Revision brief'), revisionBrief)
+    expect(window.location.search).toBe(proseSearch)
+    await user.click(screen.getByRole('button', { name: 'Request Revision' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Pending revision candidate')).toBeInTheDocument()
+      expect(screen.getAllByText(/Expanded witness-facing beats while preserving accepted provenance\./).length).toBeGreaterThan(0)
+      expect(screen.getByText(new RegExp(`Editorial instruction: ${revisionBrief.replace('.', '\\.')}`))).toBeInTheDocument()
+    })
+
+    expect(screen.getAllByText(/Midnight Platform opens from the accepted run artifact/i).length).toBeGreaterThan(0)
+    expect(window.location.search).toBe(proseSearch)
+
+    await user.click(screen.getByRole('button', { name: 'Accept Revision' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Pending revision candidate')).not.toBeInTheDocument()
+      expect(screen.getByText(new RegExp(`Editorial instruction: ${revisionBrief.replace('.', '\\.')}`))).toBeInTheDocument()
+    })
+
+    expect(window.location.search).toBe(proseSearch)
 
     await user.click(screen.getByRole('button', { name: 'Chapter' }))
     await user.click(screen.getByRole('button', { name: 'Draft' }))
@@ -209,8 +235,12 @@ describe('App scene runtime smoke', () => {
       throw new Error('Expected the selected chapter section to be visible.')
     }
 
-    expect(within(screen.getByTestId('workbench-main-stage-scroll-body')).getByText(/Midnight Platform opens from the accepted run artifact/i)).toBeInTheDocument()
-    expect(within(selectedSection).getByText('A fixture prose draft was rendered for Midnight Platform.')).toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('workbench-main-stage-scroll-body')).getByText(
+        new RegExp(`Editorial instruction: ${revisionBrief.replace('.', '\\.')}`),
+      ),
+    ).toBeInTheDocument()
+    expect(within(selectedSection).getByText('Expanded witness-facing beats while preserving accepted provenance.')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Book' }))
     await user.click(screen.getByRole('button', { name: 'Draft' }))
@@ -226,7 +256,11 @@ describe('App scene runtime smoke', () => {
 
     await user.click(screen.getAllByRole('button', { name: 'Chapter 1 Signals in Rain' })[0]!)
 
-    expect(within(screen.getByTestId('workbench-main-stage-scroll-body')).getByText(/Midnight Platform opens from the accepted run artifact/i)).toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('workbench-main-stage-scroll-body')).getByText(
+        new RegExp(`Editorial instruction: ${revisionBrief.replace('.', '\\.')}`),
+      ),
+    ).toBeInTheDocument()
     const selectedDestination = screen.getByRole('region', { name: 'Selected manuscript destination' })
     expect(within(selectedDestination).getByText('Keep the chapter order stable, then return here once the scene draft is ready.')).toBeInTheDocument()
     expect(within(selectedDestination).getByText('Concourse Delay')).toBeInTheDocument()

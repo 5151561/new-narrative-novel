@@ -669,6 +669,55 @@ describe('createFakeApiRuntime override matching', () => {
     })
   })
 
+  it('trims revision instruction and rejects overlength revision briefs through the fake API runtime', async () => {
+    const { runtime } = createFakeApiRuntime()
+
+    await expect(
+      runtime.sceneClient.reviseSceneProse('scene-midnight-platform', {
+        revisionMode: 'compress',
+        instruction: '  Tighten the witness pressure.  ',
+      }),
+    ).resolves.toBeUndefined()
+
+    const prose = await runtime.sceneClient.getSceneProse('scene-midnight-platform')
+    expect(prose.revisionCandidate?.instruction).toBe('Tighten the witness pressure.')
+
+    await expect(
+      runtime.sceneClient.reviseSceneProse('scene-midnight-platform', {
+        revisionMode: 'compress',
+        instruction: 'x'.repeat(281),
+      }),
+    ).rejects.toMatchObject({
+      name: 'ApiRequestError',
+      status: 400,
+      message: 'instruction must be at most 280 characters.',
+      code: 'INVALID_REVISION_INSTRUCTION',
+      detail: {
+        body: {
+          revisionMode: 'compress',
+          instruction: 'x'.repeat(281),
+        },
+        maxLength: 280,
+      },
+    })
+  })
+
+  it('rejects stale or missing revision candidate accept through the fake API runtime with real API semantics', async () => {
+    const { runtime } = createFakeApiRuntime()
+
+    await expect(runtime.sceneClient.acceptSceneProseRevision('scene-midnight-platform', 'missing-revision-id')).rejects.toMatchObject({
+      name: 'ApiRequestError',
+      status: 409,
+      message: 'Scene scene-midnight-platform does not have revision candidate missing-revision-id.',
+      code: 'SCENE_PROSE_REVISION_NOT_FOUND',
+      detail: {
+        projectId: 'project-smoke',
+        sceneId: 'scene-midnight-platform',
+        revisionId: 'missing-revision-id',
+      },
+    })
+  })
+
   it('records POST scene runs and GET run events with cursor and forwards run endpoints to mock runtime.runClient', async () => {
     const startedRun = createRunRecord()
     const runEventsPage = createRunEventsPage({
