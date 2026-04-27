@@ -17,6 +17,11 @@ export interface LocalApiStatusSnapshot {
   lastError?: string
 }
 
+export interface CurrentProjectSnapshot {
+  projectId: string
+  projectTitle: string
+}
+
 export interface WorkerStatusSnapshot {
   status: WorkerStatus
   implementation: 'placeholder'
@@ -26,6 +31,7 @@ export interface WorkerStatusSnapshot {
 
 export interface NarrativeDesktopApi {
   getAppVersion(): Promise<string>
+  getCurrentProject(): Promise<CurrentProjectSnapshot | null>
   getPlatform(): Promise<DesktopPlatform>
   getRuntimeMode(): Promise<DesktopRuntimeMode>
   getRuntimeConfig(): Promise<DesktopRuntimeConfig>
@@ -38,6 +44,7 @@ export interface NarrativeDesktopApi {
 
 export const DESKTOP_API_CHANNELS = {
   getAppVersion: 'narrativeDesktop:getAppVersion',
+  getCurrentProject: 'narrativeDesktop:getCurrentProject',
   getPlatform: 'narrativeDesktop:getPlatform',
   getRuntimeMode: 'narrativeDesktop:getRuntimeMode',
   getRuntimeConfig: 'narrativeDesktop:getRuntimeConfig',

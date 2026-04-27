@@ -31,6 +31,20 @@ describe('getApiServerConfig', () => {
     })
   })
 
+  it('reads selected desktop project bootstrap metadata when present', () => {
+    process.env.NARRATIVE_PROJECT_ROOT = '/tmp/local-project'
+    process.env.NARRATIVE_PROJECT_ID = 'book-signal-arc'
+    process.env.NARRATIVE_PROJECT_TITLE = 'Desktop Local Prototype'
+
+    expect(getApiServerConfig()).toMatchObject({
+      currentProject: {
+        projectId: 'book-signal-arc',
+        projectRoot: '/tmp/local-project',
+        projectTitle: 'Desktop Local Prototype',
+      },
+    })
+  })
+
   it('rejects a PORT value that is not a full integer string', () => {
     process.env.PORT = '12abc'
 

@@ -12,6 +12,23 @@ describe('desktop main bridge registration', () => {
   it('registers worker bridge handlers from the real main entry path', async () => {
     const ipcHandle = vi.fn()
     const appOn = vi.fn()
+    const setApplicationMenu = vi.fn()
+    const projectStore = {
+      forgetProjectRoot: vi.fn(async () => []),
+      getCurrentProject: vi.fn(() => ({
+        projectId: 'book-signal-arc',
+        projectRoot: '/tmp/local-project',
+        projectTitle: 'Desktop Local Prototype',
+      })),
+      getRecentProjects: vi.fn(() => []),
+      openProject: vi.fn(async () => null),
+      restoreLastProject: vi.fn(async () => null),
+      selectProjectRoot: vi.fn(async () => ({
+        projectId: 'book-signal-arc',
+        projectRoot: '/tmp/local-project',
+        projectTitle: 'Desktop Local Prototype',
+      })),
+    }
     const workerSnapshot = {
       implementation: 'placeholder' as const,
       lastError: undefined,
@@ -83,7 +100,7 @@ describe('desktop main bridge registration', () => {
       },
     }))
     vi.doMock('./app-menu.js', () => ({
-      setApplicationMenu: vi.fn(),
+      setApplicationMenu,
     }))
     vi.doMock('./create-window.js', () => ({
       createMainWindow: vi.fn(async () => undefined),
@@ -91,11 +108,22 @@ describe('desktop main bridge registration', () => {
     vi.doMock('./local-api-supervisor.js', () => ({
       createLocalApiSupervisor: vi.fn(() => localApiSupervisor),
     }))
+    vi.doMock('./project-store.js', () => ({
+      ProjectStore: vi.fn(() => projectStore),
+    }))
+    vi.doMock('./runtime-config.js', () => ({
+      resolveWorkspaceRoot: vi.fn(() => '/tmp/local-project'),
+    }))
     vi.doMock('./worker-supervisor.js', () => ({
       createWorkerSupervisor: vi.fn(() => workerSupervisor),
     }))
 
     await import('./main.js')
+
+    const initialMenuOptions = setApplicationMenu.mock.calls.at(-1)?.[0] as {
+      onOpenProject?: () => Promise<void>
+      onOpenRecentProject?: (projectRoot: string) => Promise<void>
+    } | undefined
 
     const registrations = new Map(
       ipcHandle.mock.calls.map(([channel, handler]) => [channel as string, handler as () => unknown]),
@@ -103,7 +131,12 @@ describe('desktop main bridge registration', () => {
 
     expect(registrations.has(DESKTOP_API_CHANNELS.getWorkerStatus)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.restartWorker)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.getCurrentProject)).toBe(true)
 
+    expect(registrations.get(DESKTOP_API_CHANNELS.getCurrentProject)?.()).toEqual({
+      projectId: 'book-signal-arc',
+      projectTitle: 'Desktop Local Prototype',
+    })
     expect(registrations.get(DESKTOP_API_CHANNELS.getWorkerStatus)?.()).toEqual({
       implementation: 'placeholder',
       lastError: undefined,
@@ -125,5 +158,21 @@ describe('desktop main bridge registration', () => {
     beforeQuitHandler?.()
 
     expect(workerSupervisor.stop).toHaveBeenCalledTimes(1)
+
+    projectStore.openProject.mockRejectedValueOnce(new Error('dialog failed'))
+    await expect(initialMenuOptions?.onOpenProject?.()).resolves.toBeUndefined()
+    expect(localApiSupervisor.restart).not.toHaveBeenCalled()
+    expect(setApplicationMenu).toHaveBeenCalledTimes(2)
+
+    projectStore.selectProjectRoot.mockRejectedValueOnce(new Error('project missing'))
+    await expect(initialMenuOptions?.onOpenRecentProject?.('/tmp/local-project')).resolves.toBeUndefined()
+    expect(projectStore.forgetProjectRoot).toHaveBeenCalledWith('/tmp/local-project')
+    expect(setApplicationMenu).toHaveBeenCalledTimes(3)
+
+    projectStore.selectProjectRoot.mockRejectedValueOnce(new Error('project missing again'))
+    projectStore.forgetProjectRoot.mockRejectedValueOnce(new Error('cleanup failed'))
+    await expect(initialMenuOptions?.onOpenRecentProject?.('/tmp/local-project')).resolves.toBeUndefined()
+    expect(projectStore.forgetProjectRoot).toHaveBeenCalledWith('/tmp/local-project')
+    expect(setApplicationMenu).toHaveBeenCalledTimes(4)
   })
 })

@@ -23,6 +23,13 @@ describe('createNarrativeDesktopApi', () => {
         return 'darwin' as T
       }
 
+      if (channel === DESKTOP_API_CHANNELS.getCurrentProject) {
+        return {
+          projectId: 'book-signal-arc',
+          projectTitle: 'Selected Project',
+        } as T
+      }
+
       if (channel === DESKTOP_API_CHANNELS.getWorkerStatus || channel === DESKTOP_API_CHANNELS.restartWorker) {
         return {
           implementation: 'placeholder',
@@ -36,6 +43,7 @@ describe('createNarrativeDesktopApi', () => {
 
     expect(Object.keys(api).sort()).toEqual([
       'getAppVersion',
+      'getCurrentProject',
       'getLocalApiLogs',
       'getLocalApiStatus',
       'getPlatform',
@@ -51,6 +59,10 @@ describe('createNarrativeDesktopApi', () => {
     expect('process' in api).toBe(false)
 
     await expect(api.getAppVersion()).resolves.toBe('0.1.0')
+    await expect(api.getCurrentProject()).resolves.toEqual({
+      projectId: 'book-signal-arc',
+      projectTitle: 'Selected Project',
+    })
     await expect(api.getPlatform()).resolves.toBe('darwin')
     await expect(api.getRuntimeMode()).resolves.toBe('desktop')
     await expect(api.getWorkerStatus()).resolves.toEqual({
@@ -63,6 +75,7 @@ describe('createNarrativeDesktopApi', () => {
     })
     expect(calls).toEqual([
       DESKTOP_API_CHANNELS.getAppVersion,
+      DESKTOP_API_CHANNELS.getCurrentProject,
       DESKTOP_API_CHANNELS.getPlatform,
       DESKTOP_API_CHANNELS.getRuntimeMode,
       DESKTOP_API_CHANNELS.getWorkerStatus,
@@ -100,6 +113,7 @@ describe('createNarrativeDesktopApi', () => {
     expect(key).toBe('narrativeDesktop')
     expect(Object.keys(api).sort()).toEqual([
       'getAppVersion',
+      'getCurrentProject',
       'getLocalApiLogs',
       'getLocalApiStatus',
       'getPlatform',
@@ -114,6 +128,7 @@ describe('createNarrativeDesktopApi', () => {
     expect('child_process' in api).toBe(false)
     expect('process' in api).toBe(false)
 
+    await expect(api.getCurrentProject()).resolves.toBe('desktop')
     await expect(api.getWorkerStatus()).resolves.toEqual({
       implementation: 'placeholder',
       status: 'disabled',
@@ -122,7 +137,8 @@ describe('createNarrativeDesktopApi', () => {
       implementation: 'placeholder',
       status: 'disabled',
     })
-    expect(invoke).toHaveBeenNthCalledWith(1, DESKTOP_API_CHANNELS.getWorkerStatus)
-    expect(invoke).toHaveBeenNthCalledWith(2, DESKTOP_API_CHANNELS.restartWorker)
+    expect(invoke).toHaveBeenNthCalledWith(1, DESKTOP_API_CHANNELS.getCurrentProject)
+    expect(invoke).toHaveBeenNthCalledWith(2, DESKTOP_API_CHANNELS.getWorkerStatus)
+    expect(invoke).toHaveBeenNthCalledWith(3, DESKTOP_API_CHANNELS.restartWorker)
   })
 })

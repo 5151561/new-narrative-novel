@@ -8,6 +8,11 @@ export interface ApiServerConfig {
   apiBasePath: string
   apiBaseUrl: string
   corsOrigin: string | true
+  currentProject?: {
+    projectId: string
+    projectRoot: string
+    projectTitle: string
+  }
   projectStateFilePath: string
   modelProvider: ModelProvider
   openAiModel?: string
@@ -50,6 +55,22 @@ function readOptionalTrimmedEnv(name: string) {
   return value ? value : undefined
 }
 
+function readCurrentProject() {
+  const projectRoot = readOptionalTrimmedEnv('NARRATIVE_PROJECT_ROOT')
+  const projectId = readOptionalTrimmedEnv('NARRATIVE_PROJECT_ID')
+  const projectTitle = readOptionalTrimmedEnv('NARRATIVE_PROJECT_TITLE')
+
+  if (!projectRoot || !projectId || !projectTitle) {
+    return undefined
+  }
+
+  return {
+    projectId,
+    projectRoot,
+    projectTitle,
+  }
+}
+
 export function getApiServerConfig(): ApiServerConfig {
   const host = process.env.HOST ?? '127.0.0.1'
   const port = readPort('PORT', 4174)
@@ -58,6 +79,7 @@ export function getApiServerConfig(): ApiServerConfig {
   const corsOrigin = process.env.CORS_ORIGIN === undefined || process.env.CORS_ORIGIN === 'true'
     ? true
     : process.env.CORS_ORIGIN
+  const currentProject = readCurrentProject()
   const projectStateFilePath = process.env.NARRATIVE_PROJECT_STATE_FILE ?? resolveDefaultProjectStateFilePath()
   const modelProvider = readModelProvider()
   const openAiModel = modelProvider === 'openai'
@@ -73,6 +95,7 @@ export function getApiServerConfig(): ApiServerConfig {
     apiBasePath,
     apiBaseUrl,
     corsOrigin,
+    currentProject,
     projectStateFilePath,
     modelProvider,
     openAiModel,

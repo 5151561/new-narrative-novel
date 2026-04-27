@@ -3,9 +3,11 @@ import type { Readable } from 'node:stream'
 
 import { findAvailablePort } from './port-utils.js'
 import { ProcessLogBuffer } from './process-log-buffer.js'
+import type { SelectedProjectSession } from './project-picker.js'
 import {
   createDesktopRuntimeConfig,
   createLocalApiProcessConfig,
+  resolveWorkspaceRoot,
   type DesktopRuntimeConfig,
   type LocalApiProcessConfig,
 } from './runtime-config.js'
@@ -32,6 +34,7 @@ export interface LocalApiChildProcess {
 
 export interface LocalApiSupervisorOptions {
   findAvailablePort?: () => Promise<number>
+  getCurrentProject?: () => SelectedProjectSession | null
   spawnLocalApi?: (config: LocalApiSpawnConfig) => LocalApiChildProcess
   fetch?: typeof fetch
   sleep?: (ms: number) => Promise<void>
@@ -67,6 +70,7 @@ export class LocalApiSupervisor {
   private startupPromise: Promise<LocalApiSnapshot> | null = null
   private stopping = false
   private readonly findPort: () => Promise<number>
+  private readonly getCurrentProject: () => SelectedProjectSession | null
   private readonly spawnLocalApi: (config: LocalApiSpawnConfig) => LocalApiChildProcess
   private readonly fetchImpl: typeof fetch
   private readonly sleep: (ms: number) => Promise<void>
@@ -76,6 +80,11 @@ export class LocalApiSupervisor {
 
   constructor({
     findAvailablePort: findPort = () => findAvailablePort(),
+    getCurrentProject = () => ({
+      projectId: 'book-signal-arc',
+      projectRoot: resolveWorkspaceRoot(),
+      projectTitle: 'book-signal-arc',
+    }),
     spawnLocalApi = spawnLocalApiProcess,
     fetch: fetchImpl = globalThis.fetch.bind(globalThis),
     sleep = defaultSleep,
@@ -84,6 +93,7 @@ export class LocalApiSupervisor {
     logBuffer = new ProcessLogBuffer(),
   }: LocalApiSupervisorOptions = {}) {
     this.findPort = findPort
+    this.getCurrentProject = getCurrentProject
     this.spawnLocalApi = spawnLocalApi
     this.fetchImpl = fetchImpl
     this.sleep = sleep
@@ -128,8 +138,16 @@ export class LocalApiSupervisor {
 
     try {
       const port = await this.findPort()
+      const currentProject = this.getCurrentProject()
+      if (!currentProject) {
+        throw new Error('No desktop project is selected.')
+      }
+
       this.runtimeConfig = createDesktopRuntimeConfig(port)
-      const spawnConfig = createLocalApiProcessConfig({ port })
+      const spawnConfig = createLocalApiProcessConfig({
+        currentProject,
+        port,
+      })
       const child = this.spawnLocalApi(spawnConfig)
       this.child = child
       this.attachChildHandlers(child)
@@ -271,6 +289,6 @@ export class LocalApiSupervisor {
   }
 }
 
-export function createLocalApiSupervisor(): LocalApiSupervisor {
-  return new LocalApiSupervisor()
+export function createLocalApiSupervisor(options?: LocalApiSupervisorOptions): LocalApiSupervisor {
+  return new LocalApiSupervisor(options)
 }

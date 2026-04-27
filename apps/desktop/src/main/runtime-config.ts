@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import type { SelectedProjectSession } from './project-picker.js'
+
 export type DesktopLocalRuntimeMode = 'desktop-local'
 
 export interface DesktopRuntimeConfig {
@@ -55,16 +57,18 @@ export function resolveWorkspaceRoot(startDir = process.cwd()): string {
 }
 
 export function createLocalApiProcessConfig({
+  currentProject,
   port,
   workspaceRoot = resolveWorkspaceRoot(),
   env = process.env,
 }: {
+  currentProject: SelectedProjectSession
   port: number
   workspaceRoot?: string
   env?: NodeJS.ProcessEnv
 }): LocalApiProcessConfig {
   const apiPackageRoot = path.resolve(workspaceRoot, 'packages/api')
-  const projectStateFilePath = path.resolve(workspaceRoot, '.narrative', 'prototype-state.json')
+  const projectStateFilePath = path.resolve(currentProject.projectRoot, '.narrative', 'prototype-state.json')
   const tsxExecutable = path.resolve(apiPackageRoot, 'node_modules/.bin', process.platform === 'win32' ? 'tsx.cmd' : 'tsx')
 
   return {
@@ -74,7 +78,10 @@ export function createLocalApiProcessConfig({
     env: {
       ...env,
       HOST: '127.0.0.1',
+      NARRATIVE_PROJECT_ID: currentProject.projectId,
+      NARRATIVE_PROJECT_ROOT: currentProject.projectRoot,
       NARRATIVE_PROJECT_STATE_FILE: projectStateFilePath,
+      NARRATIVE_PROJECT_TITLE: currentProject.projectTitle,
       NARRATIVE_RUNTIME: 'desktop-local',
       PORT: String(port),
     },

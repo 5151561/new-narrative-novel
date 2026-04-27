@@ -76,6 +76,7 @@ export function createServer(options: CreateServerOptions = {}) {
   const routeContext = {
     app,
     apiBasePath: config.apiBasePath,
+    currentProject: config.currentProject,
     repository,
   }
 

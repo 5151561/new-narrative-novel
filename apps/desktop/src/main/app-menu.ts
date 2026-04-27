@@ -1,14 +1,33 @@
 import { app, Menu, type MenuItemConstructorOptions } from 'electron'
 
+import type { RecentProjectRecord } from './recent-projects.js'
+
 export interface ApplicationMenuOptions {
   isDev: boolean
+  onOpenProject?: () => Promise<void> | void
+  onOpenRecentProject?: (projectRoot: string) => Promise<void> | void
   platform?: NodeJS.Platform
+  recentProjects?: RecentProjectRecord[]
 }
 
 export function buildApplicationMenuTemplate({
   isDev,
+  onOpenProject,
+  onOpenRecentProject,
   platform = process.platform,
+  recentProjects = [],
 }: ApplicationMenuOptions): MenuItemConstructorOptions[] {
+  const recentProjectsSubmenu: MenuItemConstructorOptions[] = recentProjects.length > 0
+    ? recentProjects.map((project) => ({
+      click: () => {
+        void onOpenRecentProject?.(project.projectRoot)
+      },
+      label: `${project.projectTitle} (${project.projectRoot})`,
+    }))
+    : [{
+      enabled: false,
+      label: 'No Recent Projects',
+    }]
   const template: MenuItemConstructorOptions[] = [
     {
       label: platform === 'darwin' ? app.name : 'App',
@@ -16,7 +35,20 @@ export function buildApplicationMenuTemplate({
     },
     {
       label: 'File',
-      submenu: [{ role: 'quit' }],
+      submenu: [
+        {
+          click: () => {
+            void onOpenProject?.()
+          },
+          label: 'Open Project...',
+        },
+        {
+          label: 'Recent Projects',
+          submenu: recentProjectsSubmenu,
+        },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
     },
   ]
 

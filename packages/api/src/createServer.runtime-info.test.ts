@@ -84,6 +84,41 @@ describe('fixture API server runtime info surfaces', () => {
     })
   })
 
+  it('overrides the current project runtime title with the selected desktop project title without changing fixture identity', async () => {
+    await withTestServer(async ({ app }) => {
+      const [selectedProjectResponse, otherProjectResponse] = await Promise.all([
+        app.inject({
+          method: 'GET',
+          url: '/api/projects/book-signal-arc/runtime-info',
+        }),
+        app.inject({
+          method: 'GET',
+          url: '/api/projects/project-artifact-a/runtime-info',
+        }),
+      ])
+
+      expect(selectedProjectResponse.statusCode).toBe(200)
+      expect(selectedProjectResponse.json()).toMatchObject({
+        projectId: 'book-signal-arc',
+        projectTitle: 'Desktop Local Prototype',
+      })
+
+      expect(otherProjectResponse.statusCode).toBe(200)
+      expect(otherProjectResponse.json()).toMatchObject({
+        projectId: 'project-artifact-a',
+        projectTitle: 'Signal Arc',
+      })
+    }, {
+      configOverrides: {
+        currentProject: {
+          projectId: 'book-signal-arc',
+          projectRoot: '/tmp/desktop-local-prototype',
+          projectTitle: 'Desktop Local Prototype',
+        },
+      },
+    })
+  })
+
   it('keeps runEventStream false and leaves the stream route unavailable when stream transport is disabled', async () => {
     const app = Fastify()
     extraApps.push(app)

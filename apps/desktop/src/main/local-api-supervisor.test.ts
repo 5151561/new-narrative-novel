@@ -50,6 +50,11 @@ describe('LocalApiSupervisor', () => {
     const supervisor = new LocalApiSupervisor({
       fetch,
       findAvailablePort: async () => 4888,
+      getCurrentProject: () => ({
+        projectId: 'book-signal-arc',
+        projectRoot: '/tmp/local-project',
+        projectTitle: 'Desktop Local Prototype',
+      }),
       sleep: async () => {},
       spawnLocalApi: (config) => {
         spawnConfigs.push(config)
@@ -69,6 +74,10 @@ describe('LocalApiSupervisor', () => {
     })
     expect(spawnConfigs).toHaveLength(1)
     expect(spawnConfigs[0]?.env).toMatchObject({
+      NARRATIVE_PROJECT_ID: 'book-signal-arc',
+      NARRATIVE_PROJECT_ROOT: '/tmp/local-project',
+      NARRATIVE_PROJECT_STATE_FILE: '/tmp/local-project/.narrative/prototype-state.json',
+      NARRATIVE_PROJECT_TITLE: 'Desktop Local Prototype',
       NARRATIVE_RUNTIME: 'desktop-local',
       PORT: '4888',
     })

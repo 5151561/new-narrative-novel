@@ -16,6 +16,11 @@ describe('createLocalApiProcessConfig', () => {
 
   it('spawns the API server through the local tsx executable instead of a pnpm wrapper', () => {
     const config = createLocalApiProcessConfig({
+      currentProject: {
+        projectId: 'book-signal-arc',
+        projectRoot: '/repo/projects/local-alpha',
+        projectTitle: 'Local Alpha',
+      },
       env: {
         PATH: '/usr/bin',
       },
@@ -28,7 +33,10 @@ describe('createLocalApiProcessConfig', () => {
     expect(config.cwd).toBe(path.resolve('/repo/packages/api'))
     expect(config.env).toMatchObject({
       HOST: '127.0.0.1',
-      NARRATIVE_PROJECT_STATE_FILE: path.resolve('/repo/.narrative/prototype-state.json'),
+      NARRATIVE_PROJECT_ID: 'book-signal-arc',
+      NARRATIVE_PROJECT_ROOT: '/repo/projects/local-alpha',
+      NARRATIVE_PROJECT_STATE_FILE: path.resolve('/repo/projects/local-alpha/.narrative/prototype-state.json'),
+      NARRATIVE_PROJECT_TITLE: 'Local Alpha',
       NARRATIVE_RUNTIME: 'desktop-local',
       PATH: '/usr/bin',
       PORT: '4888',
