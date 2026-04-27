@@ -56,6 +56,87 @@ async function fetchBookDraftAssembly(
 }
 
 describe('fixture API server PR37 draft assembly regression closure', () => {
+  it('keeps current prose stable until a revision candidate is accepted, then promotes the accepted candidate into draft assembly', async () => {
+    await withTestServer(async ({ app }) => {
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
+          note: 'Exercise revision candidate promotion through assembly.',
+        },
+      })
+      expect(startResponse.statusCode).toBe(200)
+
+      const reviewResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/book-signal-arc/runs/${startResponse.json().id}/review-decisions`,
+        payload: {
+          reviewId: startResponse.json().pendingReviewId,
+          decision: 'accept',
+        },
+      })
+      expect(reviewResponse.statusCode).toBe(200)
+
+      const proseBeforeRevisionResponse = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
+      })
+      expect(proseBeforeRevisionResponse.statusCode).toBe(200)
+      const proseBeforeRevision = proseBeforeRevisionResponse.json()
+
+      const revisionResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose/revision',
+        payload: {
+          revisionMode: 'compress',
+          instruction: 'Trim repeated witness beats while preserving the accepted outcome.',
+        },
+      })
+      expect(revisionResponse.statusCode).toBe(204)
+
+      const assemblyWhilePending = await fetchBookDraftAssembly(app)
+      const sceneWhilePending = assemblyWhilePending.chapters
+        .flatMap((chapter: { scenes: Array<{ sceneId: string }> }) => chapter.scenes)
+        .find((scene: { sceneId: string }) => scene.sceneId === 'scene-midnight-platform')
+      expect(sceneWhilePending).toMatchObject({
+        sceneId: 'scene-midnight-platform',
+        proseDraft: proseBeforeRevision.proseDraft,
+        proseStatusLabel: {
+          en: 'Revision candidate ready',
+        },
+      })
+
+      const candidateResponse = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
+      })
+      const revisionCandidate = candidateResponse.json().revisionCandidate
+
+      const acceptRevisionResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose/revision/accept',
+        payload: {
+          revisionId: revisionCandidate.revisionId,
+        },
+      })
+      expect(acceptRevisionResponse.statusCode).toBe(204)
+
+      const assemblyAfterAccept = await fetchBookDraftAssembly(app)
+      const sceneAfterAccept = assemblyAfterAccept.chapters
+        .flatMap((chapter: { scenes: Array<{ sceneId: string }> }) => chapter.scenes)
+        .find((scene: { sceneId: string }) => scene.sceneId === 'scene-midnight-platform')
+      expect(sceneAfterAccept).toMatchObject({
+        sceneId: 'scene-midnight-platform',
+        proseDraft: revisionCandidate.proseBody,
+        proseStatusLabel: {
+          en: 'Updated',
+        },
+        latestDiffSummary: 'Compressed repeated witness beats while preserving accepted provenance.',
+      })
+    })
+  })
+
   it('propagates accepted selected variants through ref-based artifacts, scene prose, chapter status, and trace links', async () => {
     await withTestServer(async ({ app }) => {
       const selectedVariant = {

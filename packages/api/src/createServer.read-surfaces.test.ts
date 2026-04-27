@@ -265,4 +265,72 @@ describe('fixture API server read surfaces', () => {
       })
     })
   })
+
+  it('serves revision candidate state on the prose and dock read surfaces without replacing current prose until accept', async () => {
+    await withTestServer(async ({ app }) => {
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
+          note: 'Prepare revision-candidate read surfaces.',
+        },
+      })
+      expect(startResponse.statusCode).toBe(200)
+
+      const reviewResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/book-signal-arc/runs/${startResponse.json().id}/review-decisions`,
+        payload: {
+          reviewId: startResponse.json().pendingReviewId,
+          decision: 'accept',
+        },
+      })
+      expect(reviewResponse.statusCode).toBe(200)
+
+      const revisionResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose/revision',
+        payload: {
+          revisionMode: 'tone_adjust',
+          instruction: 'Dial the bargaining tone down without softening the witness pressure.',
+        },
+      })
+      expect(revisionResponse.statusCode).toBe(204)
+
+      const [proseResponse, dockTraceResponse] = await Promise.all([
+        app.inject({
+          method: 'GET',
+          url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
+        }),
+        app.inject({
+          method: 'GET',
+          url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/dock-tabs/trace',
+        }),
+      ])
+
+      expect(proseResponse.statusCode).toBe(200)
+      expect(proseResponse.json()).toMatchObject({
+        sceneId: 'scene-midnight-platform',
+        statusLabel: 'Revision candidate ready',
+        revisionCandidate: {
+          revisionMode: 'tone_adjust',
+          instruction: 'Dial the bargaining tone down without softening the witness pressure.',
+          sourceProseDraftId: 'prose-draft-scene-midnight-platform-002',
+          sourceCanonPatchId: 'canon-patch-scene-midnight-platform-002',
+          contextPacketId: 'ctx-scene-midnight-platform-run-002',
+        },
+      })
+
+      expect(dockTraceResponse.statusCode).toBe(200)
+      expect(dockTraceResponse.json()).toMatchObject({
+        trace: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'prose-revision-trace-scene-midnight-platform',
+            title: 'Revision candidate trace',
+          }),
+        ]),
+      })
+    })
+  })
 })

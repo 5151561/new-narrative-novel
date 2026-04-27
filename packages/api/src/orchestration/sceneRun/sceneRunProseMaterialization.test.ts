@@ -79,6 +79,8 @@ describe('sceneRunProseMaterialization', () => {
     expect(materialized.latestDiffSummary).toBe('A fixture prose draft was rendered for Midnight Platform.')
     expect(materialized.traceSummary).toEqual({
       sourcePatchId: canonPatch.id,
+      sourceProseDraftId: proseDraft.id,
+      contextPacketId: proseDraft.contextPacketId,
       sourceProposals: [
         {
           proposalId: selectedVariant.proposalId,

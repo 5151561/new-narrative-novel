@@ -5,6 +5,7 @@ import type { LocalizedTextRecord, RunArtifactAssetKind, RunArtifactRelatedAsset
 export interface SceneProseWriterOutput {
   body: LocalizedTextRecord
   excerpt: LocalizedTextRecord
+  diffSummary: string
   wordCount: number
   relatedAssets: RunArtifactRelatedAssetRecord[]
 }
@@ -44,10 +45,11 @@ const relatedAssetSchema = {
 export const sceneProseWriterOpenAiOutputSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['body', 'excerpt', 'relatedAssets'],
+  required: ['body', 'excerpt', 'diffSummary', 'relatedAssets'],
   properties: {
     body: localizedTextSchema,
     excerpt: localizedTextSchema,
+    diffSummary: nonEmptyTrimmedStringSchema,
     relatedAssets: {
       type: 'array',
       minItems: 1,
@@ -99,6 +101,7 @@ function normalizeSceneProseWriterOutput(input: Omit<SceneProseWriterOutput, 'wo
   return {
     body: normalizeLocalizedText(input.body),
     excerpt: normalizeLocalizedText(input.excerpt),
+    diffSummary: input.diffSummary.trim(),
     relatedAssets: input.relatedAssets.map((asset) => ({
       assetId: asset.assetId.trim(),
       kind: asset.kind,

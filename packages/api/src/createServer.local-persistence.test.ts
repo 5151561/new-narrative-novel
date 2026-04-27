@@ -211,6 +211,31 @@ describe('fixture API server local project-state persistence', () => {
         },
       })
       expect(setupResponse.statusCode).toBe(204)
+
+      const revisionResponse = await firstServer.app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-warehouse-bridge/prose/revision',
+        payload: {
+          revisionMode: 'rewrite',
+          instruction: 'Reframe the opening around the exposed ledger signal while preserving the accepted patch.',
+        },
+      })
+      expect(revisionResponse.statusCode).toBe(204)
+
+      const proseWithCandidateResponse = await firstServer.app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-warehouse-bridge/prose',
+      })
+      expect(proseWithCandidateResponse.statusCode).toBe(200)
+
+      const acceptRevisionResponse = await firstServer.app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-warehouse-bridge/prose/revision/accept',
+        payload: {
+          revisionId: proseWithCandidateResponse.json().revisionCandidate.revisionId,
+        },
+      })
+      expect(acceptRevisionResponse.statusCode).toBe(204)
     } finally {
       await firstServer.app.close()
     }
@@ -309,13 +334,13 @@ describe('fixture API server local project-state persistence', () => {
 
       expect(proseResponse.statusCode).toBe(200)
       expect(proseResponse.json()).toMatchObject({
-        proseDraft: expect.stringContaining('Warehouse Bridge opens from the accepted run artifact'),
-        draftWordCount: 50,
-        latestDiffSummary: 'A fixture prose draft was rendered for Warehouse Bridge.',
+        proseDraft: expect.stringContaining('Reframe the opening around the exposed ledger signal while preserving the accepted patch.'),
+        latestDiffSummary: 'Rebuilt the scene around the accepted canon patch while preserving provenance links.',
         traceSummary: {
           sourcePatchId: 'canon-patch-scene-warehouse-bridge-001',
         },
       })
+      expect(proseResponse.json()).not.toHaveProperty('revisionCandidate')
 
       expect(
         assemblyResponse
@@ -325,7 +350,7 @@ describe('fixture API server local project-state persistence', () => {
           .find((scene: { sceneId: string }) => scene.sceneId === 'scene-warehouse-bridge'),
       ).toMatchObject({
         sceneId: 'scene-warehouse-bridge',
-        proseDraft: expect.stringContaining('Warehouse Bridge opens from the accepted run artifact'),
+        proseDraft: expect.stringContaining('Reframe the opening around the exposed ledger signal while preserving the accepted patch.'),
       })
 
       expect(runResponse.statusCode).toBe(200)

@@ -1,9 +1,10 @@
 import { badRequest } from '../http/errors.js'
 
 import type { ApiRouteContext } from './route-context.js'
-import { assertEnumValue } from './validation.js'
+import { assertEnumValue, assertOptionalString, assertRequiredString } from './validation.js'
 
 const SCENE_PROSE_REVISION_MODES = ['rewrite', 'compress', 'expand', 'tone_adjust', 'continuity_fix'] as const
+const MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH = 280
 
 export function registerSceneRoutes({ app, apiBasePath, repository }: ApiRouteContext) {
   const projectBase = `${apiBasePath}/projects/:projectId`
@@ -64,14 +65,45 @@ export function registerSceneRoutes({ app, apiBasePath, repository }: ApiRouteCo
 
   app.post(`${projectBase}/scenes/:sceneId/prose/revision`, async (request, reply) => {
     const { projectId, sceneId } = request.params as { projectId: string; sceneId: string }
-    const body = request.body as { revisionMode?: unknown }
+    const body = request.body as { revisionMode?: unknown; instruction?: unknown }
     const revisionMode = assertEnumValue(body?.revisionMode, 'revisionMode', SCENE_PROSE_REVISION_MODES, {
       code: 'INVALID_REVISION_MODE',
       detail: { body },
       allowedValuesDetailKey: 'allowedRevisionModes',
     })
+    const instruction = assertOptionalString(body?.instruction, 'instruction', {
+      code: 'INVALID_REVISION_INSTRUCTION',
+      detail: { body },
+    })?.trim()
+    if (instruction && instruction.length > MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH) {
+      throw badRequest(
+        `instruction must be at most ${MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH} characters.`,
+        {
+          code: 'INVALID_REVISION_INSTRUCTION',
+          detail: {
+            body,
+            maxLength: MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH,
+          },
+        },
+      )
+    }
 
-    await repository.reviseSceneProse(projectId, sceneId, revisionMode)
+    await repository.reviseSceneProse(projectId, sceneId, {
+      revisionMode,
+      instruction,
+    })
+    return reply.status(204).send()
+  })
+
+  app.post(`${projectBase}/scenes/:sceneId/prose/revision/accept`, async (request, reply) => {
+    const { projectId, sceneId } = request.params as { projectId: string; sceneId: string }
+    const body = request.body as { revisionId?: unknown }
+    const revisionId = assertRequiredString(body?.revisionId, 'revisionId', {
+      code: 'INVALID_REVISION_ID',
+      detail: { body },
+    }).trim()
+
+    await repository.acceptSceneProseRevision(projectId, sceneId, revisionId)
     return reply.status(204).send()
   })
 

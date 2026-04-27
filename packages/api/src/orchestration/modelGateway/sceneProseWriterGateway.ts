@@ -15,10 +15,17 @@ import {
 } from './sceneProseWriterOutputSchema.js'
 
 export interface SceneProseWriterGatewayRequest {
+  task: 'draft' | 'revision'
   sceneId: string
   decision: 'accept' | 'accept-with-edit'
   acceptedProposalIds: string[]
   selectedVariants?: RunSelectedProposalVariantRecord[]
+  revisionMode?: 'rewrite' | 'compress' | 'expand' | 'tone_adjust' | 'continuity_fix'
+  currentProse?: string
+  sourceProseDraftId?: string
+  sourceCanonPatchId?: string
+  contextPacketId?: string
+  instruction?: string
   instructions: string
   input: string
 }

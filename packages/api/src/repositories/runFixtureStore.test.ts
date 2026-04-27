@@ -1141,7 +1141,7 @@ describe('runFixtureStore', () => {
 
     expect(writerGenerate).toHaveBeenCalledWith(expect.objectContaining({
       sceneId: 'scene-midnight-platform',
-      instructions: 'Return accepted scene prose only.',
+      instructions: 'Return structured accepted scene prose with body, excerpt, diffSummary, and relatedAssets.',
       input: expect.stringContaining('Context packet ctx-scene-midnight-platform-run-002.'),
     }))
     expect(writerGenerate.mock.calls[0]?.[0].input).toContain('Book premise: Fixture-backed project root for the BE-PR1 API server skeleton.')

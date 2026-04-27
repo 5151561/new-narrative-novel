@@ -25,6 +25,7 @@ describe('createSceneProseWriterOpenAiResponsesProvider', () => {
           en: 'Midnight Platform settles into view.',
           'zh-CN': 'Midnight Platform 落入视野。',
         },
+        diffSummary: 'Expanded the arrival beat while preserving accepted provenance.',
         relatedAssets: [
           {
             assetId: 'asset-scene-midnight-platform-lead',
@@ -83,6 +84,7 @@ describe('createSceneProseWriterOpenAiResponsesProvider', () => {
                 en: '  Midnight Platform settles into view.  ',
                 'zh-CN': '  Midnight Platform 落入视野。  ',
               },
+              diffSummary: '  Expanded the arrival beat while preserving accepted provenance.  ',
               relatedAssets: [
                 {
                   assetId: 'asset-scene-midnight-platform-setting',
@@ -108,6 +110,7 @@ describe('createSceneProseWriterOpenAiResponsesProvider', () => {
         en: 'Midnight Platform settles into view.',
         'zh-CN': 'Midnight Platform 落入视野。',
       },
+      diffSummary: 'Expanded the arrival beat while preserving accepted provenance.',
       wordCount: 7,
       relatedAssets: [
         {

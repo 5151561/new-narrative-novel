@@ -102,6 +102,8 @@ export function buildSceneProseFromProseDraftArtifact(input: {
     latestDiffSummary: proseDraft.summary.en,
     traceSummary: {
       sourcePatchId: proseDraft.sourceCanonPatchId,
+      sourceProseDraftId: proseDraft.id,
+      contextPacketId: proseDraft.contextPacketId,
       sourceProposals,
       acceptedFactIds: canonPatch?.acceptedFacts.map((fact) => fact.id) ?? [],
       relatedAssets: proseDraft.relatedAssets.map(mapRelatedAsset),

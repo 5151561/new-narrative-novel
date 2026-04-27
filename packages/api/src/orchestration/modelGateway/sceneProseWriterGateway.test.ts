@@ -4,16 +4,30 @@ import { createSceneProseWriterFixtureProvider } from './sceneProseWriterFixture
 import { createSceneProseWriterGateway } from './sceneProseWriterGateway.js'
 
 function createRequest(overrides?: Partial<{
+  task: 'draft' | 'revision'
   sceneId: string
   decision: 'accept' | 'accept-with-edit'
   acceptedProposalIds: string[]
+  revisionMode: 'rewrite' | 'compress' | 'expand' | 'tone_adjust' | 'continuity_fix'
+  currentProse: string
+  sourceProseDraftId: string
+  sourceCanonPatchId: string
+  contextPacketId: string
+  instruction: string
   instructions: string
   input: string
 }>) {
   return {
+    task: 'draft' as const,
     sceneId: 'scene-midnight-platform',
     decision: 'accept' as const,
     acceptedProposalIds: ['proposal-set-scene-midnight-platform-run-002-proposal-001'],
+    revisionMode: 'expand' as const,
+    currentProse: 'Midnight Platform opens from the accepted run artifact.',
+    sourceProseDraftId: 'prose-draft-scene-midnight-platform-run-002',
+    sourceCanonPatchId: 'canon-patch-scene-midnight-platform-002',
+    contextPacketId: 'ctx-scene-midnight-platform-run-002',
+    instruction: 'Lean into the witness reaction.',
     instructions: 'Return accepted scene prose only.',
     input: 'Scene: Midnight Platform. Accepted proposal: proposal-set-scene-midnight-platform-run-002-proposal-001.',
     ...overrides,
@@ -40,6 +54,7 @@ describe('createSceneProseWriterGateway', () => {
           en: 'Midnight Platform settles into view before the next reveal turns visible.',
           'zh-CN': 'Midnight Platform 先稳稳落入视野，随后下一段揭示才开始显形。',
         },
+        diffSummary: 'Rendered accepted scene prose from the approved canon patch context.',
         wordCount: 50,
       }),
       provenance: {
@@ -84,6 +99,7 @@ describe('createSceneProseWriterGateway', () => {
           en: 'Midnight Platform locks the bargain in view.',
           'zh-CN': 'Midnight Platform 将交易锁定在视野中。',
         },
+        diffSummary: 'Expanded the arrival beat while preserving accepted provenance.',
         relatedAssets: [
           {
             assetId: 'asset-scene-midnight-platform-lead',
@@ -119,6 +135,7 @@ describe('createSceneProseWriterGateway', () => {
           en: 'Midnight Platform locks the bargain in view.',
           'zh-CN': 'Midnight Platform 将交易锁定在视野中。',
         },
+        diffSummary: 'Expanded the arrival beat while preserving accepted provenance.',
         wordCount: 11,
         relatedAssets: [
           {
@@ -137,6 +154,34 @@ describe('createSceneProseWriterGateway', () => {
       },
     })
     expect(openAiProvider.generate).toHaveBeenCalledWith(createRequest())
+  })
+
+  it('renders a revision candidate through the fixture provider instead of a queue-only placeholder', async () => {
+    const gateway = createSceneProseWriterGateway(
+      {
+        modelProvider: 'fixture',
+      },
+      {
+        fixtureProvider: createSceneProseWriterFixtureProvider(),
+      },
+    )
+
+    await expect(gateway.generate(createRequest({
+      task: 'revision',
+      instructions: 'Return only the revised scene prose and a short diff summary.',
+      input: 'Current prose: Midnight Platform opens from the accepted run artifact.',
+    }))).resolves.toEqual({
+      output: expect.objectContaining({
+        body: expect.objectContaining({
+          en: expect.stringContaining('Lean into the witness reaction.'),
+        }),
+        diffSummary: 'Expanded witness-facing beats while preserving accepted provenance.',
+      }),
+      provenance: {
+        provider: 'fixture',
+        modelId: 'fixture-scene-prose-writer',
+      },
+    })
   })
 
   it('falls back to fixture with provider-error when the openai provider throws', async () => {

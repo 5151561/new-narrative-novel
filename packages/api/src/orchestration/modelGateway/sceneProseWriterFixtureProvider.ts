@@ -11,9 +11,14 @@ export function createSceneProseWriterFixtureProvider(): SceneProseWriterProvide
       return parseSceneProseWriterOutput({
         body: buildFixtureBody(request),
         excerpt: {
-          en: `${formatSceneName(request.sceneId)} settles into view before the next reveal turns visible.`,
-          'zh-CN': `${formatSceneName(request.sceneId)} 先稳稳落入视野，随后下一段揭示才开始显形。`,
+          en: request.task === 'revision'
+            ? `${formatSceneName(request.sceneId)} revision candidate sharpens the next beat without replacing the accepted source draft yet.`
+            : `${formatSceneName(request.sceneId)} settles into view before the next reveal turns visible.`,
+          'zh-CN': request.task === 'revision'
+            ? `${formatSceneName(request.sceneId)} 的修订候选会强化下一拍，但暂时不会替换已接受的来源草稿。`
+            : `${formatSceneName(request.sceneId)} 先稳稳落入视野，随后下一段揭示才开始显形。`,
         },
+        diffSummary: buildFixtureDiffSummary(request),
         relatedAssets: buildFixtureRelatedAssets(request.sceneId),
       })
     },
@@ -21,6 +26,10 @@ export function createSceneProseWriterFixtureProvider(): SceneProseWriterProvide
 }
 
 function buildFixtureBody(request: SceneProseWriterGatewayRequest) {
+  if (request.task === 'revision') {
+    return buildFixtureRevisionBody(request)
+  }
+
   const sceneName = formatSceneName(request.sceneId)
   const acceptedProposalLine = request.acceptedProposalIds.length > 0
     ? `Accepted proposal ${request.acceptedProposalIds.join(', ')} anchors the draft.`
@@ -42,6 +51,40 @@ function buildFixtureBody(request: SceneProseWriterGatewayRequest) {
   }
 }
 
+function buildFixtureRevisionBody(request: SceneProseWriterGatewayRequest) {
+  const sceneName = formatSceneName(request.sceneId)
+  const currentProse = request.currentProse?.trim() || `${sceneName} keeps its current draft spine in view.`
+  const instruction = request.instruction?.trim() || 'No additional revision instruction was provided.'
+  const sourcePatchId = request.sourceCanonPatchId ?? 'unknown-canon-patch'
+  const sourceDraftId = request.sourceProseDraftId ?? 'unknown-prose-draft'
+  const revisionLabel = formatRevisionMode(request.revisionMode ?? 'rewrite')
+
+  return {
+    en: `${sceneName} now runs a ${revisionLabel} revision pass against the accepted draft. ${currentProse} Editorial instruction: ${instruction} The candidate keeps provenance anchored to ${sourceDraftId} and ${sourcePatchId} while rewriting the witness-facing beats into a reviewable alternative.`,
+    'zh-CN': `${sceneName} 现在会基于已接受草稿执行一次${localizeRevisionMode(request.revisionMode ?? 'rewrite')}修订。${currentProse} 编辑指令：${instruction} 该候选会继续锚定 ${sourceDraftId} 与 ${sourcePatchId} 的来源关系，同时把面向见证者的节拍改写成一个可审阅的备选正文。`,
+  }
+}
+
+function buildFixtureDiffSummary(request: SceneProseWriterGatewayRequest) {
+  if (request.task !== 'revision') {
+    return 'Rendered accepted scene prose from the approved canon patch context.'
+  }
+
+  switch (request.revisionMode) {
+    case 'compress':
+      return 'Compressed repeated witness beats while preserving accepted provenance.'
+    case 'expand':
+      return 'Expanded witness-facing beats while preserving accepted provenance.'
+    case 'tone_adjust':
+      return 'Adjusted bargaining tone while preserving accepted provenance.'
+    case 'continuity_fix':
+      return 'Resolved continuity pressure points while preserving accepted provenance.'
+    case 'rewrite':
+    default:
+      return 'Rebuilt the scene around the accepted canon patch while preserving provenance links.'
+  }
+}
+
 function buildSelectedVariantBodyLine(selectedVariant: RunSelectedProposalVariantRecord, index: number) {
   const variantLabel = selectedVariant.variantId
     .replace(`${selectedVariant.proposalId}-variant-`, '')
@@ -53,6 +96,38 @@ function buildSelectedVariantBodyLine(selectedVariant: RunSelectedProposalVarian
   return {
     en: `Selected variant ${displayIndex} (${variantLabel}) shapes the beat by preserving its proposed effect, with rationale retained from ${selectedVariant.variantId}.`,
     'zh-CN': `已选变体 ${displayIndex}（${variantLabel}）按其提案效果塑造节拍，并保留来自 ${selectedVariant.variantId} 的理由。`,
+  }
+}
+
+function formatRevisionMode(revisionMode: NonNullable<SceneProseWriterGatewayRequest['revisionMode']>) {
+  switch (revisionMode) {
+    case 'compress':
+      return 'compression'
+    case 'expand':
+      return 'expansion'
+    case 'tone_adjust':
+      return 'tone-adjustment'
+    case 'continuity_fix':
+      return 'continuity-fix'
+    case 'rewrite':
+    default:
+      return 'rewrite'
+  }
+}
+
+function localizeRevisionMode(revisionMode: NonNullable<SceneProseWriterGatewayRequest['revisionMode']>) {
+  switch (revisionMode) {
+    case 'compress':
+      return '压缩'
+    case 'expand':
+      return '扩展'
+    case 'tone_adjust':
+      return '语气调整'
+    case 'continuity_fix':
+      return '连续性修复'
+    case 'rewrite':
+    default:
+      return '重写'
   }
 }
 

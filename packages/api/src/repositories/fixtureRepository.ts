@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import type {
   AssetKnowledgeWorkspaceRecord,
   BookDraftAssemblyChapterRecord,
@@ -56,7 +58,10 @@ import {
   buildAcceptedFactsFromCanonPatch,
   buildSceneProseFromProseDraftArtifact,
 } from '../orchestration/sceneRun/sceneRunProseMaterialization.js'
-import { applySceneProseRevisionRequest } from '../orchestration/sceneRun/sceneRunProseRevision.js'
+import {
+  acceptSceneProseRevisionCandidate,
+  applySceneProseRevisionCandidate,
+} from '../orchestration/sceneRun/sceneRunProseRevision.js'
 
 import { createFixtureDataSnapshot } from './fixture-data.js'
 import type {
@@ -90,8 +95,12 @@ function localizeCurrentSceneProseStatusLabel(statusLabel: string) {
       return localizedText(statusLabel, '草稿可供审阅')
     case 'Generated':
       return localizedText(statusLabel, '已生成')
+    case 'Updated':
+      return localizedText(statusLabel, '已更新')
     case 'Revision queued':
       return localizedText(statusLabel, '修订已排队')
+    case 'Revision candidate ready':
+      return localizedText(statusLabel, '修订候选已就绪')
     case 'Ready for revision pass':
       return localizedText(statusLabel, '可进入修订轮')
     case 'Waiting for prose artifact':
@@ -308,6 +317,11 @@ function buildRevisionModeLabel(revisionMode: SceneProseViewModel['revisionModes
   }
 }
 
+function trimProseRevisionInstruction(instruction?: string) {
+  const value = instruction?.trim()
+  return value ? value : undefined
+}
+
 export interface FixtureRepository {
   whenReady(): Promise<void>
   getProjectRuntimeInfo(projectId: string): ProjectRuntimeInfoRecord
@@ -341,7 +355,15 @@ export interface FixtureRepository {
   getSceneDockTab(projectId: string, sceneId: string, tab: SceneDockTabId): Partial<SceneDockViewModel>
   getScenePatchPreview(projectId: string, sceneId: string): ScenePatchPreviewViewModel | null
   commitScenePatch(projectId: string, sceneId: string, patchId: string): void
-  reviseSceneProse(projectId: string, sceneId: string, revisionMode: SceneProseViewModel['revisionModes'][number]): Promise<void>
+  reviseSceneProse(
+    projectId: string,
+    sceneId: string,
+    input: {
+      revisionMode: SceneProseViewModel['revisionModes'][number]
+      instruction?: string
+    },
+  ): Promise<void>
+  acceptSceneProseRevision(projectId: string, sceneId: string, revisionId: string): Promise<void>
   continueSceneRun(projectId: string, sceneId: string): void
   switchSceneThread(projectId: string, sceneId: string, threadId: string): Promise<void>
   applySceneProposalAction(projectId: string, sceneId: string, action: 'accept' | 'edit-accept' | 'request-rewrite' | 'reject', input: ProposalActionInput): void
@@ -660,6 +682,72 @@ export function createFixtureRepository(options: {
     return undefined
   }
 
+  function findSceneRevisionSource(projectId: string, sceneId: string) {
+    const scene = getScene(projectId, sceneId)
+    const sourceCanonPatchId = scene.prose.traceSummary?.sourcePatchId?.trim()
+    if (!sourceCanonPatchId) {
+      return undefined
+    }
+
+    const currentSourceProseDraftId = scene.prose.traceSummary?.sourceProseDraftId?.trim()
+    const currentContextPacketId = scene.prose.traceSummary?.contextPacketId?.trim()
+    if (currentSourceProseDraftId && currentContextPacketId) {
+      return {
+        proseDraftId: currentSourceProseDraftId,
+        sourceCanonPatchId,
+        contextPacketId: currentContextPacketId,
+      }
+    }
+
+    const projectRunState = runStore.exportProjectState(projectId)
+    const matchedRunState = projectRunState?.runStates
+      .filter((candidate): candidate is {
+        run: RunRecord
+        artifacts: Array<{ kind: string; id: string }>
+        sequence: number
+      } => (
+        typeof candidate === 'object'
+        && candidate !== null
+        && 'run' in candidate
+        && 'artifacts' in candidate
+        && Array.isArray((candidate as { artifacts?: unknown }).artifacts)
+      ))
+      .find((candidate) => (
+        candidate.run.scope === 'scene'
+        && candidate.run.scopeId === sceneId
+        && candidate.artifacts.some((artifact) => artifact.kind === 'canon-patch' && artifact.id === sourceCanonPatchId)
+      ))
+
+    if (!matchedRunState) {
+      return undefined
+    }
+
+    const proseDraftArtifact = matchedRunState.artifacts.find((artifact) => artifact.kind === 'prose-draft')
+    const contextPacketArtifact = matchedRunState.artifacts.find((artifact) => artifact.kind === 'context-packet')
+    if (!proseDraftArtifact || !contextPacketArtifact) {
+      return undefined
+    }
+
+    return {
+      proseDraftId: proseDraftArtifact.id,
+      sourceCanonPatchId,
+      contextPacketId: contextPacketArtifact.id,
+    }
+  }
+
+  function syncSceneRevisionTrace(sceneId: string, trace: SceneDockViewModel['trace'], detail: string, tone: 'accent' | 'success') {
+    return [
+      {
+        id: `prose-revision-trace-${sceneId}`,
+        title: 'Revision candidate trace',
+        detail,
+        meta: sceneId,
+        tone,
+      },
+      ...trace.filter((entry) => entry.id !== `prose-revision-trace-${sceneId}`),
+    ]
+  }
+
   function syncChapterSceneProseStatus(projectId: string, sceneId: string, statusLabel: { en: string; 'zh-CN': string }) {
     const project = getProject(projectId)
     for (const [chapterId, chapter] of Object.entries(project.chapters)) {
@@ -702,6 +790,8 @@ export function createFixtureRepository(options: {
     scene.prose = {
       ...scene.prose,
       ...proseMaterialization,
+      revisionQueueCount: 0,
+      revisionCandidate: undefined,
     }
     scene.execution.acceptedSummary = {
       ...scene.execution.acceptedSummary,
@@ -1086,32 +1176,109 @@ export function createFixtureRepository(options: {
       return clone(getScene(projectId, sceneId).patchPreview)
     },
     commitScenePatch(_projectId, _sceneId, _patchId) {},
-    async reviseSceneProse(projectId, sceneId, revisionMode) {
+    async reviseSceneProse(projectId, sceneId, input) {
       const scene = getScene(projectId, sceneId)
       if (!scene.prose.proseDraft) {
         throw conflict(`Scene ${sceneId} requires a prose draft before revision can be requested.`, {
           code: 'SCENE_PROSE_REVISION_DRAFT_REQUIRED',
-          detail: { projectId, sceneId, revisionMode },
+          detail: { projectId, sceneId, revisionMode: input.revisionMode },
         })
       }
 
-      scene.prose = applySceneProseRevisionRequest({
-        prose: scene.prose,
-        revisionMode,
-      })
-      syncChapterSceneProseStatus(projectId, sceneId, { en: 'Revision queued', 'zh-CN': '修订已排队' })
+      const source = findSceneRevisionSource(projectId, sceneId)
+      if (!source) {
+        throw conflict(`Scene ${sceneId} requires prose source artifacts before revision can be requested.`, {
+          code: 'SCENE_PROSE_REVISION_SOURCE_REQUIRED',
+          detail: { projectId, sceneId, revisionMode: input.revisionMode },
+        })
+      }
 
-      const revisionModeLabel = buildRevisionModeLabel(revisionMode)
+      const trimmedInstruction = trimProseRevisionInstruction(input.instruction)
+      const writerResult = await sceneProseWriterGateway.generate({
+        task: 'revision',
+        sceneId,
+        decision: 'accept',
+        acceptedProposalIds: scene.prose.traceSummary?.sourceProposals?.map((proposal) => proposal.proposalId) ?? [],
+        revisionMode: input.revisionMode,
+        currentProse: scene.prose.proseDraft,
+        sourceProseDraftId: source.proseDraftId,
+        sourceCanonPatchId: source.sourceCanonPatchId,
+        contextPacketId: source.contextPacketId,
+        ...(trimmedInstruction ? { instruction: trimmedInstruction } : {}),
+        instructions: 'Return only the revised scene prose and a short diff summary.',
+        input: [
+          `Scene: ${sceneId}.`,
+          `Revision mode: ${input.revisionMode}.`,
+          `Current prose: ${scene.prose.proseDraft}`,
+          `Source prose draft: ${source.proseDraftId}.`,
+          `Source canon patch: ${source.sourceCanonPatchId}.`,
+          `Context packet: ${source.contextPacketId}.`,
+          trimmedInstruction ? `Editorial instruction: ${trimmedInstruction}.` : 'Editorial instruction: none.',
+        ].join(' '),
+      })
+
+      scene.prose = applySceneProseRevisionCandidate({
+        prose: scene.prose,
+        revisionId: randomUUID(),
+        revisionMode: input.revisionMode,
+        instruction: trimmedInstruction,
+        output: writerResult.output,
+        sourceProseDraftId: source.proseDraftId,
+        sourceCanonPatchId: source.sourceCanonPatchId,
+        contextPacketId: source.contextPacketId,
+        provenance: writerResult.provenance,
+      })
+      syncChapterSceneProseStatus(projectId, sceneId, { en: 'Revision candidate ready', 'zh-CN': '修订候选已就绪' })
+
+      const revisionModeLabel = buildRevisionModeLabel(input.revisionMode)
       scene.dock.events = [
         {
           id: `prose-revision-${sceneId}`,
-          title: 'Prose revision queued',
-          detail: `The ${revisionModeLabel} revision request is waiting for review.`,
-          meta: `Queue ${scene.prose.revisionQueueCount ?? 0}`,
+          title: 'Prose revision candidate ready',
+          detail: `The ${revisionModeLabel} revision candidate is ready to compare against the current prose.`,
+          meta: scene.prose.revisionCandidate?.revisionId,
           tone: 'accent',
         },
         ...scene.dock.events.filter((entry) => entry.id !== `prose-revision-${sceneId}`),
       ]
+      scene.dock.trace = syncSceneRevisionTrace(
+        sceneId,
+        scene.dock.trace,
+        `Candidate ${scene.prose.revisionCandidate?.revisionId} derives from ${source.proseDraftId}, ${source.sourceCanonPatchId}, and ${source.contextPacketId}.`,
+        'accent',
+      )
+      await persistProjectOverlay(projectId)
+    },
+    async acceptSceneProseRevision(projectId, sceneId, revisionId) {
+      const scene = getScene(projectId, sceneId)
+      const candidate = scene.prose.revisionCandidate
+      if (!candidate || candidate.revisionId !== revisionId) {
+        throw conflict(`Scene ${sceneId} does not have revision candidate ${revisionId}.`, {
+          code: 'SCENE_PROSE_REVISION_NOT_FOUND',
+          detail: { projectId, sceneId, revisionId },
+        })
+      }
+
+      scene.prose = acceptSceneProseRevisionCandidate({
+        prose: scene.prose,
+      })
+      syncChapterSceneProseStatus(projectId, sceneId, { en: 'Updated', 'zh-CN': '已更新' })
+      scene.dock.events = [
+        {
+          id: `prose-revision-${sceneId}`,
+          title: 'Prose revision accepted',
+          detail: `Revision candidate ${revisionId} has been promoted into the current prose draft.`,
+          meta: revisionId,
+          tone: 'success',
+        },
+        ...scene.dock.events.filter((entry) => entry.id !== `prose-revision-${sceneId}`),
+      ]
+      scene.dock.trace = syncSceneRevisionTrace(
+        sceneId,
+        scene.dock.trace,
+        `Accepted revision ${revisionId} promoted prose from ${candidate.sourceProseDraftId} with canon patch ${candidate.sourceCanonPatchId}.`,
+        'success',
+      )
       await persistProjectOverlay(projectId)
     },
     continueSceneRun(_projectId, _sceneId) {},

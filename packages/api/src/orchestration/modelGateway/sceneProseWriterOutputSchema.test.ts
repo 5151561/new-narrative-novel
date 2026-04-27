@@ -26,6 +26,7 @@ describe('sceneProseWriterOutputSchema', () => {
           },
         },
       ],
+      diffSummary: '  Expanded the arrival beat while preserving the accepted proposal spine.  ',
     })
 
     expect(parsed).toEqual({
@@ -48,6 +49,7 @@ describe('sceneProseWriterOutputSchema', () => {
           },
         },
       ],
+      diffSummary: 'Expanded the arrival beat while preserving the accepted proposal spine.',
     })
   })
 
@@ -83,6 +85,7 @@ describe('sceneProseWriterOutputSchema', () => {
           },
         },
       ],
+      diffSummary: 'Valid diff summary',
     })).toThrowError('/relatedAssets/0/kind must be equal to one of the allowed values')
   })
 })

@@ -646,8 +646,25 @@ export interface SceneProseViewModel {
   revisionQueueCount?: number
   draftWordCount?: number
   statusLabel?: string
+  revisionCandidate?: {
+    revisionId: string
+    revisionMode: 'rewrite' | 'compress' | 'expand' | 'tone_adjust' | 'continuity_fix'
+    instruction?: string
+    proseBody: string
+    diffSummary: string
+    sourceProseDraftId: string
+    sourceCanonPatchId: string
+    contextPacketId: string
+    fallbackProvenance?: {
+      provider: 'fixture'
+      modelId: string
+      fallbackReason?: 'missing-config' | 'provider-error' | 'invalid-output'
+    }
+  }
   traceSummary?: {
     sourcePatchId?: string
+    sourceProseDraftId?: string
+    contextPacketId?: string
     sourceProposals?: SceneTraceProposalRefModel[]
     acceptedFactIds?: string[]
     relatedAssets?: SceneTraceAssetRefModel[]

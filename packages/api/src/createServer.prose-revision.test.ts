@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { withTestServer } from './test/support/test-server.js'
 
@@ -25,7 +25,87 @@ async function fetchAllRunEvents(
 }
 
 describe('fixture API server scene prose revision', () => {
-  it('queues a prose revision after an accepted run without changing draft text or run event payloads', async () => {
+  it('keeps accepted-run prose generation on the structured openai writer path when diffSummary is required', async () => {
+    const generate = vi.fn().mockResolvedValue({
+      body: {
+        en: 'Midnight Platform opens on the accepted beat and keeps the witness pressure visible.',
+        'zh-CN': 'Midnight Platform 以已接受节拍开场，并保持见证压力可见。',
+      },
+      excerpt: {
+        en: 'Midnight Platform locks the bargain into view.',
+        'zh-CN': 'Midnight Platform 将交易锁定在视野里。',
+      },
+      diffSummary: 'Drafted the accepted prose directly from the canon patch context.',
+      relatedAssets: [
+        {
+          assetId: 'asset-scene-midnight-platform-lead',
+          kind: 'character',
+          label: {
+            en: 'Midnight Platform lead',
+            'zh-CN': 'Midnight Platform 主角',
+          },
+        },
+      ],
+    })
+
+    await withTestServer(async ({ app }) => {
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
+          note: 'Exercise the structured writer contract in openai mode.',
+        },
+      })
+      expect(startResponse.statusCode).toBe(200)
+
+      const reviewResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/book-signal-arc/runs/${startResponse.json().id}/review-decisions`,
+        payload: {
+          reviewId: startResponse.json().pendingReviewId,
+          decision: 'accept',
+        },
+      })
+      expect(reviewResponse.statusCode).toBe(200)
+
+      const proseResponse = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
+      })
+      expect(proseResponse.statusCode).toBe(200)
+      expect(proseResponse.json()).toMatchObject({
+        proseDraft: 'Midnight Platform opens on the accepted beat and keeps the witness pressure visible.',
+        latestDiffSummary: 'Accepted prose draft was rendered for Midnight Platform.',
+        statusLabel: 'Generated',
+        traceSummary: {
+          sourcePatchId: 'canon-patch-scene-midnight-platform-002',
+          sourceProseDraftId: 'prose-draft-scene-midnight-platform-002',
+          contextPacketId: 'ctx-scene-midnight-platform-run-002',
+        },
+      })
+      expect(proseResponse.json().proseDraft).not.toContain('opens from the accepted run artifact')
+
+      expect(generate).toHaveBeenCalledTimes(1)
+      expect(generate.mock.calls[0]?.[0]).toMatchObject({
+        task: 'draft',
+        instructions: expect.stringContaining('body, excerpt, diffSummary, and relatedAssets'),
+      })
+    }, {
+      configOverrides: {
+        modelProvider: 'openai',
+        openAiModel: 'gpt-5.4',
+        openAiApiKey: 'sk-test',
+      },
+      sceneProseWriterGatewayDependencies: {
+        openAiProvider: {
+          generate,
+        },
+      },
+    })
+  })
+
+  it('creates a real prose revision candidate after an accepted run without changing current draft text or run event payloads until accept', async () => {
     await withTestServer(async ({ app }) => {
       const startResponse = await app.inject({
         method: 'POST',
@@ -73,6 +153,7 @@ describe('fixture API server scene prose revision', () => {
         url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose/revision',
         payload: {
           revisionMode: 'expand',
+          instruction: 'Lean into the witness reaction without changing the accepted canon facts.',
         },
       })
       expect(revisionResponse.statusCode).toBe(204)
@@ -85,11 +166,25 @@ describe('fixture API server scene prose revision', () => {
       const proseAfterRevision = proseAfterRevisionResponse.json()
       expect(proseAfterRevision).toMatchObject({
         proseDraft: proseBeforeRevision.proseDraft,
-        revisionQueueCount: (proseBeforeRevision.revisionQueueCount ?? 0) + 1,
-        latestDiffSummary: 'Revision queued: expand pass will add supporting beats while keeping trace links intact.',
-        statusLabel: 'Revision queued',
+        revisionQueueCount: 1,
+        latestDiffSummary: 'Expanded witness-facing beats while preserving accepted provenance.',
+        statusLabel: 'Revision candidate ready',
+        revisionCandidate: {
+          revisionMode: 'expand',
+          instruction: 'Lean into the witness reaction without changing the accepted canon facts.',
+          proseBody: expect.stringContaining('Lean into the witness reaction without changing the accepted canon facts.'),
+          diffSummary: 'Expanded witness-facing beats while preserving accepted provenance.',
+          sourceProseDraftId: 'prose-draft-scene-midnight-platform-002',
+          sourceCanonPatchId: 'canon-patch-scene-midnight-platform-002',
+          contextPacketId: 'ctx-scene-midnight-platform-run-002',
+          fallbackProvenance: {
+            provider: 'fixture',
+            modelId: 'fixture-scene-prose-writer',
+          },
+        },
         traceSummary: proseBeforeRevision.traceSummary,
       })
+      expect(proseAfterRevision.revisionCandidate.proseBody).not.toBe(proseBeforeRevision.proseDraft)
 
       const chapterResponse = await app.inject({
         method: 'GET',
@@ -99,8 +194,8 @@ describe('fixture API server scene prose revision', () => {
       const chapterScene = chapterResponse.json().scenes.find((scene: { id: string }) => scene.id === 'scene-midnight-platform')
       expect(chapterScene).toMatchObject({
         proseStatusLabel: {
-          en: 'Revision queued',
-          'zh-CN': '修订已排队',
+          en: 'Revision candidate ready',
+          'zh-CN': '修订候选已就绪',
         },
       })
 
@@ -113,8 +208,8 @@ describe('fixture API server scene prose revision', () => {
         expect.arrayContaining([
           expect.objectContaining({
             id: 'prose-revision-scene-midnight-platform',
-            title: 'Prose revision queued',
-            detail: 'The expansion revision request is waiting for review.',
+            title: 'Prose revision candidate ready',
+            detail: 'The expansion revision candidate is ready to compare against the current prose.',
             tone: 'accent',
           }),
         ]),
@@ -125,7 +220,35 @@ describe('fixture API server scene prose revision', () => {
       const serializedEvents = JSON.stringify(eventsAfterRevision)
       expect(serializedEvents).not.toContain(proseAfterRevision.proseDraft)
       expect(serializedEvents).not.toContain(proseAfterRevision.latestDiffSummary)
+      expect(serializedEvents).not.toContain(proseAfterRevision.revisionCandidate.proseBody)
+      expect(serializedEvents).not.toContain(proseAfterRevision.revisionCandidate.diffSummary)
       expect(serializedEvents).not.toContain('sourceProposalIds')
+
+      const acceptRevisionResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose/revision/accept',
+        payload: {
+          revisionId: proseAfterRevision.revisionCandidate.revisionId,
+        },
+      })
+      expect(acceptRevisionResponse.statusCode).toBe(204)
+
+      const acceptedProseResponse = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
+      })
+      expect(acceptedProseResponse.statusCode).toBe(200)
+      expect(acceptedProseResponse.json()).toMatchObject({
+        proseDraft: proseAfterRevision.revisionCandidate.proseBody,
+        draftWordCount: proseAfterRevision.revisionCandidate.proseBody.trim().split(/\s+/).length,
+        latestDiffSummary: 'Expanded witness-facing beats while preserving accepted provenance.',
+        revisionQueueCount: 0,
+        statusLabel: 'Updated',
+        traceSummary: {
+          sourcePatchId: 'canon-patch-scene-midnight-platform-002',
+        },
+      })
+      expect(acceptedProseResponse.json()).not.toHaveProperty('revisionCandidate')
     })
   })
 
@@ -164,6 +287,172 @@ describe('fixture API server scene prose revision', () => {
       })
       expect(proseAfterRevisionResponse.statusCode).toBe(200)
       expect(proseAfterRevisionResponse.json()).toEqual(proseBeforeRevision)
+    })
+  })
+
+  it('resolves revision provenance from the persisted current prose chain even after later reject or request-rewrite runs advance latestRunId', async () => {
+    for (const decision of ['request-rewrite', 'reject'] as const) {
+      await withTestServer(async ({ app }) => {
+        const acceptedRunResponse = await app.inject({
+          method: 'POST',
+          url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+          payload: {
+            mode: 'rewrite',
+            note: `Prepare live prose before a later ${decision} run.`,
+          },
+        })
+        expect(acceptedRunResponse.statusCode).toBe(200)
+
+        const acceptedReviewResponse = await app.inject({
+          method: 'POST',
+          url: `/api/projects/book-signal-arc/runs/${acceptedRunResponse.json().id}/review-decisions`,
+          payload: {
+            reviewId: acceptedRunResponse.json().pendingReviewId,
+            decision: 'accept',
+          },
+        })
+        expect(acceptedReviewResponse.statusCode).toBe(200)
+
+        const liveProseResponse = await app.inject({
+          method: 'GET',
+          url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
+        })
+        expect(liveProseResponse.statusCode).toBe(200)
+        const liveProse = liveProseResponse.json()
+        expect(liveProse.traceSummary?.sourcePatchId).toBe('canon-patch-scene-midnight-platform-002')
+
+        const laterRunResponse = await app.inject({
+          method: 'POST',
+          url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+          payload: {
+            mode: 'rewrite',
+            note: `Advance latestRunId through a ${decision} outcome.`,
+          },
+        })
+        expect(laterRunResponse.statusCode).toBe(200)
+
+        const laterReviewResponse = await app.inject({
+          method: 'POST',
+          url: `/api/projects/book-signal-arc/runs/${laterRunResponse.json().id}/review-decisions`,
+          payload: {
+            reviewId: laterRunResponse.json().pendingReviewId,
+            decision,
+          },
+        })
+        expect(laterReviewResponse.statusCode).toBe(200)
+
+        const revisionResponse = await app.inject({
+          method: 'POST',
+          url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose/revision',
+          payload: {
+            revisionMode: 'rewrite',
+            instruction: `Revise the persisted live prose after a later ${decision} run.`,
+          },
+        })
+        expect(revisionResponse.statusCode).toBe(204)
+
+        const revisedProseResponse = await app.inject({
+          method: 'GET',
+          url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
+        })
+        expect(revisedProseResponse.statusCode).toBe(200)
+        expect(revisedProseResponse.json()).toMatchObject({
+          proseDraft: liveProse.proseDraft,
+          statusLabel: 'Revision candidate ready',
+          revisionCandidate: {
+            sourceCanonPatchId: 'canon-patch-scene-midnight-platform-002',
+            sourceProseDraftId: 'prose-draft-scene-midnight-platform-002',
+            contextPacketId: 'ctx-scene-midnight-platform-run-002',
+            instruction: `Revise the persisted live prose after a later ${decision} run.`,
+          },
+        })
+      })
+    }
+  })
+
+  it('advances accepted revision provenance so chained revisions derive from the latest accepted prose lineage', async () => {
+    await withTestServer(async ({ app }) => {
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
+          note: 'Create the first accepted prose baseline.',
+        },
+      })
+      expect(startResponse.statusCode).toBe(200)
+
+      const acceptRunResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/book-signal-arc/runs/${startResponse.json().id}/review-decisions`,
+        payload: {
+          reviewId: startResponse.json().pendingReviewId,
+          decision: 'accept',
+        },
+      })
+      expect(acceptRunResponse.statusCode).toBe(200)
+
+      const firstRevisionResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose/revision',
+        payload: {
+          revisionMode: 'rewrite',
+          instruction: 'Refocus the current prose around the witness reaction.',
+        },
+      })
+      expect(firstRevisionResponse.statusCode).toBe(204)
+
+      const firstCandidateProseResponse = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
+      })
+      expect(firstCandidateProseResponse.statusCode).toBe(200)
+      const firstCandidate = firstCandidateProseResponse.json().revisionCandidate
+
+      const acceptFirstRevisionResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose/revision/accept',
+        payload: {
+          revisionId: firstCandidate.revisionId,
+        },
+      })
+      expect(acceptFirstRevisionResponse.statusCode).toBe(204)
+
+      const firstAcceptedProseResponse = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
+      })
+      expect(firstAcceptedProseResponse.statusCode).toBe(200)
+      expect(firstAcceptedProseResponse.json()).toMatchObject({
+        proseDraft: firstCandidate.proseBody,
+        traceSummary: {
+          sourcePatchId: 'canon-patch-scene-midnight-platform-002',
+        },
+      })
+
+      const secondRevisionResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose/revision',
+        payload: {
+          revisionMode: 'compress',
+          instruction: 'Tighten the already accepted revision without resetting provenance.',
+        },
+      })
+      expect(secondRevisionResponse.statusCode).toBe(204)
+
+      const secondCandidateProseResponse = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
+      })
+      expect(secondCandidateProseResponse.statusCode).toBe(200)
+      expect(secondCandidateProseResponse.json()).toMatchObject({
+        proseDraft: firstCandidate.proseBody,
+        revisionCandidate: {
+          sourceCanonPatchId: 'canon-patch-scene-midnight-platform-002',
+          sourceProseDraftId: `accepted-prose-revision-${firstCandidate.revisionId}`,
+          contextPacketId: 'ctx-scene-midnight-platform-run-002',
+        },
+      })
     })
   })
 })

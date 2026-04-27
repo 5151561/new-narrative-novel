@@ -716,11 +716,12 @@ export function createRunFixtureStore(options: {
     const contextPacket = readPersistedContextPacket(state.artifacts.find((artifact) => artifact.kind === 'context-packet'))
 
     return {
+      task: 'draft',
       sceneId: state.run.scopeId,
       decision: input.decision,
       acceptedProposalIds,
       selectedVariants: cloneSelectedVariants(input.selectedVariants),
-      instructions: 'Return accepted scene prose only.',
+      instructions: 'Return structured accepted scene prose with body, excerpt, diffSummary, and relatedAssets.',
       input: contextPacket
         ? renderSceneContextPacketForWriter(contextPacket, {
           decision: input.decision,

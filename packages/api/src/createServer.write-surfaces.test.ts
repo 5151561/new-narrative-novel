@@ -172,6 +172,44 @@ describe('fixture API server write surfaces', () => {
           }),
         }),
       ]))
+
+      const reviewRunResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/book-signal-arc/runs/${runResponse.json().id}/review-decisions`,
+        payload: {
+          reviewId: runResponse.json().pendingReviewId,
+          decision: 'accept',
+        },
+      })
+      expect(reviewRunResponse.statusCode).toBe(200)
+
+      const requestRevisionResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose/revision',
+        payload: {
+          revisionMode: 'rewrite',
+          instruction: 'Tighten the bargaining exchange while keeping the same accepted facts.',
+        },
+      })
+      expect(requestRevisionResponse.statusCode).toBe(204)
+
+      const proseAfterRevisionResponse = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
+      })
+      expect(proseAfterRevisionResponse.statusCode).toBe(200)
+      expect(proseAfterRevisionResponse.json().revisionCandidate).toMatchObject({
+        revisionMode: 'rewrite',
+      })
+
+      const acceptRevisionResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose/revision/accept',
+        payload: {
+          revisionId: proseAfterRevisionResponse.json().revisionCandidate.revisionId,
+        },
+      })
+      expect(acceptRevisionResponse.statusCode).toBe(204)
     })
   })
 
