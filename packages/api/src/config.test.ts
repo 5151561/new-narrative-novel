@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { getApiServerConfig } from './config.js'
 
 const originalEnv = { ...process.env }
-const defaultProjectStateFilePath = fileURLToPath(
-  new URL('../../../.narrative/prototype-state.json', import.meta.url),
+const defaultProjectStoreFilePath = fileURLToPath(
+  new URL('../../../.narrative/local-project-store.json', import.meta.url),
 )
 
 describe('getApiServerConfig', () => {
@@ -14,20 +14,43 @@ describe('getApiServerConfig', () => {
     process.env = { ...originalEnv }
   })
 
-  it('defaults the project state file path to the workspace .narrative directory', () => {
+  it('defaults the local project store paths to the workspace .narrative directory', () => {
     expect(getApiServerConfig()).toMatchObject({
       modelProvider: 'fixture',
       openAiApiKey: undefined,
       openAiModel: undefined,
-      projectStateFilePath: defaultProjectStateFilePath,
+      projectStoreFilePath: defaultProjectStoreFilePath,
+      projectArtifactDirPath: fileURLToPath(
+        new URL('../../../.narrative/artifacts', import.meta.url),
+      ),
     })
   })
 
-  it('prefers NARRATIVE_PROJECT_STATE_FILE when present', () => {
-    process.env.NARRATIVE_PROJECT_STATE_FILE = '/tmp/narrative/custom-state.json'
+  it('prefers NARRATIVE_PROJECT_STORE_FILE when present and derives the default artifact directory from it', () => {
+    process.env.NARRATIVE_PROJECT_STORE_FILE = '/tmp/narrative/custom-store.json'
 
     expect(getApiServerConfig()).toMatchObject({
-      projectStateFilePath: '/tmp/narrative/custom-state.json',
+      projectStoreFilePath: '/tmp/narrative/custom-store.json',
+      projectArtifactDirPath: '/tmp/narrative/artifacts',
+    })
+  })
+
+  it('falls back to the legacy NARRATIVE_PROJECT_STATE_FILE when the new store env is unset', () => {
+    process.env.NARRATIVE_PROJECT_STATE_FILE = '/tmp/narrative/legacy-store.json'
+
+    expect(getApiServerConfig()).toMatchObject({
+      projectStoreFilePath: '/tmp/narrative/legacy-store.json',
+      projectArtifactDirPath: '/tmp/narrative/artifacts',
+    })
+  })
+
+  it('prefers an explicit artifact directory env over the derived sibling directory', () => {
+    process.env.NARRATIVE_PROJECT_STORE_FILE = '/tmp/narrative/custom-store.json'
+    process.env.NARRATIVE_PROJECT_ARTIFACT_DIR = '/tmp/narrative/custom-artifacts'
+
+    expect(getApiServerConfig()).toMatchObject({
+      projectStoreFilePath: '/tmp/narrative/custom-store.json',
+      projectArtifactDirPath: '/tmp/narrative/custom-artifacts',
     })
   })
 

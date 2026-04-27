@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import cors from '@fastify/cors'
 import Fastify from 'fastify'
 
@@ -13,9 +15,10 @@ import {
 } from './orchestration/modelGateway/sceneProseWriterGateway.js'
 import {
   createFixtureRepository,
+  type FixtureRepositoryLocalProjectStore,
   type FixtureRepositoryProjectStatePersistence,
 } from './repositories/fixtureRepository.js'
-import { createProjectStatePersistence } from './repositories/project-state-persistence.js'
+import { createLocalProjectStorePersistence } from './repositories/project-state-persistence.js'
 import { registerAssetRoutes } from './routes/asset.js'
 import { registerBookRoutes } from './routes/book.js'
 import { registerChapterRoutes } from './routes/chapter.js'
@@ -27,6 +30,7 @@ import { registerSceneRoutes } from './routes/scene.js'
 
 export interface CreateServerOptions {
   config?: ApiServerConfig
+  localProjectStore?: FixtureRepositoryLocalProjectStore
   projectStatePersistence?: FixtureRepositoryProjectStatePersistence
   scenePlannerGatewayDependencies?: ScenePlannerGatewayDependencies
   sceneProseWriterGatewayDependencies?: SceneProseWriterGatewayDependencies
@@ -43,13 +47,28 @@ export function createServer(options: CreateServerOptions = {}) {
     config,
     options.sceneProseWriterGatewayDependencies,
   )
+  const projectStoreFilePath = config.projectStoreFilePath ?? config.projectStateFilePath
+  const projectArtifactDirPath = config.projectArtifactDirPath
+    ?? (projectStoreFilePath ? path.join(path.dirname(projectStoreFilePath), 'artifacts') : undefined)
+  const localProjectStore = options.localProjectStore
+    ?? (
+      config.currentProject && projectStoreFilePath && projectArtifactDirPath
+        ? createLocalProjectStorePersistence({
+          filePath: projectStoreFilePath,
+          artifactDirPath: projectArtifactDirPath,
+          apiBaseUrl: config.apiBaseUrl,
+          projectId: config.currentProject.projectId,
+          projectTitle: config.currentProject.projectTitle,
+        })
+        : undefined
+    )
   const repository = createFixtureRepository({
     apiBaseUrl: config.apiBaseUrl,
+    currentProject: config.currentProject,
     scenePlannerGateway,
     sceneProseWriterGateway,
-    projectStatePersistence: options.projectStatePersistence ?? createProjectStatePersistence({
-      filePath: config.projectStateFilePath,
-    }),
+    localProjectStore,
+    projectStatePersistence: options.projectStatePersistence,
   })
 
   void app.register(cors, {

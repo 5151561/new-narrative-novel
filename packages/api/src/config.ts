@@ -1,4 +1,6 @@
-import { resolveDefaultProjectStateFilePath } from './repositories/project-state-persistence.js'
+import path from 'node:path'
+
+import { resolveDefaultProjectStoreFilePath } from './repositories/project-state-persistence.js'
 
 export type ModelProvider = 'fixture' | 'openai'
 
@@ -13,7 +15,9 @@ export interface ApiServerConfig {
     projectRoot: string
     projectTitle: string
   }
-  projectStateFilePath: string
+  projectStoreFilePath?: string
+  projectArtifactDirPath?: string
+  projectStateFilePath?: string
   modelProvider: ModelProvider
   openAiModel?: string
   openAiApiKey?: string
@@ -80,7 +84,11 @@ export function getApiServerConfig(): ApiServerConfig {
     ? true
     : process.env.CORS_ORIGIN
   const currentProject = readCurrentProject()
-  const projectStateFilePath = process.env.NARRATIVE_PROJECT_STATE_FILE ?? resolveDefaultProjectStateFilePath()
+  const projectStoreFilePath = process.env.NARRATIVE_PROJECT_STORE_FILE
+    ?? process.env.NARRATIVE_PROJECT_STATE_FILE
+    ?? resolveDefaultProjectStoreFilePath()
+  const projectArtifactDirPath = process.env.NARRATIVE_PROJECT_ARTIFACT_DIR
+    ?? path.join(path.dirname(projectStoreFilePath), 'artifacts')
   const modelProvider = readModelProvider()
   const openAiModel = modelProvider === 'openai'
     ? readOptionalTrimmedEnv('NARRATIVE_OPENAI_MODEL')
@@ -96,7 +104,8 @@ export function getApiServerConfig(): ApiServerConfig {
     apiBaseUrl,
     corsOrigin,
     currentProject,
-    projectStateFilePath,
+    projectStoreFilePath,
+    projectArtifactDirPath,
     modelProvider,
     openAiModel,
     openAiApiKey,

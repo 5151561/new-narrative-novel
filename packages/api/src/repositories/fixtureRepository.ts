@@ -65,8 +65,8 @@ import {
 
 import { createFixtureDataSnapshot } from './fixture-data.js'
 import type {
-  PersistedProjectStateEnvelope,
-  PersistedProjectStateOverlay,
+  LocalProjectStoreRecord,
+  PersistedRunStore,
 } from './project-state-persistence.js'
 import { createRunFixtureStore, type RunFixtureStore } from './runFixtureStore.js'
 
@@ -413,19 +413,54 @@ export interface FixtureRepository {
 }
 
 export interface FixtureRepositoryProjectStatePersistence {
-  load(): Promise<PersistedProjectStateEnvelope>
-  saveProjectOverlay(projectId: string, overlay: PersistedProjectStateOverlay): Promise<void>
+  load(): Promise<{
+    schemaVersion: number
+    seedVersion: string
+    projects: Record<string, {
+      updatedAt: string
+      reviewDecisions?: Record<string, unknown>
+      reviewFixActions?: Record<string, unknown>
+      exportArtifacts?: Record<string, unknown>
+      chapters?: Record<string, unknown>
+      scenes?: Record<string, unknown>
+      runStore?: PersistedRunStore
+    }>
+  }>
+  saveProjectOverlay(projectId: string, overlay: {
+    updatedAt: string
+    reviewDecisions?: Record<string, unknown>
+    reviewFixActions?: Record<string, unknown>
+    exportArtifacts?: Record<string, unknown>
+    chapters?: Record<string, unknown>
+    scenes?: Record<string, unknown>
+    runStore?: PersistedRunStore
+  }): Promise<void>
   clearProjectOverlay(projectId: string): Promise<void>
+}
+
+export interface FixtureRepositoryLocalProjectStore {
+  load(): Promise<LocalProjectStoreRecord>
+  save(input: {
+    data: FixtureProjectData
+    runStore?: PersistedRunStore
+  }): Promise<LocalProjectStoreRecord>
+  reset(): Promise<LocalProjectStoreRecord>
 }
 
 export function createFixtureRepository(options: {
   apiBaseUrl: string
+  currentProject?: {
+    projectId: string
+    projectRoot?: string
+    projectTitle: string
+  }
   scenePlannerGateway: {
     generate(request: ScenePlannerGatewayRequest): Promise<ScenePlannerGatewayResult>
   }
   sceneProseWriterGateway?: {
     generate(request: SceneProseWriterGatewayRequest): Promise<SceneProseWriterGatewayResult>
   }
+  localProjectStore?: FixtureRepositoryLocalProjectStore
   projectStatePersistence?: FixtureRepositoryProjectStatePersistence
   runEventStreamEnabled?: boolean
 }): FixtureRepository {
@@ -470,6 +505,7 @@ export function createFixtureRepository(options: {
     }),
   })
   let persistenceQueue = Promise.resolve()
+  const selectedLocalProjectId = options.currentProject?.projectId
 
   function getProject(projectId: string): FixtureProjectData {
     const project = snapshot.projects[projectId]
@@ -484,7 +520,7 @@ export function createFixtureRepository(options: {
   }
 
   function enqueuePersistence(task: () => Promise<void>) {
-    if (!options.projectStatePersistence) {
+    if (!options.localProjectStore && !options.projectStatePersistence) {
       return Promise.resolve()
     }
 
@@ -495,7 +531,17 @@ export function createFixtureRepository(options: {
     return taskPromise
   }
 
-  function applyProjectOverlay(projectId: string, overlay: PersistedProjectStateOverlay) {
+  function applySelectedLocalProjectStore(record: LocalProjectStoreRecord) {
+    snapshot.projects[record.project.projectId] = clone(record.project.data)
+    if (record.runStore) {
+      runStore.hydrateProjectState(record.project.projectId, record.runStore)
+    }
+  }
+
+  function applyProjectOverlay(
+    projectId: string,
+    overlay: Awaited<ReturnType<FixtureRepositoryProjectStatePersistence['load']>>['projects'][string],
+  ) {
     const project = getProject(projectId)
 
     if (overlay.reviewDecisions) {
@@ -518,27 +564,29 @@ export function createFixtureRepository(options: {
     }
   }
 
-  function buildProjectOverlay(projectId: string): PersistedProjectStateOverlay | undefined {
+  function buildProjectOverlay(
+    projectId: string,
+  ): Awaited<ReturnType<FixtureRepositoryProjectStatePersistence['load']>>['projects'][string] | undefined {
     const project = getProject(projectId)
     const seedProject = createSeedSnapshot().projects[projectId]
-    const overlay: PersistedProjectStateOverlay = {
+    const overlay: Awaited<ReturnType<FixtureRepositoryProjectStatePersistence['load']>>['projects'][string] = {
       updatedAt: new Date().toISOString(),
     }
 
     if (!seedProject || !jsonEquals(project.reviewDecisions, seedProject.reviewDecisions)) {
-      overlay.reviewDecisions = toJsonClone(project.reviewDecisions as unknown as PersistedProjectStateOverlay['reviewDecisions'])
+      overlay.reviewDecisions = toJsonClone(project.reviewDecisions as unknown as NonNullable<typeof overlay.reviewDecisions>)
     }
     if (!seedProject || !jsonEquals(project.reviewFixActions, seedProject.reviewFixActions)) {
-      overlay.reviewFixActions = toJsonClone(project.reviewFixActions as unknown as PersistedProjectStateOverlay['reviewFixActions'])
+      overlay.reviewFixActions = toJsonClone(project.reviewFixActions as unknown as NonNullable<typeof overlay.reviewFixActions>)
     }
     if (!seedProject || !jsonEquals(project.exportArtifacts, seedProject.exportArtifacts)) {
-      overlay.exportArtifacts = toJsonClone(project.exportArtifacts as unknown as PersistedProjectStateOverlay['exportArtifacts'])
+      overlay.exportArtifacts = toJsonClone(project.exportArtifacts as unknown as NonNullable<typeof overlay.exportArtifacts>)
     }
     if (!seedProject || !jsonEquals(project.chapters, seedProject.chapters)) {
-      overlay.chapters = toJsonClone(project.chapters as unknown as PersistedProjectStateOverlay['chapters'])
+      overlay.chapters = toJsonClone(project.chapters as unknown as NonNullable<typeof overlay.chapters>)
     }
     if (!seedProject || !jsonEquals(project.scenes, seedProject.scenes)) {
-      overlay.scenes = toJsonClone(project.scenes as unknown as PersistedProjectStateOverlay['scenes'])
+      overlay.scenes = toJsonClone(project.scenes as unknown as NonNullable<typeof overlay.scenes>)
     }
 
     const currentRunStore = runStore.exportProjectState(projectId)
@@ -551,18 +599,27 @@ export function createFixtureRepository(options: {
   }
 
   function persistProjectOverlay(projectId: string) {
-    if (!options.projectStatePersistence) {
-      return Promise.resolve()
-    }
-
     return enqueuePersistence(async () => {
-      const overlay = buildProjectOverlay(projectId)
-      if (overlay) {
-        await options.projectStatePersistence!.saveProjectOverlay(projectId, overlay)
+      if (options.localProjectStore && selectedLocalProjectId === projectId) {
+        const exportedRunStore = runStore.exportProjectState(projectId)
+        await options.localProjectStore.save({
+          data: toJsonClone(getProject(projectId)),
+          runStore: exportedRunStore ? toJsonClone(exportedRunStore) : undefined,
+        })
         return
       }
 
-      await options.projectStatePersistence!.clearProjectOverlay(projectId)
+      if (!options.projectStatePersistence) {
+        return
+      }
+
+      const overlay = buildProjectOverlay(projectId)
+      if (overlay) {
+        await options.projectStatePersistence.saveProjectOverlay(projectId, overlay)
+        return
+      }
+
+      await options.projectStatePersistence.clearProjectOverlay(projectId)
     })
   }
 
@@ -585,13 +642,17 @@ export function createFixtureRepository(options: {
     }
   }
 
-  const readyPromise = options.projectStatePersistence
-    ? options.projectStatePersistence.load().then((envelope) => {
-      for (const [projectId, overlay] of Object.entries(envelope.projects)) {
-        applyProjectOverlay(projectId, overlay)
-      }
+  const readyPromise = options.localProjectStore && selectedLocalProjectId
+    ? options.localProjectStore.load().then((record) => {
+      applySelectedLocalProjectStore(record)
     })
-    : Promise.resolve()
+    : options.projectStatePersistence
+      ? options.projectStatePersistence.load().then((envelope) => {
+        for (const [projectId, overlay] of Object.entries(envelope.projects)) {
+          applyProjectOverlay(projectId, overlay)
+        }
+      })
+      : Promise.resolve()
   persistenceQueue = readyPromise
 
   function getBook(projectId: string, bookId: string) {
@@ -1351,6 +1412,24 @@ export function createFixtureRepository(options: {
       return clone(snapshot)
     },
     async resetProject(projectId) {
+      if (options.localProjectStore && selectedLocalProjectId === projectId) {
+        await enqueuePersistence(async () => {
+          const resetRecord = await options.localProjectStore!.reset()
+          snapshot.projects[projectId] = clone(resetRecord.project.data)
+          runStore.clearProject(projectId)
+          if (resetRecord.runStore) {
+            runStore.hydrateProjectState(projectId, resetRecord.runStore)
+            return
+          }
+
+          const seedRunSnapshot = createSeedRunStore().exportProjectState(projectId)
+          if (seedRunSnapshot) {
+            runStore.hydrateProjectState(projectId, seedRunSnapshot)
+          }
+        })
+        return
+      }
+
       resetProjectToSeed(projectId)
       if (options.projectStatePersistence) {
         await enqueuePersistence(async () => {

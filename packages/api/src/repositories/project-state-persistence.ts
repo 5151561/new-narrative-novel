@@ -1,41 +1,53 @@
+import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
-export const PROJECT_STATE_SCHEMA_VERSION = 1 as const
-export const PROJECT_STATE_SEED_VERSION = 'prototype-fixture-seed-v1' as const
+import type { FixtureProjectData } from '../contracts/api-records.js'
+
+import { createSignalArcProjectTemplate } from './fixture-data.js'
+
+export const LOCAL_PROJECT_STORE_SCHEMA_VERSION = 1 as const
+export const LOCAL_PROJECT_STORE_KIND = 'narrative-local-project-store' as const
+export const LOCAL_PROJECT_STORE_TEMPLATE_VERSION = 'local-project-store-v1' as const
 
 type JsonPrimitive = string | number | boolean | null
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
-type JsonRecord = Record<string, JsonValue>
-
 export interface PersistedRunStore {
   runStates: JsonValue[]
   sceneSequences: Record<string, number>
 }
 
-export interface PersistedProjectStateOverlay {
-  updatedAt: string
-  reviewDecisions?: JsonRecord
-  reviewFixActions?: JsonRecord
-  exportArtifacts?: JsonRecord
-  chapters?: JsonRecord
-  scenes?: JsonRecord
+export interface LocalProjectStoreRecord {
+  schemaVersion: typeof LOCAL_PROJECT_STORE_SCHEMA_VERSION
+  storeKind: typeof LOCAL_PROJECT_STORE_KIND
+  templateVersion: typeof LOCAL_PROJECT_STORE_TEMPLATE_VERSION
+  project: {
+    projectId: string
+    projectTitle: string
+    createdAt: string
+    updatedAt: string
+    data: FixtureProjectData
+  }
   runStore?: PersistedRunStore
 }
 
-export interface PersistedProjectStateEnvelope {
-  schemaVersion: typeof PROJECT_STATE_SCHEMA_VERSION
-  seedVersion: typeof PROJECT_STATE_SEED_VERSION
-  projects: Record<string, PersistedProjectStateOverlay>
-}
-
-interface ProjectStateFileSystem {
+interface LocalProjectStoreFileSystem {
   mkdir: typeof mkdir
   readFile: typeof readFile
   rename: typeof rename
   writeFile: typeof writeFile
+}
+
+interface CreateLocalProjectStorePersistenceOptions {
+  filePath: string
+  artifactDirPath: string
+  apiBaseUrl: string
+  projectId: string
+  projectTitle: string
+  runtimeSummary?: string
+  versionLabel?: string
+  fileSystem?: LocalProjectStoreFileSystem
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -66,21 +78,41 @@ function isJsonValue(value: unknown): value is JsonValue {
   return Object.values(value).every(isJsonValue)
 }
 
-function cloneJsonRecord(value: JsonRecord): JsonRecord {
-  return structuredClone(value)
+function toJsonClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
 }
 
-function sanitizeJsonRecord(value: unknown): JsonRecord | undefined {
-  if (!isRecord(value)) {
-    return undefined
+function isFixtureProjectData(value: unknown): value is FixtureProjectData {
+  if (!isRecord(value) || !isRecord(value.runtimeInfo)) {
+    return false
   }
 
-  const entries = Object.entries(value)
-  if (!entries.every(([, entryValue]) => isJsonValue(entryValue))) {
-    return undefined
+  const runtimeInfo = value.runtimeInfo
+  if (
+    typeof runtimeInfo.projectId !== 'string'
+    || typeof runtimeInfo.projectTitle !== 'string'
+    || typeof runtimeInfo.source !== 'string'
+    || typeof runtimeInfo.status !== 'string'
+    || typeof runtimeInfo.summary !== 'string'
+    || !isRecord(runtimeInfo.capabilities)
+  ) {
+    return false
   }
 
-  return cloneJsonRecord(value as JsonRecord)
+  const recordFields = [
+    'books',
+    'manuscriptCheckpoints',
+    'exportProfiles',
+    'exportArtifacts',
+    'experimentBranches',
+    'chapters',
+    'assets',
+    'reviewDecisions',
+    'reviewFixActions',
+    'scenes',
+  ] as const
+
+  return recordFields.every((field) => isRecord(value[field]))
 }
 
 function sanitizeRunStore(value: unknown): PersistedRunStore | undefined {
@@ -102,144 +134,204 @@ function sanitizeRunStore(value: unknown): PersistedRunStore | undefined {
   }
 
   return {
-    runStates: structuredClone(value.runStates),
+    runStates: toJsonClone(value.runStates),
     sceneSequences,
   }
 }
 
-function sanitizeProjectStateOverlay(value: unknown): PersistedProjectStateOverlay | undefined {
-  if (!isRecord(value) || typeof value.updatedAt !== 'string') {
-    return undefined
-  }
-
-  const overlay: PersistedProjectStateOverlay = {
-    updatedAt: value.updatedAt,
-  }
-
-  const jsonRecordFields = ['reviewDecisions', 'reviewFixActions', 'exportArtifacts', 'chapters', 'scenes'] as const
-  for (const field of jsonRecordFields) {
-    if (!(field in value)) {
-      continue
-    }
-
-    const nextValue = sanitizeJsonRecord(value[field])
-    if (!nextValue) {
-      return undefined
-    }
-
-    overlay[field] = nextValue
-  }
-
-  if ('runStore' in value) {
-    const runStore = sanitizeRunStore(value.runStore)
-    if (!runStore) {
-      return undefined
-    }
-
-    overlay.runStore = runStore
-  }
-
-  return overlay
+function invalidLocalProjectStoreError(filePath: string) {
+  return new Error(`Local project store is invalid: ${filePath}`)
 }
 
-function createEmptyEnvelope(): PersistedProjectStateEnvelope {
-  return {
-    schemaVersion: PROJECT_STATE_SCHEMA_VERSION,
-    seedVersion: PROJECT_STATE_SEED_VERSION,
-    projects: {},
-  }
-}
-
-function sanitizeEnvelope(value: unknown): PersistedProjectStateEnvelope | undefined {
+function sanitizeLocalProjectStoreRecord(
+  value: unknown,
+  options: Pick<CreateLocalProjectStorePersistenceOptions, 'filePath' | 'projectId'>,
+): LocalProjectStoreRecord {
   if (!isRecord(value)) {
-    return undefined
+    throw invalidLocalProjectStoreError(options.filePath)
   }
 
-  if (value.schemaVersion !== PROJECT_STATE_SCHEMA_VERSION || value.seedVersion !== PROJECT_STATE_SEED_VERSION) {
-    return undefined
+  if (value.schemaVersion !== LOCAL_PROJECT_STORE_SCHEMA_VERSION) {
+    throw new Error('Unsupported local project store schemaVersion')
   }
 
-  if (!isRecord(value.projects)) {
-    return undefined
+  if (value.storeKind !== LOCAL_PROJECT_STORE_KIND) {
+    throw new Error('Unsupported local project store kind')
   }
 
-  const projects = {} as Record<string, PersistedProjectStateOverlay>
-  for (const [projectId, projectValue] of Object.entries(value.projects)) {
-    const overlay = sanitizeProjectStateOverlay(projectValue)
-    if (!overlay) {
-      return undefined
-    }
+  if (
+    value.templateVersion !== LOCAL_PROJECT_STORE_TEMPLATE_VERSION
+    || !isRecord(value.project)
+    || typeof value.project.projectId !== 'string'
+    || typeof value.project.projectTitle !== 'string'
+    || typeof value.project.createdAt !== 'string'
+    || typeof value.project.updatedAt !== 'string'
+    || !isFixtureProjectData(value.project.data)
+  ) {
+    throw invalidLocalProjectStoreError(options.filePath)
+  }
 
-    projects[projectId] = overlay
+  if (value.project.projectId !== options.projectId) {
+    throw new Error(
+      `Local project store projectId mismatch: expected ${options.projectId} but found ${value.project.projectId}`,
+    )
+  }
+
+  if (value.project.data.runtimeInfo.projectId !== value.project.projectId) {
+    throw invalidLocalProjectStoreError(options.filePath)
+  }
+
+  const runStore = 'runStore' in value
+    ? sanitizeRunStore(value.runStore)
+    : undefined
+  if ('runStore' in value && !runStore) {
+    throw invalidLocalProjectStoreError(options.filePath)
   }
 
   return {
-    schemaVersion: PROJECT_STATE_SCHEMA_VERSION,
-    seedVersion: PROJECT_STATE_SEED_VERSION,
-    projects,
+    schemaVersion: LOCAL_PROJECT_STORE_SCHEMA_VERSION,
+    storeKind: LOCAL_PROJECT_STORE_KIND,
+    templateVersion: LOCAL_PROJECT_STORE_TEMPLATE_VERSION,
+    project: {
+      projectId: value.project.projectId,
+      projectTitle: value.project.projectTitle,
+      createdAt: value.project.createdAt,
+      updatedAt: value.project.updatedAt,
+      data: toJsonClone(value.project.data),
+    },
+    runStore,
   }
 }
 
-async function readEnvelope(filePath: string, fileSystem: ProjectStateFileSystem) {
-  try {
-    const fileContents = await fileSystem.readFile(filePath, 'utf8')
-    return sanitizeEnvelope(JSON.parse(fileContents))
-  } catch (error) {
-    const nodeError = error as NodeJS.ErrnoException
-    if (nodeError.code === 'ENOENT' || error instanceof SyntaxError) {
-      return undefined
-    }
-
-    throw error
-  }
-}
-
-async function writeEnvelope(
+async function writeLocalProjectStoreRecord(
   filePath: string,
-  envelope: PersistedProjectStateEnvelope,
-  fileSystem: ProjectStateFileSystem,
+  artifactDirPath: string,
+  record: LocalProjectStoreRecord,
+  fileSystem: LocalProjectStoreFileSystem,
 ) {
   await fileSystem.mkdir(path.dirname(filePath), { recursive: true })
+  await fileSystem.mkdir(artifactDirPath, { recursive: true })
+
   const tempFilePath = path.join(
     path.dirname(filePath),
     `${path.basename(filePath)}.${randomUUID()}.tmp`,
   )
-  await fileSystem.writeFile(tempFilePath, `${JSON.stringify(envelope, null, 2)}\n`, 'utf8')
+  await fileSystem.writeFile(tempFilePath, `${JSON.stringify(record, null, 2)}\n`, 'utf8')
   await fileSystem.rename(tempFilePath, filePath)
 }
 
-export function resolveDefaultProjectStateFilePath() {
-  return fileURLToPath(new URL('../../../../.narrative/prototype-state.json', import.meta.url))
+function createTemplateRecord(options: Omit<CreateLocalProjectStorePersistenceOptions, 'fileSystem'>): LocalProjectStoreRecord {
+  const now = new Date().toISOString()
+
+  return {
+    schemaVersion: LOCAL_PROJECT_STORE_SCHEMA_VERSION,
+    storeKind: LOCAL_PROJECT_STORE_KIND,
+    templateVersion: LOCAL_PROJECT_STORE_TEMPLATE_VERSION,
+    project: {
+      projectId: options.projectId,
+      projectTitle: options.projectTitle,
+      createdAt: now,
+      updatedAt: now,
+      data: createSignalArcProjectTemplate({
+        projectId: options.projectId,
+        projectTitle: options.projectTitle,
+        apiBaseUrl: options.apiBaseUrl,
+        runtimeSummary: options.runtimeSummary,
+        versionLabel: options.versionLabel,
+      }),
+    },
+  }
 }
 
-const defaultFileSystem: ProjectStateFileSystem = {
+export function resolveDefaultProjectStoreFilePath() {
+  return fileURLToPath(new URL('../../../../.narrative/local-project-store.json', import.meta.url))
+}
+
+export function resolveDefaultProjectStateFilePath() {
+  return resolveDefaultProjectStoreFilePath()
+}
+
+const defaultFileSystem: LocalProjectStoreFileSystem = {
   mkdir,
   readFile,
   rename,
   writeFile,
 }
 
-export function createProjectStatePersistence(options: { filePath: string; fileSystem?: ProjectStateFileSystem }) {
+export function createLocalProjectStorePersistence(options: CreateLocalProjectStorePersistenceOptions) {
   const fileSystem = options.fileSystem ?? defaultFileSystem
 
-  return {
-    async load(): Promise<PersistedProjectStateEnvelope> {
-      return (await readEnvelope(options.filePath, fileSystem)) ?? createEmptyEnvelope()
-    },
-    async saveProjectOverlay(projectId: string, overlay: PersistedProjectStateOverlay) {
-      const nextOverlay = sanitizeProjectStateOverlay(overlay)
-      if (!nextOverlay) {
-        throw new Error(`Persisted project overlay for ${projectId} is invalid.`)
+  async function readExistingRecord() {
+    try {
+      const fileContents = await fileSystem.readFile(options.filePath, 'utf8')
+      return sanitizeLocalProjectStoreRecord(JSON.parse(fileContents), options)
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException
+      if (nodeError.code === 'ENOENT') {
+        return undefined
       }
 
-      const envelope = await this.load()
-      envelope.projects[projectId] = nextOverlay
-      await writeEnvelope(options.filePath, envelope, fileSystem)
+      if (error instanceof SyntaxError) {
+        throw invalidLocalProjectStoreError(options.filePath)
+      }
+
+      throw error
+    }
+  }
+
+  async function writeRecord(record: LocalProjectStoreRecord) {
+    await writeLocalProjectStoreRecord(
+      options.filePath,
+      options.artifactDirPath,
+      record,
+      fileSystem,
+    )
+    return toJsonClone(record)
+  }
+
+  return {
+    async load(): Promise<LocalProjectStoreRecord> {
+      const existing = await readExistingRecord()
+      if (existing) {
+        return existing
+      }
+
+      const template = createTemplateRecord(options)
+      return writeRecord(template)
     },
-    async clearProjectOverlay(projectId: string) {
-      const envelope = await this.load()
-      delete envelope.projects[projectId]
-      await writeEnvelope(options.filePath, envelope, fileSystem)
+    async save(input: {
+      data: FixtureProjectData
+      runStore?: PersistedRunStore
+    }): Promise<LocalProjectStoreRecord> {
+      const current = await this.load()
+      const nextRunStore = input.runStore ? sanitizeRunStore(input.runStore) : undefined
+      if (input.runStore && !nextRunStore) {
+        throw invalidLocalProjectStoreError(options.filePath)
+      }
+
+      const nextRecord: LocalProjectStoreRecord = {
+        ...current,
+        project: {
+          ...current.project,
+          projectTitle: options.projectTitle,
+          updatedAt: new Date().toISOString(),
+          data: toJsonClone(input.data),
+        },
+        runStore: nextRunStore ? toJsonClone(nextRunStore) : undefined,
+      }
+
+      if (nextRecord.project.data.runtimeInfo.projectId !== options.projectId) {
+        throw new Error(
+          `Local project store projectId mismatch: expected ${options.projectId} but found ${nextRecord.project.data.runtimeInfo.projectId}`,
+        )
+      }
+
+      nextRecord.project.data.runtimeInfo.projectTitle = options.projectTitle
+      return writeRecord(nextRecord)
+    },
+    async reset(): Promise<LocalProjectStoreRecord> {
+      const template = createTemplateRecord(options)
+      return writeRecord(template)
     },
   }
 }

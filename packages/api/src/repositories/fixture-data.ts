@@ -1794,17 +1794,23 @@ function createSceneRecords(): Record<string, SceneFixtureRecord> {
   }
 }
 
-function createSignalArcProject(projectId: string, apiBaseUrl: string): FixtureProjectData {
+export function createSignalArcProjectTemplate(input: {
+  projectId: string
+  projectTitle: string
+  apiBaseUrl: string
+  runtimeSummary?: string
+  versionLabel?: string
+}): FixtureProjectData {
   return {
     runtimeInfo: {
-      projectId,
-      projectTitle: 'Signal Arc',
+      projectId: input.projectId,
+      projectTitle: input.projectTitle,
       source: 'api',
       status: 'healthy',
-      summary: 'Connected to fixture API runtime.',
+      summary: input.runtimeSummary ?? 'Connected to local project store v1.',
       checkedAtLabel: '2026-04-23 10:00',
-      apiBaseUrl,
-      versionLabel: 'fixture-api-be-pr1',
+      apiBaseUrl: input.apiBaseUrl,
+      versionLabel: input.versionLabel ?? 'local-project-store-v1',
       capabilities: {
         read: true,
         write: true,
@@ -1842,9 +1848,27 @@ function createSignalArcProject(projectId: string, apiBaseUrl: string): FixtureP
 export function createFixtureDataSnapshot(apiBaseUrl: string): FixtureDataSnapshot {
   return {
     projects: {
-      'book-signal-arc': createSignalArcProject('book-signal-arc', apiBaseUrl),
-      'project-artifact-a': createSignalArcProject('project-artifact-a', apiBaseUrl),
-      'project-artifact-b': createSignalArcProject('project-artifact-b', apiBaseUrl),
+      'book-signal-arc': createSignalArcProjectTemplate({
+        projectId: 'book-signal-arc',
+        projectTitle: 'Signal Arc',
+        apiBaseUrl,
+        runtimeSummary: 'Connected to fixture API runtime.',
+        versionLabel: 'fixture-api-be-pr1',
+      }),
+      'project-artifact-a': createSignalArcProjectTemplate({
+        projectId: 'project-artifact-a',
+        projectTitle: 'Signal Arc',
+        apiBaseUrl,
+        runtimeSummary: 'Connected to fixture API runtime.',
+        versionLabel: 'fixture-api-be-pr1',
+      }),
+      'project-artifact-b': createSignalArcProjectTemplate({
+        projectId: 'project-artifact-b',
+        projectTitle: 'Signal Arc',
+        apiBaseUrl,
+        runtimeSummary: 'Connected to fixture API runtime.',
+        versionLabel: 'fixture-api-be-pr1',
+      }),
     },
   }
 }

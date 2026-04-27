@@ -5,11 +5,17 @@ import path from 'node:path'
 
 import { createServer, type CreateServerOptions } from '../../createServer.js'
 import type { ApiServerConfig } from '../../config.js'
-import type { FixtureRepositoryProjectStatePersistence } from '../../repositories/fixtureRepository.js'
+import type {
+  FixtureRepositoryLocalProjectStore,
+  FixtureRepositoryProjectStatePersistence,
+} from '../../repositories/fixtureRepository.js'
 
 interface CreateTestServerOptions {
   projectStateFilePath?: string
+  projectStoreFilePath?: string
+  projectArtifactDirPath?: string
   configOverrides?: Partial<ApiServerConfig>
+  localProjectStore?: FixtureRepositoryLocalProjectStore
   projectStatePersistence?: FixtureRepositoryProjectStatePersistence
   scenePlannerGatewayDependencies?: CreateServerOptions['scenePlannerGatewayDependencies']
   sceneProseWriterGatewayDependencies?: CreateServerOptions['sceneProseWriterGatewayDependencies']
@@ -20,12 +26,21 @@ function createIsolatedProjectStateFilePath() {
 
   return {
     directory,
-    filePath: path.join(directory, 'prototype-state.json'),
+    filePath: path.join(directory, 'local-project-store.json'),
   }
 }
 
 export function createTestServer(options: CreateTestServerOptions = {}) {
-  const isolatedState = options.projectStateFilePath ? null : createIsolatedProjectStateFilePath()
+  const explicitStoreFilePath = options.projectStoreFilePath ?? options.projectStateFilePath
+  const isolatedState = explicitStoreFilePath ? null : createIsolatedProjectStateFilePath()
+  const projectStoreFilePath = explicitStoreFilePath ?? isolatedState!.filePath
+  const defaultCurrentProject = explicitStoreFilePath && !options.configOverrides?.currentProject
+    ? {
+      projectId: 'book-signal-arc',
+      projectRoot: '/tmp/narrative-api-test-project',
+      projectTitle: 'Signal Arc',
+    }
+    : undefined
   const server = createServer({
     config: {
       host: '127.0.0.1',
@@ -33,10 +48,14 @@ export function createTestServer(options: CreateTestServerOptions = {}) {
       apiBasePath: '/api',
       apiBaseUrl: 'http://127.0.0.1:4174/api',
       corsOrigin: true,
-      projectStateFilePath: options.projectStateFilePath ?? isolatedState!.filePath,
+      currentProject: defaultCurrentProject,
+      projectStoreFilePath,
+      projectArtifactDirPath: options.projectArtifactDirPath ?? path.join(path.dirname(projectStoreFilePath), 'artifacts'),
+      projectStateFilePath: projectStoreFilePath,
       modelProvider: 'fixture',
       ...options.configOverrides,
     },
+    localProjectStore: options.localProjectStore,
     projectStatePersistence: options.projectStatePersistence,
     scenePlannerGatewayDependencies: options.scenePlannerGatewayDependencies,
     sceneProseWriterGatewayDependencies: options.sceneProseWriterGatewayDependencies,
