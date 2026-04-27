@@ -724,4 +724,55 @@ describe('fixture API server run flow', () => {
       expect(proseAfterReview.json()).toEqual(proseBeforeReview.json())
     })
   })
+
+  it('supports the scene run flow for the selected local project store', async () => {
+    await withTestServer(async ({ app }) => {
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/local-project-alpha/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
+          note: 'Run the local project store happy path.',
+        },
+      })
+      expect(startResponse.statusCode).toBe(200)
+      const startedRun = startResponse.json()
+      expect(startedRun).toMatchObject({
+        id: 'run-scene-midnight-platform-001',
+        status: 'waiting_review',
+      })
+
+      const reviewResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/local-project-alpha/runs/${startedRun.id}/review-decisions`,
+        payload: {
+          reviewId: startedRun.pendingReviewId,
+          decision: 'accept',
+        },
+      })
+      expect(reviewResponse.statusCode).toBe(200)
+      expect(reviewResponse.json()).toMatchObject({
+        id: startedRun.id,
+        status: 'completed',
+      })
+
+      const proseResponse = await app.inject({
+        method: 'GET',
+        url: '/api/projects/local-project-alpha/scenes/scene-midnight-platform/prose',
+      })
+      expect(proseResponse.statusCode).toBe(200)
+      expect(proseResponse.json()).toMatchObject({
+        sceneId: 'scene-midnight-platform',
+        proseDraft: expect.stringContaining('Midnight Platform opens from the accepted run artifact'),
+      })
+    }, {
+      configOverrides: {
+        currentProject: {
+          projectId: 'local-project-alpha',
+          projectRoot: '/tmp/local-project-alpha',
+          projectTitle: 'Local Project Alpha',
+        },
+      },
+    })
+  })
 })

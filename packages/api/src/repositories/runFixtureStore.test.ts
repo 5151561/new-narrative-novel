@@ -326,6 +326,62 @@ describe('runFixtureStore', () => {
     })
   })
 
+  it('exports and hydrates a completed non-fixture project run with event pages and artifacts intact', async () => {
+    const store = createRunFixtureStore({
+      scenePlannerGateway: {
+        generate: vi.fn().mockResolvedValue(createPlannerResult()),
+      },
+    })
+
+    const run = await store.startSceneRun('local-project-alpha', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+      note: 'Hydrate this local project run after restart.',
+    })
+    const completedRun = await store.submitRunReviewDecision('local-project-alpha', {
+      runId: run.id,
+      reviewId: run.pendingReviewId!,
+      decision: 'accept',
+    })
+    const eventsBeforeHydration = listAllEventPages(store, 'local-project-alpha', completedRun.id)
+    const artifactsBeforeHydration = store.listRunArtifacts('local-project-alpha', completedRun.id)
+    const proseArtifactBeforeHydration = store.getRunArtifact(
+      'local-project-alpha',
+      completedRun.id,
+      'prose-draft-scene-midnight-platform-001',
+    )
+    const traceBeforeHydration = store.getRunTrace('local-project-alpha', completedRun.id)
+
+    const exportedState = store.exportProjectState('local-project-alpha')
+    expect(exportedState).toBeTruthy()
+
+    const hydratedStore = createRunFixtureStore()
+    hydratedStore.hydrateProjectState('local-project-alpha', exportedState!)
+
+    expect(hydratedStore.getRun('local-project-alpha', completedRun.id)).toMatchObject({
+      id: completedRun.id,
+      status: 'completed',
+      latestEventId: completedRun.latestEventId,
+      eventCount: completedRun.eventCount,
+    })
+
+    const hydratedEvents = listAllEventPages(hydratedStore, 'local-project-alpha', completedRun.id)
+    expect(hydratedEvents).toEqual(eventsBeforeHydration)
+
+    const hydratedArtifacts = hydratedStore.listRunArtifacts('local-project-alpha', completedRun.id)
+    expect(hydratedArtifacts).toEqual(artifactsBeforeHydration)
+    expect(hydratedStore.getRunArtifact('local-project-alpha', completedRun.id, 'prose-draft-scene-midnight-platform-001')).toEqual(
+      proseArtifactBeforeHydration,
+    )
+    expect(hydratedStore.getRunTrace('local-project-alpha', completedRun.id)).toEqual(traceBeforeHydration)
+
+    const streamIterator = hydratedStore.streamRunEvents('local-project-alpha', {
+      runId: completedRun.id,
+      cursor: completedRun.latestEventId,
+    })[Symbol.asyncIterator]()
+    await expect(streamIterator.next()).resolves.toEqual({ done: true, value: undefined })
+  })
+
   it('awaits planner gateway output and persists canonical planner metadata before artifact details are derived', async () => {
     const generate = vi.fn().mockResolvedValue(createPlannerResult())
     const store = createRunFixtureStore({

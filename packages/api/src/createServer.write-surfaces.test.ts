@@ -415,4 +415,51 @@ describe('fixture API server write surfaces', () => {
       await app.close()
     }
   })
+
+  it('supports write surfaces against the selected local project store while keeping canonical object ids', async () => {
+    await withTestServer(async ({ app }) => {
+      const patchResponse = await app.inject({
+        method: 'PATCH',
+        url: '/api/projects/local-project-alpha/chapters/chapter-signals-in-rain/scenes/scene-midnight-platform/structure',
+        payload: {
+          locale: 'en',
+          patch: {
+            summary: 'Local project alpha chapter patch.',
+          },
+        },
+      })
+      expect(patchResponse.statusCode).toBe(200)
+      expect(patchResponse.json().scenes.find((scene: { id: string }) => scene.id === 'scene-midnight-platform')).toMatchObject({
+        id: 'scene-midnight-platform',
+        summary: {
+          en: 'Local project alpha chapter patch.',
+        },
+      })
+
+      const reviewResponse = await app.inject({
+        method: 'PUT',
+        url: '/api/projects/local-project-alpha/books/book-signal-arc/review-decisions/compare-delta-scene-midnight-platform',
+        payload: {
+          bookId: 'book-signal-arc',
+          issueId: 'compare-delta-scene-midnight-platform',
+          issueSignature: 'compare-delta-scene-midnight-platform::compare_delta',
+          status: 'reviewed',
+          note: 'Local project alpha review decision.',
+        },
+      })
+      expect(reviewResponse.statusCode).toBe(200)
+      expect(reviewResponse.json()).toMatchObject({
+        issueId: 'compare-delta-scene-midnight-platform',
+        status: 'reviewed',
+      })
+    }, {
+      configOverrides: {
+        currentProject: {
+          projectId: 'local-project-alpha',
+          projectRoot: '/tmp/local-project-alpha',
+          projectTitle: 'Local Project Alpha',
+        },
+      },
+    })
+  })
 })

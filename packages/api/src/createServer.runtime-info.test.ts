@@ -174,4 +174,31 @@ describe('fixture API server runtime info surfaces', () => {
       code: 'RUN_EVENT_STREAM_UNIMPLEMENTED',
     })
   })
+
+  it('returns selected local project runtime info from the local project store for local-project-alpha', async () => {
+    await withTestServer(async ({ app }) => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/projects/local-project-alpha/runtime-info',
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toMatchObject({
+        projectId: 'local-project-alpha',
+        projectTitle: 'Local Project Alpha',
+        source: 'api',
+        status: 'healthy',
+        summary: 'Connected to local project store v1.',
+        versionLabel: 'local-project-store-v1',
+      })
+    }, {
+      configOverrides: {
+        currentProject: {
+          projectId: 'local-project-alpha',
+          projectRoot: '/tmp/local-project-alpha',
+          projectTitle: 'Local Project Alpha',
+        },
+      },
+    })
+  })
 })

@@ -333,4 +333,60 @@ describe('fixture API server read surfaces', () => {
       })
     })
   })
+
+  it('serves canonical read-surface object ids from the selected local project store', async () => {
+    await withTestServer(async ({ app }) => {
+      const [book, chapter, asset, scene] = await Promise.all([
+        app.inject({
+          method: 'GET',
+          url: '/api/projects/local-project-alpha/books/book-signal-arc/structure',
+        }),
+        app.inject({
+          method: 'GET',
+          url: '/api/projects/local-project-alpha/chapters/chapter-signals-in-rain/structure',
+        }),
+        app.inject({
+          method: 'GET',
+          url: '/api/projects/local-project-alpha/assets/asset-ren-voss/knowledge',
+        }),
+        app.inject({
+          method: 'GET',
+          url: '/api/projects/local-project-alpha/scenes/scene-midnight-platform/workspace',
+        }),
+      ])
+
+      expect(book.statusCode).toBe(200)
+      expect(book.json()).toMatchObject({
+        bookId: 'book-signal-arc',
+        chapterIds: ['chapter-signals-in-rain', 'chapter-open-water-signals'],
+      })
+
+      expect(chapter.statusCode).toBe(200)
+      expect(chapter.json().scenes).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          id: 'scene-midnight-platform',
+          order: 1,
+        }),
+      ]))
+
+      expect(asset.statusCode).toBe(200)
+      expect(asset.json()).toMatchObject({
+        assetId: 'asset-ren-voss',
+      })
+
+      expect(scene.statusCode).toBe(200)
+      expect(scene.json()).toMatchObject({
+        id: 'scene-midnight-platform',
+        chapterId: 'chapter-signals-in-rain',
+      })
+    }, {
+      configOverrides: {
+        currentProject: {
+          projectId: 'local-project-alpha',
+          projectRoot: '/tmp/local-project-alpha',
+          projectTitle: 'Local Project Alpha',
+        },
+      },
+    })
+  })
 })
