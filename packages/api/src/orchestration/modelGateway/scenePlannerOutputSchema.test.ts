@@ -1,9 +1,23 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  scenePlannerOpenAiOutputSchema,
   parseScenePlannerOutput,
   scenePlannerOutputSchema,
 } from './scenePlannerOutputSchema.js'
+
+function containsKeyword(value: unknown, keyword: string): boolean {
+  if (Array.isArray(value)) {
+    return value.some((item) => containsKeyword(item, keyword))
+  }
+
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    return Object.entries(record).some(([key, nested]) => key === keyword || containsKeyword(nested, keyword))
+  }
+
+  return false
+}
 
 function createValidOutput() {
   return {
@@ -39,6 +53,51 @@ describe('scenePlannerOutputSchema', () => {
         },
       },
     })
+  })
+
+  it('exports an OpenAI strict-compatible schema with required object properties and nullable optional semantics', () => {
+    expect(scenePlannerOpenAiOutputSchema).toMatchObject({
+      additionalProperties: false,
+      required: ['proposals'],
+      properties: {
+        proposals: {
+          items: {
+            required: ['title', 'summary', 'changeKind', 'riskLabel', 'variants'],
+            properties: {
+              variants: {
+                anyOf: [
+                  { type: 'null' },
+                  {
+                    type: 'array',
+                    items: {
+                      required: ['label', 'summary', 'rationale', 'tradeoffLabel', 'riskLabel'],
+                      properties: {
+                        tradeoffLabel: {
+                          anyOf: [
+                            { type: 'string' },
+                            { type: 'null' },
+                          ],
+                        },
+                        riskLabel: {
+                          anyOf: [
+                            { type: 'string' },
+                            { type: 'null' },
+                          ],
+                        },
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    })
+  })
+
+  it('does not include unsupported minLength keywords anywhere in the OpenAI wire schema', () => {
+    expect(containsKeyword(scenePlannerOpenAiOutputSchema, 'minLength')).toBe(false)
   })
 
   it('accepts valid planner output and trims string fields', () => {
@@ -89,7 +148,18 @@ describe('scenePlannerOutputSchema', () => {
     })).toThrowError(/proposals/i)
   })
 
-  it('rejects whitespace-only strings after trimming', () => {
+  it('rejects empty and whitespace-only strings in the local parser contract', () => {
+    expect(() => parseScenePlannerOutput({
+      proposals: [
+        {
+          title: '',
+          summary: 'Open on Midnight Platform before introducing any new reveal.',
+          changeKind: 'action',
+          riskLabel: 'Low continuity risk',
+        },
+      ],
+    })).toThrowError(/title/i)
+
     expect(() => parseScenePlannerOutput({
       proposals: [
         {

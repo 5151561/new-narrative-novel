@@ -30,6 +30,17 @@ const nonEmptyTrimmedStringSchema = {
   pattern: '\\S',
 } as const
 
+const openAiStringSchema = {
+  type: 'string',
+} as const
+
+const nullableOpenAiStringSchema = {
+  anyOf: [
+    openAiStringSchema,
+    { type: 'null' },
+  ],
+} as const
+
 const plannerVariantSchema = {
   type: 'object',
   additionalProperties: false,
@@ -40,6 +51,19 @@ const plannerVariantSchema = {
     rationale: nonEmptyTrimmedStringSchema,
     tradeoffLabel: nonEmptyTrimmedStringSchema,
     riskLabel: nonEmptyTrimmedStringSchema,
+  },
+} as const
+
+const plannerOpenAiVariantSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['label', 'summary', 'rationale', 'tradeoffLabel', 'riskLabel'],
+  properties: {
+    label: openAiStringSchema,
+    summary: openAiStringSchema,
+    rationale: openAiStringSchema,
+    tradeoffLabel: nullableOpenAiStringSchema,
+    riskLabel: nullableOpenAiStringSchema,
   },
 } as const
 
@@ -62,6 +86,30 @@ const plannerProposalSchema = {
   },
 } as const
 
+const plannerOpenAiProposalSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['title', 'summary', 'changeKind', 'riskLabel', 'variants'],
+  properties: {
+    title: openAiStringSchema,
+    summary: openAiStringSchema,
+    changeKind: {
+      type: 'string',
+      enum: [...proposalChangeKinds],
+    },
+    riskLabel: openAiStringSchema,
+    variants: {
+      anyOf: [
+        { type: 'null' },
+        {
+          type: 'array',
+          items: plannerOpenAiVariantSchema,
+        },
+      ],
+    },
+  },
+} as const
+
 export const scenePlannerOutputSchema = {
   type: 'object',
   additionalProperties: false,
@@ -71,6 +119,19 @@ export const scenePlannerOutputSchema = {
       type: 'array',
       minItems: 1,
       items: plannerProposalSchema,
+    },
+  },
+} as const
+
+export const scenePlannerOpenAiOutputSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['proposals'],
+  properties: {
+    proposals: {
+      type: 'array',
+      minItems: 1,
+      items: plannerOpenAiProposalSchema,
     },
   },
 } as const
@@ -94,6 +155,47 @@ export function parseScenePlannerOutput(input: unknown): ScenePlannerOutput {
   return normalizeScenePlannerOutput(input as ScenePlannerOutput)
 }
 
+export function normalizeScenePlannerOpenAiOutput(input: unknown): unknown {
+  if (!isRecord(input) || !Array.isArray(input.proposals)) {
+    return input
+  }
+
+  return {
+    ...input,
+    proposals: input.proposals.map((proposal) => {
+      if (!isRecord(proposal)) {
+        return proposal
+      }
+
+      const normalizedProposal = { ...proposal }
+      if (normalizedProposal.variants === null) {
+        delete normalizedProposal.variants
+        return normalizedProposal
+      }
+
+      if (Array.isArray(normalizedProposal.variants)) {
+        normalizedProposal.variants = normalizedProposal.variants.map((variant) => {
+          if (!isRecord(variant)) {
+            return variant
+          }
+
+          const normalizedVariant = { ...variant }
+          if (normalizedVariant.tradeoffLabel === null) {
+            delete normalizedVariant.tradeoffLabel
+          }
+          if (normalizedVariant.riskLabel === null) {
+            delete normalizedVariant.riskLabel
+          }
+
+          return normalizedVariant
+        })
+      }
+
+      return normalizedProposal
+    }),
+  }
+}
+
 function normalizeScenePlannerOutput(input: ScenePlannerOutput): ScenePlannerOutput {
   return {
     proposals: input.proposals.map((proposal) => ({
@@ -114,6 +216,10 @@ function normalizeScenePlannerOutput(input: ScenePlannerOutput): ScenePlannerOut
         : {}),
     })),
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }
 
 function formatAjvErrors(errors: ErrorObject[] | null | undefined) {
