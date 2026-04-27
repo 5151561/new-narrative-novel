@@ -129,12 +129,12 @@ describe('BookDraftWorkspace API read-slice review states', () => {
     resetMockBookExportArtifactDb()
   })
 
-  it('shows book not found and stops chapter scene and review reads when book structure resolves to null', async () => {
+  it('shows book not found and stops dependent reads when draft assembly resolves to null', async () => {
     const { requests } = renderReviewRoute({
       overrides: [
         {
           method: 'GET',
-          path: apiRouteContract.bookStructure({
+          path: apiRouteContract.bookDraftAssembly({
             projectId: API_READ_SLICE_PROJECT_ID,
             bookId: API_READ_SLICE_BOOK_ID,
           }),
@@ -145,6 +145,16 @@ describe('BookDraftWorkspace API read-slice review states', () => {
 
     expect(await screen.findAllByText('Book not found')).toHaveLength(4)
     expect(screen.getAllByText(`Book ${API_READ_SLICE_BOOK_ID} could not be found.`)).toHaveLength(4)
+    expect(requests).toHaveLength(2)
+    expect(requests.map((request) => `${request.method} ${request.path}`).sort()).toEqual(
+      [
+        `GET ${apiRouteContract.projectRuntimeInfo({ projectId: API_READ_SLICE_PROJECT_ID })}`,
+        `GET ${apiRouteContract.bookDraftAssembly({
+          projectId: API_READ_SLICE_PROJECT_ID,
+          bookId: API_READ_SLICE_BOOK_ID,
+        })}`,
+      ].sort(),
+    )
     expect(requests.some((request) => request.path.includes('/chapters/'))).toBe(false)
     expect(requests.some((request) => request.path.includes('/scenes/'))).toBe(false)
     expect(requests.some((request) => request.path.includes('/manuscript-checkpoints'))).toBe(false)
