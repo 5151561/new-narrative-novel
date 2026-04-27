@@ -13,6 +13,18 @@ const originalNavigatorLanguage = window.navigator.language
 const projectId = 'book-signal-arc'
 const sceneRoute = '/workbench?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution'
 
+function nonEditorCloseButtonName(label: string) {
+  return new RegExp(`^(?!Close Editor:).*${label}`, 'i')
+}
+
+function expectNavigatorSceneOrder(navigator: ReturnType<typeof within>, labels: string[]) {
+  for (let index = 0; index < labels.length - 1; index += 1) {
+    const currentButton = navigator.getByRole('button', { name: nonEditorCloseButtonName(labels[index]!) })
+    const nextButton = navigator.getByRole('button', { name: nonEditorCloseButtonName(labels[index + 1]!) })
+    expect(currentButton.compareDocumentPosition(nextButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  }
+}
+
 vi.mock('@/features/scene/containers/SceneInspectorContainer', () => ({
   SceneInspectorContainer: ({ sceneId }: { sceneId: string }) => <div data-testid="scene-inspector">{sceneId}</div>,
 }))
@@ -89,6 +101,21 @@ describe('App scene runtime smoke', () => {
     await renderSceneApp(`http://${server.config.host}:${address.port}`)
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    const navigator = screen.getByRole('region', { name: 'Navigator' })
+    await waitFor(() => {
+      expect(within(navigator).getByRole('button', { name: nonEditorCloseButtonName('Midnight Platform') })).toBeInTheDocument()
+      expect(within(navigator).getByRole('button', { name: nonEditorCloseButtonName('Concourse Delay') })).toBeInTheDocument()
+      expect(within(navigator).getByRole('button', { name: nonEditorCloseButtonName('Ticket Window') })).toBeInTheDocument()
+      expect(within(navigator).getByRole('button', { name: nonEditorCloseButtonName('Departure Bell') })).toBeInTheDocument()
+    })
+    expectNavigatorSceneOrder(within(navigator), [
+      'Midnight Platform',
+      'Concourse Delay',
+      'Ticket Window',
+      'Departure Bell',
+    ])
+    expect(within(navigator).queryByRole('button', { name: /Canal Watch/i })).not.toBeInTheDocument()
+    expect(within(navigator).queryByRole('button', { name: /Dawn Slip/i })).not.toBeInTheDocument()
 
     await user.click(screen.getAllByRole('button', { name: 'Rewrite Run' })[0]!)
 

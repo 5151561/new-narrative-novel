@@ -18,6 +18,20 @@ function nonEditorCloseButtonName(label: string) {
   return new RegExp(`^(?!Close Editor:).*${label}`, 'i')
 }
 
+function getNavigatorSceneButton(label: string) {
+  return within(screen.getByRole('region', { name: 'Navigator' })).getByRole('button', {
+    name: nonEditorCloseButtonName(label),
+  })
+}
+
+function expectNavigatorSceneOrder(labels: string[]) {
+  for (let index = 0; index < labels.length - 1; index += 1) {
+    const currentButton = getNavigatorSceneButton(labels[index]!)
+    const nextButton = getNavigatorSceneButton(labels[index + 1]!)
+    expect(currentButton.compareDocumentPosition(nextButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  }
+}
+
 function setSceneBridge(bridge: Record<string, unknown> | undefined) {
   if (bridge) {
     Reflect.set(window, 'narrativeRuntimeBridge', { scene: bridge })
@@ -407,7 +421,7 @@ describe('App scene workbench', () => {
 
     expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: nonEditorCloseButtonName('Ticket Window') }))
+    await user.click(getNavigatorSceneButton('Ticket Window'))
 
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search)
@@ -424,13 +438,26 @@ describe('App scene workbench', () => {
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
     expect(screen.getByText('Signals in Rain / Concourse Delay / Orchestrate / Execution')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Midnight Platform') })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Concourse Delay') })).toHaveClass(
+    expect(getNavigatorSceneButton('Midnight Platform')).toBeInTheDocument()
+    expect(getNavigatorSceneButton('Concourse Delay')).toHaveClass(
       'border-line-strong',
     )
-    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Ticket Window') })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Departure Bell') })).toBeInTheDocument()
+    expect(getNavigatorSceneButton('Ticket Window')).toBeInTheDocument()
+    expect(getNavigatorSceneButton('Departure Bell')).toBeInTheDocument()
+    expectNavigatorSceneOrder(['Midnight Platform', 'Concourse Delay', 'Ticket Window', 'Departure Bell'])
     expect(screen.queryByRole('button', { name: /Warehouse Bridge/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Canal Watch/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Dawn Slip/i })).not.toBeInTheDocument()
+  })
+
+  it('keeps preview-only open-water scenes out of the canonical navigator path', async () => {
+    await renderFreshApp('?scope=scene&id=scene-warehouse-bridge&lens=orchestrate&tab=execution')
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    expect(screen.getByText('Open Water Signals / Warehouse Bridge / Orchestrate / Execution')).toBeInTheDocument()
+    expect(getNavigatorSceneButton('Warehouse Bridge')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Canal Watch/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Dawn Slip/i })).not.toBeInTheDocument()
   })
 
   it('keeps chapter-derived navigator placeholders while scene cards are still loading', async () => {
@@ -446,12 +473,12 @@ describe('App scene workbench', () => {
     await renderFreshApp('?scope=scene&id=scene-concourse-delay&lens=orchestrate&tab=execution')
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Midnight Platform') })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Concourse Delay') })).toHaveClass(
+    expect(getNavigatorSceneButton('Midnight Platform')).toBeInTheDocument()
+    expect(getNavigatorSceneButton('Concourse Delay')).toHaveClass(
       'border-line-strong',
     )
-    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Ticket Window') })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Departure Bell') })).toBeInTheDocument()
+    expect(getNavigatorSceneButton('Ticket Window')).toBeInTheDocument()
+    expect(getNavigatorSceneButton('Departure Bell')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Warehouse Bridge/i })).not.toBeInTheDocument()
     expect(screen.getByText('A crowd bottleneck should slow the exit without resolving who controls the courier line.')).toBeInTheDocument()
   })
@@ -466,7 +493,7 @@ describe('App scene workbench', () => {
     expect(screen.getAllByText('Run 07').length).toBeGreaterThan(0)
     expect(screen.getAllByText('review').length).toBeGreaterThan(0)
 
-    await user.click(screen.getByRole('button', { name: nonEditorCloseButtonName('Ticket Window') }))
+    await user.click(getNavigatorSceneButton('Ticket Window'))
 
     await waitFor(() => {
       expect(screen.getByText('Signals in Rain / Ticket Window / Orchestrate / Execution')).toBeInTheDocument()
@@ -655,7 +682,7 @@ describe('App scene workbench', () => {
     })
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: nonEditorCloseButtonName('Ticket Window') })).toHaveClass(
+    expect(getNavigatorSceneButton('Ticket Window')).toHaveClass(
       'border-line-strong',
     )
 
@@ -733,10 +760,10 @@ describe('App scene workbench', () => {
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
 
-    const midnightButton = screen.getByRole('button', { name: nonEditorCloseButtonName('Midnight Platform') })
-    const ticketButton = screen.getByRole('button', { name: nonEditorCloseButtonName('Ticket Window') })
-    const concourseButton = screen.getByRole('button', { name: nonEditorCloseButtonName('Concourse Delay') })
-    const departureButton = screen.getByRole('button', { name: nonEditorCloseButtonName('Departure Bell') })
+    const midnightButton = getNavigatorSceneButton('Midnight Platform')
+    const ticketButton = getNavigatorSceneButton('Ticket Window')
+    const concourseButton = getNavigatorSceneButton('Concourse Delay')
+    const departureButton = getNavigatorSceneButton('Departure Bell')
 
     expect(midnightButton.compareDocumentPosition(ticketButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(ticketButton.compareDocumentPosition(concourseButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()

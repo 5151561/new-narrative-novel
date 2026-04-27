@@ -15,6 +15,12 @@ PR20 的前端运行路径统一收敛到 `/api/projects/{projectId}/...`。
 
 当前仓库已经提供 `@narrative-novel/api` 作为 BE-PR1 的 fixture-backed API server skeleton。
 
+同仓库的 `@narrative-novel/fixture-seed` 现在是 usable prototype path 的 canonical prototype seed：
+
+- 统一提供共享的 `bookId` / `chapterId` / `sceneId`
+- 明确区分 canonical scenes 与 `mockOnlyPreviewSceneIds`
+- 约束 API read model 与 renderer navigator 必须对齐同一份 seed identity / order，而不是各自维护 renderer-local mock truth
+
 本地联调基线：
 
 - 启动 API：`pnpm dev:api`
@@ -97,7 +103,8 @@ PR20 的前端运行路径统一收敛到 `/api/projects/{projectId}/...`。
 - `draft-assembly` 保留稳定的 `bookId` / `chapterId` / `sceneId`，并按 `BookStructureRecord.chapterIds` 与 `ChapterStructureWorkspaceRecord.scenes[].order` 组装。
 - `draft-assembly` 对缺失 scene prose 返回显式 gap row，不把缺稿伪装成空正文成功态。
 - `draft-assembly` 会保留当前 scene prose read model 已暴露的来源引用与 trace rollup 元数据，用于 Book Draft / Review / Compare / Export-readiness 解释。
-- canonical fixture identity invariants 目前由 renderer / desktop tests 直接保护：`book-signal-arc`、`chapter-signals-in-rain`、`chapter-open-water-signals`、`scene-midnight-platform`、`scene-concourse-delay`、`scene-ticket-window`、`scene-departure-bell`、`scene-warehouse-bridge` 不能静默漂移。
+- canonical fixture identity invariants 现在由 `@narrative-novel/fixture-seed`、API tests 与 renderer tests 共同保护：`book-signal-arc`、`chapter-signals-in-rain`、`chapter-open-water-signals`、`scene-midnight-platform`、`scene-concourse-delay`、`scene-ticket-window`、`scene-departure-bell`、`scene-warehouse-bridge` 不能静默漂移。
+- `mockOnlyPreviewSceneIds` 只允许留在 preview / Storybook / test-only coverage；它们不能进入 canonical prototype path，也不能出现在 API chapter structure、book draft assembly 或 scene navigator 的 canonical chapter ordering 里。
 - Scene 相关接口返回的是更贴近 UI 的 view model，默认可以直接驱动工作台渲染，不要求前端再拼装底层持久化结构。
 - `/runtime-info` 返回的是项目级 runtime health / source / capability 记录；旧的 scene 顶栏如果仍消费这一路径，应视为 client adaptation，而不是这条合同的主语义。
 

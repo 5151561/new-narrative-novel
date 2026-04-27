@@ -1,4 +1,6 @@
-import { useQueries } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
+
+import { signalArcFixtureSeed } from '@narrative-novel/fixture-seed'
 
 import {
   getSceneRunStatusLabel,
@@ -11,8 +13,8 @@ import { useProjectRuntime } from '@/app/project-runtime'
 import { Badge } from '@/components/ui/Badge'
 import { PaneHeader } from '@/components/ui/PaneHeader'
 import { AssetWorkbench } from '@/features/asset/containers/AssetWorkbench'
-import { getMockChapterRecordById } from '@/features/chapter/api/mock-chapter-db'
 import { readLocalizedChapterText } from '@/features/chapter/api/chapter-records'
+import { chapterQueryKeys } from '@/features/chapter/hooks/chapter-query-keys'
 import { ChapterWorkbench } from '@/features/chapter/containers/ChapterWorkbench'
 import { BookWorkbench } from '@/features/book/containers/BookWorkbench'
 import { SceneDockContainer } from '@/features/scene/containers/SceneDockContainer'
@@ -32,7 +34,6 @@ import type {
   SceneLens,
   WorkbenchScope,
 } from '@/features/workbench/types/workbench-route'
-import { getSceneFixtureChapterId } from '@/mock/scene-fixtures'
 
 interface SceneNavigatorCard {
   sceneId: string
@@ -54,6 +55,15 @@ function statusTone(status: SceneWorkspaceViewModel['status']): SceneNavigatorCa
     return 'warn'
   }
   return 'neutral'
+}
+
+function getCanonicalSeedChapterId(sceneId: string) {
+  return signalArcFixtureSeed.chapters.find((chapter) => chapter.canonicalSceneIds.includes(sceneId))?.chapterId ?? null
+}
+
+function getCanonicalSeedSceneIdSetForChapter(chapterId: string) {
+  const chapterSeed = signalArcFixtureSeed.chapters.find((chapter) => chapter.chapterId === chapterId)
+  return chapterSeed ? new Set<string>(chapterSeed.canonicalSceneIds) : null
 }
 
 function SceneTopCommandBar({
@@ -247,9 +257,17 @@ function SceneWorkbench({
   const sceneId = route.sceneId
   const activeSceneQuery = useSceneWorkspaceQuery(sceneId)
   const sceneExecutionQuery = useSceneExecutionQuery(sceneId)
-  const navigatorChapterId = activeSceneQuery.scene?.chapterId ?? getSceneFixtureChapterId(sceneId)
-  const navigatorChapterRecord = navigatorChapterId ? getMockChapterRecordById(navigatorChapterId) : null
-  const navigatorSceneIds = navigatorChapterRecord?.scenes.map((scene) => scene.id) ?? []
+  const navigatorChapterId = activeSceneQuery.scene?.chapterId ?? getCanonicalSeedChapterId(sceneId)
+  const navigatorChapterQuery = useQuery({
+    queryKey: navigatorChapterId ? chapterQueryKeys.workspace(navigatorChapterId) : [...chapterQueryKeys.all, 'workspace', 'scene-navigator', sceneId],
+    queryFn: () => runtime.chapterClient.getChapterStructureWorkspace({ chapterId: navigatorChapterId! }),
+    enabled: Boolean(navigatorChapterId),
+  })
+  const navigatorChapterRecord = navigatorChapterQuery.data
+  const canonicalNavigatorSceneIdSet = navigatorChapterId ? getCanonicalSeedSceneIdSetForChapter(navigatorChapterId) : null
+  const navigatorChapterScenes =
+    navigatorChapterRecord?.scenes.filter((scene) => canonicalNavigatorSceneIdSet?.has(scene.id) ?? true) ?? []
+  const navigatorSceneIds = navigatorChapterScenes.map((scene) => scene.id)
   const navigatorQueries = useQueries({
     queries: navigatorSceneIds.map((navigatorSceneId) => ({
       queryKey: sceneQueryKeys.workspace(navigatorSceneId, locale),
@@ -257,7 +275,7 @@ function SceneWorkbench({
     })),
   })
   const fallbackNavigatorItems: SceneNavigatorCard[] =
-    navigatorChapterRecord?.scenes.map((scene) => ({
+    navigatorChapterScenes.map((scene) => ({
       sceneId: scene.id,
       title: readLocalizedChapterText(scene.title, locale),
       chapterTitle: readLocalizedChapterText(navigatorChapterRecord.title, locale),

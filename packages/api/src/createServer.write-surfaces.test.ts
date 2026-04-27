@@ -16,6 +16,8 @@ describe('fixture API server write surfaces', () => {
       expect(reorderResponse.json().scenes.map((scene: { id: string; order: number }) => `${scene.order}:${scene.id}`)).toEqual([
         '1:scene-concourse-delay',
         '2:scene-midnight-platform',
+        '3:scene-ticket-window',
+        '4:scene-departure-bell',
       ])
 
       const patchResponse = await app.inject({

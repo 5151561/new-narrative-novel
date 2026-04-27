@@ -3,13 +3,14 @@ import {
   getSignalArcCanonicalSceneIdsForChapter,
   signalArcBookId,
   signalArcChapterIds,
+  signalArcMockOnlyPreviewSceneIds,
 } from '@narrative-novel/fixture-seed'
 
 import { withTestServer } from './test/support/test-server.js'
 
 type TestApp = Parameters<Parameters<typeof withTestServer>[0]>[0]['app']
 
-const SIGNALS_IN_RAIN_ASSEMBLY_SCENE_IDS = getSignalArcCanonicalSceneIdsForChapter('chapter-signals-in-rain').slice(0, 2)
+const SIGNALS_IN_RAIN_ASSEMBLY_SCENE_IDS = getSignalArcCanonicalSceneIdsForChapter('chapter-signals-in-rain')
 const OPEN_WATER_ASSEMBLY_SCENE_IDS = getSignalArcCanonicalSceneIdsForChapter('chapter-open-water-signals')
 
 function findEventRef(
@@ -72,18 +73,18 @@ describe('fixture API server book draft live assembly', () => {
       expect(assembly).toMatchObject({
         bookId: signalArcBookId,
         chapterCount: 2,
-        sceneCount: 3,
+        sceneCount: 5,
         draftedSceneCount: 1,
-        missingDraftSceneCount: 2,
+        missingDraftSceneCount: 4,
       })
       expect(assembly.chapters.map((chapter: { chapterId: string }) => chapter.chapterId)).toEqual(signalArcChapterIds)
 
       expect(assembly.chapters[0]).toMatchObject({
         chapterId: 'chapter-signals-in-rain',
         order: 1,
-        sceneCount: 2,
+        sceneCount: 4,
         draftedSceneCount: 1,
-        missingDraftCount: 1,
+        missingDraftCount: 3,
       })
       expect(assembly.chapters[0].scenes.map((scene: { sceneId: string }) => scene.sceneId)).toEqual(
         SIGNALS_IN_RAIN_ASSEMBLY_SCENE_IDS,
@@ -131,6 +132,18 @@ describe('fixture API server book draft live assembly', () => {
         },
       })
 
+      expect(assembly.chapters[0].scenes[2]).toMatchObject({
+        kind: 'gap',
+        sceneId: 'scene-ticket-window',
+        order: 3,
+      })
+
+      expect(assembly.chapters[0].scenes[3]).toMatchObject({
+        kind: 'gap',
+        sceneId: 'scene-departure-bell',
+        order: 4,
+      })
+
       expect(assembly.chapters[1].scenes[0]).toMatchObject({
         kind: 'gap',
         sceneId: 'scene-warehouse-bridge',
@@ -139,6 +152,12 @@ describe('fixture API server book draft live assembly', () => {
           en: expect.stringContaining('No prose draft'),
         },
       })
+
+      for (const previewOnlySceneId of signalArcMockOnlyPreviewSceneIds) {
+        expect(
+          assembly.chapters.flatMap((chapter: { scenes: Array<{ sceneId: string }> }) => chapter.scenes.map((scene) => scene.sceneId)),
+        ).not.toContain(previewOnlySceneId)
+      }
     })
   })
 
@@ -165,7 +184,7 @@ describe('fixture API server book draft live assembly', () => {
       })
       expect(assemblyBefore).toMatchObject({
         draftedSceneCount: 1,
-        missingDraftSceneCount: 2,
+        missingDraftSceneCount: 4,
         assembledWordCount: 21,
       })
 
@@ -204,7 +223,7 @@ describe('fixture API server book draft live assembly', () => {
       })
       expect(assemblyAfter).toMatchObject({
         draftedSceneCount: 2,
-        missingDraftSceneCount: 1,
+        missingDraftSceneCount: 3,
       })
       expect(assemblyAfter.assembledWordCount).toBeGreaterThan(assemblyBefore.assembledWordCount)
     })

@@ -14,8 +14,9 @@
 
 ## 当前状态
 
-截至 2026-04-25，仓库由三个主要 workspace 包组成：
+截至 2026-04-27，仓库由四个主要 workspace 包组成：
 
+- `@narrative-novel/fixture-seed`：canonical prototype seed，统一维护 book / chapter / scene 稳定身份、canonical 顺序，以及 canonical scene 与 `mockOnlyPreviewSceneIds` 的区分。
 - `@narrative-novel/renderer`：React + Vite + Tailwind 的 workbench 前端、Storybook、mock runtime、UI/feature tests。
 - `@narrative-novel/api`：Fastify fixture-backed API server，兑现 `/api/projects/{projectId}/...` 合同，支持 read/write/run/artifact/trace 的产品级接口骨架。
 - `@narrative-novel/desktop`：Electron workbench shell，承载现有 renderer，并在桌面模式下托管本地 fixture API；不选择项目目录、不接 worker。
@@ -29,6 +30,8 @@
 - 四个 workbench scope：`scene`、`chapter`、`asset`、`book`。
 - route-first 的 scope/lens/view 状态管理，深链以 `/workbench?...` 查询参数承载。
 - `ProjectRuntime` 前端 client/provider 边界，产品路径收敛到 `createApiProjectRuntime -> /api/projects/...`。
+- `@narrative-novel/fixture-seed` 是 usable prototype path 的 canonical truth source；renderer navigator 与 API chapter/book read model 都应对齐它，而不是依赖 renderer-local mock truth。
+- `mockOnlyPreviewSceneIds` 只允许留在 preview / Storybook / test-only coverage；它们不属于 canonical prototype path，也不能进入 canonical chapter ordering、navigator 或 live assembly。
 - mock runtime 仍用于 Storybook、测试、演示；不再被描述为产品持久化终态。
 - project-level runtime health 边界：`GET /api/projects/{projectId}/runtime-info`。
 - Scene / Orchestrate 的 run 纵切：start run、polling events、waiting review、submit review decision、刷新 scene/chapter read model。
@@ -269,8 +272,8 @@ pnpm storybook
 
 说明：
 
-- `pnpm typecheck` 同时覆盖 `@narrative-novel/api`、`@narrative-novel/renderer` 与 `@narrative-novel/desktop`。
-- `pnpm test` 同时覆盖 `@narrative-novel/api`、`@narrative-novel/renderer` 与 `@narrative-novel/desktop`。
+- `pnpm typecheck` 同时覆盖 `@narrative-novel/fixture-seed`、`@narrative-novel/api`、`@narrative-novel/renderer` 与 `@narrative-novel/desktop`。
+- `pnpm test` 同时覆盖 `@narrative-novel/fixture-seed`、`@narrative-novel/api`、`@narrative-novel/renderer` 与 `@narrative-novel/desktop`。
 - `pnpm build` 当前只构建 renderer。
 - `pnpm dev:desktop` 启动 Electron thin shell，默认重建并加载 `packages/renderer/dist`；只有在 `NARRATIVE_DESKTOP_LIVE_RENDERER=1` 时才切到 live renderer dev server。
 - `pnpm storybook` 当前只启动 renderer Storybook。
@@ -278,6 +281,8 @@ pnpm storybook
 包级命令：
 
 ```bash
+pnpm --filter @narrative-novel/fixture-seed typecheck
+pnpm --filter @narrative-novel/fixture-seed test
 pnpm --filter @narrative-novel/api typecheck
 pnpm --filter @narrative-novel/api test
 pnpm --filter @narrative-novel/desktop typecheck

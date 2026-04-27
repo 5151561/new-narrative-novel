@@ -29,7 +29,7 @@ function text(en: string, zhCN: string): LocalizedTextRecord {
 
 type ApiChapterSceneRecord = ChapterStructureWorkspaceRecord['scenes'][number]
 
-const SIGNALS_IN_RAIN_API_SCENE_IDS = getSignalArcCanonicalSceneIdsForChapter('chapter-signals-in-rain').slice(0, 2)
+const SIGNALS_IN_RAIN_API_SCENE_IDS = getSignalArcCanonicalSceneIdsForChapter('chapter-signals-in-rain')
 const OPEN_WATER_API_SCENE_IDS = getSignalArcCanonicalSceneIdsForChapter('chapter-open-water-signals')
 
 function buildApiChapterScenes(
@@ -265,6 +265,53 @@ function createChapterRecords(): Record<string, ChapterStructureWorkspaceRecord>
       ),
       reveal: text('Witness pressure carries inward from the platform.', '目击者压力从月台延伸到室内。'),
       statusLabel: text('Queued', '排队中'),
+      proseStatusLabel: text('Queued for draft', '待起草'),
+      runStatusLabel: text('Idle', '未开始'),
+      unresolvedCount: 2,
+      lastRunLabel: text('Not run', '未运行'),
+    },
+    'scene-ticket-window': {
+      id: 'scene-ticket-window',
+      order: 3,
+      title: text('Ticket Window', '售票窗'),
+      summary: text(
+        'The alias stays offstage while Mei tests whether Ren will trade certainty for speed.',
+        '别名继续留在台外，Mei 试探 Ren 是否会拿确定性交换速度。',
+      ),
+      purpose: text(
+        'Bring speed and certainty into the same beat without letting the alias surface.',
+        '把“速度”和“确定性”的交换压到同一镜头里。',
+      ),
+      pov: text('Ren Voss', '任·沃斯'),
+      location: text('Ticket window', '售票窗'),
+      conflict: text('Ren wants speed, Mei wants commitment first.', 'Ren 想加速离场，美伊要逼他先表态。'),
+      reveal: text('The alias still has not crossed into public knowledge.', '化名仍然没有进入公开层。'),
+      statusLabel: text('Guarded', '受控'),
+      proseStatusLabel: text('Needs draft', '待起草'),
+      runStatusLabel: text('Guarded', '已守护'),
+      unresolvedCount: 1,
+      lastRunLabel: text('Run 03', '运行 03'),
+    },
+    'scene-departure-bell': {
+      id: 'scene-departure-bell',
+      order: 4,
+      title: text('Departure Bell', '发车钟'),
+      summary: text(
+        'The chapter still needs a final bell placement that does not collapse the witness pressure too early.',
+        '本章仍需要一个不会过早压垮目击者压力的终局钟声位置。',
+      ),
+      purpose: text(
+        'Find an exit bell cue that preserves witness pressure to the final beat.',
+        '为本章找到不破坏见证压力的离场铃点。',
+      ),
+      pov: text('Station Conductor', '站务员'),
+      location: text('Departure gate', '离场门'),
+      conflict: text(
+        'If the bell lands too early, the chapter’s confrontation loses pressure.',
+        '铃声一旦太早落下，章节的对峙压力就会塌掉。',
+      ),
+      reveal: text('The ending still lacks a safe transition into motion.', '终局节拍仍缺一个安全的过渡。'),
+      statusLabel: text('Pending', '待定'),
       proseStatusLabel: text('Queued for draft', '待起草'),
       runStatusLabel: text('Idle', '未开始'),
       unresolvedCount: 2,

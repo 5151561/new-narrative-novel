@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   getSignalArcCanonicalSceneIdsForChapter,
+  signalArcBookId,
   signalArcChapterIds,
+  signalArcMockOnlyPreviewSceneIds,
 } from '@narrative-novel/fixture-seed'
 
 import { withTestServer } from './test/support/test-server.js'
@@ -9,9 +11,9 @@ import { withTestServer } from './test/support/test-server.js'
 type TestApp = Parameters<Parameters<typeof withTestServer>[0]>[0]['app']
 
 const PROJECT_ID = 'book-signal-arc'
-const BOOK_ID = 'book-signal-arc'
+const BOOK_ID = signalArcBookId
 const CANONICAL_NAVIGATOR_SCENE_IDS_BY_CHAPTER = {
-  'chapter-signals-in-rain': getSignalArcCanonicalSceneIdsForChapter('chapter-signals-in-rain').slice(0, 2),
+  'chapter-signals-in-rain': getSignalArcCanonicalSceneIdsForChapter('chapter-signals-in-rain'),
   'chapter-open-water-signals': getSignalArcCanonicalSceneIdsForChapter('chapter-open-water-signals'),
 } as const
 
@@ -130,11 +132,13 @@ describe('fixture API server integrity guards', () => {
       const navigatorSceneIds = chapterStructures.flatMap((chapter) => chapter.scenes.map((scene) => scene.id))
 
       expect(navigatorSceneIds).toEqual(CANONICAL_NAVIGATOR_SCENE_IDS)
+      expect(book.chapterIds).toContain('chapter-signals-in-rain')
 
       for (const chapter of chapterStructures) {
         const chapterId = chapter.chapterId as SignalArcChapterId
         expect(book.chapterIds).toContain(chapterId)
         expect(chapter.scenes.map((scene) => scene.id)).toEqual(CANONICAL_NAVIGATOR_SCENE_IDS_BY_CHAPTER[chapterId])
+        expect(chapter.scenes.some((scene) => scene.id === 'scene-midnight-platform')).toBe(chapterId === 'chapter-signals-in-rain')
 
         for (const scene of chapter.scenes) {
           const [workspace, setup, execution, prose, inspector, dockSummary] = await Promise.all([
@@ -156,6 +160,10 @@ describe('fixture API server integrity guards', () => {
           expect(inspector.statusCode).toBe(200)
           expect(dockSummary.statusCode).toBe(200)
         }
+      }
+
+      for (const previewOnlySceneId of signalArcMockOnlyPreviewSceneIds) {
+        expect(navigatorSceneIds).not.toContain(previewOnlySceneId)
       }
     })
   })
@@ -188,6 +196,12 @@ describe('fixture API server integrity guards', () => {
             expect(proseResponse.json().proseDraft).toBe(sceneRow.proseDraft)
           }
         }
+      }
+
+      for (const previewOnlySceneId of signalArcMockOnlyPreviewSceneIds) {
+        expect(
+          assembly.chapters.flatMap((chapter) => chapter.scenes.map((scene) => scene.sceneId)),
+        ).not.toContain(previewOnlySceneId)
       }
     })
   })
