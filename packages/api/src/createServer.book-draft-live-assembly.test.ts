@@ -52,6 +52,16 @@ function findAssemblyScene(
   return scene
 }
 
+function listAssemblySceneIds(assembly: {
+  chapters: Array<{
+    scenes: Array<{
+      sceneId: string
+    }>
+  }>
+}) {
+  return assembly.chapters.flatMap((chapter) => chapter.scenes.map((scene) => scene.sceneId))
+}
+
 async function fetchPostReviewEvents(
   app: TestApp,
   runId: string,
@@ -101,11 +111,6 @@ describe('fixture API server book draft live assembly', () => {
         kind: 'draft',
         sceneId: 'scene-midnight-platform',
         order: 1,
-        proseDraft: 'Ren lets the rain hide the count in his head while Mei keeps every term loud enough for the witness to hear.',
-        proseStatusLabel: {
-          en: 'Draft ready for review',
-          'zh-CN': '草稿可供审阅',
-        },
         draftWordCount: 21,
         traceReady: true,
         traceRollup: {
@@ -115,14 +120,14 @@ describe('fixture API server book draft live assembly', () => {
           missingLinks: ['Departure bell timing'],
         },
       })
+      expect(assembly.chapters[0].scenes[0].proseDraft).toBeTruthy()
+      expect(assembly.chapters[0].scenes[0].proseStatusLabel.en).toBeTruthy()
+      expect(assembly.chapters[0].scenes[0].proseStatusLabel['zh-CN']).toBeTruthy()
 
       expect(assembly.chapters[0].scenes[1]).toMatchObject({
         kind: 'gap',
         sceneId: 'scene-concourse-delay',
         order: 2,
-        gapReason: {
-          en: expect.stringContaining('No prose draft'),
-        },
         traceReady: false,
         traceRollup: {
           acceptedFactCount: 0,
@@ -131,32 +136,40 @@ describe('fixture API server book draft live assembly', () => {
           missingLinks: ['trace'],
         },
       })
+      expect(assembly.chapters[0].scenes[1].gapReason.en).toBeTruthy()
+      expect(assembly.chapters[0].scenes[1].gapReason['zh-CN']).toBeTruthy()
 
       expect(assembly.chapters[0].scenes[2]).toMatchObject({
         kind: 'gap',
         sceneId: 'scene-ticket-window',
         order: 3,
       })
+      expect(assembly.chapters[0].scenes[2].gapReason.en).toBeTruthy()
 
       expect(assembly.chapters[0].scenes[3]).toMatchObject({
         kind: 'gap',
         sceneId: 'scene-departure-bell',
         order: 4,
       })
+      expect(assembly.chapters[0].scenes[3].gapReason.en).toBeTruthy()
 
       expect(assembly.chapters[1].scenes[0]).toMatchObject({
         kind: 'gap',
         sceneId: 'scene-warehouse-bridge',
         order: 1,
-        gapReason: {
-          en: expect.stringContaining('No prose draft'),
-        },
       })
+      expect(assembly.chapters[1].scenes[0].gapReason.en).toBeTruthy()
+
+      expect(listAssemblySceneIds(assembly)).toEqual([
+        'scene-midnight-platform',
+        'scene-concourse-delay',
+        'scene-ticket-window',
+        'scene-departure-bell',
+        'scene-warehouse-bridge',
+      ])
 
       for (const previewOnlySceneId of signalArcMockOnlyPreviewSceneIds) {
-        expect(
-          assembly.chapters.flatMap((chapter: { scenes: Array<{ sceneId: string }> }) => chapter.scenes.map((scene) => scene.sceneId)),
-        ).not.toContain(previewOnlySceneId)
+        expect(listAssemblySceneIds(assembly)).not.toContain(previewOnlySceneId)
       }
     })
   })

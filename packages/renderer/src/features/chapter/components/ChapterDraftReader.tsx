@@ -13,11 +13,11 @@ interface ChapterDraftReaderProps {
 function getMissingDraftCopy(locale: 'en' | 'zh-CN') {
   return locale === 'zh-CN'
     ? {
-        title: '草稿尚未开始。',
+        title: '正文缺口',
         detail: '保持章节顺序不变，等 scene draft 准备好后再回到这里连续阅读。',
       }
     : {
-        title: 'Draft not started yet.',
+        title: 'Manuscript gap',
         detail: 'Keep the chapter order stable, then return here once the scene draft is ready.',
       }
 }

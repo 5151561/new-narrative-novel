@@ -231,6 +231,7 @@ describe('useBookDraftWorkspaceQuery', () => {
       selectedChapterId: 'chapter-open-water-signals',
       selectedChapter: {
         chapterId: 'chapter-open-water-signals',
+        assembledProseSections: ['Dawn slip prose now lands the revised harbor exit beat.'],
       },
     })
     expect(hook.result.current.workspace?.chapters[0]?.sections[1]).toMatchObject({
@@ -294,6 +295,7 @@ describe('useBookDraftWorkspaceQuery', () => {
 
     expect(hook.result.current.error).toBeNull()
     expect(hook.result.current.workspace?.bookId).toBe('book-signal-arc')
+    expect(hook.result.current.workspace?.selectedChapter?.assembledProseSections.length).toBeGreaterThan(0)
     expect(getBookDraftAssembly).toHaveBeenCalledWith({ bookId: 'book-signal-arc' })
     expect(getBookStructureRecord).toHaveBeenCalledWith({ bookId: 'book-signal-arc' })
     expect(chapterClient.getChapterStructureWorkspace).toHaveBeenCalled()

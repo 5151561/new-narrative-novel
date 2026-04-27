@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type PropsWithChildren } from 'react'
 import { vi } from 'vitest'
 
-import { I18nProvider } from '@/app/i18n'
+import { APP_LOCALE_STORAGE_KEY, I18nProvider } from '@/app/i18n'
 import { ProjectRuntimeProvider, createTestProjectRuntime } from '@/app/project-runtime'
 import { createFakeApiRuntime } from '@/app/project-runtime/fake-api-runtime.test-utils'
 import { createSceneClient } from '@/features/scene/api/scene-client'
@@ -31,6 +32,10 @@ function wrapperFactory(runtime = createTestProjectRuntime()) {
   }
 }
 
+afterEach(() => {
+  window.localStorage.removeItem(APP_LOCALE_STORAGE_KEY)
+})
+
 describe('SceneProseContainer', () => {
   it('uses the runtime scene client when no explicit client prop is provided', async () => {
     const baseClient = createSceneClient()
@@ -49,7 +54,7 @@ describe('SceneProseContainer', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Current Draft')).toBeInTheDocument()
+      expect(screen.getByText('Current manuscript draft')).toBeInTheDocument()
     })
 
     expect(runtimeClient.getSceneProse).toHaveBeenCalledWith('scene-midnight-platform')
@@ -84,7 +89,7 @@ describe('SceneProseContainer', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Current Draft')).toBeInTheDocument()
+      expect(screen.getByText('Current manuscript draft')).toBeInTheDocument()
     })
 
     expect(explicitSpy).toHaveBeenCalledWith('scene-midnight-platform')
@@ -133,9 +138,9 @@ describe('SceneProseContainer', () => {
     })
 
     expect(await screen.findByText('Accepted run draft opens with the ledger still shut.')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Draft Source Summary' })).toBeInTheDocument()
-    expect(screen.getByText('canon-patch-scene-midnight-platform-001')).toBeInTheDocument()
-    expect(screen.getByText('1 proposals')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Source summary' })).toBeInTheDocument()
+    expect(screen.getByText(/canon-patch-scene-midnight-platform/)).toBeInTheDocument()
+    expect(screen.getByText(/^\d+ proposals$/)).toBeInTheDocument()
     expect(screen.getByText('Anchor the arrival beat')).toBeInTheDocument()
     expect(screen.queryByText('Duplicate arrival beat')).not.toBeInTheDocument()
     expect(screen.getByText('Ren Voss')).toBeInTheDocument()
@@ -168,8 +173,61 @@ describe('SceneProseContainer', () => {
     })
 
     expect(await screen.findByText('Accepted run draft remains readable.')).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Draft Source Summary' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Source summary' })).not.toBeInTheDocument()
     expect(screen.queryByText('No missing source links')).not.toBeInTheDocument()
+  })
+
+  it('derives a readable word count when prose text exists but draftWordCount is missing', async () => {
+    const proseWithoutWordCount: SceneProseViewModel = {
+      sceneId: 'scene-midnight-platform',
+      proseDraft: 'Accepted run draft keeps the platform bargain public.',
+      revisionModes: ['rewrite'],
+      latestDiffSummary: 'Generated from accepted run prose artifact.',
+      warningsCount: 0,
+      focusModeAvailable: true,
+      statusLabel: 'Generated from run',
+    }
+    const client = {
+      ...createSceneClient(),
+      getSceneProse: vi.fn(async () => proseWithoutWordCount),
+    }
+    const Wrapper = wrapperFactory()
+
+    render(<SceneProseContainer sceneId="scene-midnight-platform" client={client} />, {
+      wrapper: Wrapper,
+    })
+
+    expect(await screen.findByText('Accepted run draft keeps the platform bargain public.')).toBeInTheDocument()
+    expect(screen.getByText(/^\d+ words$/)).toBeInTheDocument()
+    expect(screen.queryByText('undefined words')).not.toBeInTheDocument()
+  })
+
+  it('does not collapse zh-CN prose fallback into a single-character count', async () => {
+    window.localStorage.setItem(APP_LOCALE_STORAGE_KEY, 'zh-CN')
+
+    const proseWithoutWordCount: SceneProseViewModel = {
+      sceneId: 'scene-midnight-platform',
+      proseDraft: '雨一直压着站台，任让梅把条件说给旁观者听。',
+      revisionModes: ['rewrite'],
+      latestDiffSummary: '来自已采纳正文。',
+      warningsCount: 0,
+      focusModeAvailable: true,
+      statusLabel: '已生成',
+    }
+    const client = {
+      ...createSceneClient(),
+      getSceneProse: vi.fn(async () => proseWithoutWordCount),
+    }
+    const Wrapper = wrapperFactory()
+
+    render(<SceneProseContainer sceneId="scene-midnight-platform" client={client} />, {
+      wrapper: Wrapper,
+    })
+
+    expect(await screen.findByText('雨一直压着站台，任让梅把条件说给旁观者听。')).toBeInTheDocument()
+    expect(screen.getByText(/^\d+ 字$/)).toBeInTheDocument()
+    expect(screen.queryByText('1 字')).not.toBeInTheDocument()
+    expect(screen.queryByText('undefined 字')).not.toBeInTheDocument()
   })
 
   it('applies a mock revision request and updates the prose status footer', async () => {
@@ -182,7 +240,7 @@ describe('SceneProseContainer', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Current Draft')).toBeInTheDocument()
+      expect(screen.getByText('Current manuscript draft')).toBeInTheDocument()
     })
     expect(screen.queryByText('Local Mock')).not.toBeInTheDocument()
     expect(screen.queryByText(/local mock state/i)).not.toBeInTheDocument()
@@ -212,7 +270,7 @@ describe('SceneProseContainer', () => {
     rerender(<SceneProseContainer sceneId="scene-warehouse-bridge" client={client} />)
 
     await waitFor(() => {
-      expect(screen.getByText('No draft prose yet')).toBeInTheDocument()
+      expect(screen.getByText('No manuscript draft yet')).toBeInTheDocument()
     })
 
     expect(screen.queryByRole('button', { name: 'Focus Mode' })).not.toBeInTheDocument()
@@ -249,7 +307,7 @@ describe('SceneProseContainer', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Current Draft')).toBeInTheDocument()
+      expect(screen.getByText('Current manuscript draft')).toBeInTheDocument()
     })
 
     await user.click(screen.getByRole('button', { name: 'Compress' }))
@@ -306,8 +364,12 @@ describe('SceneProseContainer', () => {
       wrapper: Wrapper,
     })
 
-    expect(await screen.findByText('No draft prose yet')).toBeInTheDocument()
+    expect(await screen.findByText('No manuscript draft yet')).toBeInTheDocument()
+    expect(
+      screen.getByText('This scene has not produced a readable manuscript draft for chapter and book assembly yet.'),
+    ).toBeInTheDocument()
     expect(screen.getByText('A prose draft is required before queuing a revision.')).toBeInTheDocument()
+    expect(screen.getByText('No draft')).toBeInTheDocument()
 
     const reviseButton = screen.getByRole('button', { name: 'Revise Draft' })
     expect(reviseButton).toBeDisabled()

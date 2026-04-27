@@ -160,7 +160,7 @@ describe('ChapterDraftReader', () => {
     expect(firstSection.compareDocumentPosition(secondSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(secondSection.compareDocumentPosition(thirdSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(secondSection).toHaveAttribute('aria-current', 'true')
-    expect(screen.getByText('Draft not started yet.')).toBeInTheDocument()
+    expect(screen.getByText('Manuscript gap')).toBeInTheDocument()
     expect(screen.getByText('2 facts')).toBeInTheDocument()
     expect(screen.getByText('2 assets')).toBeInTheDocument()
     expect(screen.getAllByText('Trace ready').length).toBeGreaterThan(0)

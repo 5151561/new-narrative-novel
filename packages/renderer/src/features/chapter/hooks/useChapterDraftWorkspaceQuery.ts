@@ -71,6 +71,10 @@ function getUnavailableDraftLabel(locale: 'en' | 'zh-CN') {
   return locale === 'zh-CN' ? '草稿不可用' : 'Draft unavailable'
 }
 
+function getMissingDraftDetail(locale: 'en' | 'zh-CN') {
+  return locale === 'zh-CN' ? '当前场景还没有装配进章节手稿的正文。' : 'No chapter manuscript draft has been assembled for this scene yet.'
+}
+
 function buildWorkspaceModel(
   workspace: ChapterStructureWorkspaceViewModel | null | undefined,
   proseStateBySceneId: Record<string, ChapterDraftSceneProseState>,
@@ -97,7 +101,7 @@ function buildWorkspaceModel(
           ? getLoadingDraftLabel(locale)
           : scene.proseStatusLabel
     const latestDiffSummary = prose
-      ? prose.latestDiffSummary
+      ? prose.latestDiffSummary ?? (isMissingDraft ? getMissingDraftDetail(locale) : undefined)
       : proseState?.error
         ? proseState.error.message
         : undefined

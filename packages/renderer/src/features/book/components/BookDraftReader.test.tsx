@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -212,8 +212,13 @@ describe('BookDraftReader', () => {
     const user = userEvent.setup()
     const onSelectChapter = vi.fn()
     const onOpenChapter = vi.fn()
+    const partialWorkspace: BookDraftWorkspaceViewModel = {
+      ...workspace,
+      selectedChapterId: 'chapter-signals-in-rain',
+      selectedChapter: workspace.chapters[0]!,
+    }
 
-    render(
+    const { rerender } = render(
       <AppProviders>
         <BookDraftReader workspace={workspace} onSelectChapter={onSelectChapter} onOpenChapter={onOpenChapter} />
       </AppProviders>,
@@ -221,13 +226,25 @@ describe('BookDraftReader', () => {
 
     const firstChapter = screen.getByRole('button', { name: /Chapter 1 Signals in Rain/i })
     const secondChapter = screen.getByRole('button', { name: /Chapter 2 Open Water Signals/i })
+    const initialDestination = screen.getByRole('region', { name: 'Selected manuscript destination' })
 
     expect(firstChapter.compareDocumentPosition(secondChapter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(secondChapter).toHaveAttribute('aria-current', 'true')
-    expect(screen.getByText('Draft not started yet.')).toBeInTheDocument()
+    expect(initialDestination).toBeInTheDocument()
+    expect(initialDestination.querySelectorAll('p.whitespace-pre-wrap').length).toBeGreaterThan(0)
+    expect(screen.getByText('Manuscript gap')).toBeInTheDocument()
 
     await user.click(firstChapter)
     expect(onSelectChapter).toHaveBeenCalledWith('chapter-signals-in-rain')
+    rerender(
+      <AppProviders>
+        <BookDraftReader workspace={partialWorkspace} onSelectChapter={onSelectChapter} onOpenChapter={onOpenChapter} />
+      </AppProviders>,
+    )
+    const partialDestination = screen.getByRole('region', { name: 'Selected manuscript destination' })
+    expect(partialDestination).toBeInTheDocument()
+    expect(within(partialDestination).getByText('Concourse Delay')).toBeInTheDocument()
+    expect(partialDestination.querySelectorAll('p.whitespace-pre-wrap').length).toBe(0)
 
     await user.click(screen.getByRole('button', { name: 'Open in Draft: Open Water Signals' }))
     await user.click(screen.getByRole('button', { name: 'Open in Structure: Open Water Signals' }))

@@ -20,22 +20,26 @@ interface SceneProseTabProps {
 
 export function ProseDraftReader({ proseDraft }: Pick<SceneProseViewModel, 'proseDraft'>) {
   const { locale } = useI18n()
+  const hasDraft = Boolean(proseDraft?.trim())
 
-  if (!proseDraft) {
+  if (!hasDraft) {
     return (
       <EmptyState
-        title={locale === 'zh-CN' ? '还没有正文草稿' : 'No draft prose yet'}
+        title={locale === 'zh-CN' ? '还没有正文手稿' : 'No manuscript draft yet'}
         message={
           locale === 'zh-CN'
-            ? '执行流程仍可继续，但在生成本地草稿之前，正文区域会保持为空。'
-            : 'Execution can still continue, but prose stays empty until a local draft is generated.'
+            ? '这个场景还没有产出可进入 chapter / book draft 装配的可读正文。'
+            : 'This scene has not produced a readable manuscript draft for chapter and book assembly yet.'
         }
       />
     )
   }
 
   return (
-    <SectionCard eyebrow={locale === 'zh-CN' ? '只读' : 'Read Only'} title={locale === 'zh-CN' ? '当前草稿' : 'Current Draft'}>
+    <SectionCard
+      eyebrow={locale === 'zh-CN' ? '正文手稿' : 'Manuscript'}
+      title={locale === 'zh-CN' ? '当前手稿草稿' : 'Current manuscript draft'}
+    >
       <div className="space-y-4">
         <p className="rounded-md border border-line-soft bg-surface-2 px-4 py-4 text-[15px] leading-7 text-text-main">
           {proseDraft}
@@ -95,10 +99,9 @@ export function ProseSourceSummary({ traceSummary }: Pick<SceneProseViewModel, '
   const sourceProposals = normalizedTraceSummary.sourceProposals
   const relatedAssets = normalizedTraceSummary.relatedAssets
   const missingLinks = normalizedTraceSummary.missingLinks
-  const hasSourceData = Boolean(normalizedTraceSummary.sourcePatchId || sourceProposals.length > 0 || relatedAssets.length > 0)
 
   return (
-    <SectionCard eyebrow={locale === 'zh-CN' ? '来源' : 'Sources'} title={locale === 'zh-CN' ? '正文来源摘要' : 'Draft Source Summary'}>
+    <SectionCard eyebrow={locale === 'zh-CN' ? '来源' : 'Sources'} title={locale === 'zh-CN' ? '来源摘要' : 'Source summary'}>
       <div className="grid gap-3 text-sm">
         {normalizedTraceSummary.sourcePatchId ? (
           <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-2">
@@ -135,17 +138,46 @@ export function ProseSourceSummary({ traceSummary }: Pick<SceneProseViewModel, '
             </div>
           </div>
         ) : null}
-        {missingLinks.length > 0 || hasSourceData ? (
+        {missingLinks.length > 0 ? (
           <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-2">
             <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">{locale === 'zh-CN' ? 'Missing links' : 'Missing links'}</p>
-            <p className="mt-1 text-text-muted">
-              {missingLinks.length > 0 ? missingLinks.join(', ') : locale === 'zh-CN' ? '没有缺失来源链接' : 'No missing source links'}
-            </p>
+            <p className="mt-1 text-text-muted">{missingLinks.join(', ')}</p>
           </div>
         ) : null}
       </div>
     </SectionCard>
   )
+}
+
+function deriveDraftWordCount(locale: 'en' | 'zh-CN', proseDraft?: string, draftWordCount?: number) {
+  if (draftWordCount !== undefined) {
+    return draftWordCount
+  }
+
+  const trimmed = proseDraft?.trim()
+  if (!trimmed) {
+    return undefined
+  }
+
+  if (locale === 'zh-CN') {
+    return trimmed.replace(/\s+/g, '').length
+  }
+
+  return trimmed.split(/\s+/).filter(Boolean).length
+}
+
+function getDraftWordCountLabel(
+  locale: 'en' | 'zh-CN',
+  hasDraft: boolean,
+  proseDraft?: string,
+  draftWordCount?: number,
+) {
+  if (!hasDraft) {
+    return locale === 'zh-CN' ? '未起草' : 'No draft'
+  }
+
+  const resolvedDraftWordCount = deriveDraftWordCount(locale, proseDraft, draftWordCount)
+  return locale === 'zh-CN' ? `${resolvedDraftWordCount} 字` : `${resolvedDraftWordCount} words`
 }
 
 export function RevisionActionBar({
@@ -289,6 +321,7 @@ export function ProseToolbar({
 export function ProseStatusFooter({ prose, selectedMode }: Pick<SceneProseTabProps, 'prose' | 'selectedMode'>) {
   const { locale } = useI18n()
   const revisionQueueCount = prose.revisionQueueCount ?? 0
+  const hasDraft = Boolean(prose.proseDraft?.trim())
   const revisionLabel =
     selectedMode === 'rewrite'
       ? locale === 'zh-CN'
@@ -317,15 +350,27 @@ export function ProseStatusFooter({ prose, selectedMode }: Pick<SceneProseTabPro
           <Badge tone={prose.warningsCount > 0 ? 'warn' : 'success'}>
             {locale === 'zh-CN' ? `${prose.warningsCount} 条警告` : `${prose.warningsCount} warnings`}
           </Badge>
-          <Badge tone="neutral">{locale === 'zh-CN' ? `${prose.draftWordCount ?? 0} 字` : `${prose.draftWordCount ?? 0} words`}</Badge>
+          <Badge tone="neutral">{getDraftWordCountLabel(locale, hasDraft, prose.proseDraft, prose.draftWordCount)}</Badge>
           <Badge tone="accent">{revisionLabel}</Badge>
           {revisionQueueCount > 0 ? (
             <Badge tone="accent">{locale === 'zh-CN' ? `修订 ${revisionQueueCount}` : `Queue ${revisionQueueCount}`}</Badge>
           ) : null}
         </div>
         <div className="space-y-1 text-right">
-          <p className="text-sm text-text-main">{prose.statusLabel ?? (locale === 'zh-CN' ? '可进入修订轮次' : 'Ready for revision pass')}</p>
-          <p className="text-sm text-text-muted">{prose.latestDiffSummary ?? (locale === 'zh-CN' ? '尚未请求新的正文修订。' : 'No prose revision requested yet.')}</p>
+          <p className="text-sm text-text-main">
+            {prose.statusLabel ??
+              (hasDraft ? (locale === 'zh-CN' ? '可进入修订轮次' : 'Ready for revision pass') : locale === 'zh-CN' ? '等待正文产物' : 'Waiting for prose artifact')}
+          </p>
+          <p className="text-sm text-text-muted">
+            {prose.latestDiffSummary ??
+              (hasDraft
+                ? locale === 'zh-CN'
+                  ? '尚未请求新的正文修订。'
+                  : 'No prose revision requested yet.'
+                : locale === 'zh-CN'
+                  ? '当前还没有可进入 chapter / book draft 装配的正文。'
+                  : 'No manuscript draft has been materialized for assembly yet.')}
+          </p>
         </div>
       </div>
     </StickyFooter>

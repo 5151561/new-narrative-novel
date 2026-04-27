@@ -424,7 +424,7 @@ describe('ChapterDraftWorkspace', () => {
     expect(screen.getByText('Accepted platform prose now reflects the selected review variant.')).toBeInTheDocument()
     expect(screen.getByText('Edited concourse prose keeps the witness pressure visible after acceptance.')).toBeInTheDocument()
     expect(screen.getAllByText('No prose artifact has been materialized for this scene yet.').length).toBeGreaterThan(0)
-    expect(screen.getByText('Draft not started yet.')).toBeInTheDocument()
+    expect(screen.getByText('Manuscript gap')).toBeInTheDocument()
     expect(screen.getAllByText('Accepted with edit').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Waiting for prose artifact').length).toBeGreaterThan(0)
   })

@@ -158,6 +158,7 @@ describe('BookDraftWorkspace', () => {
     )
 
     expect((await screen.findAllByRole('button', { name: 'Chapter 2 Open Water Signals' })).some((button) => button.getAttribute('aria-pressed') === 'true')).toBe(true)
+    expect(screen.getByText('Selected manuscript destination')).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Open in Draft: Open Water Signals' }).length).toBeGreaterThan(0)
     expect(screen.getByRole('region', { name: 'Book draft bottom dock' })).toBeInTheDocument()
 

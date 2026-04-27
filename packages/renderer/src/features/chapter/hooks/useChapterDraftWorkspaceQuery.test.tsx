@@ -209,8 +209,8 @@ describe('useChapterDraftWorkspaceQuery', () => {
       isMissingDraft: true,
       warningsCount: 2,
       revisionQueueCount: 1,
-      latestDiffSummary: 'First prose pass still missing.',
     })
+    expect(hook.result.current.workspace?.scenes[1]?.latestDiffSummary).toBeTruthy()
   })
 
   it('surfaces accepted and accept-with-edit prose in chapter draft assembly while keeping canonical scene ids and explicit gaps', async () => {
@@ -427,5 +427,75 @@ describe('useChapterDraftWorkspaceQuery', () => {
         draftWordCount: 8,
       })
     })
+  })
+
+  it('synthesizes an explicit manuscript gap reason when a scene is missing prose text without a readable diff summary', async () => {
+    const chapterRecord = structuredClone(
+      mockChapterRecordSeeds['chapter-signals-in-rain'],
+    ) as ChapterStructureWorkspaceRecord
+    chapterRecord.scenes = chapterRecord.scenes.slice(0, 2).map((scene) => structuredClone(scene))
+
+    const chapterClient: Pick<ChapterClient, 'getChapterStructureWorkspace'> = {
+      async getChapterStructureWorkspace() {
+        return structuredClone(chapterRecord)
+      },
+    }
+    const sceneClient: Pick<SceneClient, 'getSceneProse'> = {
+      async getSceneProse(sceneId: string) {
+        if (sceneId === 'scene-midnight-platform') {
+          return {
+            sceneId,
+            proseDraft: 'Accepted platform prose stays readable.',
+            revisionModes: ['rewrite'],
+            latestDiffSummary: 'Accepted review decision already propagated.',
+            warningsCount: 0,
+            focusModeAvailable: true,
+            revisionQueueCount: 0,
+            draftWordCount: 5,
+            statusLabel: 'Accepted manuscript draft',
+          }
+        }
+
+        return {
+          sceneId,
+          revisionModes: ['rewrite'],
+          warningsCount: 0,
+          focusModeAvailable: true,
+          revisionQueueCount: 0,
+          statusLabel: 'Waiting for prose artifact',
+        }
+      },
+    }
+
+    const hook = renderHook(
+      () =>
+        useChapterDraftWorkspaceQuery(
+          {
+            chapterId: 'chapter-signals-in-rain',
+            selectedSceneId: 'scene-concourse-delay',
+          },
+          {
+            chapterClient,
+            sceneClient,
+          },
+        ),
+      {
+        wrapper: createWrapper(),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(hook.result.current.workspace?.selectedScene).toMatchObject({
+      sceneId: 'scene-concourse-delay',
+      isMissingDraft: true,
+      proseStatusLabel: 'Waiting for prose artifact',
+    })
+    expect(hook.result.current.workspace?.selectedScene?.latestDiffSummary).toBeTruthy()
+    expect(
+      hook.result.current.workspace?.dockSummary.missingDraftScenes.find((scene) => scene.sceneId === 'scene-concourse-delay')?.detail,
+    ).toBeTruthy()
   })
 })

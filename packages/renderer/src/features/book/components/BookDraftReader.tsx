@@ -25,11 +25,11 @@ function getWordCountLabel(locale: 'en' | 'zh-CN', count?: number) {
 function getMissingDraftCopy(locale: 'en' | 'zh-CN') {
   return locale === 'zh-CN'
     ? {
-        title: '草稿尚未开始。',
+        title: '正文缺口',
         detail: '保持章节顺序不变，等 scene draft 准备好后再回到这里连续阅读。',
       }
     : {
-        title: 'Draft not started yet.',
+        title: 'Manuscript gap',
         detail: 'Keep the chapter order stable, then return here once the scene draft is ready.',
       }
 }
@@ -44,8 +44,8 @@ export function BookDraftReader({ workspace, onSelectChapter, onOpenChapter }: B
         title={locale === 'zh-CN' ? '书籍手稿' : 'Book manuscript'}
         description={
           locale === 'zh-CN'
-            ? '按书籍顺序连续阅读，同时保留章节边界与安静的缺稿状态。'
-            : 'Read the manuscript in book order while keeping chapter boundaries and quiet missing-draft states.'
+            ? '按书籍顺序连续阅读，并把当前选中章节作为实时手稿落点保留下来。'
+            : 'Read the manuscript in book order while keeping the selected chapter as the current manuscript destination.'
         }
       />
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
@@ -87,6 +87,40 @@ export function BookDraftReader({ workspace, onSelectChapter, onOpenChapter }: B
                   <p className="mt-3 text-sm leading-6 text-text-muted">{chapter.summary}</p>
                 </button>
                 <div className="space-y-4 border-t border-line-soft px-5 py-4">
+                  {active ? (
+                    <div
+                      role="region"
+                      aria-label={locale === 'zh-CN' ? '当前手稿落点' : 'Selected manuscript destination'}
+                      className="rounded-md border border-line-strong bg-surface-1 px-4 py-4"
+                    >
+                      <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
+                        {locale === 'zh-CN' ? '当前手稿落点' : 'Selected manuscript destination'}
+                      </p>
+                      <div className="mt-3 space-y-4">
+                        {chapter.missingDraftCount === 0 && chapter.assembledProseSections.length > 0 ? (
+                          chapter.assembledProseSections.map((section, index) => (
+                            <p key={`${chapter.chapterId}-assembled-${index}`} className="whitespace-pre-wrap text-[15px] leading-7 text-text-main">
+                              {section}
+                            </p>
+                          ))
+                        ) : (
+                          <div className="space-y-3">
+                            <p className="text-sm leading-6 text-text-muted">{missingDraftCopy.detail}</p>
+                            <ul className="space-y-2 text-sm text-text-main">
+                              {chapter.sections
+                                .filter((section) => section.isMissingDraft)
+                                .map((section) => (
+                                  <li key={`${chapter.chapterId}-${section.sceneId}-gap`} className="rounded-md border border-dashed border-line-strong bg-surface-2 px-3 py-3">
+                                    <p className="font-medium">{section.title}</p>
+                                    <p className="mt-1 text-text-muted">{section.latestDiffSummary ?? missingDraftCopy.title}</p>
+                                  </li>
+                                ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
                   {chapter.sections.map((section) => (
                     <article key={section.sceneId} className="space-y-3 rounded-md border border-line-soft bg-surface-2 px-4 py-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">

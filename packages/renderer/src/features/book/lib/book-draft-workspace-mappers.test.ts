@@ -280,6 +280,7 @@ describe('buildBookDraftWorkspaceViewModel', () => {
       selectedChapterId: 'chapter-open-water-signals',
       selectedChapter: {
         chapterId: 'chapter-open-water-signals',
+        assembledProseSections: ['Dawn slip prose now lands the revised harbor exit beat.'],
       },
       draftedChapterCount: 2,
       missingDraftChapterCount: 1,
@@ -308,5 +309,8 @@ describe('buildBookDraftWorkspaceViewModel', () => {
       latestDiffSummary: 'No prose artifact has been materialized for this scene yet.',
       traceReady: false,
     })
+    expect(workspace.chapters[0]?.assembledProseSections).toEqual([
+      'Accepted platform prose now reflects the selected review variant.',
+    ])
   })
 })
