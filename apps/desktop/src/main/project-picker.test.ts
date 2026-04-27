@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -20,63 +20,114 @@ afterEach(async () => {
 })
 
 describe('readOrInitializeProjectSession', () => {
-  it('keeps existing narrative.project.json title metadata while pinning prototype identity to book-signal-arc', async () => {
-    const projectRoot = createTempProjectRoot('project-picker-existing')
-    writeFileSync(path.join(projectRoot, 'narrative.project.json'), JSON.stringify({
-      projectId: 'project-local-demo',
-      schemaVersion: 1,
-      title: 'Local Narrative Project',
-    }))
-
-    await expect(readOrInitializeProjectSession(projectRoot)).resolves.toEqual({
-      projectId: 'book-signal-arc',
-      projectRoot,
-      projectTitle: 'Local Narrative Project',
-    })
-    expect(JSON.parse(readFileSync(path.join(projectRoot, 'narrative.project.json'), 'utf8'))).toEqual({
-      projectId: 'book-signal-arc',
-      schemaVersion: 1,
-      title: 'Local Narrative Project',
-    })
-  })
-
-  it('initializes narrative.project.json with the stable fixture-backed default project id when missing', async () => {
+  it('initializes a v1 manifest with a local project id, store metadata, and bootstrap source when missing', async () => {
     const projectRoot = createTempProjectRoot('project-picker-init')
-    mkdirSync(path.join(projectRoot, '.narrative'))
 
-    const session = await readOrInitializeProjectSession(projectRoot)
-
-    expect(session).toEqual({
-      projectId: 'book-signal-arc',
+    await expect(readOrInitializeProjectSession(projectRoot, {
+      createProjectId: () => 'local-project-alpha',
+      now: () => '2026-04-28T00:00:00.000Z',
+    })).resolves.toEqual({
+      projectId: 'local-project-alpha',
       projectRoot,
       projectTitle: path.basename(projectRoot),
     })
     expect(JSON.parse(readFileSync(path.join(projectRoot, 'narrative.project.json'), 'utf8'))).toEqual({
-      projectId: 'book-signal-arc',
+      bootstrap: {
+        source: 'signal-arc-demo-template-v1',
+      },
+      createdAt: '2026-04-28T00:00:00.000Z',
+      projectId: 'local-project-alpha',
       schemaVersion: 1,
+      store: {
+        artifactDir: '.narrative/artifacts',
+        dataFile: '.narrative/project-store.json',
+        schemaVersion: 1,
+      },
       title: path.basename(projectRoot),
+      updatedAt: '2026-04-28T00:00:00.000Z',
+    })
+    expect(existsSync(path.join(projectRoot, '.narrative'))).toBe(true)
+    expect(existsSync(path.join(projectRoot, '.narrative', 'artifacts'))).toBe(true)
+  })
+
+  it('preserves an existing non-fixture project id and title instead of rewriting them to the prototype fixture id', async () => {
+    const projectRoot = createTempProjectRoot('project-picker-existing')
+    writeFileSync(path.join(projectRoot, 'narrative.project.json'), JSON.stringify({
+      bootstrap: {
+        source: 'signal-arc-demo-template-v1',
+      },
+      createdAt: '2026-04-27T00:00:00.000Z',
+      projectId: 'local-existing-project',
+      schemaVersion: 1,
+      store: {
+        artifactDir: '.narrative/artifacts',
+        dataFile: '.narrative/project-store.json',
+        schemaVersion: 1,
+      },
+      title: 'Existing Local Project',
+      updatedAt: '2026-04-27T00:00:00.000Z',
+    }))
+
+    await expect(readOrInitializeProjectSession(projectRoot, {
+      createProjectId: () => 'local-project-alpha',
+      now: () => '2026-04-28T00:00:00.000Z',
+    })).resolves.toEqual({
+      projectId: 'local-existing-project',
+      projectRoot,
+      projectTitle: 'Existing Local Project',
+    })
+    expect(JSON.parse(readFileSync(path.join(projectRoot, 'narrative.project.json'), 'utf8'))).toEqual({
+      bootstrap: {
+        source: 'signal-arc-demo-template-v1',
+      },
+      createdAt: '2026-04-27T00:00:00.000Z',
+      projectId: 'local-existing-project',
+      schemaVersion: 1,
+      store: {
+        artifactDir: '.narrative/artifacts',
+        dataFile: '.narrative/project-store.json',
+        schemaVersion: 1,
+      },
+      title: 'Existing Local Project',
+      updatedAt: '2026-04-27T00:00:00.000Z',
     })
   })
 
-  it('backfills an omitted projectId to book-signal-arc without widening the bootstrap seed contract', async () => {
+  it('backfills missing manifest fields while preserving the current project identity and title', async () => {
     const projectRoot = createTempProjectRoot('project-picker-backfill')
     writeFileSync(path.join(projectRoot, 'narrative.project.json'), JSON.stringify({
+      createdAt: '2026-04-27T00:00:00.000Z',
+      projectId: 'local-project-beta',
       schemaVersion: 1,
       title: 'Prototype Folder',
     }))
 
-    const session = await readOrInitializeProjectSession(projectRoot)
+    const session = await readOrInitializeProjectSession(projectRoot, {
+      now: () => '2026-04-28T00:00:00.000Z',
+    })
 
     expect(session).toEqual({
-      projectId: 'book-signal-arc',
+      projectId: 'local-project-beta',
       projectRoot,
       projectTitle: 'Prototype Folder',
     })
     expect(JSON.parse(readFileSync(path.join(projectRoot, 'narrative.project.json'), 'utf8'))).toEqual({
-      projectId: 'book-signal-arc',
+      bootstrap: {
+        source: 'signal-arc-demo-template-v1',
+      },
+      createdAt: '2026-04-27T00:00:00.000Z',
+      projectId: 'local-project-beta',
       schemaVersion: 1,
+      store: {
+        artifactDir: '.narrative/artifacts',
+        dataFile: '.narrative/project-store.json',
+        schemaVersion: 1,
+      },
       title: 'Prototype Folder',
+      updatedAt: '2026-04-28T00:00:00.000Z',
     })
+    expect(existsSync(path.join(projectRoot, '.narrative'))).toBe(true)
+    expect(existsSync(path.join(projectRoot, '.narrative', 'artifacts'))).toBe(true)
   })
 })
 
@@ -84,9 +135,19 @@ describe('openProjectWithDialog', () => {
   it('uses a native directory dialog before reading project metadata', async () => {
     const projectRoot = createTempProjectRoot('project-picker-dialog')
     writeFileSync(path.join(projectRoot, 'narrative.project.json'), JSON.stringify({
-      projectId: 'book-signal-arc',
+      bootstrap: {
+        source: 'signal-arc-demo-template-v1',
+      },
+      createdAt: '2026-04-28T00:00:00.000Z',
+      projectId: 'local-project-dialog',
       schemaVersion: 1,
+      store: {
+        artifactDir: '.narrative/artifacts',
+        dataFile: '.narrative/project-store.json',
+        schemaVersion: 1,
+      },
       title: 'Opened Through Dialog',
+      updatedAt: '2026-04-28T00:00:00.000Z',
     }))
     const showOpenDialog = vi.fn(async () => ({
       canceled: false,
@@ -100,7 +161,7 @@ describe('openProjectWithDialog', () => {
     })
 
     expect(session).toEqual({
-      projectId: 'book-signal-arc',
+      projectId: 'local-project-dialog',
       projectRoot,
       projectTitle: 'Opened Through Dialog',
     })

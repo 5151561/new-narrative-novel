@@ -1,9 +1,11 @@
+import path from 'node:path'
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { LocalApiSupervisor, type LocalApiChildProcess, type LocalApiSpawnConfig } from './local-api-supervisor.js'
+import { resolveWorkspaceRoot } from './runtime-config.js'
 
 class FakeLocalApiChild extends EventEmitter implements LocalApiChildProcess {
   stdout = new PassThrough()
@@ -51,9 +53,9 @@ describe('LocalApiSupervisor', () => {
       fetch,
       findAvailablePort: async () => 4888,
       getCurrentProject: () => ({
-        projectId: 'book-signal-arc',
+        projectId: 'local-project-alpha',
         projectRoot: '/tmp/local-project',
-        projectTitle: 'Desktop Local Prototype',
+        projectTitle: 'Desktop Local Project',
       }),
       sleep: async () => {},
       spawnLocalApi: (config) => {
@@ -70,21 +72,52 @@ describe('LocalApiSupervisor', () => {
       apiBaseUrl: 'http://127.0.0.1:4888/api',
       apiHealthUrl: 'http://127.0.0.1:4888/api/health',
       port: 4888,
-      projectId: 'book-signal-arc',
-      projectTitle: 'Desktop Local Prototype',
+      projectId: 'local-project-alpha',
+      projectTitle: 'Desktop Local Project',
       runtimeMode: 'desktop-local',
     })
     expect(spawnConfigs).toHaveLength(1)
     expect(spawnConfigs[0]?.env).toMatchObject({
-      NARRATIVE_PROJECT_ID: 'book-signal-arc',
+      NARRATIVE_PROJECT_ARTIFACT_DIR: '/tmp/local-project/.narrative/artifacts',
+      NARRATIVE_PROJECT_ID: 'local-project-alpha',
       NARRATIVE_PROJECT_ROOT: '/tmp/local-project',
-      NARRATIVE_PROJECT_STATE_FILE: '/tmp/local-project/.narrative/prototype-state.json',
-      NARRATIVE_PROJECT_TITLE: 'Desktop Local Prototype',
+      NARRATIVE_PROJECT_STORE_FILE: '/tmp/local-project/.narrative/project-store.json',
+      NARRATIVE_PROJECT_TITLE: 'Desktop Local Project',
       NARRATIVE_RUNTIME: 'desktop-local',
       PORT: '4888',
     })
     expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:4888/api/health', { signal: expect.any(AbortSignal) })
     expect(supervisor.getSnapshot().logs).toContain('[stdout] api ready')
+  })
+
+  it('uses a non-fixture default current project identity when no override is provided', async () => {
+    const child = new FakeLocalApiChild()
+    const spawnConfigs: LocalApiSpawnConfig[] = []
+    const workspaceRoot = resolveWorkspaceRoot()
+    const expectedTitle = path.basename(workspaceRoot)
+    const expectedProjectId = `local-project-${expectedTitle}`
+    const supervisor = new LocalApiSupervisor({
+      fetch: async () => okResponse(),
+      findAvailablePort: async () => 4888,
+      sleep: async () => {},
+      spawnLocalApi: (config) => {
+        spawnConfigs.push(config)
+        return child
+      },
+    })
+
+    const snapshot = await supervisor.start()
+
+    expect(snapshot.runtimeConfig).toMatchObject({
+      projectId: expectedProjectId,
+      projectTitle: expectedTitle,
+    })
+    expect(spawnConfigs[0]?.env).toMatchObject({
+      NARRATIVE_PROJECT_ID: expectedProjectId,
+      NARRATIVE_PROJECT_ROOT: workspaceRoot,
+      NARRATIVE_PROJECT_TITLE: expectedTitle,
+    })
+    expect(spawnConfigs[0]?.env.NARRATIVE_PROJECT_ID).not.toBe('book-signal-arc')
   })
 
   it('marks startup failed when health never becomes ready', async () => {
@@ -202,6 +235,11 @@ describe('LocalApiSupervisor', () => {
     const supervisor = new LocalApiSupervisor({
       fetch: vi.fn(() => health.promise),
       findAvailablePort,
+      getCurrentProject: () => ({
+        projectId: 'local-project-alpha',
+        projectRoot: '/tmp/local-project',
+        projectTitle: 'Desktop Local Project',
+      }),
       sleep: async () => {},
       spawnLocalApi,
     })
@@ -216,8 +254,8 @@ describe('LocalApiSupervisor', () => {
     await expect(secondStart).resolves.toMatchObject({
       runtimeConfig: {
         apiBaseUrl: 'http://127.0.0.1:4888/api',
-        projectId: 'book-signal-arc',
-        projectTitle: 'book-signal-arc',
+        projectId: 'local-project-alpha',
+        projectTitle: 'Desktop Local Project',
       },
       status: 'ready',
     })
@@ -231,6 +269,11 @@ describe('LocalApiSupervisor', () => {
     const supervisor = new LocalApiSupervisor({
       fetch: vi.fn(() => health.promise),
       findAvailablePort: async () => 4888,
+      getCurrentProject: () => ({
+        projectId: 'local-project-alpha',
+        projectRoot: '/tmp/local-project',
+        projectTitle: 'Desktop Local Project',
+      }),
       sleep: async () => {},
       spawnLocalApi: () => child,
     })
@@ -247,8 +290,8 @@ describe('LocalApiSupervisor', () => {
     await expect(startPromise).resolves.toMatchObject({
       runtimeConfig: {
         apiBaseUrl: 'http://127.0.0.1:4888/api',
-        projectId: 'book-signal-arc',
-        projectTitle: 'book-signal-arc',
+        projectId: 'local-project-alpha',
+        projectTitle: 'Desktop Local Project',
       },
       status: 'ready',
     })
@@ -262,6 +305,11 @@ describe('LocalApiSupervisor', () => {
     const supervisor = new LocalApiSupervisor({
       fetch: vi.fn(async () => (healthOk ? okResponse() : ({ ok: false, status: 503 } as Response))),
       findAvailablePort: async () => 4888,
+      getCurrentProject: () => ({
+        projectId: 'local-project-alpha',
+        projectRoot: '/tmp/local-project',
+        projectTitle: 'Desktop Local Project',
+      }),
       healthPollIntervalMs: 1,
       healthTimeoutMs: 2,
       sleep: async () => {},
@@ -288,8 +336,8 @@ describe('LocalApiSupervisor', () => {
         apiBaseUrl: 'http://127.0.0.1:4888/api',
         apiHealthUrl: 'http://127.0.0.1:4888/api/health',
         port: 4888,
-        projectId: 'book-signal-arc',
-        projectTitle: 'book-signal-arc',
+        projectId: 'local-project-alpha',
+        projectTitle: 'Desktop Local Project',
         runtimeMode: 'desktop-local',
       },
       status: 'ready',

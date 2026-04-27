@@ -1,10 +1,12 @@
+import path from 'node:path'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import { ProjectStore, type SelectedProjectSession } from './project-store.js'
 
 function createSession(projectRoot: string, title = 'Local Project'): SelectedProjectSession {
   return {
-    projectId: 'book-signal-arc',
+    projectId: `local-project-${path.basename(projectRoot)}`,
     projectRoot,
     projectTitle: title,
   }

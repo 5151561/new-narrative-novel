@@ -25,7 +25,7 @@ describe('createNarrativeDesktopApi', () => {
 
       if (channel === DESKTOP_API_CHANNELS.getCurrentProject) {
         return {
-          projectId: 'book-signal-arc',
+          projectId: 'local-project-alpha',
           projectTitle: 'Selected Project',
         } as T
       }
@@ -60,7 +60,7 @@ describe('createNarrativeDesktopApi', () => {
 
     await expect(api.getAppVersion()).resolves.toBe('0.1.0')
     await expect(api.getCurrentProject()).resolves.toEqual({
-      projectId: 'book-signal-arc',
+      projectId: 'local-project-alpha',
       projectTitle: 'Selected Project',
     })
     await expect(api.getPlatform()).resolves.toBe('darwin')

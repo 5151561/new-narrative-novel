@@ -1,4 +1,5 @@
 import { spawn, type SpawnOptionsWithoutStdio } from 'node:child_process'
+import path from 'node:path'
 import type { Readable } from 'node:stream'
 
 import { findAvailablePort } from './port-utils.js'
@@ -80,11 +81,16 @@ export class LocalApiSupervisor {
 
   constructor({
     findAvailablePort: findPort = () => findAvailablePort(),
-    getCurrentProject = () => ({
-      projectId: 'book-signal-arc',
-      projectRoot: resolveWorkspaceRoot(),
-      projectTitle: 'book-signal-arc',
-    }),
+    getCurrentProject = () => {
+      const projectRoot = resolveWorkspaceRoot()
+      const projectTitle = path.basename(projectRoot)
+
+      return {
+        projectId: `local-project-${projectTitle}`,
+        projectRoot,
+        projectTitle,
+      }
+    },
     spawnLocalApi = spawnLocalApiProcess,
     fetch: fetchImpl = globalThis.fetch.bind(globalThis),
     sleep = defaultSleep,

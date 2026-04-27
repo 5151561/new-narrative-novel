@@ -25,7 +25,7 @@ describe('RecentProjectsStore', () => {
     const store = new RecentProjectsStore({ userDataPath })
 
     await store.add({
-      projectId: 'book-signal-arc',
+      projectId: 'local-project-alpha',
       projectRoot: '/tmp/workbench-alpha',
       projectTitle: 'Workbench Alpha',
     })
@@ -36,7 +36,7 @@ describe('RecentProjectsStore', () => {
 
     expect(persisted).toEqual({
       projects: [{
-        projectId: 'book-signal-arc',
+        projectId: 'local-project-alpha',
         projectRoot: '/tmp/workbench-alpha',
         projectTitle: 'Workbench Alpha',
       }],
@@ -48,17 +48,17 @@ describe('RecentProjectsStore', () => {
     const store = new RecentProjectsStore({ userDataPath })
 
     await store.add({
-      projectId: 'book-signal-arc',
+      projectId: 'local-project-alpha',
       projectRoot: '/tmp/workbench-alpha',
       projectTitle: 'Workbench Alpha',
     })
     await store.add({
-      projectId: 'book-signal-arc',
+      projectId: 'local-project-beta',
       projectRoot: '/tmp/workbench-beta',
       projectTitle: 'Workbench Beta',
     })
     await store.add({
-      projectId: 'book-signal-arc',
+      projectId: 'local-project-alpha',
       projectRoot: '/tmp/workbench-alpha',
       projectTitle: 'Workbench Alpha',
     })
@@ -67,12 +67,12 @@ describe('RecentProjectsStore', () => {
 
     await expect(restored.list()).resolves.toEqual([
       {
-        projectId: 'book-signal-arc',
+        projectId: 'local-project-alpha',
         projectRoot: '/tmp/workbench-alpha',
         projectTitle: 'Workbench Alpha',
       },
       {
-        projectId: 'book-signal-arc',
+        projectId: 'local-project-beta',
         projectRoot: '/tmp/workbench-beta',
         projectTitle: 'Workbench Beta',
       },

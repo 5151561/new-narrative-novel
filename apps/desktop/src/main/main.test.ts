@@ -16,17 +16,17 @@ describe('desktop main bridge registration', () => {
     const projectStore = {
       forgetProjectRoot: vi.fn(async () => []),
       getCurrentProject: vi.fn(() => ({
-        projectId: 'book-signal-arc',
+        projectId: 'local-project-alpha',
         projectRoot: '/tmp/local-project',
-        projectTitle: 'Desktop Local Prototype',
+        projectTitle: 'Desktop Local Project',
       })),
       getRecentProjects: vi.fn(() => []),
       openProject: vi.fn(async () => null),
       restoreLastProject: vi.fn(async () => null),
       selectProjectRoot: vi.fn(async () => ({
-        projectId: 'book-signal-arc',
+        projectId: 'local-project-alpha',
         projectRoot: '/tmp/local-project',
-        projectTitle: 'Desktop Local Prototype',
+        projectTitle: 'Desktop Local Project',
       })),
     }
     const workerSnapshot = {
@@ -55,8 +55,8 @@ describe('desktop main bridge registration', () => {
           apiBaseUrl: 'http://127.0.0.1:4888/api',
           apiHealthUrl: 'http://127.0.0.1:4888/api/health',
           port: 4888,
-          projectId: 'book-signal-arc',
-          projectTitle: 'Desktop Local Prototype',
+          projectId: 'local-project-alpha',
+          projectTitle: 'Desktop Local Project',
           runtimeMode: 'desktop-local' as const,
         },
         status: 'ready' as const,
@@ -68,8 +68,8 @@ describe('desktop main bridge registration', () => {
           apiBaseUrl: 'http://127.0.0.1:4888/api',
           apiHealthUrl: 'http://127.0.0.1:4888/api/health',
           port: 4888,
-          projectId: 'book-signal-arc',
-          projectTitle: 'Desktop Local Prototype',
+          projectId: 'local-project-alpha',
+          projectTitle: 'Desktop Local Project',
           runtimeMode: 'desktop-local' as const,
         },
         status: 'ready' as const,
@@ -81,8 +81,8 @@ describe('desktop main bridge registration', () => {
           apiBaseUrl: 'http://127.0.0.1:4888/api',
           apiHealthUrl: 'http://127.0.0.1:4888/api/health',
           port: 4888,
-          projectId: 'book-signal-arc',
-          projectTitle: 'Desktop Local Prototype',
+          projectId: 'local-project-alpha',
+          projectTitle: 'Desktop Local Project',
           runtimeMode: 'desktop-local' as const,
         },
         status: 'ready' as const,
@@ -141,15 +141,15 @@ describe('desktop main bridge registration', () => {
     expect(registrations.has(DESKTOP_API_CHANNELS.getRuntimeConfig)).toBe(true)
 
     expect(registrations.get(DESKTOP_API_CHANNELS.getCurrentProject)?.()).toEqual({
-      projectId: 'book-signal-arc',
-      projectTitle: 'Desktop Local Prototype',
+      projectId: 'local-project-alpha',
+      projectTitle: 'Desktop Local Project',
     })
     await expect(registrations.get(DESKTOP_API_CHANNELS.getRuntimeConfig)?.()).resolves.toEqual({
       apiBaseUrl: 'http://127.0.0.1:4888/api',
       apiHealthUrl: 'http://127.0.0.1:4888/api/health',
       port: 4888,
-      projectId: 'book-signal-arc',
-      projectTitle: 'Desktop Local Prototype',
+      projectId: 'local-project-alpha',
+      projectTitle: 'Desktop Local Project',
       runtimeMode: 'desktop-local',
     })
     expect(registrations.get(DESKTOP_API_CHANNELS.getWorkerStatus)?.()).toEqual({

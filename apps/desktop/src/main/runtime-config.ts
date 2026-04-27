@@ -77,19 +77,22 @@ export function createLocalApiProcessConfig({
   env?: NodeJS.ProcessEnv
 }): LocalApiProcessConfig {
   const apiPackageRoot = path.resolve(workspaceRoot, 'packages/api')
-  const projectStateFilePath = path.resolve(currentProject.projectRoot, '.narrative', 'prototype-state.json')
+  const projectStoreFilePath = path.resolve(currentProject.projectRoot, '.narrative', 'project-store.json')
+  const projectArtifactDirPath = path.resolve(currentProject.projectRoot, '.narrative', 'artifacts')
   const tsxExecutable = path.resolve(apiPackageRoot, 'node_modules/.bin', process.platform === 'win32' ? 'tsx.cmd' : 'tsx')
+  const { NARRATIVE_PROJECT_STATE_FILE: _legacyProjectStateFile, ...inheritedEnv } = env
 
   return {
     args: ['src/server.ts'],
     command: tsxExecutable,
     cwd: apiPackageRoot,
     env: {
-      ...env,
+      ...inheritedEnv,
       HOST: '127.0.0.1',
+      NARRATIVE_PROJECT_ARTIFACT_DIR: projectArtifactDirPath,
       NARRATIVE_PROJECT_ID: currentProject.projectId,
       NARRATIVE_PROJECT_ROOT: currentProject.projectRoot,
-      NARRATIVE_PROJECT_STATE_FILE: projectStateFilePath,
+      NARRATIVE_PROJECT_STORE_FILE: projectStoreFilePath,
       NARRATIVE_PROJECT_TITLE: currentProject.projectTitle,
       NARRATIVE_RUNTIME: 'desktop-local',
       PORT: String(port),
