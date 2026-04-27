@@ -5,6 +5,7 @@ import { sceneProseWriterOpenAiOutputSchema } from './sceneProseWriterOutputSche
 
 function createRequest() {
   return {
+    task: 'draft' as const,
     sceneId: 'scene-midnight-platform',
     decision: 'accept' as const,
     acceptedProposalIds: ['proposal-set-scene-midnight-platform-run-002-proposal-001'],

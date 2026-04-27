@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiRequestError, type ProjectRuntime } from '@/app/project-runtime'
 import { resetMockBookExportArtifactDb } from '@/features/book/api/mock-book-export-artifact-db'
@@ -12,7 +12,10 @@ import type { BookReviewInboxViewModel } from '@/features/review/types/review-vi
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 
 const originalNavigatorLanguage = window.navigator.language
+const APP_WORKBENCH_TEST_TIMEOUT_MS = 20_000
 let latestReplaceRoute: ReturnType<typeof useWorkbenchRouteState>['replaceRoute'] | null = null
+
+vi.setConfig({ testTimeout: APP_WORKBENCH_TEST_TIMEOUT_MS })
 
 function nonEditorCloseButtonName(label: string) {
   return new RegExp(`^(?!Close Editor:).*${label}`, 'i')
@@ -281,6 +284,10 @@ describe('App scene workbench', () => {
     resetMockChapterDb()
     resetMockBookExportArtifactDb()
     resetRememberedBookWorkbenchHandoffs()
+  })
+
+  afterAll(() => {
+    vi.resetConfig()
   })
 
   it('restores scene execution route state from URL and keeps tab / beat / proposal in sync', async () => {

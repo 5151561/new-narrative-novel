@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type PropsWithChildren } from 'react'
 import { vi } from 'vitest'
@@ -452,7 +452,7 @@ describe('SceneProseContainer', () => {
     expect(requests.some((request) => request.method === 'POST' && request.path.endsWith('/prose/revision'))).toBe(false)
   })
 
-  it('trims revision briefs before submit and blocks overlength requests locally', async () => {
+  it('trims revision briefs before submit and blocks overlength revision requests locally', async () => {
     const user = userEvent.setup()
     const { requests, runtime } = createFakeApiRuntime()
     const Wrapper = wrapperFactory(runtime)
@@ -464,8 +464,11 @@ describe('SceneProseContainer', () => {
 
     expect(await screen.findByText('Current manuscript draft')).toBeInTheDocument()
 
-    await user.clear(screen.getByLabelText('Revision brief'))
-    await user.type(screen.getByLabelText('Revision brief'), '  Tighten the witness pressure.  ')
+    const revisionBriefInput = screen.getByLabelText('Revision brief')
+
+    fireEvent.change(revisionBriefInput, {
+      target: { value: '  Tighten the witness pressure.  ' },
+    })
     await user.click(screen.getByRole('button', { name: 'Request Revision' }))
 
     expect(requests).toContainEqual({
@@ -477,12 +480,16 @@ describe('SceneProseContainer', () => {
       },
     })
 
-    await user.clear(screen.getByLabelText('Revision brief'))
-    await user.type(screen.getByLabelText('Revision brief'), overlongBrief)
+    fireEvent.change(revisionBriefInput, {
+      target: { value: overlongBrief },
+    })
 
     const requestButton = screen.getByRole('button', { name: 'Request Revision' })
     expect(requestButton).toBeDisabled()
     expect(screen.getByText('Revision brief must be 280 characters or fewer.')).toBeInTheDocument()
+    expect(
+      requests.filter((request) => request.method === 'POST' && request.path.endsWith('/prose/revision')),
+    ).toHaveLength(1)
   })
 
   it('keeps revision mode and brief local while current prose stays visible until accept swaps in the candidate', async () => {

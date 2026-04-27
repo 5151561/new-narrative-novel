@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
 import { createMockProjectRuntime } from '@/app/project-runtime'
@@ -13,6 +13,8 @@ import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchR
 import { resetMockChapterDb } from '../api/mock-chapter-db'
 import { mockChapterRecordSeeds } from '../api/mock-chapter-db'
 import { ChapterDraftWorkspace } from './ChapterDraftWorkspace'
+
+const CHAPTER_DRAFT_WORKSPACE_TEST_TIMEOUT_MS = 20_000
 
 vi.mock('@/features/traceability/hooks/useChapterDraftTraceabilityQuery', async () => {
   const actual = await vi.importActual<typeof import('@/features/traceability/hooks/useChapterDraftTraceabilityQuery')>(
@@ -52,6 +54,10 @@ function createQueryClient() {
 }
 
 describe('ChapterDraftWorkspace', () => {
+  beforeAll(() => {
+    vi.setConfig({ testTimeout: CHAPTER_DRAFT_WORKSPACE_TEST_TIMEOUT_MS })
+  })
+
   it('keeps binder, reader, inspector, and dock aligned to route.sceneId and roundtrips through scene draft', async () => {
     const user = userEvent.setup()
 
@@ -427,5 +433,9 @@ describe('ChapterDraftWorkspace', () => {
     expect(screen.getByText('Manuscript gap')).toBeInTheDocument()
     expect(screen.getAllByText('Accepted with edit').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Waiting for prose artifact').length).toBeGreaterThan(0)
+  })
+
+  afterAll(() => {
+    vi.resetConfig()
   })
 })

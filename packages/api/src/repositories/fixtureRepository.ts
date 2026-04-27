@@ -322,6 +322,37 @@ function trimProseRevisionInstruction(instruction?: string) {
   return value ? value : undefined
 }
 
+function isRevisionSourceRunStateCandidate(
+  value: unknown,
+): value is {
+  run: RunRecord
+  artifacts: Array<{ kind: string; id: string }>
+  sequence: number
+} {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false
+  }
+
+  const candidate = value as {
+    run?: Partial<RunRecord>
+    artifacts?: unknown
+    sequence?: unknown
+  }
+
+  return typeof candidate.sequence === 'number'
+    && typeof candidate.run?.id === 'string'
+    && typeof candidate.run.scope === 'string'
+    && typeof candidate.run.scopeId === 'string'
+    && Array.isArray(candidate.artifacts)
+    && candidate.artifacts.every((artifact) => (
+      typeof artifact === 'object'
+      && artifact !== null
+      && !Array.isArray(artifact)
+      && typeof (artifact as { kind?: unknown }).kind === 'string'
+      && typeof (artifact as { id?: unknown }).id === 'string'
+    ))
+}
+
 export interface FixtureRepository {
   whenReady(): Promise<void>
   getProjectRuntimeInfo(projectId: string): ProjectRuntimeInfoRecord
@@ -700,18 +731,8 @@ export function createFixtureRepository(options: {
     }
 
     const projectRunState = runStore.exportProjectState(projectId)
-    const matchedRunState = projectRunState?.runStates
-      .filter((candidate): candidate is {
-        run: RunRecord
-        artifacts: Array<{ kind: string; id: string }>
-        sequence: number
-      } => (
-        typeof candidate === 'object'
-        && candidate !== null
-        && 'run' in candidate
-        && 'artifacts' in candidate
-        && Array.isArray((candidate as { artifacts?: unknown }).artifacts)
-      ))
+    const matchedRunState = ((projectRunState?.runStates ?? []) as unknown[])
+      .filter(isRevisionSourceRunStateCandidate)
       .find((candidate) => (
         candidate.run.scope === 'scene'
         && candidate.run.scopeId === sceneId

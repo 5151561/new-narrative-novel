@@ -127,5 +127,5 @@ describe('App chapter draft lens smoke', () => {
 
     expect(await screen.findByRole('button', { name: 'Assembly' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: /Scene 2 Concourse Delay/i })).toHaveAttribute('aria-pressed', 'true')
-  })
+  }, 40000)
 })

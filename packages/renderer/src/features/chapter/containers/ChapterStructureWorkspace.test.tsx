@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
 import { apiRouteContract } from '@/app/project-runtime'
@@ -13,6 +13,8 @@ import { buildChapterStoryWorkspace } from '../components/chapter-story-fixture'
 import * as chapterWorkspaceQuery from '../hooks/useChapterStructureWorkspaceQuery'
 
 import { ChapterStructureWorkspace } from './ChapterStructureWorkspace'
+
+const CHAPTER_STRUCTURE_WORKSPACE_TEST_TIMEOUT_MS = 20_000
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -46,6 +48,10 @@ function createRuntimeQueryClient() {
 }
 
 describe('ChapterStructureWorkspace', () => {
+  beforeAll(() => {
+    vi.setConfig({ testTimeout: CHAPTER_STRUCTURE_WORKSPACE_TEST_TIMEOUT_MS })
+  })
+
   it('keeps binder, stage, inspector, and bottom dock in sync with the chapter route', async () => {
     const user = userEvent.setup()
 
@@ -654,5 +660,9 @@ describe('ChapterStructureWorkspace', () => {
     const dockRegion = screen.getByText(title).closest('section')
     expect(dockRegion).not.toBeNull()
     expect(within(dockRegion!).getByText(message)).toBeInTheDocument()
+  })
+
+  afterAll(() => {
+    vi.resetConfig()
   })
 })

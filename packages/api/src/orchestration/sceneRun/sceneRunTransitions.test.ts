@@ -24,6 +24,7 @@ describe('applySceneRunReviewDecisionTransition', () => {
         en: 'Midnight Platform settles into view before the next reveal turns visible.',
         'zh-CN': 'Midnight Platform 先稳稳落入视野，随后下一段揭示才开始显形。',
       },
+      diffSummary: 'Expanded the accepted run output into prose while preserving canon provenance.',
       wordCount: 7,
       relatedAssets: [
         {
