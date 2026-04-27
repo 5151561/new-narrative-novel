@@ -1,9 +1,12 @@
+import { resolveDefaultProjectStateFilePath } from './repositories/project-state-persistence.js'
+
 export interface ApiServerConfig {
   host: string
   port: number
   apiBasePath: string
   apiBaseUrl: string
   corsOrigin: string | true
+  projectStateFilePath: string
 }
 
 function readPort(name: string, fallback: number) {
@@ -32,6 +35,7 @@ export function getApiServerConfig(): ApiServerConfig {
   const corsOrigin = process.env.CORS_ORIGIN === undefined || process.env.CORS_ORIGIN === 'true'
     ? true
     : process.env.CORS_ORIGIN
+  const projectStateFilePath = process.env.NARRATIVE_PROJECT_STATE_FILE ?? resolveDefaultProjectStateFilePath()
 
   return {
     host,
@@ -39,5 +43,6 @@ export function getApiServerConfig(): ApiServerConfig {
     apiBasePath,
     apiBaseUrl,
     corsOrigin,
+    projectStateFilePath,
   }
 }
