@@ -26,6 +26,7 @@ interface ProjectRuntimeHealthErrorState {
 export function useProjectRuntimeHealthQuery(): ProjectRuntimeHealthQueryResult {
   const runtime = useProjectRuntime()
   const source = inferProjectRuntimeSource(runtime)
+  const fallbackProjectTitle = getRuntimeProjectTitle(runtime)
   const query = useQuery<ProjectRuntimeInfoRecord, unknown>({
     queryKey: ['project-runtime', runtime.projectId, 'health'],
     queryFn: () => runtime.runtimeInfoClient.getProjectRuntimeInfo(),
@@ -36,6 +37,7 @@ export function useProjectRuntimeHealthQuery(): ProjectRuntimeHealthQueryResult 
     const errorState = query.isPending ? null : classifyProjectRuntimeHealthError(error, source, runtime.projectId)
     const info = query.data ?? createFallbackProjectRuntimeInfo({
       projectId: runtime.projectId,
+      projectTitle: fallbackProjectTitle,
       source,
       status: query.isPending ? 'checking' : errorState?.status ?? 'unknown',
       summary: query.isPending ? 'Checking project runtime health.' : errorState?.summary ?? 'Project runtime health check failed.',
@@ -47,7 +49,7 @@ export function useProjectRuntimeHealthQuery(): ProjectRuntimeHealthQueryResult 
       error,
       refetch: query.refetch,
     }
-  }, [query.data, query.error, query.isFetching, query.isPending, query.refetch, runtime, source])
+  }, [fallbackProjectTitle, query.data, query.error, query.isFetching, query.isPending, query.refetch, runtime, source])
 }
 
 function inferProjectRuntimeSource(runtime: { persistence?: unknown }): ProjectRuntimeSource {
@@ -56,22 +58,29 @@ function inferProjectRuntimeSource(runtime: { persistence?: unknown }): ProjectR
 
 function createFallbackProjectRuntimeInfo({
   projectId,
+  projectTitle,
   source,
   status,
   summary,
 }: {
   projectId: string
+  projectTitle: string
   source: ProjectRuntimeSource
   status: ProjectRuntimeHealthStatus
   summary: string
 }) {
   return createProjectRuntimeInfoRecord({
     projectId,
-    projectTitle: projectId,
+    projectTitle,
     source,
     status,
     summary,
   })
+}
+
+function getRuntimeProjectTitle(runtime: { projectId: string; projectTitle?: string }) {
+  const projectTitle = runtime.projectTitle?.trim()
+  return projectTitle && projectTitle.length > 0 ? projectTitle : runtime.projectId
 }
 
 function classifyProjectRuntimeHealthError(

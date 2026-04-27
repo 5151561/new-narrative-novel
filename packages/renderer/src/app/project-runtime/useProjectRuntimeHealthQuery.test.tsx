@@ -193,6 +193,66 @@ describe('useProjectRuntimeHealthQuery', () => {
     expect(hook.result.current.error).toBe(error)
   })
 
+  it('preserves the provider project title while runtime health is still checking and after an unavailable fallback', async () => {
+    const runtimeInfo = createDeferredPromise<{
+      projectId: string
+      projectTitle: string
+      source: 'api'
+      status: 'healthy'
+      summary: string
+      checkedAtLabel: string
+      capabilities: {
+        read: boolean
+        write: boolean
+        runEvents: boolean
+        runEventPolling: boolean
+        runEventStream: boolean
+        reviewDecisions: boolean
+        contextPacketRefs: boolean
+        proposalSetRefs: boolean
+      }
+    }>()
+    const runtime = {
+      ...createApiProjectRuntime({
+        projectId: 'desktop-project-signal-arc',
+        transport: {
+          requestJson: vi.fn(async ({ path, method }) => {
+            if (method === 'GET' && path === '/api/projects/desktop-project-signal-arc/runtime-info') {
+              return runtimeInfo.promise
+            }
+
+            throw new Error(`Unexpected transport request: ${method} ${path}`)
+          }),
+        },
+      }),
+      projectTitle: 'Signal Arc Desktop',
+    }
+    const wrapper = createProjectRuntimeTestWrapper({ runtime })
+    const hook = renderHook(() => useProjectRuntimeHealthQuery(), { wrapper })
+
+    expect(hook.result.current.info).toMatchObject({
+      projectId: 'desktop-project-signal-arc',
+      projectTitle: 'Signal Arc Desktop',
+      source: 'api',
+      status: 'checking',
+      summary: 'Checking project runtime health.',
+    })
+
+    runtimeInfo.reject(new ApiRequestError({ status: 503, message: 'runtime-unavailable' }))
+
+    await waitFor(() => {
+      expect(hook.result.current.isChecking).toBe(false)
+    })
+
+    expect(hook.result.current.info).toMatchObject({
+      projectId: 'desktop-project-signal-arc',
+      projectTitle: 'Signal Arc Desktop',
+      source: 'api',
+      status: 'unavailable',
+      summary: 'API demo runtime is unavailable. Start the fixture API or reopen the desktop-local demo, then retry.',
+    })
+  })
+
   it('guides the API-backed demo path when runtime-info returns not_found', async () => {
     const apiError = new ApiRequestError({
       status: 404,

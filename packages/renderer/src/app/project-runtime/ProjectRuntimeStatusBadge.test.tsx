@@ -40,6 +40,7 @@ describe('ProjectRuntimeStatusBadge', () => {
   it('renders healthy mock runtime status', () => {
     renderBadge()
 
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Signal Arc')
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Mock')
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Healthy')
     expect(screen.queryByText('Read-only')).not.toBeInTheDocument()
@@ -60,6 +61,7 @@ describe('ProjectRuntimeStatusBadge', () => {
       }),
     })
 
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Signal Arc')
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('API')
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Healthy')
   })
@@ -90,10 +92,28 @@ describe('ProjectRuntimeStatusBadge', () => {
   it('shows checking while the health query is in flight', () => {
     renderBadge({ isChecking: true })
 
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Signal Arc')
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Checking')
     expect(screen.queryByText('Read-only')).not.toBeInTheDocument()
     expect(screen.queryByText('No run events')).not.toBeInTheDocument()
     expect(screen.queryByText('No review decisions')).not.toBeInTheDocument()
+  })
+
+  it('falls back to the project id when no project title is available', () => {
+    renderBadge({
+      info: createProjectRuntimeInfoRecord({
+        projectId: 'project-id-only',
+        source: 'api',
+        status: 'healthy',
+        summary: 'Connected to runtime gateway.',
+        capabilities: {
+          read: true,
+          write: true,
+        },
+      }),
+    })
+
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('project-id-only')
   })
 
   it('shows retry for unavailable runtime status', async () => {
@@ -117,6 +137,7 @@ describe('ProjectRuntimeStatusBadge', () => {
 
     await user.click(screen.getByRole('button', { name: 'Retry runtime check' }))
 
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Signal Arc')
     expect(screen.queryByText('Read-only')).not.toBeInTheDocument()
     expect(screen.queryByText('No run events')).not.toBeInTheDocument()
     expect(screen.queryByText('No review decisions')).not.toBeInTheDocument()
@@ -148,6 +169,7 @@ describe('ProjectRuntimeStatusBadge', () => {
       onRetry: vi.fn(),
     })
 
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Signal Arc')
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent(summary)
   })
 })

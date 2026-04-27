@@ -186,7 +186,7 @@ VITE_NARRATIVE_PROJECT_ID=book-signal-arc
 
 - `web/mock`：浏览器环境且未配置 `VITE_NARRATIVE_API_BASE_URL`，renderer 保持 mock runtime fallback。
 - `web/api`：浏览器环境且配置 `VITE_NARRATIVE_API_BASE_URL`，renderer 直接消费 `/api/projects/{projectId}/...`。
-- `desktop-local`：Electron preload 通过 `window.narrativeDesktop.getRuntimeConfig()` 注入本地 API base URL；renderer 仍走同一套 HTTP contract，但这是更严格的产品合同校验路径。
+- `desktop-local`：Electron preload 通过 `window.narrativeDesktop.getRuntimeConfig()` 注入 `{ runtimeMode, apiBaseUrl, projectId, projectTitle? }`；renderer 用这份 current-project identity 构建 API runtime，header status 只窄展示当前项目身份与健康态，不把项目身份写进 workbench route。
 
 usable prototype demo 的精确启动/演示步骤见：
 
@@ -233,7 +233,7 @@ pnpm dev:desktop
 - 启动 Electron
 - 由 Electron main 自动拉起本地 `@narrative-novel/api`
 
-不需要再手动运行 `pnpm dev:api`。Electron main 会选择可用端口，启动 `packages/api`，并把 `http://127.0.0.1:<port>/api` 作为 `desktop-local` runtime config 提供给 renderer。
+不需要再手动运行 `pnpm dev:api`。Electron main 会选择可用端口，启动 `packages/api`，并把 `http://127.0.0.1:<port>/api` 连同当前 project identity 作为 `desktop-local` runtime config 提供给 renderer。
 
 如果要显式切到 live renderer dev server 模式，再启动：
 

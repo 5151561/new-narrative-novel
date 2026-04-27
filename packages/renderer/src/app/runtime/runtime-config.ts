@@ -1,9 +1,18 @@
 export type RuntimeMode = 'web' | 'desktop-local'
 
-export interface RuntimeConfig {
-  runtimeMode: RuntimeMode
+export interface WebRuntimeConfig {
+  runtimeMode: 'web'
   apiBaseUrl: string
 }
+
+export interface DesktopLocalRuntimeConfig {
+  runtimeMode: 'desktop-local'
+  apiBaseUrl: string
+  projectId: string
+  projectTitle?: string
+}
+
+export type RuntimeConfig = WebRuntimeConfig | DesktopLocalRuntimeConfig
 
 export type RuntimeConfigState =
   | { status: 'pending' }
@@ -28,10 +37,19 @@ function isRuntimeConfig(value: unknown): value is RuntimeConfig {
   }
 
   const candidate = value as Partial<RuntimeConfig>
+  if (typeof candidate.apiBaseUrl !== 'string' || candidate.apiBaseUrl.length === 0) {
+    return false
+  }
+
+  if (candidate.runtimeMode === 'web') {
+    return true
+  }
+
   return (
-    (candidate.runtimeMode === 'web' || candidate.runtimeMode === 'desktop-local')
-    && typeof candidate.apiBaseUrl === 'string'
-    && candidate.apiBaseUrl.length > 0
+    candidate.runtimeMode === 'desktop-local'
+    && typeof candidate.projectId === 'string'
+    && candidate.projectId.length > 0
+    && (candidate.projectTitle === undefined || typeof candidate.projectTitle === 'string')
   )
 }
 

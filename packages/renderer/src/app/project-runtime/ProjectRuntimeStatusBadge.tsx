@@ -41,6 +41,7 @@ export function ProjectRuntimeStatusBadge({
   const showRetry = !isChecking && retryableStatuses.has(info.status) && onRetry
   const showCapabilityLimitations = !isChecking && info.status === 'healthy'
   const capabilityLimitations = showCapabilityLimitations ? getCapabilityLimitations(info, dictionary) : []
+  const projectIdentityLabel = info.projectTitle.trim() || info.projectId
 
   return (
     <div
@@ -50,6 +51,9 @@ export function ProjectRuntimeStatusBadge({
       className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line-soft bg-surface-2/80 px-3 py-2"
     >
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        <span title={info.projectId} className="max-w-full truncate text-xs font-semibold text-text-main">
+          {projectIdentityLabel}
+        </span>
         <Badge tone={info.source === 'api' ? 'success' : 'accent'}>
           {getProjectRuntimeSourceLabel(locale, info.source)}
         </Badge>

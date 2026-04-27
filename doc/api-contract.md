@@ -37,7 +37,7 @@ PR20 的前端运行路径统一收敛到 `/api/projects/{projectId}/...`。
 
 - `web/mock`：浏览器环境且未配置 `VITE_NARRATIVE_API_BASE_URL`，renderer 保持 mock runtime fallback。
 - `web/api`：浏览器环境且配置 `VITE_NARRATIVE_API_BASE_URL`，renderer 直接走 `/api/projects/{projectId}/...`。
-- `desktop-local`：Electron preload 通过 `window.narrativeDesktop.getRuntimeConfig()` 提供 `runtimeMode: 'desktop-local'` 与本地 `apiBaseUrl`，renderer 仍走同一套 `/api/projects/{projectId}/...` 合同。
+- `desktop-local`：Electron preload 通过 `window.narrativeDesktop.getRuntimeConfig()` 提供 `{ runtimeMode: 'desktop-local', apiBaseUrl, projectId, projectTitle? }`，renderer 直接用这份 current-project identity 走同一套 `/api/projects/{projectId}/...` 合同。
 
 这里要明确两点：
 
@@ -200,7 +200,7 @@ PR48 在现有 run / artifact 合同之上补齐了 planner proposal generation 
 
 Electron preload 目前只允许通过 `window.narrativeDesktop` 暴露窄的 operational metadata 与控制命令，不把产品态 run / scene / project 逻辑搬进 Electron：
 
-- `getRuntimeConfig()` 仍只负责返回 `desktop-local` API contract 所需的 runtime config。
+- `getRuntimeConfig()` 仍只负责返回 `desktop-local` API contract 所需的 runtime config，其中 current-project identity 固定为 `projectId`，可选补充 `projectTitle` 供 renderer header status 窄展示；这些字段不会写入 workbench route。
 - `getLocalApiStatus()` / `restartLocalApi()` 返回和控制的是本地 API 子进程的 operational snapshot，不是产品 state。
 - `getWorkerStatus()` / `restartWorker()` 返回和控制的是桌面 worker placeholder 的 lifecycle snapshot，不是 run orchestration、scene execution、project state 或 provider state。
 - worker snapshot 只允许暴露 typed metadata，例如 `status`, `implementation`, `processId`, `lastError`；不允许把 raw child-process handle、Node module、provider client 或 renderer capability 透传到 preload bridge。

@@ -49,6 +49,8 @@ describe('runtime config', () => {
   it('resolves desktop-local runtime config from the narrow desktop bridge', async () => {
     const desktopConfig: RuntimeConfig = {
       apiBaseUrl: 'http://127.0.0.1:4888/api',
+      projectId: 'desktop-project-signal-arc',
+      projectTitle: 'Signal Arc Desktop',
       runtimeMode: 'desktop-local',
     }
     Object.defineProperty(window, 'narrativeDesktop', {
@@ -59,6 +61,20 @@ describe('runtime config', () => {
     })
 
     await expect(resolveRuntimeConfig()).resolves.toEqual(desktopConfig)
+  })
+
+  it('fails loudly when desktop-local runtime config omits the current project identity', async () => {
+    Object.defineProperty(window, 'narrativeDesktop', {
+      configurable: true,
+      value: {
+        getRuntimeConfig: vi.fn(async () => ({
+          apiBaseUrl: 'http://127.0.0.1:4888/api',
+          runtimeMode: 'desktop-local',
+        })),
+      },
+    })
+
+    await expect(resolveRuntimeConfig()).rejects.toThrow('Desktop runtime config response is invalid.')
   })
 
   it('fails loudly when the desktop bridge returns an invalid runtime config', async () => {
@@ -78,6 +94,8 @@ describe('runtime config', () => {
   it('useRuntimeConfig starts with web config and updates after desktop config resolves', async () => {
     const desktopConfig: RuntimeConfig = {
       apiBaseUrl: 'http://127.0.0.1:4888/api',
+      projectId: 'desktop-project-signal-arc',
+      projectTitle: 'Signal Arc Desktop',
       runtimeMode: 'desktop-local',
     }
     Object.defineProperty(window, 'narrativeDesktop', {

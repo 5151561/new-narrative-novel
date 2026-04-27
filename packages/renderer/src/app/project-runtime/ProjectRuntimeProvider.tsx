@@ -11,12 +11,25 @@ const ProjectRuntimeContext = createContext<ProjectRuntime | null>(null)
 export function createDefaultProjectRuntime(runtimeConfig: RuntimeConfig = createWebRuntimeConfig()) {
   const apiBaseUrl = import.meta.env.VITE_NARRATIVE_API_BASE_URL
   if (runtimeConfig.runtimeMode === 'desktop-local' || apiBaseUrl) {
-    return createApiProjectRuntime({
-      projectId: import.meta.env.VITE_NARRATIVE_PROJECT_ID ?? 'book-signal-arc',
+    const projectId =
+      runtimeConfig.runtimeMode === 'desktop-local'
+        ? runtimeConfig.projectId
+        : import.meta.env.VITE_NARRATIVE_PROJECT_ID ?? 'book-signal-arc'
+    const runtime = createApiProjectRuntime({
+      projectId,
       transport: createApiTransport({
         baseUrl: runtimeConfig.runtimeMode === 'desktop-local' ? runtimeConfig.apiBaseUrl : apiBaseUrl,
       }),
     })
+
+    if (runtimeConfig.runtimeMode === 'desktop-local') {
+      return {
+        ...runtime,
+        projectTitle: runtimeConfig.projectTitle ?? runtimeConfig.projectId,
+      }
+    }
+
+    return runtime
   }
 
   return createMockProjectRuntime()

@@ -99,9 +99,9 @@ describe('ProjectRuntimeProvider', () => {
     expect(hook.result.current.persistence).toBeDefined()
   })
 
-  it('creates an API runtime from desktop-local runtime config even when web API env is absent', async () => {
+  it('creates an API runtime from desktop-local runtime config using the current project identity instead of env defaults', async () => {
     delete runtimeEnv.VITE_NARRATIVE_API_BASE_URL
-    delete runtimeEnv.VITE_NARRATIVE_PROJECT_ID
+    runtimeEnv.VITE_NARRATIVE_PROJECT_ID = 'project-from-env'
     const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -110,7 +110,8 @@ describe('ProjectRuntimeProvider', () => {
             runEvents: true,
             write: true,
           },
-          projectId: 'book-signal-arc',
+          projectId: 'desktop-project-signal-arc',
+          projectTitle: 'Signal Arc Desktop',
           source: 'api',
           status: 'healthy',
         }),
@@ -128,6 +129,8 @@ describe('ProjectRuntimeProvider', () => {
         <ProjectRuntimeProvider
           runtimeConfig={{
             apiBaseUrl: 'http://127.0.0.1:4888/api',
+            projectId: 'desktop-project-signal-arc',
+            projectTitle: 'Signal Arc Desktop',
             runtimeMode: 'desktop-local',
           }}
         >
@@ -144,6 +147,10 @@ describe('ProjectRuntimeProvider', () => {
 
     await hook.result.current.runtimeInfoClient.getProjectRuntimeInfo()
 
-    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:4888/api/projects/book-signal-arc/runtime-info', expect.any(Object))
+    expect(hook.result.current.projectId).toBe('desktop-project-signal-arc')
+    expect(fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:4888/api/projects/desktop-project-signal-arc/runtime-info',
+      expect.any(Object),
+    )
   })
 })

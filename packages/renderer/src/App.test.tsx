@@ -1627,39 +1627,61 @@ describe('App scene workbench', () => {
     expect([...params.keys()].some((key) => /runtime|health/i.test(key))).toBe(false)
   })
 
-  it('shows degraded API runtime status without breaking the workbench shell', async () => {
+  it('shows degraded desktop-local runtime status without breaking the workbench shell or dropping the current project title', async () => {
     const initialSearch = '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution'
-    const { createFakeApiRuntime } = await import('@/app/project-runtime/fake-api-runtime.test-utils')
-    const { runtime } = createFakeApiRuntime({
-      projectId: 'project-status-api',
-      overrides: [
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          message: 'runtime gateway unavailable',
+          status: 503,
+        }),
         {
-          method: 'GET',
-          path: '/api/projects/project-status-api/runtime-info',
-          error: new ApiRequestError({
-            status: 503,
-            message: 'runtime gateway unavailable',
-          }),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          status: 503,
+          statusText: 'Service Unavailable',
         },
-      ],
+      ),
+    )
+    Object.defineProperty(window, 'narrativeDesktop', {
+      configurable: true,
+      value: {
+        getRuntimeConfig: vi.fn(async () => ({
+          apiBaseUrl: 'http://127.0.0.1:4888/api',
+          projectId: 'desktop-project-signal-arc',
+          projectTitle: 'Signal Arc Desktop',
+          runtimeMode: 'desktop-local',
+        })),
+      },
     })
 
-    await renderFreshApp(initialSearch, {
-      runtime,
-    })
+    await renderFreshApp(initialSearch)
 
     expect(await screen.findByRole('heading', { name: 'Scene cockpit' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Chapter' })).toBeInTheDocument()
 
     await waitFor(() => {
+      expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Signal Arc Desktop')
+      expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Checking')
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Signal Arc Desktop')
       expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('API')
       expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Unavailable')
     })
 
+    expect(fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:4888/api/projects/desktop-project-signal-arc/runtime-info',
+      expect.any(Object),
+    )
     expect(
       screen.getByText('API demo runtime is unavailable. Start the fixture API or reopen the desktop-local demo, then retry.'),
     ).toBeInTheDocument()
     expect(screen.getByText('Workbench stays available while the runtime health recovers.')).toBeInTheDocument()
+    expect(new URLSearchParams(window.location.search).has('projectId')).toBe(false)
+    expect(new URLSearchParams(window.location.search).has('projectTitle')).toBe(false)
     expect(window.location.search).toBe(initialSearch)
   })
 })

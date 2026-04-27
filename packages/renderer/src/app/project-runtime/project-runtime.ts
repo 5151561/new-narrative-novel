@@ -11,6 +11,7 @@ import type { ProjectRuntimeInfoClient } from './project-runtime-info'
 
 export interface ProjectRuntime {
   projectId: string
+  projectTitle?: string
   bookClient: BookClient
   chapterClient: ChapterClient
   assetClient: AssetClient

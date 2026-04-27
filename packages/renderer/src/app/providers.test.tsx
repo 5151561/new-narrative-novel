@@ -125,6 +125,8 @@ describe('AppProviders', () => {
     delete runtimeEnv.VITE_NARRATIVE_PROJECT_ID
     const desktopConfig = deferred<{
       apiBaseUrl: string
+      projectId: string
+      projectTitle?: string
       runtimeMode: 'desktop-local'
     }>()
     Object.defineProperty(window, 'narrativeDesktop', {
@@ -150,6 +152,8 @@ describe('AppProviders', () => {
 
     desktopConfig.resolve({
       apiBaseUrl: 'http://127.0.0.1:4888/api',
+      projectId: 'desktop-project-signal-arc',
+      projectTitle: 'Signal Arc Desktop',
       runtimeMode: 'desktop-local',
     })
 

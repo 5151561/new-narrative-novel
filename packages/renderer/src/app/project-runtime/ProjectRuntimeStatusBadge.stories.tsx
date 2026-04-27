@@ -28,12 +28,18 @@ const meta = {
   args: {
     info: createProjectRuntimeInfoRecord({
       projectId: 'project-story-runtime',
-      projectTitle: 'Signal Arc',
+      projectTitle: 'Signal Arc Desktop',
       source: 'mock',
       status: 'healthy',
       summary: 'Using in-memory mock project runtime.',
       capabilities: {
+        contextPacketRefs: true,
         read: true,
+        proposalSetRefs: true,
+        reviewDecisions: true,
+        runEvents: true,
+        runEventPolling: true,
+        runEventStream: true,
         write: true,
       },
     }),
@@ -47,11 +53,33 @@ type Story = StoryObj<typeof meta>
 
 export const HealthyMock: Story = {}
 
+export const DesktopLocalHealthyCurrentProject: Story = {
+  args: {
+    info: createProjectRuntimeInfoRecord({
+      projectId: 'desktop-project-signal-arc',
+      projectTitle: 'Signal Arc Desktop',
+      source: 'api',
+      status: 'healthy',
+      summary: 'Connected to the desktop-local runtime for the current project.',
+      capabilities: {
+        contextPacketRefs: true,
+        read: true,
+        proposalSetRefs: true,
+        reviewDecisions: true,
+        runEvents: true,
+        runEventPolling: true,
+        runEventStream: true,
+        write: true,
+      },
+    }),
+  },
+}
+
 export const HealthyLimited: Story = {
   args: {
     info: createProjectRuntimeInfoRecord({
       projectId: 'project-story-runtime',
-      projectTitle: 'Signal Arc',
+      projectTitle: 'Signal Arc Desktop',
       source: 'api',
       status: 'healthy',
       summary: 'Connected to limited runtime gateway.',
@@ -65,11 +93,11 @@ export const HealthyLimited: Story = {
   },
 }
 
-export const ApiDemoUnavailable: Story = {
+export const DesktopLocalUnavailableCurrentProject: Story = {
   args: {
     info: createProjectRuntimeInfoRecord({
-      projectId: 'project-story-runtime',
-      projectTitle: 'Signal Arc',
+      projectId: 'desktop-project-signal-arc',
+      projectTitle: 'Signal Arc Desktop',
       source: 'api',
       status: 'unavailable',
       summary: 'API demo runtime is unavailable. Start the fixture API or reopen the desktop-local demo, then retry.',
@@ -90,28 +118,40 @@ export const AllStates: Story = {
         props: {
           info: createProjectRuntimeInfoRecord({
             projectId: 'project-story-runtime',
-            projectTitle: 'Signal Arc',
+            projectTitle: 'Signal Arc Desktop',
             source: 'mock',
             status: 'healthy',
             summary: 'Using in-memory mock project runtime.',
             capabilities: {
+              contextPacketRefs: true,
               read: true,
+              proposalSetRefs: true,
+              reviewDecisions: true,
+              runEvents: true,
+              runEventPolling: true,
+              runEventStream: true,
               write: true,
             },
           }),
         },
       },
       {
-        title: 'API healthy',
+        title: 'Desktop-local healthy',
         props: {
           info: createProjectRuntimeInfoRecord({
-            projectId: 'project-story-runtime',
-            projectTitle: 'Signal Arc',
+            projectId: 'desktop-project-signal-arc',
+            projectTitle: 'Signal Arc Desktop',
             source: 'api',
             status: 'healthy',
-            summary: 'Connected to runtime gateway.',
+            summary: 'Connected to the desktop-local runtime for the current project.',
             capabilities: {
+              contextPacketRefs: true,
               read: true,
+              proposalSetRefs: true,
+              reviewDecisions: true,
+              runEvents: true,
+              runEventPolling: true,
+              runEventStream: true,
               write: true,
             },
           }),
@@ -121,13 +161,19 @@ export const AllStates: Story = {
         title: 'Checking',
         props: {
           info: createProjectRuntimeInfoRecord({
-            projectId: 'project-story-runtime',
-            projectTitle: 'Signal Arc',
+            projectId: 'desktop-project-signal-arc',
+            projectTitle: 'Signal Arc Desktop',
             source: 'api',
             status: 'healthy',
-            summary: 'Connected to runtime gateway.',
+            summary: 'Connected to the desktop-local runtime for the current project.',
             capabilities: {
+              contextPacketRefs: true,
               read: true,
+              proposalSetRefs: true,
+              reviewDecisions: true,
+              runEvents: true,
+              runEventPolling: true,
+              runEventStream: true,
               write: true,
             },
           }),
@@ -139,7 +185,7 @@ export const AllStates: Story = {
         props: {
           info: createProjectRuntimeInfoRecord({
             projectId: 'project-story-runtime',
-            projectTitle: 'Signal Arc',
+            projectTitle: 'Signal Arc Desktop',
             source: 'api',
             status: 'healthy',
             summary: 'Connected to limited runtime gateway.',
@@ -153,11 +199,11 @@ export const AllStates: Story = {
         },
       },
       {
-        title: 'Unavailable',
+        title: 'Desktop-local unavailable',
         props: {
           info: createProjectRuntimeInfoRecord({
-            projectId: 'project-story-runtime',
-            projectTitle: 'Signal Arc',
+            projectId: 'desktop-project-signal-arc',
+            projectTitle: 'Signal Arc Desktop',
             source: 'api',
             status: 'unavailable',
             summary: 'API demo runtime is unavailable. Start the fixture API or reopen the desktop-local demo, then retry.',
@@ -174,7 +220,7 @@ export const AllStates: Story = {
         props: {
           info: createProjectRuntimeInfoRecord({
             projectId: 'project-story-runtime',
-            projectTitle: 'Signal Arc',
+            projectTitle: 'Signal Arc Desktop',
             source: 'api',
             status: 'unauthorized',
             summary: 'API demo runtime requires authentication before this project can load.',
