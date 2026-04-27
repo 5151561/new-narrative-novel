@@ -49,7 +49,7 @@ function buildRunSummary(decision: SceneRunReviewTransitionInput['decision']) {
     case 'accept-with-edit':
       return 'Proposal set accepted with editor adjustments applied to canon and prose.'
     case 'request-rewrite':
-      return 'Rewrite requested and the run returned to execution.'
+      return 'Rewrite requested. Start a new run to continue.'
     case 'reject':
       return 'Proposal set rejected and the run was closed.'
   }
@@ -211,14 +211,15 @@ export function createRequestRewriteSceneRunReviewTransition(
     [{ kind: 'review', id: input.reviewId, label: 'Editorial review' }],
     options,
   )
+  const completedAtLabel = appendedEvents[0]?.createdAtLabel
 
   return {
     appendedEvents,
     generatedArtifacts: [],
     nextRun: {
-      status: 'running',
+      status: 'completed',
       summary: buildRunSummary('request-rewrite'),
-      completedAtLabel: undefined,
+      completedAtLabel,
       pendingReviewId: undefined,
     },
   }

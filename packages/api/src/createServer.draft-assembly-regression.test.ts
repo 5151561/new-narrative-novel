@@ -43,6 +43,18 @@ async function fetchPostReviewEvents(
   return response.json().events
 }
 
+async function fetchBookDraftAssembly(
+  app: TestApp,
+  bookId = 'book-signal-arc',
+) {
+  const response = await app.inject({
+    method: 'GET',
+    url: `/api/projects/book-signal-arc/books/${bookId}/draft-assembly`,
+  })
+  expect(response.statusCode).toBe(200)
+  return response.json()
+}
+
 describe('fixture API server PR37 draft assembly regression closure', () => {
   it('propagates accepted selected variants through ref-based artifacts, scene prose, chapter status, and trace links', async () => {
     await withTestServer(async ({ app }) => {
@@ -370,6 +382,7 @@ describe('fixture API server PR37 draft assembly regression closure', () => {
       expect(proseBeforeResponse.statusCode).toBe(200)
       const proseBefore = proseBeforeResponse.json()
       const chapterSceneBefore = await fetchChapterScene(app, 'chapter-signals-in-rain', 'scene-midnight-platform')
+      const bookDraftAssemblyBefore = await fetchBookDraftAssembly(app)
 
       const startResponse = await app.inject({
         method: 'POST',
@@ -394,8 +407,9 @@ describe('fixture API server PR37 draft assembly regression closure', () => {
       expect(reviewResponse.statusCode).toBe(200)
       expect(reviewResponse.json()).toMatchObject({
         id: startedRun.id,
-        status: 'running',
-        summary: 'Rewrite requested and the run returned to execution.',
+        status: 'completed',
+        summary: 'Rewrite requested. Start a new run to continue.',
+        completedAtLabel: '2026-04-23 10:10',
       })
 
       const proseAfterResponse = await app.inject({
@@ -407,6 +421,9 @@ describe('fixture API server PR37 draft assembly regression closure', () => {
 
       const chapterSceneAfter = await fetchChapterScene(app, 'chapter-signals-in-rain', 'scene-midnight-platform')
       expect(chapterSceneAfter.proseStatusLabel).toEqual(chapterSceneBefore.proseStatusLabel)
+
+      const bookDraftAssemblyAfter = await fetchBookDraftAssembly(app)
+      expect(bookDraftAssemblyAfter).toEqual(bookDraftAssemblyBefore)
     })
   })
 

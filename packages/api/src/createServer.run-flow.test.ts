@@ -369,13 +369,13 @@ describe('fixture API server run flow', () => {
       expect(reviewResponse.statusCode).toBe(200)
       expect(reviewResponse.json()).toMatchObject({
         id: startedRun.id,
-        status: 'running',
-        summary: 'Rewrite requested and the run returned to execution.',
+        status: 'completed',
+        summary: 'Rewrite requested. Start a new run to continue.',
+        completedAtLabel: '2026-04-23 10:10',
         latestEventId: 'run-event-scene-midnight-platform-002-010',
         eventCount: 10,
       })
       expect(reviewResponse.json()).not.toHaveProperty('pendingReviewId')
-      expect(reviewResponse.json()).not.toHaveProperty('completedAtLabel')
 
       const eventsResponse = await app.inject({
         method: 'GET',
@@ -394,8 +394,22 @@ describe('fixture API server run flow', () => {
       expect(sceneAfterReview.statusCode).toBe(200)
       expect(sceneAfterReview.json()).toMatchObject({
         latestRunId: startedRun.id,
-        runStatus: 'running',
-        status: 'running',
+        runStatus: 'completed',
+        status: 'draft',
+      })
+
+      const executionAfterReview = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/execution',
+      })
+      expect(executionAfterReview.statusCode).toBe(200)
+      expect(executionAfterReview.json()).toMatchObject({
+        runId: startedRun.id,
+        canContinueRun: false,
+        canOpenProse: false,
+        runtimeSummary: {
+          runHealth: 'stable',
+        },
       })
 
       const proseAfterReview = await app.inject({

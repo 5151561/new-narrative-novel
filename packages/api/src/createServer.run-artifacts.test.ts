@@ -312,6 +312,23 @@ describe('fixture API server run artifact read surfaces', () => {
         },
       })
       expect(rewriteDecisionResponse.statusCode).toBe(200)
+      expect(rewriteDecisionResponse.json()).toMatchObject({
+        id: rewriteRun.id,
+        status: 'completed',
+        summary: 'Rewrite requested. Start a new run to continue.',
+        completedAtLabel: '2026-04-23 10:10',
+      })
+      expect(rewriteDecisionResponse.json()).not.toHaveProperty('pendingReviewId')
+
+      const rewriteEventsResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${rewriteRun.id}/events?cursor=${rewriteRun.latestEventId}`,
+      })
+      expect(rewriteEventsResponse.statusCode).toBe(200)
+      expect(rewriteEventsResponse.json()).not.toHaveProperty('nextCursor')
+      expect(rewriteEventsResponse.json().events.map((event: { kind: string }) => event.kind)).toEqual([
+        'review_decision_submitted',
+      ])
 
       const rewriteArtifactsResponse = await app.inject({
         method: 'GET',
@@ -336,6 +353,19 @@ describe('fixture API server run artifact read surfaces', () => {
         proseDraftCount: 0,
         missingTraceCount: 0,
       })
+
+      const [missingRewriteCanonPatchResponse, missingRewriteProseDraftResponse] = await Promise.all([
+        app.inject({
+          method: 'GET',
+          url: `/api/projects/book-signal-arc/runs/${rewriteRun.id}/artifacts/canon-patch-scene-midnight-platform-002`,
+        }),
+        app.inject({
+          method: 'GET',
+          url: `/api/projects/book-signal-arc/runs/${rewriteRun.id}/artifacts/prose-draft-scene-midnight-platform-002`,
+        }),
+      ])
+      expect(missingRewriteCanonPatchResponse.statusCode).toBe(404)
+      expect(missingRewriteProseDraftResponse.statusCode).toBe(404)
 
       const rejectStartResponse = await app.inject({
         method: 'POST',

@@ -622,7 +622,7 @@ function buildProposalSetDetail(state: MockRunState, entry: MockArtifactEntry): 
     reviewOptions: [
       { decision: 'accept', label: text('Accept'), description: text('Apply the proposal set without further changes.') },
       { decision: 'accept-with-edit', label: text('Accept with edit'), description: text('Apply the proposal set with editorial adjustments.') },
-      { decision: 'request-rewrite', label: text('Request rewrite'), description: text('Return the run to execution with rewrite guidance.') },
+      { decision: 'request-rewrite', label: text('Request rewrite'), description: text('Close this run and start a new run with rewrite guidance when ready.') },
       { decision: 'reject', label: text('Reject'), description: text('Close the run without producing canon or prose artifacts.') },
     ],
   }
@@ -1179,7 +1179,7 @@ function buildRunSummary(decision: RunReviewDecisionKind) {
     case 'accept-with-edit':
       return 'Proposal set accepted with editor adjustments applied to canon and prose.'
     case 'request-rewrite':
-      return 'Rewrite requested and the run returned to execution.'
+      return 'Rewrite requested. Start a new run to continue.'
     case 'reject':
       return 'Proposal set rejected and the run was closed.'
   }
@@ -1292,8 +1292,8 @@ export function submitMockRunReviewDecision(
     state.run.status = 'completed'
     state.run.completedAtLabel = state.events.at(-1)?.createdAtLabel
   } else if (input.decision === 'request-rewrite') {
-    state.run.status = 'running'
-    state.run.completedAtLabel = undefined
+    state.run.status = 'completed'
+    state.run.completedAtLabel = state.events.at(-1)?.createdAtLabel
   } else {
     appendRunEvent(state, 'run_completed', 'Run completed', 'Run closed after review rejection.')
     state.run.status = 'completed'

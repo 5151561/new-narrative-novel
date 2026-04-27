@@ -373,6 +373,14 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
     return scene
   }
 
+  function runHasGeneratedProseArtifact(projectId: string, run: RunRecord) {
+    if (run.scope !== 'scene' || run.status !== 'completed') {
+      return false
+    }
+
+    return Boolean(findLatestArtifactDetail(projectId, run.id, 'prose-draft'))
+  }
+
   function syncSceneSurfacesFromRun(projectId: string, run: RunRecord) {
     if (run.scope !== 'scene') {
       return
@@ -380,7 +388,10 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
 
     const scene = getScene(projectId, run.scopeId)
     const runStatus = mapRunStatusToSceneRunStatus(run.status)
-    const sceneStatus = mapRunStatusToSceneStatus(run.status)
+    const hasGeneratedProseArtifact = runHasGeneratedProseArtifact(projectId, run)
+    const sceneStatus = run.status === 'completed' && !hasGeneratedProseArtifact
+      ? 'draft'
+      : mapRunStatusToSceneStatus(run.status)
     const runHealth = mapRunStatusToRunHealth(run.status)
 
     scene.workspace.latestRunId = run.id
@@ -392,7 +403,7 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
     scene.execution.runtimeSummary.runHealth = runHealth
     scene.execution.runtimeSummary.latestFailureSummary = run.status === 'failed' ? run.summary : undefined
     scene.execution.canContinueRun = run.status === 'running' || run.status === 'queued'
-    scene.execution.canOpenProse = run.status === 'completed'
+    scene.execution.canOpenProse = run.status === 'completed' && hasGeneratedProseArtifact
 
     scene.inspector.runtime.runHealth = runHealth
     scene.inspector.runtime.latestFailure = run.status === 'failed' ? run.summary : undefined

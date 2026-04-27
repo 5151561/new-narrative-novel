@@ -106,9 +106,9 @@ describe('applySceneRunReviewDecisionTransition', () => {
     ])
     expect(transition.generatedArtifacts).toEqual([])
     expect(transition.nextRun).toEqual({
-      status: 'running',
-      summary: 'Rewrite requested and the run returned to execution.',
-      completedAtLabel: undefined,
+      status: 'completed',
+      summary: 'Rewrite requested. Start a new run to continue.',
+      completedAtLabel: 'step-010',
       pendingReviewId: undefined,
     })
   })

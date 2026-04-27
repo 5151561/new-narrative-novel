@@ -512,7 +512,7 @@ describe('runFixtureStore', () => {
     })
   })
 
-  it('keeps request-rewrite semantics without completing the run', () => {
+  it('keeps request-rewrite semantics terminal without producing new artifacts', () => {
     const store = createRunFixtureStore()
     const run = store.startSceneRun('project-rewrite', {
       sceneId: 'scene-midnight-platform',
@@ -528,10 +528,10 @@ describe('runFixtureStore', () => {
 
     expect(reviewedRun).toMatchObject({
       id: run.id,
-      status: 'running',
-      summary: 'Rewrite requested and the run returned to execution.',
+      status: 'completed',
+      summary: 'Rewrite requested. Start a new run to continue.',
       pendingReviewId: undefined,
-      completedAtLabel: undefined,
+      completedAtLabel: '2026-04-23 10:10',
     })
 
     const events = store.getRunEvents('project-rewrite', {
@@ -548,6 +548,8 @@ describe('runFixtureStore', () => {
       'agent-invocation',
       'proposal-set',
     ])
+    expect(store.getRunArtifact('project-rewrite', run.id, 'canon-patch-scene-midnight-platform-001')).toBeNull()
+    expect(store.getRunArtifact('project-rewrite', run.id, 'prose-draft-scene-midnight-platform-001')).toBeNull()
     expect(store.getRunTrace('project-rewrite', run.id)?.summary).toEqual({
       proposalSetCount: 1,
       canonPatchCount: 0,

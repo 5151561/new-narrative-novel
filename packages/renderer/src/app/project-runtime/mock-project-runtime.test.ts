@@ -786,7 +786,7 @@ describe('mock project runtime', () => {
     })
   })
 
-  it('request-rewrite clears pending review, keeps the run open, and appends only the decision event', async () => {
+  it('request-rewrite closes the run without producing follow-up artifacts and appends only the decision event', async () => {
     const runtime = createMockProjectRuntime({ projectId, persistence: createMemoryPersistence() })
 
     const run = await runtime.runClient.submitRunReviewDecision({
@@ -799,15 +799,34 @@ describe('mock project runtime', () => {
       runId: 'run-scene-midnight-platform-001',
       cursor: 'run-event-scene-midnight-platform-001-009',
     })
+    const artifacts = await runtime.runClient.listRunArtifacts({
+      runId: 'run-scene-midnight-platform-001',
+    })
+    const trace = await runtime.runClient.getRunTrace({
+      runId: 'run-scene-midnight-platform-001',
+    })
 
     expect(run).toMatchObject({
-      status: 'running',
+      status: 'completed',
       pendingReviewId: undefined,
-      completedAtLabel: undefined,
+      completedAtLabel: '2026-04-21 10:10',
+      summary: 'Rewrite requested. Start a new run to continue.',
       latestEventId: 'run-event-scene-midnight-platform-001-010',
       eventCount: 10,
     })
     expect(followupPage.events.map((event) => event.kind)).toEqual(['review_decision_submitted'])
+    expect(artifacts.artifacts.map((artifact) => artifact.kind)).toEqual([
+      'context-packet',
+      'agent-invocation',
+      'agent-invocation',
+      'proposal-set',
+    ])
+    expect(trace.summary).toMatchObject({
+      proposalSetCount: 1,
+      canonPatchCount: 0,
+      proseDraftCount: 0,
+      missingTraceCount: 0,
+    })
   })
 
   it('reject closes the run and appends review decision plus completion events', async () => {
