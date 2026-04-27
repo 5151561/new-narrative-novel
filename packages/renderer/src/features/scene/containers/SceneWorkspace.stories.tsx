@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
+import { submitMockRunReviewDecision } from '@/features/run/api/mock-run-db'
+
 import { SceneWorkspace } from './SceneWorkspace'
 import { withSceneStoryShell } from './scene-storybook'
 
@@ -15,6 +17,15 @@ const meta = {
 export default meta
 
 type Story = StoryObj<typeof meta>
+
+function prepareRewriteRequestedStory() {
+  submitMockRunReviewDecision({
+    runId: 'run-scene-midnight-platform-001',
+    reviewId: 'review-scene-midnight-platform-001',
+    decision: 'request-rewrite',
+    note: 'Rebuild the witness handoff before the next pass.',
+  })
+}
 
 export const Final: Story = {
   args: {
@@ -62,6 +73,20 @@ export const WaitingReviewMainStageGate: Story = {
   parameters: {
     sceneStory: {
       search: '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution',
+    },
+  },
+}
+
+export const RewriteRequestedManualRestart: Story = {
+  name: 'Scene / Orchestrate / RewriteRequestedManualRestart',
+  args: {
+    sceneId: 'scene-midnight-platform',
+    defaultTab: 'execution',
+  },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution',
+      prepareEnvironment: prepareRewriteRequestedStory,
     },
   },
 }

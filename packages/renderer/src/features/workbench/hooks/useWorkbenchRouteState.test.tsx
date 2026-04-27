@@ -366,6 +366,15 @@ function readRoute() {
 }
 
 describe('useWorkbenchRouteState', () => {
+  it('defaults empty workbench routes to the canonical scene orchestrate execution state', () => {
+    expect(readWorkbenchRouteState('')).toEqual({
+      scope: 'scene',
+      sceneId: 'scene-midnight-platform',
+      lens: 'orchestrate',
+      tab: 'execution',
+    })
+  })
+
   it('normalizes chapter deep links and ignores scene-only params while preserving a valid draft lens', () => {
     window.history.replaceState(
       {},

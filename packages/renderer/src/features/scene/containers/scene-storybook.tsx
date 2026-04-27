@@ -17,6 +17,7 @@ export interface SceneStoryParameters {
     search?: string
     uiState?: Partial<SceneStoryUiState>
     bridge?: SceneRuntimeBridge
+    prepareEnvironment?: () => void
   }
 }
 
@@ -82,7 +83,11 @@ function SceneStorySessionBridge({ children }: PropsWithChildren) {
 
 export function SceneStoryShell({ children, frameClassName, parameters }: SceneStoryShellProps) {
   applySceneStoryEnvironment(parameters)
-  const storyEnvironment = useMemo(() => createStoryProjectRuntimeEnvironment(), [])
+  const storyEnvironment = useMemo(() => {
+    const environment = createStoryProjectRuntimeEnvironment()
+    parameters?.prepareEnvironment?.()
+    return environment
+  }, [])
 
   return (
     <AppProviders runtime={storyEnvironment.runtime} queryClient={storyEnvironment.queryClient}>

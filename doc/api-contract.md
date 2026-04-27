@@ -621,6 +621,23 @@ Review decision result:
 }
 ```
 
+Rewrite request result:
+
+```json
+{
+  "id": "run-scene-midnight-platform-001",
+  "scope": "scene",
+  "scopeId": "scene-midnight-platform",
+  "status": "completed",
+  "title": "scene-midnight-platform run",
+  "summary": "Rewrite requested. Start a new run to continue.",
+  "startedAtLabel": "2026-04-21 10:01",
+  "completedAtLabel": "2026-04-21 10:10",
+  "latestEventId": "run-event-scene-midnight-platform-001-010",
+  "eventCount": 10
+}
+```
+
 ### 10.4 Cursor semantics
 
 - `cursor` 是最后一个已消费 `RunEventRecord.id`，不是 offset，也不是 page number。
@@ -677,8 +694,9 @@ Review decision result:
 - 当前 decision 值为：`accept`、`accept-with-edit`、`request-rewrite`、`reject`。
 - `reviewId` 与 run 当前 `pendingReviewId` 不匹配时返回 `409`。
 - `422` 保留为 API / override 可用的 validation 错误语义；PR23 默认 mock contract 只内建 conflict 校验，不额外强制 review decision 字段规则。
-- 成功后返回最新 `RunRecord`，并由事件页补充 `review_decision_submitted`、`canon_patch_applied`、`prose_generated`、`run_completed` 等产品事件。
+- 成功后返回最新 `RunRecord`。事件页始终先追加 `review_decision_submitted`；`accept` / `accept-with-edit` 继续追加 `canon_patch_applied`、`prose_generated`、`run_completed`，`reject` 追加 `run_completed`，`request-rewrite` 不会再追加自动续跑或隐藏完成链事件。
 - `accept` / `accept-with-edit` 成功后，fixture API 会通过 `prose-draft` artifact detail materialize scene prose read model，并同步 scene accepted facts 与 chapter scene row 的 prose 状态；`request-rewrite` / `reject` 不生成或覆盖正文。
+- `request-rewrite` 在 PR46 里是 terminal decision：它会关闭当前 run、清空 `pendingReviewId`、写入 `completedAtLabel`，并要求用户后续显式启动一个新 run；不会自动 rerun，也不会在后台继续 polling 另一个隐形 run。
 - run review write 不写 route，不新增 endpoint；scene/chapter read model 刷新必须来自 run artifact relation，而不是把正文硬编码进 event 或 scene seed。
 
 ### 10.8.1 Prose draft artifact body
@@ -717,7 +735,7 @@ Review decision result:
 ### 10.9 SSE and engine boundary
 
 - `GET /runs/{runId}/events/stream` 在 PR23 只是合同占位，供未来 SSE / stream transport 接入。
-- 本 PR 的 fake runtime、API runtime、hooks、tests 都只走 REST request + polling/page contract。
+- 本 PR 的 fake runtime、API runtime、hooks、tests 都只走 REST request + polling/page contract；event stream 仍是 placeholder-only，并未参与 renderer 行为。
 - renderer 不 import Temporal SDK，不感知 worker engine 是 Temporal、in-process worker、fixture backend，还是未来其他实现。
 - 产品 run events 不是 Temporal history；它们是 renderer 可以稳定消费的产品级 event records。
 

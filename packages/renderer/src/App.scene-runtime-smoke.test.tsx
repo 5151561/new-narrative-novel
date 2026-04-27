@@ -100,6 +100,12 @@ describe('App scene runtime smoke', () => {
 
     await renderSceneApp(`http://${server.config.host}:${address.port}`)
 
+    const initialParams = new URLSearchParams(window.location.search)
+    expect(initialParams.get('scope')).toBe('scene')
+    expect(initialParams.get('id')).toBe('scene-midnight-platform')
+    expect(initialParams.get('lens')).toBe('orchestrate')
+    expect(initialParams.get('tab')).toBe('execution')
+
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
     const navigator = screen.getByRole('region', { name: 'Navigator' })
     await waitFor(() => {
@@ -225,5 +231,68 @@ describe('App scene runtime smoke', () => {
     expect(within(selectedDestination).getByText('Keep the chapter order stable, then return here once the scene draft is ready.')).toBeInTheDocument()
     expect(within(selectedDestination).getByText('Concourse Delay')).toBeInTheDocument()
     expect(within(screen.getByRole('region', { name: 'Book draft bottom dock' })).getByText('Focused Signals in Rain')).toBeInTheDocument()
+  }, 20000)
+
+  it('keeps request-rewrite terminal, explicit, and route-stable in the API-backed scene flow', async () => {
+    const user = userEvent.setup()
+    const server = createTestServer()
+    servers.push(server)
+
+    await server.app.listen({
+      host: server.config.host,
+      port: 0,
+    })
+
+    const address = server.app.server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Expected a TCP address from the test API server.')
+    }
+
+    await renderSceneApp(`http://${server.config.host}:${address.port}`)
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    const initialParams = new URLSearchParams(window.location.search)
+    expect(initialParams.get('scope')).toBe('scene')
+    expect(initialParams.get('id')).toBe('scene-midnight-platform')
+    expect(initialParams.get('lens')).toBe('orchestrate')
+    expect(initialParams.get('tab')).toBe('execution')
+
+    await user.click(screen.getAllByRole('button', { name: 'Run Scene' })[0]!)
+
+    const bottomDock = screen.getByRole('region', { name: 'Bottom Dock' })
+    await waitFor(() => {
+      expect(within(bottomDock).getByText('Waiting Review')).toBeInTheDocument()
+    })
+
+    const runReviewGate = screen.getAllByText('Run Review Gate')[0]?.closest('section')
+    if (!runReviewGate) {
+      throw new Error('Expected the run review gate to be visible before submitting request rewrite.')
+    }
+
+    await user.click(within(runReviewGate).getByRole('button', { name: 'Request Rewrite' }))
+    expect(
+      within(runReviewGate).getByText(
+        'Submitting Request Rewrite closes this run. Start a new run explicitly when the rewrite brief is ready; this decision does not continue in the background.',
+      ),
+    ).toBeInTheDocument()
+    await user.type(within(runReviewGate).getByLabelText('Review note'), 'Rebuild the witness handoff before the next pass.')
+    await user.click(within(runReviewGate).getByRole('button', { name: 'Submit Rewrite Request' }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Rewrite requested. Start a new run to continue.').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('This run is closed. Start a new run explicitly to continue from the rewrite brief.').length).toBeGreaterThan(0)
+      expect(within(bottomDock).getByRole('heading', { name: 'New run required' })).toBeInTheDocument()
+      expect(within(bottomDock).getByText('This run is closed. Start a new run from the Main Stage when the rewrite brief is ready.')).toBeInTheDocument()
+      expect(within(bottomDock).getByText('Review decision submitted')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByText('Pending review')).not.toBeInTheDocument()
+    expect(screen.queryByText('Run Review Gate')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open Prose' })).toBeDisabled()
+    const finalParams = new URLSearchParams(window.location.search)
+    expect(finalParams.get('scope')).toBe('scene')
+    expect(finalParams.get('id')).toBe('scene-midnight-platform')
+    expect(finalParams.get('lens')).toBe('orchestrate')
+    expect(finalParams.get('tab')).toBe('execution')
   }, 20000)
 })

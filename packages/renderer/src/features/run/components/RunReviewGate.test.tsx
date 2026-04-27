@@ -2,8 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, vi } from 'vitest'
 
-import { I18nProvider } from '@/app/i18n'
+import { APP_LOCALE_STORAGE_KEY, I18nProvider } from '@/app/i18n'
 
+import { RequestRewriteSelected } from './RunReviewGate.stories'
 import { RunReviewGate } from './RunReviewGate'
 
 function createDeferred() {
@@ -40,6 +41,28 @@ afterEach(() => {
 })
 
 describe('RunReviewGate', () => {
+  it('renders the request-rewrite-selected story in the explicit rewrite warning state under zh-CN', () => {
+    window.localStorage.setItem(APP_LOCALE_STORAGE_KEY, 'zh-CN')
+    const storyArgs = {
+      runTitle: 'Midnight platform scene run',
+      pendingReviewId: 'review-scene-midnight-platform-001',
+      isSubmitting: false,
+      onSubmitDecision: async () => {},
+      ...RequestRewriteSelected.args,
+    }
+
+    render(
+      <I18nProvider>
+        <RunReviewGate {...storyArgs} />
+      </I18nProvider>,
+    )
+
+    expect(screen.getByText('提交重写请求会关闭当前运行。等重写说明准备好后，需要你显式启动一次新运行；这次决策不会在后台继续。')).toBeInTheDocument()
+    expect(screen.getByText('已选 variant 只保留为评审上下文，不会自动延续到这次运行之后。')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '提交重写请求' })).toBeInTheDocument()
+    window.localStorage.removeItem(APP_LOCALE_STORAGE_KEY)
+  })
+
   it('shows four decision actions when a waiting review is active', () => {
     renderGate()
 
@@ -139,6 +162,27 @@ describe('RunReviewGate', () => {
         note: 'Rebuild the witness handoff before the next pass.',
       })
     })
+  })
+
+  it('makes request-rewrite explicit about closing the current run and requiring a manual restart', async () => {
+    const user = userEvent.setup()
+    renderGate({
+      selectedVariants: [
+        {
+          proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+          variantId: 'variant-midnight-platform-raise-conflict',
+        },
+      ],
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Request Rewrite' }))
+
+    expect(
+      screen.getByText(
+        'Submitting Request Rewrite closes this run. Start a new run explicitly when the rewrite brief is ready; this decision does not continue in the background.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Selected variants stay as review context only and will not continue this run automatically.')).toBeInTheDocument()
   })
 
   it('submits reject with a note', async () => {

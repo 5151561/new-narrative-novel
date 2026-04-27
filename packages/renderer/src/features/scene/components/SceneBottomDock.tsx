@@ -128,6 +128,8 @@ function ActiveRunSupport({
 }: SceneBottomDockRunSupport) {
   const { locale } = useI18n()
   const recentEvents = events.filter((event) => dockProductMilestoneKinds.has(event.kind))
+  const isRewriteRequestedTerminal =
+    run?.status === 'completed' && recentEvents.at(-1)?.kind === 'review_decision_submitted'
   const hasRunSupport = Boolean(run) || isLoading || Boolean(error) || recentEvents.length > 0
   const selectedVariantCount = Object.keys(selectedVariants).length
 
@@ -179,6 +181,26 @@ function ActiveRunSupport({
               ? '这里保留事件、产物和追踪支持。候选版本选择只是草稿上下文；请回到 Scene / Orchestrate 主舞台提交评审决定，随后才会进入 canon patch 与 prose draft。'
               : 'Events, artifacts, and trace stay here as support context. Variant choices are draft context; submit the review decision from the Scene / Orchestrate Main Stage before canon patch and prose draft are written.'}
           </p>
+        </SectionCard>
+      ) : null}
+      {isRewriteRequestedTerminal ? (
+        <SectionCard
+          eyebrow={locale === 'zh-CN' ? '重写结果' : 'Rewrite Outcome'}
+          title={locale === 'zh-CN' ? '需要新运行' : 'New run required'}
+          actions={<Badge tone="neutral">{locale === 'zh-CN' ? '支持上下文' : 'Support context'}</Badge>}
+        >
+          <div className="space-y-2">
+            <p className="text-sm leading-6 text-text-muted">
+              {locale === 'zh-CN'
+                ? '当前运行已经关闭。等重写说明准备好后，请从主舞台显式启动一次新运行。'
+                : 'This run is closed. Start a new run from the Main Stage when the rewrite brief is ready.'}
+            </p>
+            <p className="text-sm leading-6 text-text-muted">
+              {locale === 'zh-CN'
+                ? '底部 Dock 继续只提供这次已关闭运行的事件、产物和追踪支持。'
+                : 'The dock remains read-only support for events, artifacts, and trace from the closed run.'}
+            </p>
+          </div>
         </SectionCard>
       ) : null}
       <div className="grid min-h-[360px] gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.95fr)]">

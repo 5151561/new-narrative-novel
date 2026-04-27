@@ -291,4 +291,77 @@ describe('SceneExecutionTab', () => {
       selectedVariants: selectedVariantsForSubmit,
     })
   })
+
+  it('surfaces rewrite-requested runs as closed and requiring an explicit new run from the Main Stage', () => {
+    const rewriteRequestedRun: RunRecord = {
+      ...run,
+      status: 'completed',
+      summary: 'Rewrite requested. Start a new run to continue.',
+      pendingReviewId: undefined,
+      completedAtLabel: '2026-04-21 10:10',
+      latestEventId: 'run-event-003',
+      eventCount: 3,
+    }
+    const rewriteRequestedEvents: RunEventRecord[] = [
+      ...runEvents,
+      {
+        id: 'run-event-003',
+        runId: run.id,
+        order: 3,
+        kind: 'review_decision_submitted',
+        label: 'Review decision submitted',
+        summary: 'Rewrite requested. Start a new run to continue.',
+        createdAtLabel: '2026-04-21 10:10',
+        severity: 'warning',
+        refs: [{ kind: 'review', id: 'review-scene-midnight-platform-001' }],
+      },
+    ]
+
+    render(
+      <I18nProvider>
+        <SceneExecutionTab
+          objective={objective}
+          beats={beats}
+          proposals={proposals}
+          actorOptions={[{ id: 'scene-manager', label: 'Scene Manager' }]}
+          filters={{ beatId: 'beat-bargain' }}
+          acceptedSummary={acceptedSummary}
+          runSession={{
+            run: rewriteRequestedRun,
+            events: rewriteRequestedEvents,
+            pendingReviewId: null,
+            isReviewPending: false,
+            selectedVariantsForSubmit: [],
+            isLoading: false,
+            error: null,
+            isStartingRun: false,
+            isSubmittingDecision: false,
+            onStartRun: vi.fn(),
+            onSubmitDecision: vi.fn(async () => {}),
+          }}
+          canContinueRun={false}
+          canOpenProse={false}
+          onContinueRun={vi.fn()}
+          onOpenPatchPreview={vi.fn()}
+          onOpenProse={vi.fn()}
+          onSelectBeat={vi.fn()}
+          onSelectProposal={vi.fn()}
+          onAccept={vi.fn()}
+          onEditAccept={vi.fn()}
+          onRequestRewrite={vi.fn()}
+          onReject={vi.fn()}
+          onChangeFilters={vi.fn()}
+          onClearFilters={vi.fn()}
+        />
+      </I18nProvider>,
+    )
+
+    expect(screen.getAllByText('Rewrite requested. Start a new run to continue.').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('This run is closed. Start a new run explicitly to continue from the rewrite brief.').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Pending review')).not.toBeInTheDocument()
+    expect(screen.queryByText('Run Review Gate')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Run Scene' })[0]).toBeEnabled()
+    expect(screen.getAllByRole('button', { name: 'Rewrite Run' })[0]).toBeEnabled()
+    expect(screen.getAllByRole('button', { name: 'Run From Scratch' })[0]).toBeEnabled()
+  })
 })

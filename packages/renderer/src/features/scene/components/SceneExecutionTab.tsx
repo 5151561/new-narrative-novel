@@ -99,6 +99,8 @@ export function SceneExecutionTab({
   const { locale } = useI18n()
   const activeRun = runSession.run
   const latestEvent = runSession.events.at(-1)
+  const isRewriteRequestedTerminal =
+    activeRun?.status === 'completed' && latestEvent?.kind === 'review_decision_submitted'
   const isRunBusy = runSession.isStartingRun || runSession.isSubmittingDecision
   const areRunStartControlsDisabled = isRunBusy || runSession.isReviewPending
 
@@ -193,6 +195,18 @@ export function SceneExecutionTab({
                     {locale === 'zh-CN' ? '最新事件：' : 'Latest event: '}
                     <span className="font-medium text-text-main">{latestEvent.label}</span>
                   </p>
+                ) : null}
+                {isRewriteRequestedTerminal ? (
+                  <div className="rounded-md border border-line-soft bg-surface-1 px-3 py-3">
+                    <p className="text-sm font-medium text-text-main">
+                      {locale === 'zh-CN' ? '需要显式启动新运行' : 'New run required'}
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-text-muted">
+                      {locale === 'zh-CN'
+                        ? '当前运行已经关闭。请基于新的重写说明显式启动下一次运行；不会有隐藏的后台续跑。'
+                        : 'This run is closed. Start a new run explicitly to continue from the rewrite brief.'}
+                    </p>
+                  </div>
                 ) : null}
               </div>
             ) : null}

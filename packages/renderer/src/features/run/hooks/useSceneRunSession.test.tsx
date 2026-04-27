@@ -74,6 +74,62 @@ afterEach(() => {
 })
 
 describe('useSceneRunSession', () => {
+  it('treats rewrite-requested completed runs as terminal instead of an active background review run', async () => {
+    const queryClient = createQueryClient()
+    const runClient = createRunClient({
+      getRun: vi.fn(async ({ runId }) =>
+        createRun({
+          id: runId,
+          status: 'completed',
+          summary: 'Rewrite requested. Start a new run to continue.',
+          pendingReviewId: undefined,
+          completedAtLabel: '2026-04-21 10:10',
+          latestEventId: 'run-event-002',
+          eventCount: 2,
+        }),
+      ),
+      getRunEvents: vi.fn(async ({ runId }) =>
+        createEventsPage({
+          runId,
+          events: [
+            {
+              id: 'run-event-002',
+              runId,
+              order: 2,
+              kind: 'review_decision_submitted',
+              label: 'Review decision submitted',
+              summary: 'Rewrite requested. Start a new run to continue.',
+              createdAtLabel: '2026-04-21 10:10',
+              severity: 'warning',
+              refs: [{ kind: 'review', id: 'review-scene-midnight-platform-001' }],
+            },
+          ],
+        }),
+      ),
+    })
+
+    const hook = renderHook(
+      () =>
+        useSceneRunSession({
+          sceneId: 'scene-midnight-platform',
+          runId: 'run-scene-midnight-platform-001',
+        }),
+      {
+        wrapper: createWrapper(runClient, queryClient),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.run?.status).toBe('completed')
+    })
+
+    expect(hook.result.current.pendingReviewId).toBeNull()
+    expect(hook.result.current.isReviewPending).toBe(false)
+    expect(hook.result.current.canSubmitDecision).toBe(false)
+    expect(hook.result.current.isPolling).toBe(false)
+    expect(hook.result.current.events.at(-1)?.kind).toBe('review_decision_submitted')
+  })
+
   it('uses the current scene run surfaces first and derives review submission state', async () => {
     const queryClient = createQueryClient()
     const runClient = createRunClient({

@@ -19,6 +19,7 @@ interface RunReviewGateProps {
   isSubmitting: boolean
   selectedVariants?: RunSelectedProposalVariantRecord[]
   variantSelectionSummary?: string
+  initialDraftDecision?: DraftDecision | null
   onSubmitDecision: (input: RunReviewGateSubmitInput) => Promise<void> | void
 }
 
@@ -36,10 +37,11 @@ export function RunReviewGate({
   isSubmitting,
   selectedVariants = [],
   variantSelectionSummary,
+  initialDraftDecision = null,
   onSubmitDecision,
 }: RunReviewGateProps) {
   const { locale } = useI18n()
-  const [draftDecision, setDraftDecision] = useState<DraftDecision | null>(null)
+  const [draftDecision, setDraftDecision] = useState<DraftDecision | null>(initialDraftDecision)
   const [note, setNote] = useState('')
   const [patchId, setPatchId] = useState('')
   const [isLocallySubmitting, setIsLocallySubmitting] = useState(false)
@@ -107,6 +109,18 @@ export function RunReviewGate({
         : locale === 'zh-CN'
           ? '提交拒绝'
           : 'Submit Rejection'
+  const rewriteDecisionNote =
+    draftDecision === 'request-rewrite'
+      ? locale === 'zh-CN'
+        ? '提交重写请求会关闭当前运行。等重写说明准备好后，需要你显式启动一次新运行；这次决策不会在后台继续。'
+        : 'Submitting Request Rewrite closes this run. Start a new run explicitly when the rewrite brief is ready; this decision does not continue in the background.'
+      : null
+  const rewriteVariantNote =
+    draftDecision === 'request-rewrite' && selectedVariants.length > 0
+      ? locale === 'zh-CN'
+        ? '已选 variant 只保留为评审上下文，不会自动延续到这次运行之后。'
+        : 'Selected variants stay as review context only and will not continue this run automatically.'
+      : null
 
   return (
     <SectionCard
@@ -185,6 +199,14 @@ export function RunReviewGate({
         </div>
         {draftDecision ? (
           <form onSubmit={handleSubmit} className="space-y-3 rounded-md border border-line-soft bg-surface-2 px-3 py-3">
+            {rewriteDecisionNote ? (
+              <div className="rounded-md border border-line-soft bg-surface-1 px-3 py-3">
+                <p className="text-sm leading-6 text-text-muted">{rewriteDecisionNote}</p>
+                {rewriteVariantNote ? (
+                  <p className="mt-2 text-sm leading-6 text-text-muted">{rewriteVariantNote}</p>
+                ) : null}
+              </div>
+            ) : null}
             <div className="space-y-2">
               <label className="text-xs uppercase tracking-[0.05em] text-text-soft" htmlFor={`run-review-note-${pendingReviewId}`}>
                 {noteLabel}

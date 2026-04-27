@@ -40,3 +40,11 @@ export const WithSelectedVariants: Story = {
     variantSelectionSummary: '1 selected variant will travel with Accept.',
   },
 }
+
+export const RequestRewriteSelected: Story = {
+  args: {
+    selectedVariants,
+    variantSelectionSummary: '1 selected variant will travel with Accept.',
+    initialDraftDecision: 'request-rewrite',
+  },
+}

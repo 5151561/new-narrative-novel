@@ -193,6 +193,60 @@ describe('SceneBottomDock', () => {
     expect(onOpenAssetContext).toHaveBeenCalledWith('asset-ren-voss')
   })
 
+  it('mirrors rewrite-requested runs as closed support context without owning continuation or review actions', () => {
+    const rewriteRequestedRun: RunRecord = {
+      ...activeRun,
+      status: 'completed',
+      title: 'Midnight platform rewrite request',
+      summary: 'Rewrite requested. Start a new run to continue.',
+      pendingReviewId: undefined,
+      completedAtLabel: '2026-04-23 10:09',
+      latestEventId: 'run-event-scene-midnight-platform-002-009',
+    }
+    const rewriteRequestedEvents: RunEventRecord[] = [
+      ...activeRunEvents,
+      {
+        id: 'run-event-scene-midnight-platform-002-009',
+        runId: activeRun.id,
+        order: 9,
+        kind: 'review_decision_submitted',
+        label: 'Review decision submitted',
+        summary: 'Rewrite requested. Start a new run to continue.',
+        createdAtLabel: '2026-04-23 10:09',
+        severity: 'warning',
+        refs: [{ kind: 'review', id: 'review-scene-midnight-platform-002' }],
+      },
+    ]
+
+    render(
+      createElement(SceneBottomDock as unknown as typeof SceneBottomDock, {
+        data: dockData,
+        activeTab: 'events',
+        onTabChange: vi.fn(),
+        runSupport: {
+          run: rewriteRequestedRun,
+          events: rewriteRequestedEvents,
+          isLoading: false,
+          error: null,
+          isReviewPending: false,
+          artifacts: [],
+          selectedArtifactId: null,
+          selectedArtifact: null,
+          trace: null,
+        },
+      }),
+    )
+
+    expect(screen.getByText('Active Run Support')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'New run required' })).toBeInTheDocument()
+    expect(screen.getByText('This run is closed. Start a new run from the Main Stage when the rewrite brief is ready.')).toBeInTheDocument()
+    expect(screen.getByText('The dock remains read-only support for events, artifacts, and trace from the closed run.')).toBeInTheDocument()
+    expect(screen.getAllByText('Completed').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Waiting for Main Stage Review')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Accept' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Request Rewrite' })).not.toBeInTheDocument()
+  })
+
   it('does not let artifact list errors mask selected artifact detail', () => {
     resetMockRunDb()
     const artifactId = 'ctx-scene-midnight-platform-run-001'
