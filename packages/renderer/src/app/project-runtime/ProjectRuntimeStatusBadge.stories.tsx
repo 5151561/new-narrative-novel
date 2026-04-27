@@ -75,6 +75,27 @@ export const DesktopLocalHealthyCurrentProject: Story = {
   },
 }
 
+export const LocalProjectStoreHealthy: Story = {
+  args: {
+    info: createProjectRuntimeInfoRecord({
+      projectId: 'local-project-alpha',
+      projectTitle: 'Local Alpha',
+      source: 'api',
+      status: 'healthy',
+      summary: 'Connected to local project store v1.',
+      versionLabel: 'local-project-store-v1',
+      capabilities: {
+        read: true,
+        write: true,
+        runEvents: true,
+        runEventPolling: true,
+        runEventStream: false,
+        reviewDecisions: true,
+      },
+    }),
+  },
+}
+
 export const HealthyLimited: Story = {
   args: {
     info: createProjectRuntimeInfoRecord({
@@ -153,6 +174,27 @@ export const AllStates: Story = {
               runEventPolling: true,
               runEventStream: true,
               write: true,
+            },
+          }),
+        },
+      },
+      {
+        title: 'Local project store',
+        props: {
+          info: createProjectRuntimeInfoRecord({
+            projectId: 'local-project-alpha',
+            projectTitle: 'Local Alpha',
+            source: 'api',
+            status: 'healthy',
+            summary: 'Connected to local project store v1.',
+            versionLabel: 'local-project-store-v1',
+            capabilities: {
+              read: true,
+              write: true,
+              runEvents: true,
+              runEventPolling: true,
+              runEventStream: false,
+              reviewDecisions: true,
             },
           }),
         },

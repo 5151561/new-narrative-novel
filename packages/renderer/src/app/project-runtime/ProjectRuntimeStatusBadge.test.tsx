@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
+import { AllStates } from './ProjectRuntimeStatusBadge.stories'
 import { createProjectRuntimeInfoRecord } from './project-runtime-info'
 import { createProjectRuntimeTestWrapper } from './project-runtime-test-utils'
 import { ProjectRuntimeStatusBadge } from './ProjectRuntimeStatusBadge'
@@ -64,6 +65,24 @@ describe('ProjectRuntimeStatusBadge', () => {
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Signal Arc')
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('API')
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Healthy')
+  })
+
+  it('renders the local project store runtime state in the shared storybook status surface', () => {
+    const wrapper = createProjectRuntimeTestWrapper()
+
+    render(AllStates.render?.({}, {} as never), { wrapper })
+
+    const localProjectStoreSection = screen.getByText('Local project store').parentElement
+    expect(localProjectStoreSection).not.toBeNull()
+
+    const localProjectStoreStatus = within(localProjectStoreSection!).getByRole('status', {
+      name: 'Project runtime status',
+    })
+
+    expect(localProjectStoreStatus).toHaveTextContent('Local Alpha')
+    expect(localProjectStoreStatus).toHaveTextContent('API')
+    expect(localProjectStoreStatus).toHaveTextContent('Healthy')
+    expect(localProjectStoreStatus).toHaveTextContent('Connected to local project store v1.')
   })
 
   it('surfaces notable capability limitations for a healthy but limited runtime', () => {
