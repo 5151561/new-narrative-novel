@@ -96,6 +96,47 @@ function addAssetNode(state: MutableTraceState, asset: RunArtifactRelatedAssetRe
   })
 }
 
+function resolveGeneratedTargetKind(state: MutableTraceState, generatedRef: AgentInvocationArtifactDetailRecord['generatedRefs'][number]) {
+  if (generatedRef.kind === 'proposal-set') {
+    return 'proposal-set' as const
+  }
+
+  return state.nodesById.get(generatedRef.id)?.kind
+}
+
+function addGeneratedLinksForInvocation(
+  state: MutableTraceState,
+  invocation: AgentInvocationArtifactDetailRecord,
+  options?: {
+    includeRef?: (generatedRef: AgentInvocationArtifactDetailRecord['generatedRefs'][number]) => boolean
+  },
+) {
+  for (const generatedRef of invocation.generatedRefs) {
+    if (options?.includeRef && !options.includeRef(generatedRef)) {
+      continue
+    }
+
+    const targetKind = resolveGeneratedTargetKind(state, generatedRef)
+    if (!targetKind) {
+      state.missingTraceCount += 1
+      continue
+    }
+
+    addLink(state, {
+      from: {
+        id: invocation.id,
+        kind: 'agent-invocation',
+      },
+      to: {
+        id: generatedRef.id,
+        kind: targetKind,
+      },
+      relation: 'generated',
+      label: text('Generated', '生成'),
+    })
+  }
+}
+
 function buildSelectedVariantTraceLabel(
   input: BuildAcceptedRunTraceInput,
   proposalId: string,
@@ -194,18 +235,9 @@ function buildInitialTraceState(input: BuildInitialRunTraceInput) {
     })
   }
 
-  for (const sourceInvocationId of input.proposalSet.sourceInvocationIds) {
-    addLink(state, {
-      from: {
-        id: sourceInvocationId,
-        kind: 'agent-invocation',
-      },
-      to: {
-        id: input.proposalSet.id,
-        kind: 'proposal-set',
-      },
-      relation: 'generated',
-      label: text('Generated', '生成'),
+  for (const invocation of input.agentInvocations) {
+    addGeneratedLinksForInvocation(state, invocation, {
+      includeRef: (generatedRef) => generatedRef.kind === 'proposal-set',
     })
   }
 
@@ -290,6 +322,14 @@ export function buildAcceptedRunTrace(input: BuildAcceptedRunTraceInput): RunTra
     kind: 'prose-draft',
     label: input.proseDraft.title,
   })
+
+  for (const invocation of input.agentInvocations) {
+    if (invocation.generatedRefs.some((generatedRef) => generatedRef.kind === 'artifact')) {
+      addGeneratedLinksForInvocation(state, invocation, {
+        includeRef: (generatedRef) => generatedRef.kind === 'artifact',
+      })
+    }
+  }
 
   for (const acceptedFact of input.canonPatch.acceptedFacts) {
     addNode(state, {

@@ -14,6 +14,7 @@ import {
   buildAgentInvocationId,
   buildCanonPatchId,
   buildContextPacketId,
+  buildProseDraftId,
   buildProposalSetId,
   buildReviewId,
   buildTraceLinkId,
@@ -23,6 +24,7 @@ import type {
   SceneRunCanonicalPlannerProposalRecord,
   SceneRunCanonicalPlannerVariantRecord,
 } from './sceneRunRecords.js'
+import { parseSceneProseWriterOutput, type SceneProseWriterOutput } from '../modelGateway/sceneProseWriterOutputSchema.js'
 
 interface ArtifactSummaryLabelOverrides {
   title?: LocalizedTextRecord
@@ -157,7 +159,9 @@ function buildDefaultTitle(artifact: SceneRunArtifactRecord): LocalizedTextRecor
 function buildDefaultSummary(artifact: SceneRunArtifactRecord): LocalizedTextRecord {
   const sceneName = formatSceneName(artifact.sceneId)
   const sequenceLabel = parseSequenceLabel(artifact.id)
-  const plannerProvenance = artifact.kind === 'agent-invocation' ? readPlannerProvenance(artifact) : undefined
+  const gatewayProvenance = artifact.kind === 'agent-invocation' || artifact.kind === 'prose-draft'
+    ? readGatewayProvenance(artifact)
+    : undefined
 
   switch (artifact.kind) {
     case 'context-packet':
@@ -168,10 +172,10 @@ function buildDefaultSummary(artifact: SceneRunArtifactRecord): LocalizedTextRec
     case 'agent-invocation':
       return artifact.meta?.role === 'planner'
         ? localize(
-            plannerProvenance?.fallbackReason
+            gatewayProvenance?.fallbackReason
               ? `Fallback planner output is ready for ${sceneName}.`
               : `Planner output is ready for ${sceneName}.`,
-            plannerProvenance?.fallbackReason
+            gatewayProvenance?.fallbackReason
               ? `面向 ${sceneName} 的回退规划输出已就绪。`
               : `面向 ${sceneName} 的规划输出已就绪。`,
           )
@@ -190,10 +194,7 @@ function buildDefaultSummary(artifact: SceneRunArtifactRecord): LocalizedTextRec
         `已将 ${sceneName} 的获批提案变更编译进正典。`,
       )
     case 'prose-draft':
-      return localize(
-        `A fixture prose draft was rendered for ${sceneName}.`,
-        `已为 ${sceneName} 渲染 fixture 正文草稿。`,
-      )
+      return buildProseDraftSummary(sceneName, gatewayProvenance)
   }
 }
 
@@ -254,7 +255,7 @@ function buildArtifactSummary(input: BuildArtifactDetailBaseInput) {
   }
 }
 
-function readPlannerProvenance(artifact: SceneRunArtifactRecord) {
+function readGatewayProvenance(artifact: SceneRunArtifactRecord) {
   const provenance = artifact.meta?.provenance
   if (!isRecord(provenance)) {
     return undefined
@@ -280,6 +281,37 @@ function readPlannerProvenance(artifact: SceneRunArtifactRecord) {
     provider,
     modelId,
     ...(fallbackReason ? { fallbackReason } : {}),
+  }
+}
+
+function readGeneratedRefs(artifact: SceneRunArtifactRecord): RunArtifactGeneratedRefRecord[] | undefined {
+  const generatedRefs = artifact.meta?.generatedRefs
+  if (!Array.isArray(generatedRefs)) {
+    return undefined
+  }
+
+  return generatedRefs.every((ref) => (
+    isRecord(ref)
+    && (ref.kind === 'proposal-set' || ref.kind === 'artifact')
+    && typeof ref.id === 'string'
+    && isRecord(ref.label)
+    && typeof ref.label.en === 'string'
+    && typeof ref.label['zh-CN'] === 'string'
+  ))
+    ? generatedRefs as RunArtifactGeneratedRefRecord[]
+    : undefined
+}
+
+function readSceneProseWriterOutput(artifact: SceneRunArtifactRecord): SceneProseWriterOutput | undefined {
+  const output = artifact.meta?.output
+  if (!isRecord(output)) {
+    return undefined
+  }
+
+  try {
+    return parseSceneProseWriterOutput(output)
+  } catch {
+    return undefined
   }
 }
 
@@ -687,6 +719,27 @@ function summarizeDefaultAssetActivations(
 }
 
 function buildDefaultGeneratedRefs(artifact: SceneRunArtifactRecord): RunArtifactGeneratedRefRecord[] {
+  const explicitGeneratedRefs = readGeneratedRefs(artifact)
+  if (explicitGeneratedRefs) {
+    return explicitGeneratedRefs
+  }
+
+  if (artifact.meta?.role === 'writer') {
+    if (readGatewayProvenance(artifact)) {
+      const proseDraftId = buildProseDraftId(artifact.sceneId, parseRunSequenceNumber(artifact.runId))
+
+      return [
+        {
+          kind: 'artifact',
+          id: proseDraftId,
+          label: localize('Prose draft', '正文草稿'),
+        },
+      ]
+    }
+
+    return []
+  }
+
   const proposalSetId = buildProposalSetId(artifact.sceneId, parseRunSequenceNumber(artifact.runId))
 
   return [
@@ -908,27 +961,39 @@ export function buildAgentInvocationDetail(
   const agentRole = readAgentRole(input.artifact)
   const isPlanner = agentRole === 'scene-planner'
   const sequence = parseRunSequenceNumber(input.artifact.runId)
-  const plannerProvenance = readPlannerProvenance(input.artifact)
+  const gatewayProvenance = readGatewayProvenance(input.artifact)
+  const isAcceptedWriterInvocation = !isPlanner && Boolean(gatewayProvenance)
 
   return {
     ...buildArtifactSummary(input),
     kind: 'agent-invocation',
     agentRole,
     modelLabel: isPlanner
-      ? plannerProvenance?.provider === 'openai'
-        ? localize(`OpenAI planner profile (${plannerProvenance.modelId})`, `OpenAI 规划模型 (${plannerProvenance.modelId})`)
-        : plannerProvenance?.fallbackReason
-          ? localize(`Fixture planner fallback (${plannerProvenance.modelId})`, `Fixture 回退规划模型 (${plannerProvenance.modelId})`)
-          : plannerProvenance
-            ? localize(`Fixture planner profile (${plannerProvenance.modelId})`, `Fixture 规划模型 (${plannerProvenance.modelId})`)
+      ? gatewayProvenance?.provider === 'openai'
+        ? localize(`OpenAI planner profile (${gatewayProvenance.modelId})`, `OpenAI 规划模型 (${gatewayProvenance.modelId})`)
+        : gatewayProvenance?.fallbackReason
+          ? localize(`Fixture planner fallback (${gatewayProvenance.modelId})`, `Fixture 回退规划模型 (${gatewayProvenance.modelId})`)
+          : gatewayProvenance
+            ? localize(`Fixture planner profile (${gatewayProvenance.modelId})`, `Fixture 规划模型 (${gatewayProvenance.modelId})`)
             : localize('Fixture planner profile', 'Fixture 规划模型')
-      : localize('Fixture writer profile', 'Fixture 写作模型'),
+      : gatewayProvenance?.provider === 'openai'
+        ? localize(`OpenAI writer profile (${gatewayProvenance.modelId})`, `OpenAI 写作模型 (${gatewayProvenance.modelId})`)
+        : gatewayProvenance?.fallbackReason
+          ? localize(`Fixture writer fallback (${gatewayProvenance.modelId})`, `Fixture 回退写作模型 (${gatewayProvenance.modelId})`)
+          : gatewayProvenance
+            ? localize(`Fixture writer profile (${gatewayProvenance.modelId})`, `Fixture 写作模型 (${gatewayProvenance.modelId})`)
+            : localize('Fixture writer profile', 'Fixture 写作模型'),
     inputSummary: isPlanner
       ? localize(
           `Consumes the packed scene context and editorial note for ${sceneName}.`,
           `消费 ${sceneName} 的上下文包和编辑备注。`,
         )
-      : localize(
+      : isAcceptedWriterInvocation
+        ? localize(
+          `Consumes the accepted canon patch and editorial decision for ${sceneName}.`,
+          `消费 ${sceneName} 的已接受正典补丁和编辑决定。`,
+        )
+        : localize(
           `Consumes the approved planning frame and context packet for ${sceneName}.`,
           `消费 ${sceneName} 的规划结果和上下文包。`,
         ),
@@ -937,14 +1002,19 @@ export function buildAgentInvocationDetail(
           'Produces structured proposal candidates for editorial review.',
           '产出供编辑审阅的结构化提案候选。',
         )
-      : localize(
+      : isAcceptedWriterInvocation
+        ? localize(
+          'Produces a structured accepted prose draft after review acceptance.',
+          '在审阅接受后产出结构化的正文草稿。',
+        )
+        : localize(
           'Produces prose-shaping fixture output for the proposal set.',
           '产出用于提案集的正文塑形 fixture 输出。',
         ),
     contextPacketId: input.contextPacketId ?? buildContextPacketId(input.artifact.sceneId, sequence),
     outputSchemaLabel: isPlanner
       ? localize('Proposal candidate schema', '提案候选结构')
-      : localize('Prose draft scaffold schema', '正文草稿脚手架结构'),
+      : localize('Accepted prose draft schema', '已接受正文草稿结构'),
     generatedRefs: input.generatedRefs ?? buildDefaultGeneratedRefs(input.artifact),
   }
 }
@@ -1000,33 +1070,68 @@ export function buildProseDraftDetail(
 ): ProseDraftArtifactDetailRecord {
   assertArtifactKind(input.artifact, 'prose-draft')
   const sceneName = formatSceneName(input.artifact.sceneId)
-  const sceneLead = buildLeadAsset(input.artifact.sceneId, sceneName)
-  const sceneSetting = buildSettingAsset(input.artifact.sceneId, sceneName)
   const sequence = parseRunSequenceNumber(input.artifact.runId)
   const sourceProposalIds = input.sourceProposalIds ?? [buildProposalIds(input.artifact)[0]]
   const selectedVariants = input.selectedVariants && input.selectedVariants.length > 0
     ? input.selectedVariants
     : undefined
+  const writerOutput = readSceneProseWriterOutput(input.artifact)
+  const provenance = readGatewayProvenance(input.artifact)
+  const defaultRelatedAssets = [
+    buildLeadAsset(input.artifact.sceneId, sceneName),
+    buildSettingAsset(input.artifact.sceneId, sceneName),
+  ]
+  const summary = buildProseDraftSummary(sceneName, provenance)
 
   return {
-    ...buildArtifactSummary(input),
+    ...buildArtifactSummary({
+      ...input,
+      labels: {
+        ...input.labels,
+        summary,
+      },
+    }),
     kind: 'prose-draft',
     sourceCanonPatchId: input.sourceCanonPatchId ?? buildCanonPatchId(input.artifact.sceneId, sequence),
     sourceProposalIds,
     ...(selectedVariants
       ? { selectedVariants }
       : {}),
-    body: buildProseDraftBody({
+    body: writerOutput?.body ?? buildProseDraftBody({
       sceneName,
       sourceProposalIds,
       selectedVariants,
     }),
-    excerpt: localize(
+    excerpt: writerOutput?.excerpt ?? localize(
       `${sceneName} settles into view before the next reveal turns visible.`,
       `${sceneName} 先稳稳落入视野，随后下一段揭示才开始显形。`,
     ),
-    wordCount: 140 + sequence * 3,
-    relatedAssets: [sceneLead, sceneSetting],
+    wordCount: writerOutput?.wordCount ?? 140 + sequence * 3,
+    relatedAssets: writerOutput?.relatedAssets ?? defaultRelatedAssets,
     traceLinkIds: input.traceLinkIds ?? buildDefaultTraceLinkIds(input.artifact, 'rendered_as'),
   }
+}
+
+function buildProseDraftSummary(
+  sceneName: string,
+  provenance?: ReturnType<typeof readGatewayProvenance>,
+) {
+  if (provenance?.provider === 'openai') {
+    return localize(
+      `Accepted prose draft was rendered for ${sceneName}.`,
+      `已为 ${sceneName} 渲染获批正文草稿。`,
+    )
+  }
+
+  if (provenance?.fallbackReason) {
+    return localize(
+      `Fixture prose fallback was rendered for ${sceneName}.`,
+      `已为 ${sceneName} 渲染 fixture 回退正文草稿。`,
+    )
+  }
+
+  return localize(
+    `A fixture prose draft was rendered for ${sceneName}.`,
+    `已为 ${sceneName} 渲染 fixture 正文草稿。`,
+  )
 }

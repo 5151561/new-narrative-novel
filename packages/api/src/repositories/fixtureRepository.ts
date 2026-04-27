@@ -46,6 +46,10 @@ import type {
   ScenePlannerGatewayRequest,
   ScenePlannerGatewayResult,
 } from '../orchestration/modelGateway/scenePlannerGateway.js'
+import type {
+  SceneProseWriterGatewayRequest,
+  SceneProseWriterGatewayResult,
+} from '../orchestration/modelGateway/sceneProseWriterGateway.js'
 import {
   buildAcceptedFactsFromCanonPatch,
   buildSceneProseFromProseDraftArtifact,
@@ -364,18 +368,23 @@ export function createFixtureRepository(options: {
   scenePlannerGateway: {
     generate(request: ScenePlannerGatewayRequest): Promise<ScenePlannerGatewayResult>
   }
+  sceneProseWriterGateway: {
+    generate(request: SceneProseWriterGatewayRequest): Promise<SceneProseWriterGatewayResult>
+  }
   projectStatePersistence?: FixtureRepositoryProjectStatePersistence
   runEventStreamEnabled?: boolean
 }): FixtureRepository {
   const createSeedSnapshot = () => createFixtureDataSnapshot(options.apiBaseUrl)
   const createSeedRunStore = () => createRunFixtureStore({
     scenePlannerGateway: options.scenePlannerGateway,
+    sceneProseWriterGateway: options.sceneProseWriterGateway,
     runEventStreamEnabled: options.runEventStreamEnabled,
   })
 
   let snapshot = createSeedSnapshot()
   const runStore: RunFixtureStore = createRunFixtureStore({
     scenePlannerGateway: options.scenePlannerGateway,
+    sceneProseWriterGateway: options.sceneProseWriterGateway,
     runEventStreamEnabled: options.runEventStreamEnabled,
   })
   let persistenceQueue = Promise.resolve()
@@ -1115,7 +1124,7 @@ export function createFixtureRepository(options: {
       return runStore.supportsRunEventStream()
     },
     async submitRunReviewDecision(projectId, input) {
-      const run = runStore.submitRunReviewDecision(projectId, input)
+      const run = await runStore.submitRunReviewDecision(projectId, input)
       syncRunMutations(projectId, run)
       syncSceneProseFromAcceptedRun(projectId, run, input.decision)
       await persistProjectOverlay(projectId)

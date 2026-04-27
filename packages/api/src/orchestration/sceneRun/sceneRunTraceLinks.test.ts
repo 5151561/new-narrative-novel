@@ -69,7 +69,7 @@ describe('sceneRunTraceLinks', () => {
         sequence: 2,
       }),
       sourceEventIds: ['run-event-scene-midnight-platform-002-008'],
-      sourceInvocationIds: [plannerInvocation.id, writerInvocation.id],
+      sourceInvocationIds: [plannerInvocation.id],
       selectedVariants,
     })
 
@@ -133,12 +133,6 @@ describe('sceneRunTraceLinks', () => {
         to: initial.proposalSet.id,
       },
       {
-        id: 'trace-link-scene-midnight-platform-002-generated-002',
-        relation: 'generated',
-        from: initial.writerInvocation.id,
-        to: initial.proposalSet.id,
-      },
-      {
         id: 'trace-link-scene-midnight-platform-002-proposed-001',
         relation: 'proposed',
         from: initial.proposalSet.id,
@@ -173,6 +167,31 @@ describe('sceneRunTraceLinks', () => {
 
   it('extends the initial trace with proposal to canon to prose links after acceptance', () => {
     const initial = buildInitialArtifacts()
+    const acceptedWriterInvocation = buildAgentInvocationDetail({
+      artifact: createAgentInvocationArtifact({
+        runId,
+        sceneId,
+        sequence: 2,
+        index: 3,
+        role: 'writer',
+        provenance: {
+          provider: 'fixture',
+          modelId: 'fixture-scene-prose-writer',
+        },
+        generatedRefs: [
+          {
+            kind: 'artifact',
+            id: 'prose-draft-scene-midnight-platform-002',
+            label: {
+              en: 'Prose draft',
+              'zh-CN': '正文草稿',
+            },
+          },
+        ],
+      }),
+      sourceEventIds: ['run-event-scene-midnight-platform-002-012'],
+      contextPacketId: initial.contextPacket.id,
+    })
     const canonPatch = buildCanonPatchDetail({
       artifact: createCanonPatchArtifact({
         runId,
@@ -198,7 +217,7 @@ describe('sceneRunTraceLinks', () => {
     const trace = buildAcceptedRunTrace({
       runId,
       contextPacket: initial.contextPacket,
-      agentInvocations: [initial.plannerInvocation, initial.writerInvocation],
+      agentInvocations: [initial.plannerInvocation, initial.writerInvocation, acceptedWriterInvocation],
       proposalSet: initial.proposalSet,
       canonPatch,
       proseDraft,
@@ -211,6 +230,18 @@ describe('sceneRunTraceLinks', () => {
       missingTraceCount: 0,
     })
     expect(trace.links).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'trace-link-scene-midnight-platform-002-generated-002',
+        relation: 'generated',
+        from: {
+          kind: 'agent-invocation',
+          id: acceptedWriterInvocation.id,
+        },
+        to: {
+          kind: 'prose-draft',
+          id: proseDraft.id,
+        },
+      }),
       expect.objectContaining({
         id: 'trace-link-scene-midnight-platform-002-accepted_into-001',
         relation: 'accepted_into',
@@ -267,6 +298,19 @@ describe('sceneRunTraceLinks', () => {
         to: {
           kind: 'asset',
           id: 'asset-scene-midnight-platform-setting',
+        },
+      }),
+    ]))
+    expect(trace.links).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        relation: 'generated',
+        from: {
+          kind: 'agent-invocation',
+          id: acceptedWriterInvocation.id,
+        },
+        to: {
+          kind: 'proposal-set',
+          id: initial.proposalSet.id,
         },
       }),
     ]))

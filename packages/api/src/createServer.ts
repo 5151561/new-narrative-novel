@@ -8,6 +8,10 @@ import {
   type ScenePlannerGatewayDependencies,
 } from './orchestration/modelGateway/scenePlannerGateway.js'
 import {
+  createSceneProseWriterGateway,
+  type SceneProseWriterGatewayDependencies,
+} from './orchestration/modelGateway/sceneProseWriterGateway.js'
+import {
   createFixtureRepository,
   type FixtureRepositoryProjectStatePersistence,
 } from './repositories/fixtureRepository.js'
@@ -25,6 +29,7 @@ export interface CreateServerOptions {
   config?: ApiServerConfig
   projectStatePersistence?: FixtureRepositoryProjectStatePersistence
   scenePlannerGatewayDependencies?: ScenePlannerGatewayDependencies
+  sceneProseWriterGatewayDependencies?: SceneProseWriterGatewayDependencies
 }
 
 export function createServer(options: CreateServerOptions = {}) {
@@ -34,9 +39,14 @@ export function createServer(options: CreateServerOptions = {}) {
     config,
     options.scenePlannerGatewayDependencies,
   )
+  const sceneProseWriterGateway = createSceneProseWriterGateway(
+    config,
+    options.sceneProseWriterGatewayDependencies,
+  )
   const repository = createFixtureRepository({
     apiBaseUrl: config.apiBaseUrl,
     scenePlannerGateway,
+    sceneProseWriterGateway,
     projectStatePersistence: options.projectStatePersistence ?? createProjectStatePersistence({
       filePath: config.projectStateFilePath,
     }),

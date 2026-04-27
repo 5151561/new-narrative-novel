@@ -1,4 +1,7 @@
+import type { RunArtifactGeneratedRefRecord } from '../../contracts/api-records.js'
 import type { ScenePlannerGatewayProvenance } from '../modelGateway/scenePlannerGateway.js'
+import type { SceneProseWriterGatewayProvenance } from '../modelGateway/sceneProseWriterGateway.js'
+import type { SceneProseWriterOutput } from '../modelGateway/sceneProseWriterOutputSchema.js'
 import type { ScenePlannerOutput } from '../modelGateway/scenePlannerOutputSchema.js'
 import type {
   SceneRunArtifactRecord,
@@ -22,11 +25,17 @@ interface SceneRunArtifactBaseInput {
 interface AgentInvocationArtifactInput extends SceneRunArtifactBaseInput {
   index: number
   role: 'planner' | 'writer'
-  provenance?: ScenePlannerGatewayProvenance
+  provenance?: ScenePlannerGatewayProvenance | SceneProseWriterGatewayProvenance
+  generatedRefs?: RunArtifactGeneratedRefRecord[]
 }
 
 interface ProposalSetArtifactInput extends SceneRunArtifactBaseInput {
   plannerOutput?: ScenePlannerOutput
+}
+
+interface ProseDraftArtifactInput extends SceneRunArtifactBaseInput {
+  writerOutput?: SceneProseWriterOutput
+  writerProvenance?: SceneProseWriterGatewayProvenance
 }
 
 function formatSceneName(sceneId: string) {
@@ -132,13 +141,18 @@ export function createContextPacketArtifact(input: SceneRunArtifactBaseInput): S
 
 export function createAgentInvocationArtifact(input: AgentInvocationArtifactInput): SceneRunArtifactRecord {
   const title = input.role === 'planner' ? 'Planner' : 'Writer'
-  const plannerMeta = input.role === 'planner' && input.provenance
+  const provenanceMeta = input.provenance
     ? {
         provenance: {
           provider: input.provenance.provider,
           modelId: input.provenance.modelId,
           ...(input.provenance.fallbackReason ? { fallbackReason: input.provenance.fallbackReason } : {}),
         },
+      }
+    : {}
+  const generatedRefsMeta = input.generatedRefs
+    ? {
+        generatedRefs: input.generatedRefs,
       }
     : {}
 
@@ -153,7 +167,8 @@ export function createAgentInvocationArtifact(input: AgentInvocationArtifactInpu
     meta: {
       role: input.role,
       index: input.index,
-      ...plannerMeta,
+      ...provenanceMeta,
+      ...generatedRefsMeta,
     },
   }
 }
@@ -187,7 +202,18 @@ export function createCanonPatchArtifact(input: SceneRunArtifactBaseInput): Scen
   }
 }
 
-export function createProseDraftArtifact(input: SceneRunArtifactBaseInput): SceneRunArtifactRecord {
+export function createProseDraftArtifact(input: ProseDraftArtifactInput): SceneRunArtifactRecord {
+  const meta = input.writerOutput && input.writerProvenance
+    ? {
+        provenance: {
+          provider: input.writerProvenance.provider,
+          modelId: input.writerProvenance.modelId,
+          ...(input.writerProvenance.fallbackReason ? { fallbackReason: input.writerProvenance.fallbackReason } : {}),
+        },
+        output: input.writerOutput,
+      }
+    : undefined
+
   return {
     kind: 'prose-draft',
     id: buildProseDraftId(input.sceneId, input.sequence),
@@ -196,5 +222,6 @@ export function createProseDraftArtifact(input: SceneRunArtifactBaseInput): Scen
     title: 'Prose draft',
     summary: 'Generated prose draft for the scene run.',
     status: 'generated',
+    ...(meta ? { meta } : {}),
   }
 }

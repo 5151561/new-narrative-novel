@@ -7,6 +7,8 @@ import type {
 } from '../../contracts/api-records.js'
 import type { ScenePlannerGatewayProvenance } from '../modelGateway/scenePlannerGateway.js'
 import type { ScenePlannerOutput } from '../modelGateway/scenePlannerOutputSchema.js'
+import type { SceneProseWriterGatewayProvenance } from '../modelGateway/sceneProseWriterGateway.js'
+import type { SceneProseWriterOutput } from '../modelGateway/sceneProseWriterOutputSchema.js'
 
 export type SceneRunArtifactKind =
   | 'context-packet'
@@ -84,6 +86,10 @@ export interface SceneRunReviewTransitionInput {
   note?: string
   patchId?: string
   selectedVariants?: RunSelectedProposalVariantRecord[]
+  proseGeneration?: {
+    output: SceneProseWriterOutput
+    provenance: SceneProseWriterGatewayProvenance
+  }
 }
 
 export interface SceneRunReviewTransitionOptions {

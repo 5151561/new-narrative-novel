@@ -183,7 +183,7 @@ describe('runFixtureStore', () => {
     })
 
     const tailPromise = iterator.next()
-    const completedRun = store.submitRunReviewDecision('project-stream-replay', {
+    const completedRun = await store.submitRunReviewDecision('project-stream-replay', {
       runId: run.id,
       reviewId: run.pendingReviewId!,
       decision: 'accept',
@@ -221,7 +221,7 @@ describe('runFixtureStore', () => {
       note: 'First pass before reset.',
     })
     expect(firstRun.id).toBe('run-scene-midnight-platform-001')
-    store.submitRunReviewDecision(projectId, {
+    await store.submitRunReviewDecision(projectId, {
       runId: firstRun.id,
       reviewId: firstRun.pendingReviewId!,
       decision: 'accept',
@@ -242,7 +242,7 @@ describe('runFixtureStore', () => {
     })[Symbol.asyncIterator]()
     const tailPromise = iterator.next()
 
-    store.submitRunReviewDecision(projectId, {
+    await store.submitRunReviewDecision(projectId, {
       runId: secondRun.id,
       reviewId: secondRun.pendingReviewId!,
       decision: 'accept',
@@ -579,7 +579,7 @@ describe('runFixtureStore', () => {
       mode: 'rewrite',
     })
 
-    store.submitRunReviewDecision('project-accept-artifacts', {
+    await store.submitRunReviewDecision('project-accept-artifacts', {
       runId: run.id,
       reviewId: run.pendingReviewId!,
       decision: 'accept',
@@ -588,6 +588,7 @@ describe('runFixtureStore', () => {
     const artifacts = store.listRunArtifacts('project-accept-artifacts', run.id)
     expect(artifacts?.map((artifact) => artifact.kind)).toEqual([
       'context-packet',
+      'agent-invocation',
       'agent-invocation',
       'agent-invocation',
       'proposal-set',
@@ -600,10 +601,29 @@ describe('runFixtureStore', () => {
       sourceProposalSetId: 'proposal-set-scene-midnight-platform-run-001',
       acceptedProposalIds: ['proposal-set-scene-midnight-platform-run-001-proposal-001'],
     })
+    expect(
+      store.getRunArtifact('project-accept-artifacts', run.id, 'agent-invocation-scene-midnight-platform-run-001-003'),
+    ).toMatchObject({
+      kind: 'agent-invocation',
+      agentRole: 'scene-writer',
+      modelLabel: {
+        en: 'Fixture writer profile (fixture-scene-prose-writer)',
+      },
+      generatedRefs: [
+        {
+          kind: 'artifact',
+          id: 'prose-draft-scene-midnight-platform-001',
+        },
+      ],
+    })
     expect(store.getRunArtifact('project-accept-artifacts', run.id, 'prose-draft-scene-midnight-platform-001')).toMatchObject({
       kind: 'prose-draft',
       sourceCanonPatchId: 'canon-patch-scene-midnight-platform-001',
       sourceProposalIds: ['proposal-set-scene-midnight-platform-run-001-proposal-001'],
+    })
+    expect(store.getRunArtifact('project-accept-artifacts', run.id, 'proposal-set-scene-midnight-platform-run-001')).toMatchObject({
+      kind: 'proposal-set',
+      sourceInvocationIds: ['agent-invocation-scene-midnight-platform-run-001-001'],
     })
   })
 
@@ -618,7 +638,7 @@ describe('runFixtureStore', () => {
       variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-002',
     }
 
-    store.submitRunReviewDecision('project-selected-variants', {
+    await store.submitRunReviewDecision('project-selected-variants', {
       runId: run.id,
       reviewId: run.pendingReviewId!,
       decision: 'accept',
@@ -660,6 +680,103 @@ describe('runFixtureStore', () => {
     expect(store.getRunArtifact('project-selected-variants', run.id, 'prose-draft-scene-midnight-platform-001')).toMatchObject({
       kind: 'prose-draft',
       selectedVariants: [selectedVariant],
+    })
+  })
+
+  it('keeps persisted canon patch, prose draft, and trace provenance aligned for a selected variant on proposal 002', async () => {
+    const store = createRunFixtureStore({
+      scenePlannerGateway: {
+        generate: vi.fn().mockResolvedValue(createPlannerResult({
+          proposals: [
+            {
+              title: 'Hold on the departure bell',
+              summary: 'Delay the reveal until the platform bell has landed.',
+              changeKind: 'action',
+              riskLabel: 'Editor check recommended',
+              variants: [
+                {
+                  label: 'Wide bell',
+                  summary: 'Stay wide on the bell before focusing on Ren.',
+                  rationale: 'Preserves staging before the reveal tightens.',
+                },
+              ],
+            },
+            {
+              title: 'Thread the ledger rumor',
+              summary: 'Carry the rumor through ambient station detail.',
+              changeKind: 'reveal',
+              riskLabel: 'Continuity review required',
+              variants: [
+                {
+                  label: 'Ambient rumor',
+                  summary: 'Let the platform ambience carry the rumor forward.',
+                  rationale: 'Keeps the reveal in the setting instead of exposition.',
+                },
+              ],
+            },
+          ],
+        })),
+      },
+    })
+    const projectId = 'project-selected-proposal-002'
+    const run = await store.startSceneRun(projectId, {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+    })
+    const selectedVariant = {
+      proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-002',
+      variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-002-variant-001',
+    }
+
+    await store.submitRunReviewDecision(projectId, {
+      runId: run.id,
+      reviewId: run.pendingReviewId!,
+      decision: 'accept',
+      selectedVariants: [selectedVariant],
+    })
+
+    const snapshot = store.exportProjectState(projectId)
+    expect(snapshot).toBeTruthy()
+
+    const hydratedStore = createRunFixtureStore()
+    hydratedStore.clearProject(projectId)
+    hydratedStore.hydrateProjectState(projectId, snapshot!)
+
+    expect(hydratedStore.getRunArtifact(projectId, run.id, 'canon-patch-scene-midnight-platform-001')).toMatchObject({
+      kind: 'canon-patch',
+      acceptedProposalIds: [selectedVariant.proposalId],
+      selectedVariants: [selectedVariant],
+      acceptedFacts: [
+        expect.objectContaining({
+          sourceProposalIds: [selectedVariant.proposalId],
+          selectedVariants: [selectedVariant],
+        }),
+      ],
+    })
+    expect(hydratedStore.getRunArtifact(projectId, run.id, 'prose-draft-scene-midnight-platform-001')).toMatchObject({
+      kind: 'prose-draft',
+      sourceProposalIds: [selectedVariant.proposalId],
+      selectedVariants: [selectedVariant],
+      body: {
+        en: expect.stringContaining(selectedVariant.variantId),
+      },
+    })
+    expect(hydratedStore.getRunTrace(projectId, run.id)).toMatchObject({
+      summary: {
+        proposalSetCount: 1,
+        canonPatchCount: 1,
+        proseDraftCount: 1,
+        missingTraceCount: 0,
+      },
+      links: expect.arrayContaining([
+        expect.objectContaining({
+          relation: 'accepted_into',
+          from: {
+            kind: 'proposal',
+            id: selectedVariant.proposalId,
+          },
+        }),
+      ]),
     })
   })
 
@@ -736,7 +853,7 @@ describe('runFixtureStore', () => {
       const beforeArtifacts = store.listRunArtifacts(projectId, run.id)
 
       try {
-        store.submitRunReviewDecision(projectId, {
+        await store.submitRunReviewDecision(projectId, {
           runId: run.id,
           reviewId: run.pendingReviewId!,
           decision: 'accept',
@@ -772,7 +889,7 @@ describe('runFixtureStore', () => {
     const beforeArtifacts = store.listRunArtifacts('project-patchid-collision', run.id)
 
     try {
-      store.submitRunReviewDecision('project-patchid-collision', {
+      await store.submitRunReviewDecision('project-patchid-collision', {
         runId: run.id,
         reviewId: run.pendingReviewId!,
         decision: 'accept-with-edit',
@@ -792,6 +909,30 @@ describe('runFixtureStore', () => {
     expect(store.listRunArtifacts('project-patchid-collision', run.id)).toEqual(beforeArtifacts)
   })
 
+  it('rejects colliding patch ids before invoking the writer gateway', async () => {
+    const generate = vi.fn()
+    const store = createRunFixtureStore({
+      sceneProseWriterGateway: {
+        generate,
+      },
+    })
+    const run = await store.startSceneRun('project-patchid-collision-no-writer', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+    })
+
+    await expect(store.submitRunReviewDecision('project-patchid-collision-no-writer', {
+      runId: run.id,
+      reviewId: run.pendingReviewId!,
+      decision: 'accept-with-edit',
+      patchId: 'ctx-scene-midnight-platform-run-001',
+    })).rejects.toMatchObject({
+      status: 409,
+      code: 'RUN_ARTIFACT_ID_CONFLICT',
+    })
+    expect(generate).not.toHaveBeenCalled()
+  })
+
   it('accepts valid custom patch ids and keeps artifact lookup and trace complete', async () => {
     const store = createRunFixtureStore()
     const run = await store.startSceneRun('project-custom-patchid', {
@@ -799,7 +940,7 @@ describe('runFixtureStore', () => {
       mode: 'rewrite',
     })
 
-    store.submitRunReviewDecision('project-custom-patchid', {
+    await store.submitRunReviewDecision('project-custom-patchid', {
       runId: run.id,
       reviewId: run.pendingReviewId!,
       decision: 'accept-with-edit',
@@ -860,7 +1001,7 @@ describe('runFixtureStore', () => {
       mode: 'rewrite',
     })
 
-    store.submitRunReviewDecision('project-accept-trace', {
+    await store.submitRunReviewDecision('project-accept-trace', {
       runId: run.id,
       reviewId: run.pendingReviewId!,
       decision: 'accept',
@@ -934,7 +1075,7 @@ describe('runFixtureStore', () => {
       mode: 'rewrite',
     })
 
-    store.submitRunReviewDecision('project-reject-artifacts', {
+    await store.submitRunReviewDecision('project-reject-artifacts', {
       runId: run.id,
       reviewId: run.pendingReviewId!,
       decision: 'reject',
@@ -977,7 +1118,7 @@ describe('runFixtureStore', () => {
       mode: 'rewrite',
     })
 
-    store.submitRunReviewDecision('project-artifact-a', {
+    await store.submitRunReviewDecision('project-artifact-a', {
       runId: runA.id,
       reviewId: runA.pendingReviewId!,
       decision: 'accept',
@@ -1000,7 +1141,7 @@ describe('runFixtureStore', () => {
       mode: 'rewrite',
     })
 
-    const reviewedRun = store.submitRunReviewDecision('project-review', {
+    const reviewedRun = await store.submitRunReviewDecision('project-review', {
       runId: run.id,
       reviewId: run.pendingReviewId!,
       decision: 'accept-with-edit',
@@ -1040,7 +1181,7 @@ describe('runFixtureStore', () => {
       mode: 'rewrite',
     })
 
-    const reviewedRun = store.submitRunReviewDecision('project-rewrite', {
+    const reviewedRun = await store.submitRunReviewDecision('project-rewrite', {
       runId: run.id,
       reviewId: run.pendingReviewId!,
       decision: 'request-rewrite',
@@ -1088,7 +1229,7 @@ describe('runFixtureStore', () => {
       note: 'Persist this run across a fresh API server.',
     })
 
-    store.submitRunReviewDecision(projectId, {
+    await store.submitRunReviewDecision(projectId, {
       runId: run.id,
       reviewId: run.pendingReviewId!,
       decision: 'accept',
@@ -1122,6 +1263,7 @@ describe('runFixtureStore', () => {
       'context-packet',
       'agent-invocation',
       'agent-invocation',
+      'agent-invocation',
       'proposal-set',
       'canon-patch',
       'prose-draft',
@@ -1149,7 +1291,7 @@ describe('runFixtureStore', () => {
       mode: 'rewrite',
     })
 
-    store.submitRunReviewDecision(projectId, {
+    await store.submitRunReviewDecision(projectId, {
       runId: run.id,
       reviewId: run.pendingReviewId!,
       decision: 'accept',

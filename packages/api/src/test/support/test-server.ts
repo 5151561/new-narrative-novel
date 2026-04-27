@@ -12,6 +12,7 @@ interface CreateTestServerOptions {
   configOverrides?: Partial<ApiServerConfig>
   projectStatePersistence?: FixtureRepositoryProjectStatePersistence
   scenePlannerGatewayDependencies?: CreateServerOptions['scenePlannerGatewayDependencies']
+  sceneProseWriterGatewayDependencies?: CreateServerOptions['sceneProseWriterGatewayDependencies']
 }
 
 function createIsolatedProjectStateFilePath() {
@@ -38,6 +39,7 @@ export function createTestServer(options: CreateTestServerOptions = {}) {
     },
     projectStatePersistence: options.projectStatePersistence,
     scenePlannerGatewayDependencies: options.scenePlannerGatewayDependencies,
+    sceneProseWriterGatewayDependencies: options.sceneProseWriterGatewayDependencies,
   })
 
   return {

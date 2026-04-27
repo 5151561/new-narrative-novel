@@ -190,7 +190,7 @@ describe('fixture API server run flow', () => {
       expect(proseAfterReview.statusCode).toBe(200)
       expect(proseAfterReview.json()).toMatchObject({
         proseDraft: expect.stringContaining('Midnight Platform opens from the accepted run artifact'),
-        draftWordCount: 146,
+        draftWordCount: 50,
         statusLabel: 'Generated',
         latestDiffSummary: 'A fixture prose draft was rendered for Midnight Platform.',
         traceSummary: {

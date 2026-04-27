@@ -1,5 +1,6 @@
 import type { RunEventRefRecord } from '../../contracts/api-records.js'
 import {
+  createAgentInvocationArtifact,
   createCanonPatchArtifact,
   createProseDraftArtifact,
 } from './sceneRunArtifacts.js'
@@ -121,12 +122,26 @@ function createAcceptedTransition(
   )
 
   const canonPatchArtifact = createCanonPatchTransitionArtifacts(input)
+  if (!input.proseGeneration) {
+    throw new Error(`Accepted review decision ${input.decision} requires prose generation output.`)
+  }
+
+  const writerInvocationArtifact = createAgentInvocationArtifact({
+    runId: input.runId,
+    sceneId: input.sceneId,
+    sequence: input.sequence,
+    index: 3,
+    role: 'writer',
+    provenance: input.proseGeneration.provenance,
+  })
   const proseDraftArtifact = createProseDraftArtifact({
     runId: input.runId,
     sceneId: input.sceneId,
     sequence: input.sequence,
+    writerOutput: input.proseGeneration.output,
+    writerProvenance: input.proseGeneration.provenance,
   })
-  generatedArtifacts.push(canonPatchArtifact, proseDraftArtifact)
+  generatedArtifacts.push(canonPatchArtifact, writerInvocationArtifact, proseDraftArtifact)
 
   appendTransitionEvent(
     input,
@@ -147,7 +162,10 @@ function createAcceptedTransition(
     input.decision === 'accept-with-edit'
       ? 'Prose draft regenerated after editorial adjustments.'
       : 'Prose draft generated from the accepted patch.',
-    [createArtifactRef(proseDraftArtifact, 'Prose draft')],
+    [
+      createArtifactRef(writerInvocationArtifact, 'Writer'),
+      createArtifactRef(proseDraftArtifact, 'Prose draft'),
+    ],
     options,
   )
   const completedEvent = appendTransitionEvent(
@@ -282,6 +300,7 @@ export function applySceneRunReviewDecisionTransition(
     note: input.note,
     patchId: input.patchId,
     selectedVariants: input.selectedVariants,
+    proseGeneration: input.proseGeneration,
   }
 
   switch (input.decision) {

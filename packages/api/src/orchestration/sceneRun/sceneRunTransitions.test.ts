@@ -10,12 +10,40 @@ describe('applySceneRunReviewDecisionTransition', () => {
     priorEventCount: 9,
     reviewId: 'review-scene-midnight-platform-002',
   } as const
+  const proseGeneration = {
+    provenance: {
+      provider: 'fixture' as const,
+      modelId: 'fixture-scene-prose-writer',
+    },
+    output: {
+      body: {
+        en: 'Midnight Platform opens from the accepted run artifact.',
+        'zh-CN': 'Midnight Platform 从已接受的运行 artifact 展开。',
+      },
+      excerpt: {
+        en: 'Midnight Platform settles into view before the next reveal turns visible.',
+        'zh-CN': 'Midnight Platform 先稳稳落入视野，随后下一段揭示才开始显形。',
+      },
+      wordCount: 7,
+      relatedAssets: [
+        {
+          assetId: 'asset-scene-midnight-platform-lead',
+          kind: 'character' as const,
+          label: {
+            en: 'Midnight Platform lead',
+            'zh-CN': 'Midnight Platform 主角',
+          },
+        },
+      ],
+    },
+  }
 
   it('builds accept transition events, artifacts, and next run state', () => {
     const transition = applySceneRunReviewDecisionTransition({
       ...baseInput,
       decision: 'accept',
       note: 'Ship it.',
+      proseGeneration,
     }, {
       buildTimelineLabel: (order) => `step-${String(order).padStart(3, '0')}`,
     })
@@ -40,6 +68,20 @@ describe('applySceneRunReviewDecisionTransition', () => {
         status: 'applied',
       }),
       expect.objectContaining({
+        kind: 'agent-invocation',
+        id: 'agent-invocation-scene-midnight-platform-run-002-003',
+        runId: 'run-scene-midnight-platform-002',
+        status: 'completed',
+        meta: {
+          role: 'writer',
+          index: 3,
+          provenance: {
+            provider: 'fixture',
+            modelId: 'fixture-scene-prose-writer',
+          },
+        },
+      }),
+      expect.objectContaining({
         kind: 'prose-draft',
         id: 'prose-draft-scene-midnight-platform-002',
         runId: 'run-scene-midnight-platform-002',
@@ -60,6 +102,7 @@ describe('applySceneRunReviewDecisionTransition', () => {
       decision: 'accept-with-edit',
       note: 'Apply line-level edits.',
       patchId: 'canon-patch-custom-777',
+      proseGeneration,
     }, {
       buildTimelineLabel: (order) => `step-${String(order).padStart(3, '0')}`,
     })

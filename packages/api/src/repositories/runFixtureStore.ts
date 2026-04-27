@@ -21,13 +21,23 @@ import {
 } from '../orchestration/modelGateway/scenePlannerGateway.js'
 import { FIXTURE_SCENE_PLANNER_MODEL_ID } from '../orchestration/modelGateway/scenePlannerFixtureProvider.js'
 import {
+  createSceneProseWriterGateway,
+  type SceneProseWriterGatewayRequest,
+  type SceneProseWriterGatewayResult,
+} from '../orchestration/modelGateway/sceneProseWriterGateway.js'
+import {
   buildAgentInvocationDetail,
   buildCanonPatchDetail,
   buildContextPacketDetail,
   buildProposalSetDetail,
   buildProseDraftDetail,
 } from '../orchestration/sceneRun/sceneRunArtifactDetails.js'
-import { buildDefaultPlannerOutput } from '../orchestration/sceneRun/sceneRunArtifacts.js'
+import {
+  buildDefaultPlannerOutput,
+  createAgentInvocationArtifact,
+  createCanonPatchArtifact,
+  createProseDraftArtifact,
+} from '../orchestration/sceneRun/sceneRunArtifacts.js'
 import { applySceneRunReviewDecisionTransition } from '../orchestration/sceneRun/sceneRunTransitions.js'
 import type { SceneRunArtifactRecord } from '../orchestration/sceneRun/sceneRunRecords.js'
 import {
@@ -46,6 +56,10 @@ const DEFAULT_PROJECT_ID = 'book-signal-arc'
 
 interface ScenePlannerGatewayLike {
   generate(request: ScenePlannerGatewayRequest): Promise<ScenePlannerGatewayResult>
+}
+
+interface SceneProseWriterGatewayLike {
+  generate(request: SceneProseWriterGatewayRequest): Promise<SceneProseWriterGatewayResult>
 }
 
 interface RunState {
@@ -105,6 +119,24 @@ function findProposalSetDetail(state: RunState): ProposalSetArtifactDetailRecord
   }
 
   return undefined
+}
+
+function collectAcceptedProposalIds(
+  proposalSet: ProposalSetArtifactDetailRecord | undefined,
+  selectedVariants?: RunSelectedProposalVariantRecord[],
+) {
+  if (!proposalSet) {
+    return []
+  }
+
+  if (!selectedVariants?.length) {
+    return proposalSet.proposals[0] ? [proposalSet.proposals[0].id] : []
+  }
+
+  const proposalIds = new Set(proposalSet.proposals.map((proposal) => proposal.id))
+  return selectedVariants
+    .map((selectedVariant) => selectedVariant.proposalId)
+    .filter((proposalId, index, values) => proposalIds.has(proposalId) && values.indexOf(proposalId) === index)
 }
 
 function assertValidSelectedVariants(
@@ -273,7 +305,9 @@ function indexRunReadSurfaces(state: RunState) {
         artifact: proposalSetArtifact,
         sourceEventIds: collectArtifactSourceEventIds(state.events, proposalSetArtifact),
         reviewId: findReviewId(state.events),
-        sourceInvocationIds: agentInvocationDetails.map((detail) => detail.id),
+        sourceInvocationIds: agentInvocationDetails
+          .filter((detail) => detail.agentRole === 'scene-planner')
+          .map((detail) => detail.id),
         selectedVariants: state.selectedVariants,
       })
     : undefined
@@ -283,6 +317,7 @@ function indexRunReadSurfaces(state: RunState) {
     artifactSummaries.push(toArtifactSummary(proposalSetDetail))
   }
 
+  const acceptedProposalIds = collectAcceptedProposalIds(proposalSetDetail, state.selectedVariants)
   const canonPatchArtifact = state.artifacts.find((artifact) => artifact.kind === 'canon-patch')
   const acceptedDecision = state.latestReviewDecision === 'accept-with-edit' ? 'accept-with-edit' : 'accept'
   const canonPatchDetail = canonPatchArtifact && proposalSetDetail
@@ -291,6 +326,7 @@ function indexRunReadSurfaces(state: RunState) {
         sourceEventIds: collectArtifactSourceEventIds(state.events, canonPatchArtifact),
         decision: acceptedDecision,
         sourceProposalSetId: proposalSetDetail.id,
+        acceptedProposalIds,
         selectedVariants: state.selectedVariants,
       })
     : undefined
@@ -449,11 +485,12 @@ export interface RunFixtureStore {
   listRunArtifacts(projectId: string, runId: string): RunArtifactSummaryRecord[] | null
   getRunArtifact(projectId: string, runId: string, artifactId: string): RunArtifactDetailRecord | null
   getRunTrace(projectId: string, runId: string): RunTraceResponse | null
-  submitRunReviewDecision(projectId: string, input: SubmitRunReviewDecisionInput): RunRecord
+  submitRunReviewDecision(projectId: string, input: SubmitRunReviewDecisionInput): Promise<RunRecord>
 }
 
 export function createRunFixtureStore(options: {
   scenePlannerGateway?: ScenePlannerGatewayLike
+  sceneProseWriterGateway?: SceneProseWriterGatewayLike
   runEventStreamEnabled?: boolean
 } = {}): RunFixtureStore {
   const runStatesByProjectId = new Map<string, Map<string, RunState>>()
@@ -461,6 +498,9 @@ export function createRunFixtureStore(options: {
   const runEventStreamBroker = createRunEventStreamBroker()
   const runEventStreamEnabled = options.runEventStreamEnabled ?? true
   const scenePlannerGateway = options.scenePlannerGateway ?? createScenePlannerGateway({
+    modelProvider: 'fixture',
+  })
+  const sceneProseWriterGateway = options.sceneProseWriterGateway ?? createSceneProseWriterGateway({
     modelProvider: 'fixture',
   })
 
@@ -534,6 +574,64 @@ export function createRunFixtureStore(options: {
 
   function isTerminalRunStatus(status: RunRecord['status']) {
     return status === 'completed' || status === 'failed' || status === 'cancelled'
+  }
+
+  function isAcceptedReviewDecision(decision: RunReviewDecisionKind) {
+    return decision === 'accept' || decision === 'accept-with-edit'
+  }
+
+  function createSceneProseWriterRequest(
+    state: RunState,
+    input: SubmitRunReviewDecisionInput & { decision: Extract<RunReviewDecisionKind, 'accept' | 'accept-with-edit'> },
+  ): SceneProseWriterGatewayRequest {
+    const proposalSet = findProposalSetDetail(state)
+    const acceptedProposalIds = collectAcceptedProposalIds(proposalSet, input.selectedVariants)
+    const selectedVariantLabel = input.selectedVariants?.length
+      ? ` Selected variants: ${input.selectedVariants.map((variant) => variant.variantId).join(', ')}.`
+      : ''
+    const note = trimNote(input.note)
+    const noteLabel = note ? ` Editorial note: ${note}.` : ''
+
+    return {
+      sceneId: state.run.scopeId,
+      decision: input.decision,
+      acceptedProposalIds,
+      selectedVariants: cloneSelectedVariants(input.selectedVariants),
+      instructions: 'Return accepted scene prose only.',
+      input: `Scene: ${formatSceneName(state.run.scopeId)}. Decision: ${input.decision}. Accepted proposals: ${acceptedProposalIds.join(', ') || 'default accepted proposal'}.${selectedVariantLabel}${noteLabel}`,
+    }
+  }
+
+  function createAcceptedTransitionArtifactsPreview(
+    state: RunState,
+    input: SubmitRunReviewDecisionInput & { decision: Extract<RunReviewDecisionKind, 'accept' | 'accept-with-edit'> },
+  ) {
+    const canonPatchArtifact = createCanonPatchArtifact({
+      runId: input.runId,
+      sceneId: state.run.scopeId,
+      sequence: state.sequence,
+    })
+
+    return [
+      input.patchId
+        ? {
+            ...canonPatchArtifact,
+            id: input.patchId,
+          }
+        : canonPatchArtifact,
+      createAgentInvocationArtifact({
+        runId: input.runId,
+        sceneId: state.run.scopeId,
+        sequence: state.sequence,
+        index: 3,
+        role: 'writer',
+      }),
+      createProseDraftArtifact({
+        runId: input.runId,
+        sceneId: state.run.scopeId,
+        sequence: state.sequence,
+      }),
+    ]
   }
 
   function serializeRunState(state: RunState): PersistedRunStateRecord {
@@ -772,7 +870,7 @@ export function createRunFixtureStore(options: {
         summary: state.traceSummary,
       })
     },
-    submitRunReviewDecision(projectId, input) {
+    async submitRunReviewDecision(projectId, input) {
       if (!isRunReviewDecisionKind(input.decision)) {
         throw badRequest(`Unsupported run review decision "${String(input.decision)}".`, {
           code: 'INVALID_RUN_REVIEW_DECISION',
@@ -799,6 +897,23 @@ export function createRunFixtureStore(options: {
         selectedVariants: input.selectedVariants,
       }, findProposalSetDetail(state))
 
+      if (isAcceptedReviewDecision(input.decision)) {
+        assertNoArtifactIdConflicts(state, {
+          projectId,
+          runId: input.runId,
+        }, createAcceptedTransitionArtifactsPreview(state, {
+          ...input,
+          decision: input.decision,
+        }))
+      }
+
+      const proseGeneration = isAcceptedReviewDecision(input.decision)
+        ? await sceneProseWriterGateway.generate(createSceneProseWriterRequest(state, {
+          ...input,
+          decision: input.decision,
+        }))
+        : undefined
+
       const note = trimNote(input.note)
       const transition = applySceneRunReviewDecisionTransition({
         runId: input.runId,
@@ -810,14 +925,10 @@ export function createRunFixtureStore(options: {
         note,
         patchId: input.patchId,
         selectedVariants: input.selectedVariants,
+        proseGeneration,
       }, {
         buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
       })
-
-      assertNoArtifactIdConflicts(state, {
-        projectId,
-        runId: input.runId,
-      }, transition.generatedArtifacts)
 
       state.events.push(...clone(transition.appendedEvents))
       state.artifacts.push(...clone(transition.generatedArtifacts))

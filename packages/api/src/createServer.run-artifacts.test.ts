@@ -121,6 +121,7 @@ describe('fixture API server run artifact read surfaces', () => {
         artifact: {
           id: proposalSetRef!.id,
           kind: 'proposal-set',
+          sourceInvocationIds: ['agent-invocation-scene-midnight-platform-run-002-001'],
           proposals: expect.arrayContaining([
             expect.objectContaining({
               id: selectedVariant.proposalId,
@@ -187,8 +188,10 @@ describe('fixture API server run artifact read surfaces', () => {
       expect(JSON.stringify(reviewDecisionEvent)).not.toContain(selectedVariant.variantId)
 
       const canonPatchRef = findEventRef(postReviewEvents, 'canon_patch_applied', 'canon-patch')
+      const writerInvocationRef = findEventRef(postReviewEvents, 'prose_generated', 'agent-invocation')
       const proseDraftRef = findEventRef(postReviewEvents, 'prose_generated', 'prose-draft')
       expect(canonPatchRef).toBeTruthy()
+      expect(writerInvocationRef).toBeTruthy()
       expect(proseDraftRef).toBeTruthy()
 
       const canonPatchResponse = await app.inject({
@@ -205,6 +208,28 @@ describe('fixture API server run artifact read surfaces', () => {
           acceptedFacts: [
             expect.objectContaining({
               selectedVariants: [selectedVariant],
+            }),
+          ],
+        },
+      })
+
+      const writerInvocationResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/artifacts/${writerInvocationRef!.id}`,
+      })
+      expect(writerInvocationResponse.statusCode).toBe(200)
+      expect(writerInvocationResponse.json()).toMatchObject({
+        artifact: {
+          id: writerInvocationRef!.id,
+          kind: 'agent-invocation',
+          agentRole: 'scene-writer',
+          modelLabel: {
+            en: 'Fixture writer profile (fixture-scene-prose-writer)',
+          },
+          generatedRefs: [
+            expect.objectContaining({
+              kind: 'artifact',
+              id: proseDraftRef!.id,
             }),
           ],
         },
@@ -232,6 +257,7 @@ describe('fixture API server run artifact read surfaces', () => {
         },
       })
       expect(proseDraftResponse.json().artifact.body.en).toContain('Accepted proposal proposal-set-scene-midnight-platform-run-002-proposal-001 anchors the draft.')
+      expect(proseDraftResponse.json().artifact.summary.en).toBe('A fixture prose draft was rendered for Midnight Platform.')
 
       const traceResponse = await app.inject({
         method: 'GET',
@@ -288,8 +314,32 @@ describe('fixture API server run artifact read surfaces', () => {
               'zh-CN': expect.stringContaining('已选变体 揭示加压'),
             },
           }),
+          expect.objectContaining({
+            relation: 'generated',
+            from: {
+              kind: 'agent-invocation',
+              id: writerInvocationRef!.id,
+            },
+            to: {
+              kind: 'prose-draft',
+              id: proseDraftRef!.id,
+            },
+          }),
         ]),
       })
+      expect(traceResponse.json().links).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          relation: 'generated',
+          from: {
+            kind: 'agent-invocation',
+            id: writerInvocationRef!.id,
+          },
+          to: {
+            kind: 'proposal-set',
+            id: proposalSetRef!.id,
+          },
+        }),
+      ]))
     })
   })
 
@@ -724,6 +774,72 @@ describe('fixture API server run artifact read surfaces', () => {
       })
       expect(afterArtifactsResponse.statusCode).toBe(200)
       expect(afterArtifactsResponse.json()).toEqual(beforeArtifactsResponse.json())
+    })
+  })
+
+  it('falls back to fixture prose generation over HTTP when writer OpenAI config is incomplete', async () => {
+    await withTestServer(async ({ app }) => {
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
+        },
+      })
+      expect(startResponse.statusCode).toBe(200)
+      const run = startResponse.json()
+
+      const serverWithMissingOpenAiConfig = await app.inject({
+        method: 'POST',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/review-decisions`,
+        payload: {
+          reviewId: run.pendingReviewId,
+          decision: 'accept',
+        },
+      })
+      expect(serverWithMissingOpenAiConfig.statusCode).toBe(200)
+
+      const postReviewEventsResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${run.id}/events?cursor=${run.latestEventId}`,
+      })
+      expect(postReviewEventsResponse.statusCode).toBe(200)
+      const writerInvocationRef = findEventRef(postReviewEventsResponse.json().events, 'prose_generated', 'agent-invocation')
+      const proseDraftRef = findEventRef(postReviewEventsResponse.json().events, 'prose_generated', 'prose-draft')
+      expect(writerInvocationRef).toBeTruthy()
+      expect(proseDraftRef).toBeTruthy()
+
+      const [writerInvocationResponse, proseDraftResponse] = await Promise.all([
+        app.inject({
+          method: 'GET',
+          url: `/api/projects/book-signal-arc/runs/${run.id}/artifacts/${writerInvocationRef!.id}`,
+        }),
+        app.inject({
+          method: 'GET',
+          url: `/api/projects/book-signal-arc/runs/${run.id}/artifacts/${proseDraftRef!.id}`,
+        }),
+      ])
+
+      expect(writerInvocationResponse.statusCode).toBe(200)
+      expect(writerInvocationResponse.json()).toMatchObject({
+        artifact: {
+          modelLabel: {
+            en: 'Fixture writer fallback (fixture-scene-prose-writer)',
+          },
+        },
+      })
+      expect(proseDraftResponse.statusCode).toBe(200)
+      expect(proseDraftResponse.json()).toMatchObject({
+        artifact: {
+          summary: {
+            en: 'Fixture prose fallback was rendered for Midnight Platform.',
+          },
+        },
+      })
+    }, {
+      configOverrides: {
+        modelProvider: 'openai',
+      },
     })
   })
 })

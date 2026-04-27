@@ -218,7 +218,7 @@ describe('fixture API server local project-state persistence', () => {
     const secondServer = createTestServer({ projectStateFilePath })
 
     try {
-      const [assemblyResponse, decisionListResponse, fixActionListResponse, artifactListResponse, chapterResponse, sceneResponse, runResponse] = await Promise.all([
+      const [assemblyResponse, decisionListResponse, fixActionListResponse, artifactListResponse, chapterResponse, sceneResponse, proseResponse, runResponse] = await Promise.all([
         secondServer.app.inject({
           method: 'GET',
           url: '/api/projects/book-signal-arc/books/book-signal-arc/draft-assembly',
@@ -242,6 +242,10 @@ describe('fixture API server local project-state persistence', () => {
         secondServer.app.inject({
           method: 'GET',
           url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/workspace',
+        }),
+        secondServer.app.inject({
+          method: 'GET',
+          url: '/api/projects/book-signal-arc/scenes/scene-warehouse-bridge/prose',
         }),
         secondServer.app.inject({
           method: 'GET',
@@ -301,6 +305,27 @@ describe('fixture API server local project-state persistence', () => {
       expect(sceneResponse.statusCode).toBe(200)
       expect(sceneResponse.json()).toMatchObject({
         title: 'Midnight Platform Persisted',
+      })
+
+      expect(proseResponse.statusCode).toBe(200)
+      expect(proseResponse.json()).toMatchObject({
+        proseDraft: expect.stringContaining('Warehouse Bridge opens from the accepted run artifact'),
+        draftWordCount: 50,
+        latestDiffSummary: 'A fixture prose draft was rendered for Warehouse Bridge.',
+        traceSummary: {
+          sourcePatchId: 'canon-patch-scene-warehouse-bridge-001',
+        },
+      })
+
+      expect(
+        assemblyResponse
+          .json()
+          .chapters
+          .flatMap((chapter: { scenes: Array<{ sceneId: string; proseDraft?: string }> }) => chapter.scenes)
+          .find((scene: { sceneId: string }) => scene.sceneId === 'scene-warehouse-bridge'),
+      ).toMatchObject({
+        sceneId: 'scene-warehouse-bridge',
+        proseDraft: expect.stringContaining('Warehouse Bridge opens from the accepted run artifact'),
       })
 
       expect(runResponse.statusCode).toBe(200)
