@@ -44,6 +44,37 @@ PR20 的前端运行路径统一收敛到 `/api/projects/{projectId}/...`。
 - `web/mock` 与 `desktop-local` 是有意不同的 runtime mode，不是同一路径的偶然分叉。
 - `desktop-local` 是当前更严格的产品合同验证路径，因为它要求 renderer 通过真实 HTTP fixture API + Electron 窄桥接一起工作，而不是退回 mock fallback。
 
+## 1.3 PR47 local project-state file contract
+
+PR47 明确统一 `desktop-local` 与 `web/api` 的本地 project-state 文件合同：
+
+- 两条运行路径都以同一份 workspace-root 级 project-state 文件作为 prototype persistence contract。
+- 默认文件位置固定为 `<workspaceRoot>/.narrative/prototype-state.json`。
+- `desktop-local` 启动本地 API 子进程时，必须显式注入 `NARRATIVE_PROJECT_STATE_FILE=<workspaceRoot>/.narrative/prototype-state.json`；它不能从 `apps/desktop` 包目录推导一份平行状态文件。
+- 当前持久化 envelope 固定为 `schemaVersion = 1`、`seedVersion = prototype-fixture-seed-v1`。
+
+当前会写入这份文件的产品态 surface：
+
+- review decisions
+- run history
+- artifacts
+- trace
+- accepted scene prose
+- chapter/book draft inputs
+
+当前明确不进入这份文件合同的 surface：
+
+- streaming transport
+- project picker
+- worker queues
+- auth
+- renderer layout state
+
+配套路由与边界：
+
+- `POST /api/projects/{projectId}/runtime/reset` 重置当前 project 的本地 prototype state，并回到 seed-backed baseline。
+- `GET /api/projects/{projectId}/runs/{runId}/events/stream` 继续保持 `501` placeholder；PR47 不引入 SSE/stream persistence。
+
 ## 2. 当前 API 边界矩阵
 
 以下矩阵描述的是当前已经落地、被 `api-route-contract.ts` 和 `createApiProjectRuntime` 消费的边界。

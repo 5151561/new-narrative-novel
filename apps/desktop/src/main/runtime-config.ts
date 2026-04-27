@@ -64,6 +64,7 @@ export function createLocalApiProcessConfig({
   env?: NodeJS.ProcessEnv
 }): LocalApiProcessConfig {
   const apiPackageRoot = path.resolve(workspaceRoot, 'packages/api')
+  const projectStateFilePath = path.resolve(workspaceRoot, '.narrative', 'prototype-state.json')
   const tsxExecutable = path.resolve(apiPackageRoot, 'node_modules/.bin', process.platform === 'win32' ? 'tsx.cmd' : 'tsx')
 
   return {
@@ -73,6 +74,7 @@ export function createLocalApiProcessConfig({
     env: {
       ...env,
       HOST: '127.0.0.1',
+      NARRATIVE_PROJECT_STATE_FILE: projectStateFilePath,
       NARRATIVE_RUNTIME: 'desktop-local',
       PORT: String(port),
     },

@@ -28,6 +28,7 @@ describe('createLocalApiProcessConfig', () => {
     expect(config.cwd).toBe(path.resolve('/repo/packages/api'))
     expect(config.env).toMatchObject({
       HOST: '127.0.0.1',
+      NARRATIVE_PROJECT_STATE_FILE: path.resolve('/repo/.narrative/prototype-state.json'),
       NARRATIVE_RUNTIME: 'desktop-local',
       PATH: '/usr/bin',
       PORT: '4888',
