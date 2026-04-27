@@ -266,6 +266,7 @@ describe('fixture API server write surfaces', () => {
         apiBaseUrl: 'http://127.0.0.1:4174/api',
         corsOrigin: true,
         projectStateFilePath: '/tmp/narrative-api-test-persistence-recovery.json',
+        modelProvider: 'fixture',
       },
       projectStatePersistence: persistence,
     })

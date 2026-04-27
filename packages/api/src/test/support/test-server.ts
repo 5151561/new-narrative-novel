@@ -28,6 +28,7 @@ export function createTestServer(options: CreateTestServerOptions = {}) {
       apiBaseUrl: 'http://127.0.0.1:4174/api',
       corsOrigin: true,
       projectStateFilePath: options.projectStateFilePath ?? isolatedState!.filePath,
+      modelProvider: 'fixture',
     },
   })
 
