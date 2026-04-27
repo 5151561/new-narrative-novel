@@ -528,6 +528,519 @@ describe('useSceneRunSession', () => {
     expect(hook.result.current.events.map((event) => event.id)).toEqual(['run-event-001', 'run-event-002'])
   })
 
+  it('disables polling while the stream subscription stays healthy for an active run', async () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval')
+    const queryClient = createQueryClient()
+    const runId = 'run-scene-midnight-platform-001'
+    let releaseStream: (() => void) | null = null
+    const streamRunEvents = vi.fn(
+      async ({ onOpen, onPage, signal }: {
+        onOpen?: () => void
+        onPage: (page: RunEventsPageRecord) => void
+        runId: string
+        signal?: AbortSignal
+      }) =>
+        await new Promise<void>((resolve) => {
+          const finish = () => resolve()
+          releaseStream = finish
+          signal?.addEventListener('abort', finish, { once: true })
+          onOpen?.()
+          onPage(
+            createEventsPage({
+              runId,
+              events: [
+                {
+                  id: 'run-event-001',
+                  runId,
+                  order: 1,
+                  kind: 'run_started',
+                  label: 'Run started',
+                  summary: 'Initial streamed event.',
+                  createdAtLabel: '2026-04-21 10:00',
+                },
+              ],
+            }),
+          )
+        }),
+    )
+    const getRunEvents = vi.fn(async () => createEventsPage({ runId }))
+    const runClient = createRunClient({
+      getRun: vi.fn(async () =>
+        createRun({
+          id: runId,
+          status: 'running',
+          summary: 'Streaming.',
+        }),
+      ),
+      getRunEvents,
+      ...( { streamRunEvents } as Partial<RunClient>),
+    } as Partial<RunClient>)
+
+    const hook = renderHook(
+      () =>
+        useSceneRunSession({
+          sceneId: 'scene-midnight-platform',
+          runId,
+        }),
+      {
+        wrapper: createProjectRuntimeTestWrapper({
+          runtime: {
+            ...createTestProjectRuntime(),
+            projectId: 'book-signal-arc',
+            runClient,
+            runtimeInfoClient: {
+              getProjectRuntimeInfo: vi.fn(async () => ({
+                projectId: 'book-signal-arc',
+                projectTitle: 'Signal Arc',
+                source: 'api',
+                status: 'healthy',
+                summary: 'Connected to runtime gateway.',
+                checkedAtLabel: '2026-04-27 10:00',
+                apiBaseUrl: 'https://runtime.example.test',
+                versionLabel: 'runtime-v49',
+                capabilities: {
+                  read: true,
+                  write: true,
+                  runEvents: true,
+                  runEventPolling: true,
+                  runEventStream: true,
+                  reviewDecisions: true,
+                  contextPacketRefs: true,
+                  proposalSetRefs: true,
+                },
+              })),
+            },
+          },
+          queryClient,
+        }),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.events.map((event) => event.id)).toEqual(['run-event-001'])
+    })
+
+    expect(streamRunEvents).toHaveBeenCalledTimes(1)
+    expect(getRunEvents).not.toHaveBeenCalled()
+    expect(hook.result.current.isPolling).toBe(false)
+    expect(setIntervalSpy.mock.calls.some(([, interval]) => interval === 5000)).toBe(false)
+
+    await act(async () => {
+      releaseStream?.()
+    })
+  })
+
+  it('resumes paging polls after a healthy stream closes while the run is still active', async () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval')
+    const queryClient = createQueryClient()
+    const runId = 'run-scene-midnight-platform-001'
+    const getRun = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createRun({
+          id: runId,
+          status: 'running',
+          summary: 'Still active after stream close.',
+        }),
+      )
+      .mockResolvedValueOnce(
+        createRun({
+          id: runId,
+          status: 'waiting_review',
+          pendingReviewId: 'review-scene-midnight-platform-001',
+          summary: 'Waiting after resumed polling.',
+        }),
+      )
+    const getRunEvents = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createEventsPage({
+          runId,
+          events: [
+            {
+              id: 'run-event-002',
+              runId,
+              order: 2,
+              kind: 'review_requested',
+              label: 'Review requested',
+              summary: 'Fetched after stream close.',
+              createdAtLabel: '2026-04-21 10:05',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        createEventsPage({
+          runId,
+          events: [
+            {
+              id: 'run-event-002',
+              runId,
+              order: 2,
+              kind: 'review_requested',
+              label: 'Review requested',
+              summary: 'Fetched after stream close.',
+              createdAtLabel: '2026-04-21 10:05',
+            },
+            {
+              id: 'run-event-003',
+              runId,
+              order: 3,
+              kind: 'review_requested',
+              label: 'Review requested',
+              summary: 'Polled after stream close.',
+              createdAtLabel: '2026-04-21 10:06',
+            },
+          ],
+        }),
+      )
+    const streamRunEvents = vi.fn(async ({ onOpen, onPage }: {
+      onOpen?: () => void
+      onPage: (page: RunEventsPageRecord) => void
+      runId: string
+      signal?: AbortSignal
+    }) => {
+      onOpen?.()
+      onPage(
+        createEventsPage({
+          runId,
+          events: [
+            {
+              id: 'run-event-001',
+              runId,
+              order: 1,
+              kind: 'run_started',
+              label: 'Run started',
+              summary: 'Streamed before close.',
+              createdAtLabel: '2026-04-21 10:00',
+            },
+          ],
+        }),
+      )
+    })
+    const runClient = createRunClient({
+      getRun,
+      getRunEvents,
+      ...( { streamRunEvents } as Partial<RunClient>),
+    } as Partial<RunClient>)
+
+    const hook = renderHook(
+      () =>
+        useSceneRunSession({
+          sceneId: 'scene-midnight-platform',
+          runId,
+        }),
+      {
+        wrapper: createProjectRuntimeTestWrapper({
+          runtime: {
+            ...createTestProjectRuntime(),
+            projectId: 'book-signal-arc',
+            runClient,
+            runtimeInfoClient: {
+              getProjectRuntimeInfo: vi.fn(async () => ({
+                projectId: 'book-signal-arc',
+                projectTitle: 'Signal Arc',
+                source: 'api',
+                status: 'healthy',
+                summary: 'Connected to runtime gateway.',
+                checkedAtLabel: '2026-04-27 10:00',
+                apiBaseUrl: 'https://runtime.example.test',
+                versionLabel: 'runtime-v49',
+                capabilities: {
+                  read: true,
+                  write: true,
+                  runEvents: true,
+                  runEventPolling: true,
+                  runEventStream: true,
+                  reviewDecisions: true,
+                  contextPacketRefs: true,
+                  proposalSetRefs: true,
+                },
+              })),
+            },
+          },
+          queryClient,
+        }),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.events.map((event) => event.id)).toEqual(['run-event-001', 'run-event-002'])
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.isPolling).toBe(true)
+    })
+
+    const pollIntervalCall = setIntervalSpy.mock.calls.find(([, interval]) => interval === 5000)
+    expect(pollIntervalCall).toEqual([expect.any(Function), 5000])
+
+    const pollActiveRun = pollIntervalCall?.[0]
+    expect(typeof pollActiveRun).toBe('function')
+
+    await act(async () => {
+      ;(pollActiveRun as () => void)()
+    })
+
+    await waitFor(() => {
+      expect(getRun).toHaveBeenCalledTimes(2)
+    })
+
+    expect(streamRunEvents).toHaveBeenCalledTimes(1)
+    expect(getRunEvents).toHaveBeenCalledTimes(2)
+    expect(hook.result.current.events.map((event) => event.id)).toEqual(['run-event-001', 'run-event-002', 'run-event-003'])
+  })
+
+  it('does not start interval polling after stream close when paging fallback is disabled', async () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval')
+    const queryClient = createQueryClient()
+    const runId = 'run-scene-midnight-platform-001'
+    const getRunEvents = vi.fn(async () =>
+      createEventsPage({
+        runId,
+        events: [
+          {
+            id: 'run-event-002',
+            runId,
+            order: 2,
+            kind: 'review_requested',
+            label: 'Review requested',
+            summary: 'This should never be fetched.',
+            createdAtLabel: '2026-04-21 10:05',
+          },
+        ],
+      }),
+    )
+    const streamRunEvents = vi.fn(async ({ onOpen, onPage }: {
+      onOpen?: () => void
+      onPage: (page: RunEventsPageRecord) => void
+      runId: string
+      signal?: AbortSignal
+    }) => {
+      onOpen?.()
+      onPage(
+        createEventsPage({
+          runId,
+          events: [
+            {
+              id: 'run-event-001',
+              runId,
+              order: 1,
+              kind: 'run_started',
+              label: 'Run started',
+              summary: 'Streamed before close.',
+              createdAtLabel: '2026-04-21 10:00',
+            },
+          ],
+        }),
+      )
+    })
+    const runClient = createRunClient({
+      getRun: vi.fn(async () =>
+        createRun({
+          id: runId,
+          status: 'running',
+          summary: 'Running without paging fallback.',
+        }),
+      ),
+      getRunEvents,
+      ...( { streamRunEvents } as Partial<RunClient>),
+    } as Partial<RunClient>)
+
+    const hook = renderHook(
+      () =>
+        useSceneRunSession({
+          sceneId: 'scene-midnight-platform',
+          runId,
+        }),
+      {
+        wrapper: createProjectRuntimeTestWrapper({
+          runtime: {
+            ...createTestProjectRuntime(),
+            projectId: 'book-signal-arc',
+            runClient,
+            runtimeInfoClient: {
+              getProjectRuntimeInfo: vi.fn(async () => ({
+                projectId: 'book-signal-arc',
+                projectTitle: 'Signal Arc',
+                source: 'api',
+                status: 'healthy',
+                summary: 'Connected to runtime gateway.',
+                checkedAtLabel: '2026-04-27 10:00',
+                apiBaseUrl: 'https://runtime.example.test',
+                versionLabel: 'runtime-v49',
+                capabilities: {
+                  read: true,
+                  write: true,
+                  runEvents: true,
+                  runEventPolling: false,
+                  runEventStream: true,
+                  reviewDecisions: true,
+                  contextPacketRefs: true,
+                  proposalSetRefs: true,
+                },
+              })),
+            },
+          },
+          queryClient,
+        }),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.events.map((event) => event.id)).toEqual(['run-event-001'])
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.isPolling).toBe(false)
+    })
+
+    expect(streamRunEvents).toHaveBeenCalledTimes(1)
+    expect(getRunEvents).not.toHaveBeenCalled()
+    expect(setIntervalSpy.mock.calls.some(([, interval]) => interval === 5000)).toBe(false)
+  })
+
+  it('resumes paging polls when the stream path fails for an active run', async () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval')
+    const queryClient = createQueryClient()
+    const runId = 'run-scene-midnight-platform-001'
+    const getRun = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createRun({
+          id: runId,
+          status: 'running',
+          summary: 'Running before stream failure.',
+        }),
+      )
+      .mockResolvedValueOnce(
+        createRun({
+          id: runId,
+          status: 'waiting_review',
+          pendingReviewId: 'review-scene-midnight-platform-001',
+          summary: 'Waiting after fallback poll.',
+        }),
+      )
+    const getRunEvents = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createEventsPage({
+          runId,
+          events: [
+            {
+              id: 'run-event-001',
+              runId,
+              order: 1,
+              kind: 'run_started',
+              label: 'Run started',
+              summary: 'Fallback event.',
+              createdAtLabel: '2026-04-21 10:00',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        createEventsPage({
+          runId,
+          events: [
+            {
+              id: 'run-event-001',
+              runId,
+              order: 1,
+              kind: 'run_started',
+              label: 'Run started',
+              summary: 'Fallback event.',
+              createdAtLabel: '2026-04-21 10:00',
+            },
+            {
+              id: 'run-event-002',
+              runId,
+              order: 2,
+              kind: 'review_requested',
+              label: 'Review requested',
+              summary: 'Polled after stream failure.',
+              createdAtLabel: '2026-04-21 10:05',
+            },
+          ],
+        }),
+      )
+    const runClient = createRunClient({
+      getRun,
+      getRunEvents,
+      ...({
+        streamRunEvents: vi.fn(async () => {
+          throw new Error('stream failed')
+        }),
+      } as Partial<RunClient>),
+    } as Partial<RunClient>)
+
+    const hook = renderHook(
+      () =>
+        useSceneRunSession({
+          sceneId: 'scene-midnight-platform',
+          runId,
+        }),
+      {
+        wrapper: createProjectRuntimeTestWrapper({
+          runtime: {
+            ...createTestProjectRuntime(),
+            projectId: 'book-signal-arc',
+            runClient,
+            runtimeInfoClient: {
+              getProjectRuntimeInfo: vi.fn(async () => ({
+                projectId: 'book-signal-arc',
+                projectTitle: 'Signal Arc',
+                source: 'api',
+                status: 'healthy',
+                summary: 'Connected to runtime gateway.',
+                checkedAtLabel: '2026-04-27 10:00',
+                apiBaseUrl: 'https://runtime.example.test',
+                versionLabel: 'runtime-v49',
+                capabilities: {
+                  read: true,
+                  write: true,
+                  runEvents: true,
+                  runEventPolling: true,
+                  runEventStream: true,
+                  reviewDecisions: true,
+                  contextPacketRefs: true,
+                  proposalSetRefs: true,
+                },
+              })),
+            },
+          },
+          queryClient,
+        }),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.events.map((event) => event.id)).toEqual(['run-event-001'])
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.isPolling).toBe(true)
+    })
+
+    expect(getRunEvents).toHaveBeenCalledTimes(1)
+    const pollIntervalCall = setIntervalSpy.mock.calls.find(([, interval]) => interval === 5000)
+    expect(pollIntervalCall).toEqual([expect.any(Function), 5000])
+
+    const pollActiveRun = pollIntervalCall?.[0]
+    expect(typeof pollActiveRun).toBe('function')
+
+    await act(async () => {
+      ;(pollActiveRun as () => void)()
+    })
+
+    await waitFor(() => {
+      expect(getRun).toHaveBeenCalledTimes(2)
+    })
+
+    expect(getRunEvents).toHaveBeenCalledTimes(2)
+    expect(hook.result.current.pendingReviewId).toBe('review-scene-midnight-platform-001')
+  })
+
   it('delegates review-decision invalidation to the submit mutation without duplicating scene invalidations', async () => {
     const queryClient = createQueryClient()
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')

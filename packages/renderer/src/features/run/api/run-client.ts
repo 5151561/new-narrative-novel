@@ -25,6 +25,14 @@ export interface GetRunEventsInput {
   cursor?: string
 }
 
+export interface StreamRunEventsInput {
+  runId: string
+  cursor?: string
+  signal?: AbortSignal
+  onOpen?: () => void
+  onPage: (page: RunEventsPageRecord) => void
+}
+
 export interface ListRunArtifactsInput {
   runId: string
 }
@@ -42,6 +50,7 @@ export interface RunClient {
   startSceneRun(input: StartSceneRunInput): Promise<RunRecord>
   getRun(input: GetRunInput): Promise<RunRecord | null>
   getRunEvents(input: GetRunEventsInput): Promise<RunEventsPageRecord>
+  streamRunEvents?(input: StreamRunEventsInput): Promise<void>
   submitRunReviewDecision(input: SubmitRunReviewDecisionInput): Promise<RunRecord>
   listRunArtifacts(input: ListRunArtifactsInput): Promise<RunArtifactListResponse>
   getRunArtifact(input: GetRunArtifactInput): Promise<RunArtifactDetailResponse>
@@ -82,6 +91,25 @@ export function createRunClient({
     },
     async getRunEvents(input) {
       return clone(getRunEventsPage(input))
+    },
+    async streamRunEvents({ runId, cursor, signal, onOpen, onPage }) {
+      onOpen?.()
+
+      const seenCursors = new Set<string | undefined>()
+      let nextCursor = cursor
+
+      while (!signal?.aborted && !seenCursors.has(nextCursor)) {
+        seenCursors.add(nextCursor)
+        const page = clone(getRunEventsPage({ runId, cursor: nextCursor }))
+        onPage(page)
+
+        if (!page.nextCursor) {
+          break
+        }
+
+        nextCursor = page.nextCursor
+        await Promise.resolve()
+      }
     },
     async submitRunReviewDecision(input) {
       return clone(submitRunReviewDecisionRecord(input))

@@ -87,7 +87,9 @@ export function useSceneRunSession({ sceneId, runId, latestRunId }: UseSceneRunS
       : sceneSessionStartedRun?.id === activeRunId
         ? sceneSessionStartedRun
         : null
-  const isPolling = Boolean(activeRunId && run && ACTIVE_RUN_STATUSES.includes(run.status))
+  const isPolling = Boolean(
+    activeRunId && run && ACTIVE_RUN_STATUSES.includes(run.status) && timelineQuery.usesPagingFallback,
+  )
   const pendingReviewId = run?.pendingReviewId ?? null
   const isReviewPending = run?.status === 'waiting_review' && Boolean(pendingReviewId)
   const canSubmitDecision = Boolean(activeRunId && isReviewPending) && !submitRunReviewDecision.isPending

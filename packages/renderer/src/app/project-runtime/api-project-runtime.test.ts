@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { BuildBookExportArtifactInput } from '@/features/book/api/book-export-artifact-records'
 import type { BookDraftAssemblyRecord } from '@/features/book/api/book-draft-assembly-records'
@@ -213,6 +213,10 @@ function createBuildInput(): BuildBookExportArtifactInput {
 }
 
 describe('api project runtime', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('uses the project runtime info endpoint and preserves runClient exposure', async () => {
     const transport = createTransportMock()
     const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })
@@ -242,6 +246,242 @@ describe('api project runtime', () => {
       method: 'GET',
       path: '/api/projects/project-1/runtime-info',
     })
+  })
+
+  it('streams run events from the SSE endpoint without changing the page payload contract', async () => {
+    const requestJson = createTransportMock()
+    const requestStream = vi.fn(async () =>
+      new Response(
+        [
+          ': stream-open',
+          '',
+          'id: run-event-002',
+          'event: run-events',
+          'data: {"runId":"run-7","events":[{"id":"run-event-001","runId":"run-7","order":1,"kind":"run_started","label":"Run started","summary":"Initial event.","createdAtLabel":"2026-04-21 10:00"},{"id":"run-event-002","runId":"run-7","order":2,"kind":"review_requested","label":"Review requested","summary":"Waiting for review.","createdAtLabel":"2026-04-21 10:05"}]}',
+          '',
+        ].join('\n'),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'text/event-stream; charset=utf-8',
+          },
+        },
+      ),
+    )
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const runtime = createApiProjectRuntime({
+      projectId: 'project-1',
+      transport: {
+        requestJson,
+        requestStream,
+      },
+    })
+    const streamedPages: RunEventsPageRecord[] = []
+
+    await (runtime.runClient as typeof runtime.runClient & {
+      streamRunEvents: (input: {
+        runId: string
+        cursor?: string
+        signal?: AbortSignal
+        onOpen?: () => void
+        onPage: (page: RunEventsPageRecord) => void
+      }) => Promise<void>
+    }).streamRunEvents({
+      runId: 'run-7',
+      cursor: 'run-event-000',
+      onPage: (page) => streamedPages.push(page),
+    })
+
+    expect(requestStream).toHaveBeenCalledWith({
+      method: 'GET',
+      path: '/api/projects/project-1/runs/run-7/events/stream',
+      query: {
+        cursor: 'run-event-000',
+      },
+      signal: undefined,
+      headers: {
+        Accept: 'text/event-stream',
+      },
+      baseUrl: 'https://runtime.example.test',
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(streamedPages).toEqual([
+      {
+        runId: 'run-7',
+        events: [
+          {
+            id: 'run-event-001',
+            runId: 'run-7',
+            order: 1,
+            kind: 'run_started',
+            label: 'Run started',
+            summary: 'Initial event.',
+            createdAtLabel: '2026-04-21 10:00',
+          },
+          {
+            id: 'run-event-002',
+            runId: 'run-7',
+            order: 2,
+            kind: 'review_requested',
+            label: 'Review requested',
+            summary: 'Waiting for review.',
+            createdAtLabel: '2026-04-21 10:05',
+          },
+        ],
+      },
+    ])
+  })
+
+  it('parses CRLF-delimited SSE pages incrementally before the stream closes', async () => {
+    const requestJson = createTransportMock()
+    let closeStream: (() => void) | null = null
+    const requestStream = vi.fn(async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              new TextEncoder().encode(
+                [
+                  ': stream-open',
+                  '',
+                  'id: run-event-001',
+                  'event: run-events',
+                  'data: {"runId":"run-7","events":[{"id":"run-event-001","runId":"run-7","order":1,"kind":"run_started","label":"Run started","summary":"CRLF streamed event.","createdAtLabel":"2026-04-21 10:00"}]}',
+                  '',
+                  '',
+                ].join('\r\n'),
+              ),
+            )
+            closeStream = () => controller.close()
+          },
+        }),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'text/event-stream; charset=utf-8',
+          },
+        },
+      ),
+    )
+    const runtime = createApiProjectRuntime({
+      projectId: 'project-1',
+      transport: {
+        requestJson,
+        requestStream,
+      },
+    })
+    const streamedPages: RunEventsPageRecord[] = []
+
+    const streamPromise = (runtime.runClient as typeof runtime.runClient & {
+      streamRunEvents: (input: {
+        runId: string
+        cursor?: string
+        signal?: AbortSignal
+        onOpen?: () => void
+        onPage: (page: RunEventsPageRecord) => void
+      }) => Promise<void>
+    }).streamRunEvents({
+      runId: 'run-7',
+      onPage: (page) => streamedPages.push(page),
+    })
+
+    await vi.waitFor(() => {
+      expect(streamedPages).toEqual([
+        {
+          runId: 'run-7',
+          events: [
+            {
+              id: 'run-event-001',
+              runId: 'run-7',
+              order: 1,
+              kind: 'run_started',
+              label: 'Run started',
+              summary: 'CRLF streamed event.',
+              createdAtLabel: '2026-04-21 10:00',
+            },
+          ],
+        },
+      ])
+    })
+
+    closeStream?.()
+    await streamPromise
+  })
+
+  it('falls back to fetch when the transport does not provide a stream request helper', async () => {
+    const requestJson = createTransportMock()
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        [
+          ': stream-open',
+          '',
+          'id: run-event-002',
+          'event: run-events',
+          'data: {"runId":"run-7","events":[{"id":"run-event-001","runId":"run-7","order":1,"kind":"run_started","label":"Run started","summary":"Initial event.","createdAtLabel":"2026-04-21 10:00"},{"id":"run-event-002","runId":"run-7","order":2,"kind":"review_requested","label":"Review requested","summary":"Waiting for review.","createdAtLabel":"2026-04-21 10:05"}]}',
+          '',
+        ].join('\n'),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'text/event-stream; charset=utf-8',
+          },
+        },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson } })
+    const streamedPages: RunEventsPageRecord[] = []
+
+    await (runtime.runClient as typeof runtime.runClient & {
+      streamRunEvents: (input: {
+        runId: string
+        cursor?: string
+        signal?: AbortSignal
+        onOpen?: () => void
+        onPage: (page: RunEventsPageRecord) => void
+      }) => Promise<void>
+    }).streamRunEvents({
+      runId: 'run-7',
+      cursor: 'run-event-000',
+      onPage: (page) => streamedPages.push(page),
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://runtime.example.test/api/projects/project-1/runs/run-7/events/stream?cursor=run-event-000',
+      {
+        method: 'GET',
+        signal: undefined,
+        headers: {
+          Accept: 'text/event-stream',
+        },
+      },
+    )
+    expect(streamedPages).toEqual([
+      {
+        runId: 'run-7',
+        events: [
+          {
+            id: 'run-event-001',
+            runId: 'run-7',
+            order: 1,
+            kind: 'run_started',
+            label: 'Run started',
+            summary: 'Initial event.',
+            createdAtLabel: '2026-04-21 10:00',
+          },
+          {
+            id: 'run-event-002',
+            runId: 'run-7',
+            order: 2,
+            kind: 'review_requested',
+            label: 'Review requested',
+            summary: 'Waiting for review.',
+            createdAtLabel: '2026-04-21 10:05',
+          },
+        ],
+      },
+    ])
   })
 
   it('adapts project runtime info into the legacy scene runtime info contract', async () => {

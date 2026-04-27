@@ -35,7 +35,7 @@ import type { TraceabilitySceneClient } from '@/features/traceability/hooks/useT
 import type { AssetKnowledgeWorkspaceRecord } from '@/features/asset/api/asset-records'
 import { sceneRuntimeCapabilities, type SceneRuntimeInfo } from '@/features/scene/api/scene-runtime'
 
-import type { ApiTransport } from './api-transport'
+import { ApiRequestError, type ApiStreamRequestOptions, type ApiTransport, type ApiQueryValue } from './api-transport'
 import { apiRouteContract } from './api-route-contract'
 import type { ProjectRuntime } from './project-runtime'
 import type { ProjectRuntimeInfoClient, ProjectRuntimeInfoRecord } from './project-runtime-info'
@@ -215,6 +215,122 @@ async function requestProjectRuntimeInfo(projectId: string, transport: ApiTransp
   })
 }
 
+function buildApiUrl(path: string, query?: Record<string, ApiQueryValue>, baseUrl?: string) {
+  const url = baseUrl ? new URL(path, baseUrl) : new URL(path, 'http://localhost')
+
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value === undefined || value === null) {
+      continue
+    }
+
+    url.searchParams.set(key, String(value))
+  }
+
+  if (baseUrl) {
+    return url.toString()
+  }
+
+  return `${url.pathname}${url.search}`
+}
+
+function tryParseJsonText(text: string) {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+async function toApiRequestError(response: Response) {
+  const text = await response.text()
+  const payload = text.trim() === '' ? null : tryParseJsonText(text)
+  const payloadMessage =
+    payload && typeof payload === 'object' && 'message' in payload && typeof payload.message === 'string'
+      ? payload.message
+      : undefined
+  const payloadCode =
+    payload && typeof payload === 'object' && 'code' in payload && typeof payload.code === 'string'
+      ? payload.code
+      : undefined
+  const payloadDetail = payload && typeof payload === 'object' && 'detail' in payload ? payload.detail : text || undefined
+
+  return new ApiRequestError({
+    status: response.status,
+    message: payloadMessage ?? response.statusText ?? `Request failed with status ${response.status}`,
+    code: payloadCode,
+    detail: payloadDetail,
+  })
+}
+
+function parseStreamEventPage(text: string, status: number) {
+  try {
+    return JSON.parse(text) as RunEventsPageRecord
+  } catch {
+    throw new ApiRequestError({
+      status,
+      message: 'Malformed JSON response',
+      detail: text,
+    })
+  }
+}
+
+function processRunEventStreamBuffer(
+  buffer: string,
+  status: number,
+  onPage: (page: RunEventsPageRecord) => void,
+  flushTrailingEvent = false,
+) {
+  let remaining = buffer
+
+  const processRawEvent = (rawEvent: string) => {
+    if (rawEvent.trim() === '') {
+      return
+    }
+
+    const lines = rawEvent.split(/\r\n|\n|\r/)
+    const dataLines = lines
+      .filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice('data:'.length).trimStart())
+
+    if (dataLines.length === 0) {
+      return
+    }
+
+    onPage(parseStreamEventPage(dataLines.join('\n'), status))
+  }
+
+  while (true) {
+    const separatorMatch = /\r\n\r\n|\n\n|\r\r/.exec(remaining)
+    if (!separatorMatch || separatorMatch.index === undefined) {
+      if (flushTrailingEvent) {
+        processRawEvent(remaining)
+        return ''
+      }
+
+      return remaining
+    }
+
+    const rawEvent = remaining.slice(0, separatorMatch.index)
+    remaining = remaining.slice(separatorMatch.index + separatorMatch[0].length)
+    processRawEvent(rawEvent)
+  }
+}
+
+async function requestStreamResponse(
+  transport: ApiTransport,
+  options: ApiStreamRequestOptions,
+) {
+  if (transport.requestStream) {
+    return transport.requestStream(options)
+  }
+
+  return globalThis.fetch(buildApiUrl(options.path, options.query, options.baseUrl), {
+    method: options.method,
+    signal: options.signal,
+    headers: options.headers,
+  })
+}
+
 function adaptProjectRuntimeInfoToSceneRuntimeInfo(projectRuntimeInfo: ProjectRuntimeInfoRecord): SceneRuntimeInfo {
   const readableSceneCapabilities = new Set([
     'getSceneWorkspace',
@@ -272,6 +388,61 @@ export function createRunClient(projectId: string, transport: ApiTransport): Run
           cursor: cursor ?? undefined,
         },
       })
+    },
+    async streamRunEvents({ runId, cursor, signal, onOpen, onPage }) {
+      const runtimeInfo = await requestProjectRuntimeInfo(projectId, transport)
+      const response = await requestStreamResponse(transport, {
+        method: 'GET',
+        path: apiRouteContract.runEventsStream({ projectId, runId }),
+        query: {
+          cursor: cursor ?? undefined,
+        },
+        signal,
+        headers: {
+          Accept: 'text/event-stream',
+        },
+        baseUrl: runtimeInfo.apiBaseUrl,
+      })
+
+      if (!response.ok) {
+        throw await toApiRequestError(response)
+      }
+
+      if (!response.body) {
+        throw new ApiRequestError({
+          status: response.status,
+          message: 'Run event stream response body is missing.',
+        })
+      }
+
+      onOpen?.()
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) {
+            break
+          }
+
+          buffer += decoder.decode(value, { stream: true })
+          buffer = processRunEventStreamBuffer(buffer, response.status, onPage)
+        }
+
+        buffer += decoder.decode()
+        processRunEventStreamBuffer(buffer, response.status, onPage, true)
+      } catch (error) {
+        if (signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
+          return
+        }
+
+        throw error
+      } finally {
+        reader.releaseLock()
+      }
     },
     async submitRunReviewDecision(input) {
       return transport.requestJson<RunRecord, Omit<SubmitRunReviewDecisionInput, 'runId'>>({

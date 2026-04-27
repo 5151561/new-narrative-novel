@@ -89,3 +89,11 @@ export function createProjectRuntimeInfoRecord({
     capabilities: createProjectRuntimeCapabilitiesRecord(capabilities),
   }
 }
+
+export function supportsRunEventStream(info: Pick<ProjectRuntimeInfoRecord, 'capabilities'> | null | undefined) {
+  return Boolean(info?.capabilities.runEvents && info.capabilities.runEventStream)
+}
+
+export function supportsRunEventPolling(info: Pick<ProjectRuntimeInfoRecord, 'capabilities'> | null | undefined) {
+  return Boolean(info?.capabilities.runEvents && info.capabilities.runEventPolling)
+}

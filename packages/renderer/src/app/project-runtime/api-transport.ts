@@ -8,8 +8,18 @@ export interface ApiRequestOptions<TBody = unknown> {
   signal?: AbortSignal
 }
 
+export interface ApiStreamRequestOptions {
+  method: 'GET'
+  path: string
+  query?: Record<string, ApiQueryValue>
+  signal?: AbortSignal
+  headers: Record<string, string>
+  baseUrl?: string
+}
+
 export interface ApiTransport {
   requestJson<TResponse, TBody = unknown>(options: ApiRequestOptions<TBody>): Promise<TResponse>
+  requestStream?(options: ApiStreamRequestOptions): Promise<Response>
 }
 
 export class ApiRequestError extends Error {
@@ -84,6 +94,13 @@ export function createApiTransport({
   fetch: fetchImpl = globalThis.fetch.bind(globalThis),
 }: CreateApiTransportOptions = {}): ApiTransport {
   return {
+    async requestStream({ method, path, query, signal, headers, baseUrl: overrideBaseUrl }: ApiStreamRequestOptions) {
+      return fetchImpl(buildUrl(path, query, overrideBaseUrl ?? baseUrl), {
+        method,
+        signal,
+        headers,
+      })
+    },
     async requestJson<TResponse, TBody = unknown>({
       method,
       path,
