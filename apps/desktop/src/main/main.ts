@@ -3,6 +3,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import { setApplicationMenu } from './app-menu.js'
 import { createMainWindow } from './create-window.js'
 import { createLocalApiSupervisor, type LocalApiSupervisor } from './local-api-supervisor.js'
+import { createWorkerSupervisor, type WorkerSupervisor } from './worker-supervisor.js'
 import {
   DESKTOP_API_CHANNELS,
   type DesktopPlatform,
@@ -18,8 +19,12 @@ export function getDesktopPlatform(platform: NodeJS.Platform = process.platform)
 }
 
 const localApiSupervisor = createLocalApiSupervisor()
+const workerSupervisor = createWorkerSupervisor()
 
-export function registerDesktopBridgeHandlers(supervisor: LocalApiSupervisor = localApiSupervisor): void {
+export function registerDesktopBridgeHandlers(
+  supervisor: LocalApiSupervisor = localApiSupervisor,
+  processWorkerSupervisor: WorkerSupervisor = workerSupervisor,
+): void {
   ipcMain.handle(DESKTOP_API_CHANNELS.getAppVersion, () => app.getVersion())
   ipcMain.handle(DESKTOP_API_CHANNELS.getPlatform, () => getDesktopPlatform())
   ipcMain.handle(DESKTOP_API_CHANNELS.getRuntimeMode, (): DesktopRuntimeMode => 'desktop')
@@ -41,6 +46,8 @@ export function registerDesktopBridgeHandlers(supervisor: LocalApiSupervisor = l
     return snapshot
   })
   ipcMain.handle(DESKTOP_API_CHANNELS.getLocalApiLogs, () => supervisor.getLogs())
+  ipcMain.handle(DESKTOP_API_CHANNELS.getWorkerStatus, () => processWorkerSupervisor.getSnapshot())
+  ipcMain.handle(DESKTOP_API_CHANNELS.restartWorker, () => processWorkerSupervisor.restart())
 }
 
 const isDev = !app.isPackaged
@@ -61,6 +68,7 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', () => {
   localApiSupervisor.stop()
+  workerSupervisor.stop()
 })
 
 app.on('window-all-closed', () => {

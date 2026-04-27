@@ -2,6 +2,7 @@ export type DesktopPlatform = 'darwin' | 'win32' | 'linux'
 export type DesktopRuntimeMode = 'web' | 'desktop'
 export type DesktopLocalRuntimeMode = 'desktop-local'
 export type LocalApiStatus = 'stopped' | 'starting' | 'ready' | 'failed'
+export type WorkerStatus = 'disabled' | 'starting' | 'ready' | 'failed' | 'stopped'
 
 export interface DesktopRuntimeConfig {
   runtimeMode: DesktopLocalRuntimeMode
@@ -16,6 +17,13 @@ export interface LocalApiStatusSnapshot {
   lastError?: string
 }
 
+export interface WorkerStatusSnapshot {
+  status: WorkerStatus
+  implementation: 'placeholder'
+  processId?: number
+  lastError?: string
+}
+
 export interface NarrativeDesktopApi {
   getAppVersion(): Promise<string>
   getPlatform(): Promise<DesktopPlatform>
@@ -24,6 +32,8 @@ export interface NarrativeDesktopApi {
   getLocalApiStatus(): Promise<LocalApiStatusSnapshot>
   restartLocalApi(): Promise<LocalApiStatusSnapshot>
   getLocalApiLogs(): Promise<string[]>
+  getWorkerStatus(): Promise<WorkerStatusSnapshot>
+  restartWorker(): Promise<WorkerStatusSnapshot>
 }
 
 export const DESKTOP_API_CHANNELS = {
@@ -34,6 +44,8 @@ export const DESKTOP_API_CHANNELS = {
   getLocalApiStatus: 'narrativeDesktop:getLocalApiStatus',
   restartLocalApi: 'narrativeDesktop:restartLocalApi',
   getLocalApiLogs: 'narrativeDesktop:getLocalApiLogs',
+  getWorkerStatus: 'narrativeDesktop:getWorkerStatus',
+  restartWorker: 'narrativeDesktop:restartWorker',
 } as const
 
 export type DesktopApiChannel = (typeof DESKTOP_API_CHANNELS)[keyof typeof DESKTOP_API_CHANNELS]

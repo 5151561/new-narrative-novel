@@ -6,6 +6,7 @@ import {
   type DesktopPlatform,
   type DesktopRuntimeMode,
   type NarrativeDesktopApi,
+  type WorkerStatusSnapshot,
 } from '../shared/desktop-bridge-types.js'
 
 export type DesktopIpcInvoke = <T>(channel: DesktopApiChannel) => Promise<T>
@@ -19,5 +20,7 @@ export function createNarrativeDesktopApi(invoke: DesktopIpcInvoke): NarrativeDe
     getLocalApiStatus: () => invoke<LocalApiStatusSnapshot>(DESKTOP_API_CHANNELS.getLocalApiStatus),
     restartLocalApi: () => invoke<LocalApiStatusSnapshot>(DESKTOP_API_CHANNELS.restartLocalApi),
     getLocalApiLogs: () => invoke<string[]>(DESKTOP_API_CHANNELS.getLocalApiLogs),
+    getWorkerStatus: () => invoke<WorkerStatusSnapshot>(DESKTOP_API_CHANNELS.getWorkerStatus),
+    restartWorker: () => invoke<WorkerStatusSnapshot>(DESKTOP_API_CHANNELS.restartWorker),
   }
 }

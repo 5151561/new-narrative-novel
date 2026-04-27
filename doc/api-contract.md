@@ -196,6 +196,23 @@ PR48 在现有 run / artifact 合同之上补齐了 planner proposal generation 
 
 当前 transport 对非 JSON 错误也能兜底，但那只是兼容行为，不是合同目标；产品接口应优先返回上面的 JSON 形态。
 
+## Desktop operational metadata boundary
+
+Electron preload 目前只允许通过 `window.narrativeDesktop` 暴露窄的 operational metadata 与控制命令，不把产品态 run / scene / project 逻辑搬进 Electron：
+
+- `getRuntimeConfig()` 仍只负责返回 `desktop-local` API contract 所需的 runtime config。
+- `getLocalApiStatus()` / `restartLocalApi()` 返回和控制的是本地 API 子进程的 operational snapshot，不是产品 state。
+- `getWorkerStatus()` / `restartWorker()` 返回和控制的是桌面 worker placeholder 的 lifecycle snapshot，不是 run orchestration、scene execution、project state 或 provider state。
+- worker snapshot 只允许暴露 typed metadata，例如 `status`, `implementation`, `processId`, `lastError`；不允许把 raw child-process handle、Node module、provider client 或 renderer capability 透传到 preload bridge。
+
+当前 worker lifecycle status 固定为：
+
+- `disabled`
+- `starting`
+- `ready`
+- `failed`
+- `stopped`
+
 ## 5. Auth 占位
 
 本 PR 不进入 auth 实现，但 API 合同预留以下约束：
