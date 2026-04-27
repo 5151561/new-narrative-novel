@@ -73,7 +73,7 @@ export function registerReviewRoutes({ app, apiBasePath, repository }: ApiRouteC
       bookId: string
       issueId: string
     }
-    repository.clearReviewDecision(projectId, { bookId, issueId })
+    await repository.clearReviewDecision(projectId, { bookId, issueId })
     return reply.status(204).send()
   })
 
@@ -159,7 +159,7 @@ export function registerReviewRoutes({ app, apiBasePath, repository }: ApiRouteC
       bookId: string
       issueId: string
     }
-    repository.clearReviewFixAction(projectId, { bookId, issueId })
+    await repository.clearReviewFixAction(projectId, { bookId, issueId })
     return reply.status(204).send()
   })
 }

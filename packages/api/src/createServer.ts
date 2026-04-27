@@ -3,7 +3,11 @@ import Fastify from 'fastify'
 
 import { getApiServerConfig, type ApiServerConfig } from './config.js'
 import { notFound, registerGlobalErrorHandler } from './http/errors.js'
-import { createFixtureRepository } from './repositories/fixtureRepository.js'
+import {
+  createFixtureRepository,
+  type FixtureRepositoryProjectStatePersistence,
+} from './repositories/fixtureRepository.js'
+import { createProjectStatePersistence } from './repositories/project-state-persistence.js'
 import { registerAssetRoutes } from './routes/asset.js'
 import { registerBookRoutes } from './routes/book.js'
 import { registerChapterRoutes } from './routes/chapter.js'
@@ -15,12 +19,18 @@ import { registerSceneRoutes } from './routes/scene.js'
 
 export interface CreateServerOptions {
   config?: ApiServerConfig
+  projectStatePersistence?: FixtureRepositoryProjectStatePersistence
 }
 
 export function createServer(options: CreateServerOptions = {}) {
   const config = options.config ?? getApiServerConfig()
   const app = Fastify()
-  const repository = createFixtureRepository({ apiBaseUrl: config.apiBaseUrl })
+  const repository = createFixtureRepository({
+    apiBaseUrl: config.apiBaseUrl,
+    projectStatePersistence: options.projectStatePersistence ?? createProjectStatePersistence({
+      filePath: config.projectStateFilePath,
+    }),
+  })
 
   void app.register(cors, {
     origin: config.corsOrigin,
@@ -48,6 +58,10 @@ export function createServer(options: CreateServerOptions = {}) {
     ok: true,
     runtime: process.env.NARRATIVE_RUNTIME ?? 'api',
   }))
+
+  app.addHook('onReady', async () => {
+    await repository.whenReady()
+  })
 
   const routeContext = {
     app,

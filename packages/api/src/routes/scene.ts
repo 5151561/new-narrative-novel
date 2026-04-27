@@ -28,7 +28,7 @@ export function registerSceneRoutes({ app, apiBasePath, repository }: ApiRouteCo
       })
     }
 
-    repository.updateSceneSetup(projectId, sceneId, request.body as Parameters<typeof repository.updateSceneSetup>[2])
+    await repository.updateSceneSetup(projectId, sceneId, request.body as Parameters<typeof repository.updateSceneSetup>[2])
     return reply.status(204).send()
   })
 
@@ -53,7 +53,7 @@ export function registerSceneRoutes({ app, apiBasePath, repository }: ApiRouteCo
       })
     }
 
-    repository.switchSceneThread(projectId, sceneId, body.threadId)
+    await repository.switchSceneThread(projectId, sceneId, body.threadId)
     return reply.status(204).send()
   })
 
@@ -71,7 +71,7 @@ export function registerSceneRoutes({ app, apiBasePath, repository }: ApiRouteCo
       allowedValuesDetailKey: 'allowedRevisionModes',
     })
 
-    repository.reviseSceneProse(projectId, sceneId, revisionMode)
+    await repository.reviseSceneProse(projectId, sceneId, revisionMode)
     return reply.status(204).send()
   })
 

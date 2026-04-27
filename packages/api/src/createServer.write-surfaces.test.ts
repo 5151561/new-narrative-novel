@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { createServer } from './createServer.js'
 import { withTestServer } from './test/support/test-server.js'
 
 describe('fixture API server write surfaces', () => {
@@ -236,5 +237,112 @@ describe('fixture API server write surfaces', () => {
         status: 'waiting_review',
       })
     })
+  })
+
+  it('returns a persistence failure from the mutation that triggered it while later unrelated responses still succeed', async () => {
+    let saveAttempts = 0
+    const persistence = {
+      async load() {
+        return {
+          schemaVersion: 1 as const,
+          seedVersion: 'prototype-fixture-seed-v1' as const,
+          projects: {},
+        }
+      },
+      async saveProjectOverlay() {
+        saveAttempts += 1
+        if (saveAttempts === 1) {
+          throw new Error('simulated persistence failure')
+        }
+      },
+      async clearProjectOverlay() {},
+    }
+
+    const { app } = createServer({
+      config: {
+        host: '127.0.0.1',
+        port: 4174,
+        apiBasePath: '/api',
+        apiBaseUrl: 'http://127.0.0.1:4174/api',
+        corsOrigin: true,
+        projectStateFilePath: '/tmp/narrative-api-test-persistence-recovery.json',
+      },
+      projectStatePersistence: persistence,
+    })
+
+    try {
+      const failedMutationResponse = await app.inject({
+        method: 'PATCH',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/setup',
+        payload: {
+          sceneId: 'scene-midnight-platform',
+          identity: {
+            title: 'Midnight Platform Failed Persist',
+            chapterLabel: 'Signals in Rain',
+            locationLabel: 'Eastbound platform',
+            povCharacterId: 'asset-ren-voss',
+            timeboxLabel: 'Near midnight, one train window left',
+            summary: 'This mutation should apply but fail persistence.',
+          },
+          objective: {
+            externalGoal: 'Close the bargain without opening the ledger.',
+            emotionalGoal: 'Keep Ren visibly controlled under witness pressure.',
+            successSignal: 'The witness sees a bargain, but not the ledger contents.',
+            failureCost: 'The courier signal becomes public leverage.',
+          },
+          cast: [],
+          constraints: [],
+          knowledgeBoundaries: [],
+          runtimePreset: {
+            selectedPresetId: 'preset-tight-stakes',
+            presetOptions: [],
+          },
+        },
+      })
+      expect(failedMutationResponse.statusCode).toBe(500)
+      expect(failedMutationResponse.json()).toMatchObject({
+        message: 'Internal Server Error',
+      })
+
+      const unrelatedReadResponse = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/workspace',
+      })
+      expect(unrelatedReadResponse.statusCode).toBe(200)
+      expect(unrelatedReadResponse.json()).toMatchObject({
+        title: 'Midnight Platform Failed Persist',
+      })
+
+      const healthResponse = await app.inject({
+        method: 'GET',
+        url: '/api/health',
+      })
+      expect(healthResponse.statusCode).toBe(200)
+      expect(healthResponse.json()).toEqual({
+        ok: true,
+        runtime: 'api',
+      })
+
+      const recoveryMutationResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/execution/thread',
+        payload: {
+          threadId: 'thread-platform-02',
+        },
+      })
+      expect(recoveryMutationResponse.statusCode).toBe(204)
+
+      const workspaceAfterRecovery = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/workspace',
+      })
+      expect(workspaceAfterRecovery.statusCode).toBe(200)
+      expect(workspaceAfterRecovery.json()).toMatchObject({
+        title: 'Midnight Platform Failed Persist',
+        activeThreadId: 'thread-platform-02',
+      })
+    } finally {
+      await app.close()
+    }
   })
 })

@@ -49,10 +49,22 @@ import {
 import { applySceneProseRevisionRequest } from '../orchestration/sceneRun/sceneRunProseRevision.js'
 
 import { createFixtureDataSnapshot } from './fixture-data.js'
+import type {
+  PersistedProjectStateEnvelope,
+  PersistedProjectStateOverlay,
+} from './project-state-persistence.js'
 import { createRunFixtureStore, type RunFixtureStore } from './runFixtureStore.js'
 
 function clone<T>(value: T): T {
   return structuredClone(value)
+}
+
+function jsonEquals(left: unknown, right: unknown) {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+function toJsonClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
 }
 
 function localizedText(en: string, zhCN: string) {
@@ -287,6 +299,7 @@ function buildRevisionModeLabel(revisionMode: SceneProseViewModel['revisionModes
 }
 
 export interface FixtureRepository {
+  whenReady(): Promise<void>
   getProjectRuntimeInfo(projectId: string): ProjectRuntimeInfoRecord
   getBookStructure(projectId: string, bookId: string): BookStructureRecord | null
   getBookDraftAssembly(projectId: string, bookId: string): BookDraftAssemblyRecord | null
@@ -295,22 +308,22 @@ export interface FixtureRepository {
   getBookExportProfiles(projectId: string, bookId: string): BookExportProfileRecord[]
   getBookExportProfile(projectId: string, bookId: string, exportProfileId: string): BookExportProfileRecord | null
   getBookExportArtifacts(projectId: string, input: { bookId: string; exportProfileId?: string; checkpointId?: string }): BookExportArtifactRecord[]
-  createBookExportArtifact(projectId: string, input: BuildBookExportArtifactInput): BookExportArtifactRecord
+  createBookExportArtifact(projectId: string, input: BuildBookExportArtifactInput): Promise<BookExportArtifactRecord>
   getBookExperimentBranches(projectId: string, bookId: string): BookExperimentBranchRecord[]
   getBookExperimentBranch(projectId: string, bookId: string, branchId: string): BookExperimentBranchRecord | null
   getChapterStructure(projectId: string, chapterId: string): ChapterStructureWorkspaceRecord | null
-  reorderChapterScene(projectId: string, input: { chapterId: string; sceneId: string; targetIndex: number }): ChapterStructureWorkspaceRecord | null
-  updateChapterSceneStructure(projectId: string, input: { chapterId: string; sceneId: string; locale: 'en' | 'zh-CN'; patch: ChapterSceneStructurePatch }): ChapterStructureWorkspaceRecord | null
+  reorderChapterScene(projectId: string, input: { chapterId: string; sceneId: string; targetIndex: number }): Promise<ChapterStructureWorkspaceRecord | null>
+  updateChapterSceneStructure(projectId: string, input: { chapterId: string; sceneId: string; locale: 'en' | 'zh-CN'; patch: ChapterSceneStructurePatch }): Promise<ChapterStructureWorkspaceRecord | null>
   getAssetKnowledge(projectId: string, assetId: string): AssetKnowledgeWorkspaceRecord | null
   getReviewDecisions(projectId: string, bookId: string): ReviewIssueDecisionRecord[]
-  setReviewDecision(projectId: string, input: SetReviewIssueDecisionInput): ReviewIssueDecisionRecord
-  clearReviewDecision(projectId: string, input: { bookId: string; issueId: string }): void
+  setReviewDecision(projectId: string, input: SetReviewIssueDecisionInput): Promise<ReviewIssueDecisionRecord>
+  clearReviewDecision(projectId: string, input: { bookId: string; issueId: string }): Promise<void>
   getReviewFixActions(projectId: string, bookId: string): ReviewIssueFixActionRecord[]
-  setReviewFixAction(projectId: string, input: SetReviewIssueFixActionInput): ReviewIssueFixActionRecord
-  clearReviewFixAction(projectId: string, input: { bookId: string; issueId: string }): void
+  setReviewFixAction(projectId: string, input: SetReviewIssueFixActionInput): Promise<ReviewIssueFixActionRecord>
+  clearReviewFixAction(projectId: string, input: { bookId: string; issueId: string }): Promise<void>
   getSceneWorkspace(projectId: string, sceneId: string): SceneWorkspaceViewModel
   getSceneSetup(projectId: string, sceneId: string): SceneSetupViewModel
-  updateSceneSetup(projectId: string, sceneId: string, setup: SceneSetupViewModel): void
+  updateSceneSetup(projectId: string, sceneId: string, setup: SceneSetupViewModel): Promise<void>
   getSceneExecution(projectId: string, sceneId: string): SceneExecutionViewModel
   getSceneProse(projectId: string, sceneId: string): SceneProseViewModel
   getSceneInspector(projectId: string, sceneId: string): SceneInspectorViewModel
@@ -318,24 +331,38 @@ export interface FixtureRepository {
   getSceneDockTab(projectId: string, sceneId: string, tab: SceneDockTabId): Partial<SceneDockViewModel>
   getScenePatchPreview(projectId: string, sceneId: string): ScenePatchPreviewViewModel | null
   commitScenePatch(projectId: string, sceneId: string, patchId: string): void
-  reviseSceneProse(projectId: string, sceneId: string, revisionMode: SceneProseViewModel['revisionModes'][number]): void
+  reviseSceneProse(projectId: string, sceneId: string, revisionMode: SceneProseViewModel['revisionModes'][number]): Promise<void>
   continueSceneRun(projectId: string, sceneId: string): void
-  switchSceneThread(projectId: string, sceneId: string, threadId: string): void
+  switchSceneThread(projectId: string, sceneId: string, threadId: string): Promise<void>
   applySceneProposalAction(projectId: string, sceneId: string, action: 'accept' | 'edit-accept' | 'request-rewrite' | 'reject', input: ProposalActionInput): void
-  startSceneRun(projectId: string, input: StartSceneRunInput): RunRecord
+  startSceneRun(projectId: string, input: StartSceneRunInput): Promise<RunRecord>
   getRun(projectId: string, runId: string): RunRecord | null
   listRunArtifacts(projectId: string, runId: string): RunArtifactSummaryRecord[] | null
   getRunArtifact(projectId: string, runId: string, artifactId: string): RunArtifactDetailRecord | null
   getRunTrace(projectId: string, runId: string): RunTraceResponse | null
   getRunEvents(projectId: string, input: { runId: string; cursor?: string }): RunEventsPageRecord
-  submitRunReviewDecision(projectId: string, input: SubmitRunReviewDecisionInput): RunRecord
+  submitRunReviewDecision(projectId: string, input: SubmitRunReviewDecisionInput): Promise<RunRecord>
   exportSnapshot(): FixtureDataSnapshot
+  resetProject(projectId: string): Promise<void>
   reset(): void
 }
 
-export function createFixtureRepository(options: { apiBaseUrl: string }): FixtureRepository {
-  let snapshot = createFixtureDataSnapshot(options.apiBaseUrl)
+export interface FixtureRepositoryProjectStatePersistence {
+  load(): Promise<PersistedProjectStateEnvelope>
+  saveProjectOverlay(projectId: string, overlay: PersistedProjectStateOverlay): Promise<void>
+  clearProjectOverlay(projectId: string): Promise<void>
+}
+
+export function createFixtureRepository(options: {
+  apiBaseUrl: string
+  projectStatePersistence?: FixtureRepositoryProjectStatePersistence
+}): FixtureRepository {
+  const createSeedSnapshot = () => createFixtureDataSnapshot(options.apiBaseUrl)
+  const createSeedRunStore = () => createRunFixtureStore()
+
+  let snapshot = createSeedSnapshot()
   const runStore: RunFixtureStore = createRunFixtureStore()
+  let persistenceQueue = Promise.resolve()
 
   function getProject(projectId: string): FixtureProjectData {
     const project = snapshot.projects[projectId]
@@ -348,6 +375,117 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
 
     return project
   }
+
+  function enqueuePersistence(task: () => Promise<void>) {
+    if (!options.projectStatePersistence) {
+      return Promise.resolve()
+    }
+
+    const taskPromise = persistenceQueue
+      .catch(() => undefined)
+      .then(task)
+    persistenceQueue = taskPromise.catch(() => undefined)
+    return taskPromise
+  }
+
+  function applyProjectOverlay(projectId: string, overlay: PersistedProjectStateOverlay) {
+    const project = getProject(projectId)
+
+    if (overlay.reviewDecisions) {
+      project.reviewDecisions = clone(overlay.reviewDecisions as unknown as FixtureProjectData['reviewDecisions'])
+    }
+    if (overlay.reviewFixActions) {
+      project.reviewFixActions = clone(overlay.reviewFixActions as unknown as FixtureProjectData['reviewFixActions'])
+    }
+    if (overlay.exportArtifacts) {
+      project.exportArtifacts = clone(overlay.exportArtifacts as unknown as FixtureProjectData['exportArtifacts'])
+    }
+    if (overlay.chapters) {
+      project.chapters = clone(overlay.chapters as unknown as FixtureProjectData['chapters'])
+    }
+    if (overlay.scenes) {
+      project.scenes = clone(overlay.scenes as unknown as FixtureProjectData['scenes'])
+    }
+    if (overlay.runStore) {
+      runStore.hydrateProjectState(projectId, overlay.runStore)
+    }
+  }
+
+  function buildProjectOverlay(projectId: string): PersistedProjectStateOverlay | undefined {
+    const project = getProject(projectId)
+    const seedProject = createSeedSnapshot().projects[projectId]
+    const overlay: PersistedProjectStateOverlay = {
+      updatedAt: new Date().toISOString(),
+    }
+
+    if (!seedProject || !jsonEquals(project.reviewDecisions, seedProject.reviewDecisions)) {
+      overlay.reviewDecisions = toJsonClone(project.reviewDecisions as unknown as PersistedProjectStateOverlay['reviewDecisions'])
+    }
+    if (!seedProject || !jsonEquals(project.reviewFixActions, seedProject.reviewFixActions)) {
+      overlay.reviewFixActions = toJsonClone(project.reviewFixActions as unknown as PersistedProjectStateOverlay['reviewFixActions'])
+    }
+    if (!seedProject || !jsonEquals(project.exportArtifacts, seedProject.exportArtifacts)) {
+      overlay.exportArtifacts = toJsonClone(project.exportArtifacts as unknown as PersistedProjectStateOverlay['exportArtifacts'])
+    }
+    if (!seedProject || !jsonEquals(project.chapters, seedProject.chapters)) {
+      overlay.chapters = toJsonClone(project.chapters as unknown as PersistedProjectStateOverlay['chapters'])
+    }
+    if (!seedProject || !jsonEquals(project.scenes, seedProject.scenes)) {
+      overlay.scenes = toJsonClone(project.scenes as unknown as PersistedProjectStateOverlay['scenes'])
+    }
+
+    const currentRunStore = runStore.exportProjectState(projectId)
+    const seedRunStore = createSeedRunStore().exportProjectState(projectId)
+    if (!jsonEquals(currentRunStore ?? null, seedRunStore ?? null) && currentRunStore) {
+      overlay.runStore = toJsonClone(currentRunStore)
+    }
+
+    return Object.keys(overlay).length > 1 ? overlay : undefined
+  }
+
+  function persistProjectOverlay(projectId: string) {
+    if (!options.projectStatePersistence) {
+      return Promise.resolve()
+    }
+
+    return enqueuePersistence(async () => {
+      const overlay = buildProjectOverlay(projectId)
+      if (overlay) {
+        await options.projectStatePersistence!.saveProjectOverlay(projectId, overlay)
+        return
+      }
+
+      await options.projectStatePersistence!.clearProjectOverlay(projectId)
+    })
+  }
+
+  function resetProjectToSeed(projectId: string) {
+    const nextSeedSnapshot = createSeedSnapshot()
+    const nextProject = nextSeedSnapshot.projects[projectId]
+    if (!nextProject) {
+      throw notFound(`Project ${projectId} was not found.`, {
+        code: 'PROJECT_NOT_FOUND',
+        detail: { projectId },
+      })
+    }
+
+    snapshot.projects[projectId] = clone(nextProject)
+    runStore.clearProject(projectId)
+
+    const seedRunSnapshot = createSeedRunStore().exportProjectState(projectId)
+    if (seedRunSnapshot) {
+      runStore.hydrateProjectState(projectId, seedRunSnapshot)
+    }
+  }
+
+  const readyPromise = options.projectStatePersistence
+    ? options.projectStatePersistence.load().then((envelope) => {
+      for (const [projectId, overlay] of Object.entries(envelope.projects)) {
+        applyProjectOverlay(projectId, overlay)
+      }
+    })
+    : Promise.resolve()
+  persistenceQueue = readyPromise
 
   function getBook(projectId: string, bookId: string) {
     return getProject(projectId).books[bookId] ?? null
@@ -655,6 +793,9 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
   }
 
   return {
+    whenReady() {
+      return readyPromise
+    },
     getProjectRuntimeInfo(projectId) {
       return clone(getProject(projectId).runtimeInfo)
     },
@@ -722,7 +863,7 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
         }),
       )
     },
-    createBookExportArtifact(projectId, input) {
+    async createBookExportArtifact(projectId, input) {
       const project = getProject(projectId)
       const artifacts = project.exportArtifacts[input.bookId] ?? []
       const nextId = `artifact-${input.exportProfileId}-${String(artifacts.length + 1).padStart(3, '0')}`
@@ -749,6 +890,7 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
       }
 
       project.exportArtifacts[input.bookId] = [...artifacts, record]
+      await persistProjectOverlay(projectId)
       return clone(record)
     },
     getBookExperimentBranches(projectId, bookId) {
@@ -762,7 +904,7 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
       const record = getChapter(projectId, chapterId)
       return record ? clone(record) : null
     },
-    reorderChapterScene(projectId, { chapterId, sceneId, targetIndex }) {
+    async reorderChapterScene(projectId, { chapterId, sceneId, targetIndex }) {
       const record = getChapter(projectId, chapterId)
       if (!record) {
         return null
@@ -770,9 +912,10 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
 
       const nextRecord = reorderChapterRecordScenes(record, sceneId, targetIndex)
       getProject(projectId).chapters[chapterId] = nextRecord
+      await persistProjectOverlay(projectId)
       return clone(nextRecord)
     },
-    updateChapterSceneStructure(projectId, { chapterId, sceneId, locale, patch }) {
+    async updateChapterSceneStructure(projectId, { chapterId, sceneId, locale, patch }) {
       const record = getChapter(projectId, chapterId)
       if (!record) {
         return null
@@ -780,6 +923,7 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
 
       const nextRecord = patchChapterRecordScene(record, sceneId, patch, locale)
       getProject(projectId).chapters[chapterId] = nextRecord
+      await persistProjectOverlay(projectId)
       return clone(nextRecord)
     },
     getAssetKnowledge(projectId, assetId) {
@@ -789,7 +933,7 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
     getReviewDecisions(projectId, bookId) {
       return clone(getProject(projectId).reviewDecisions[bookId] ?? [])
     },
-    setReviewDecision(projectId, input) {
+    async setReviewDecision(projectId, input) {
       const project = getProject(projectId)
       const bucket = project.reviewDecisions[input.bookId] ?? []
       const record: ReviewIssueDecisionRecord = {
@@ -803,17 +947,19 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
         updatedByLabel: 'Fixture API server',
       }
       project.reviewDecisions[input.bookId] = [...bucket.filter((item) => item.issueId !== input.issueId), record]
+      await persistProjectOverlay(projectId)
       return clone(record)
     },
-    clearReviewDecision(projectId, { bookId, issueId }) {
+    async clearReviewDecision(projectId, { bookId, issueId }) {
       const project = getProject(projectId)
       const bucket = project.reviewDecisions[bookId] ?? []
       project.reviewDecisions[bookId] = bucket.filter((item) => item.issueId !== issueId)
+      await persistProjectOverlay(projectId)
     },
     getReviewFixActions(projectId, bookId) {
       return clone(getProject(projectId).reviewFixActions[bookId] ?? [])
     },
-    setReviewFixAction(projectId, input) {
+    async setReviewFixAction(projectId, input) {
       const project = getProject(projectId)
       const bucket = project.reviewFixActions[input.bookId] ?? []
       const existing = bucket.find((item) => item.issueId === input.issueId)
@@ -832,12 +978,14 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
         updatedByLabel: 'Fixture API server',
       }
       project.reviewFixActions[input.bookId] = [...bucket.filter((item) => item.issueId !== input.issueId), record]
+      await persistProjectOverlay(projectId)
       return clone(record)
     },
-    clearReviewFixAction(projectId, { bookId, issueId }) {
+    async clearReviewFixAction(projectId, { bookId, issueId }) {
       const project = getProject(projectId)
       const bucket = project.reviewFixActions[bookId] ?? []
       project.reviewFixActions[bookId] = bucket.filter((item) => item.issueId !== issueId)
+      await persistProjectOverlay(projectId)
     },
     getSceneWorkspace(projectId, sceneId) {
       return clone(getScene(projectId, sceneId).workspace)
@@ -845,10 +993,11 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
     getSceneSetup(projectId, sceneId) {
       return clone(getScene(projectId, sceneId).setup)
     },
-    updateSceneSetup(projectId, sceneId, setup) {
+    async updateSceneSetup(projectId, sceneId, setup) {
       const scene = getScene(projectId, sceneId)
       scene.setup = clone(setup)
       scene.workspace.title = setup.identity.title
+      await persistProjectOverlay(projectId)
     },
     getSceneExecution(projectId, sceneId) {
       return clone(getScene(projectId, sceneId).execution)
@@ -881,7 +1030,7 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
       return clone(getScene(projectId, sceneId).patchPreview)
     },
     commitScenePatch(_projectId, _sceneId, _patchId) {},
-    reviseSceneProse(projectId, sceneId, revisionMode) {
+    async reviseSceneProse(projectId, sceneId, revisionMode) {
       const scene = getScene(projectId, sceneId)
       if (!scene.prose.proseDraft) {
         throw conflict(`Scene ${sceneId} requires a prose draft before revision can be requested.`, {
@@ -907,20 +1056,23 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
         },
         ...scene.dock.events.filter((entry) => entry.id !== `prose-revision-${sceneId}`),
       ]
+      await persistProjectOverlay(projectId)
     },
     continueSceneRun(_projectId, _sceneId) {},
-    switchSceneThread(projectId, sceneId, threadId) {
+    async switchSceneThread(projectId, sceneId, threadId) {
       const scene = getScene(projectId, sceneId)
       const hasThread = scene.workspace.availableThreads.some((item) => item.id === threadId)
       if (hasThread) {
         scene.workspace.activeThreadId = threadId
+        await persistProjectOverlay(projectId)
       }
     },
     applySceneProposalAction(_projectId, _sceneId, _action, _input) {},
-    startSceneRun(projectId, input) {
+    async startSceneRun(projectId, input) {
       getScene(projectId, input.sceneId)
       const run = runStore.startSceneRun(projectId, input)
       syncRunMutations(projectId, run)
+      await persistProjectOverlay(projectId)
       return run
     },
     getRun(projectId, runId) {
@@ -938,17 +1090,26 @@ export function createFixtureRepository(options: { apiBaseUrl: string }): Fixtur
     getRunEvents(projectId, input) {
       return runStore.getRunEvents(projectId, input)
     },
-    submitRunReviewDecision(projectId, input) {
+    async submitRunReviewDecision(projectId, input) {
       const run = runStore.submitRunReviewDecision(projectId, input)
       syncRunMutations(projectId, run)
       syncSceneProseFromAcceptedRun(projectId, run, input.decision)
+      await persistProjectOverlay(projectId)
       return run
     },
     exportSnapshot() {
       return clone(snapshot)
     },
+    async resetProject(projectId) {
+      resetProjectToSeed(projectId)
+      if (options.projectStatePersistence) {
+        await enqueuePersistence(async () => {
+          await options.projectStatePersistence!.clearProjectOverlay(projectId)
+        })
+      }
+    },
     reset() {
-      snapshot = createFixtureDataSnapshot(options.apiBaseUrl)
+      snapshot = createSeedSnapshot()
       runStore.reset()
     },
   }

@@ -31,6 +31,7 @@ import {
 } from '../orchestration/sceneRun/sceneRunTraceLinks.js'
 import { buildFixtureSceneRunTimelineLabel } from '../orchestration/sceneRun/sceneRunTimeline.js'
 import { startSceneRunWorkflow } from '../orchestration/sceneRun/sceneRunWorkflow.js'
+import type { PersistedRunStore } from './project-state-persistence.js'
 
 const EVENT_PAGE_SIZE = 4
 const DEFAULT_PROJECT_ID = 'book-signal-arc'
@@ -49,6 +50,15 @@ interface RunState {
   traceSummary: RunTraceResponse['summary']
 }
 
+interface PersistedRunStateRecord {
+  sequence: number
+  run: RunRecord
+  events: RunEventRecord[]
+  artifacts: SceneRunArtifactRecord[]
+  latestReviewDecision?: RunReviewDecisionKind
+  selectedVariants?: RunSelectedProposalVariantRecord[]
+}
+
 function trimNote(note?: string) {
   const value = note?.trim()
   return value ? value : undefined
@@ -56,6 +66,10 @@ function trimNote(note?: string) {
 
 function clone<T>(value: T): T {
   return structuredClone(value)
+}
+
+function toJsonClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
 }
 
 function cloneSelectedVariants(selectedVariants?: RunSelectedProposalVariantRecord[]) {
@@ -376,6 +390,9 @@ function createSeedRun(): {
 
 export interface RunFixtureStore {
   reset(): void
+  clearProject(projectId: string): void
+  exportProjectState(projectId: string): PersistedRunStore | undefined
+  hydrateProjectState(projectId: string, snapshot: PersistedRunStore): void
   startSceneRun(projectId: string, input: StartSceneRunInput): RunRecord
   getRun(projectId: string, runId: string): RunRecord | null
   getRunEvents(projectId: string, input: { runId: string; cursor?: string }): RunEventsPageRecord
@@ -419,15 +436,14 @@ export function createRunFixtureStore(): RunFixtureStore {
     return next
   }
 
-  function setRunState(
-    projectId: string,
+  function createRunState(
     sequence: number,
     run: RunRecord,
     events: RunEventRecord[],
     artifacts: SceneRunArtifactRecord[],
     latestReviewDecision?: RunReviewDecisionKind,
     selectedVariants?: RunSelectedProposalVariantRecord[],
-  ) {
+    ) {
     const state: RunState = {
       sequence,
       run: clone(run),
@@ -447,7 +463,36 @@ export function createRunFixtureStore(): RunFixtureStore {
       },
     }
     indexRunReadSurfaces(state)
-    getRunBucket(projectId, true)!.set(run.id, state)
+    return state
+  }
+
+  function storeRunState(projectId: string, state: RunState) {
+    getRunBucket(projectId, true)!.set(state.run.id, state)
+  }
+
+  function serializeRunState(state: RunState): PersistedRunStateRecord {
+    return toJsonClone({
+      sequence: state.sequence,
+      run: state.run,
+      events: state.events,
+      artifacts: state.artifacts,
+      latestReviewDecision: state.latestReviewDecision,
+      selectedVariants: state.selectedVariants,
+    })
+  }
+
+  function isPersistedRunStateRecord(value: unknown): value is PersistedRunStateRecord {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      return false
+    }
+
+    const candidate = value as Partial<PersistedRunStateRecord>
+    return typeof candidate.sequence === 'number'
+      && typeof candidate.run?.id === 'string'
+      && Array.isArray(candidate.events)
+      && Array.isArray(candidate.artifacts)
+      && (candidate.latestReviewDecision === undefined || isRunReviewDecisionKind(candidate.latestReviewDecision))
+      && (candidate.selectedVariants === undefined || Array.isArray(candidate.selectedVariants))
   }
 
   function requireRunState(projectId: string, runId: string) {
@@ -467,7 +512,13 @@ export function createRunFixtureStore(): RunFixtureStore {
     sceneRunSequenceByProjectId.clear()
 
     const seed = createSeedRun()
-    setRunState(seed.projectId, seed.sequence, seed.run, seed.events, seed.artifacts, seed.latestReviewDecision)
+    storeRunState(seed.projectId, createRunState(
+      seed.sequence,
+      seed.run,
+      seed.events,
+      seed.artifacts,
+      seed.latestReviewDecision,
+    ))
     getSequenceBucket(seed.projectId, true)!.set(seed.sceneId, seed.sequence)
   }
 
@@ -475,6 +526,56 @@ export function createRunFixtureStore(): RunFixtureStore {
 
   return {
     reset,
+    clearProject(projectId) {
+      runStatesByProjectId.delete(projectId)
+      sceneRunSequenceByProjectId.delete(projectId)
+    },
+    exportProjectState(projectId) {
+      const runBucket = getRunBucket(projectId)
+      const sequenceBucket = getSequenceBucket(projectId)
+      if (!runBucket?.size && !sequenceBucket?.size) {
+        return undefined
+      }
+
+      return {
+        runStates: [...(runBucket?.values() ?? [])]
+          .sort((left, right) => left.sequence - right.sequence)
+          .map((state) => serializeRunState(state) as unknown as PersistedRunStore['runStates'][number]),
+        sceneSequences: toJsonClone(Object.fromEntries(sequenceBucket?.entries() ?? [])),
+      }
+    },
+    hydrateProjectState(projectId, snapshot) {
+      const validatedStates = [] as RunState[]
+      for (const serializedState of snapshot.runStates) {
+        if (!isPersistedRunStateRecord(serializedState)) {
+          return
+        }
+
+        try {
+          validatedStates.push(createRunState(
+            serializedState.sequence,
+            serializedState.run,
+            serializedState.events,
+            serializedState.artifacts,
+            serializedState.latestReviewDecision,
+            serializedState.selectedVariants,
+          ))
+        } catch {
+          return
+        }
+      }
+
+      this.clearProject(projectId)
+
+      const sequenceBucket = getSequenceBucket(projectId, true)
+      for (const [sceneId, sequence] of Object.entries(snapshot.sceneSequences)) {
+        sequenceBucket!.set(sceneId, sequence)
+      }
+
+      for (const state of validatedStates) {
+        storeRunState(projectId, state)
+      }
+    },
     startSceneRun(projectId, input) {
       const sequenceBucket = getSequenceBucket(projectId, true)
       const nextSequence = (sequenceBucket?.get(input.sceneId) ?? 0) + 1
@@ -487,7 +588,12 @@ export function createRunFixtureStore(): RunFixtureStore {
         buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
       })
 
-      setRunState(projectId, nextSequence, workflow.run, workflow.events, workflow.artifacts)
+      storeRunState(projectId, createRunState(
+        nextSequence,
+        workflow.run,
+        workflow.events,
+        workflow.artifacts,
+      ))
       return clone(workflow.run)
     },
     getRun(projectId, runId) {

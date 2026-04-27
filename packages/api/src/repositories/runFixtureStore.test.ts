@@ -557,4 +557,107 @@ describe('runFixtureStore', () => {
       missingTraceCount: 0,
     })
   })
+
+  it('exports, hydrates, and clears project-scoped run snapshots', () => {
+    const store = createRunFixtureStore()
+    const projectId = 'project-persisted-run-store'
+    const run = store.startSceneRun(projectId, {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+      note: 'Persist this run across a fresh API server.',
+    })
+
+    store.submitRunReviewDecision(projectId, {
+      runId: run.id,
+      reviewId: run.pendingReviewId!,
+      decision: 'accept',
+      selectedVariants: [
+        {
+          proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+          variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-reveal-pressure',
+        },
+      ],
+    })
+
+    const snapshot = store.exportProjectState(projectId)
+    expect(snapshot).toMatchObject({
+      sceneSequences: {
+        'scene-midnight-platform': 1,
+      },
+    })
+    expect(snapshot?.runStates).toHaveLength(1)
+
+    const hydratedStore = createRunFixtureStore()
+    hydratedStore.clearProject(projectId)
+    hydratedStore.hydrateProjectState(projectId, snapshot!)
+
+    expect(hydratedStore.getRun(projectId, run.id)).toMatchObject({
+      id: run.id,
+      status: 'completed',
+      latestEventId: 'run-event-scene-midnight-platform-001-013',
+      eventCount: 13,
+    })
+    expect(hydratedStore.listRunArtifacts(projectId, run.id)?.map((artifact) => artifact.kind)).toEqual([
+      'context-packet',
+      'agent-invocation',
+      'agent-invocation',
+      'proposal-set',
+      'canon-patch',
+      'prose-draft',
+    ])
+    expect(hydratedStore.getRunTrace(projectId, run.id)).toMatchObject({
+      runId: run.id,
+      summary: {
+        proposalSetCount: 1,
+        canonPatchCount: 1,
+        proseDraftCount: 1,
+        missingTraceCount: 0,
+      },
+    })
+
+    hydratedStore.clearProject(projectId)
+    expect(hydratedStore.exportProjectState(projectId)).toBeUndefined()
+    expect(hydratedStore.getRun(projectId, run.id)).toBeNull()
+  })
+
+  it('keeps existing project run state intact when any persisted run snapshot entry is invalid', () => {
+    const store = createRunFixtureStore()
+    const projectId = 'project-atomic-hydration'
+    const run = store.startSceneRun(projectId, {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+    })
+
+    store.submitRunReviewDecision(projectId, {
+      runId: run.id,
+      reviewId: run.pendingReviewId!,
+      decision: 'accept',
+    })
+
+    const baselineSnapshot = store.exportProjectState(projectId)
+    expect(baselineSnapshot).toBeTruthy()
+
+    store.hydrateProjectState(projectId, {
+      sceneSequences: {
+        'scene-midnight-platform': 99,
+      },
+      runStates: [
+        {
+          sequence: 99,
+          run: {
+            id: 'run-invalid',
+          },
+          events: [],
+          artifacts: 'invalid-artifacts',
+        },
+      ],
+    } as unknown as NonNullable<typeof baselineSnapshot>)
+
+    expect(store.exportProjectState(projectId)).toEqual(baselineSnapshot)
+    expect(store.getRun(projectId, run.id)).toMatchObject({
+      id: run.id,
+      status: 'completed',
+    })
+    expect(store.getRun(projectId, 'run-invalid')).toBeNull()
+  })
 })
