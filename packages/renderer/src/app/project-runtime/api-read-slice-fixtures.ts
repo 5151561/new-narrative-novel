@@ -1,7 +1,14 @@
+import {
+  signalArcBookId,
+  signalArcCanonicalSceneIds,
+  signalArcChapterIds,
+  signalArcMockOnlyPreviewSceneIds,
+} from '@narrative-novel/fixture-seed'
+
 import { apiRouteContract } from './api-route-contract'
 
 export const API_READ_SLICE_PROJECT_ID = 'project-smoke'
-export const API_READ_SLICE_BOOK_ID = 'book-signal-arc'
+export const API_READ_SLICE_BOOK_ID = signalArcBookId
 export const API_READ_SLICE_CHECKPOINT_ID = 'checkpoint-book-signal-arc-pr11-baseline'
 export const API_READ_SLICE_EXPORT_PROFILE_ID = 'export-review-packet'
 export const API_READ_SLICE_BRANCH_ID = 'branch-book-signal-arc-quiet-ending'
@@ -9,17 +16,14 @@ export const API_READ_SLICE_SELECTED_CHAPTER_ID = 'chapter-open-water-signals'
 export const API_READ_SLICE_ROUTE =
   '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=all&reviewStatusFilter=open&selectedChapterId=chapter-open-water-signals'
 
-export const API_READ_SLICE_CHAPTER_IDS = ['chapter-signals-in-rain', 'chapter-open-water-signals'] as const
+export const API_READ_SLICE_CHAPTER_IDS = signalArcChapterIds
 
-export const API_READ_SLICE_SCENE_IDS = [
-  'scene-midnight-platform',
-  'scene-concourse-delay',
-  'scene-ticket-window',
-  'scene-departure-bell',
-  'scene-warehouse-bridge',
-  'scene-canal-watch',
-  'scene-dawn-slip',
-] as const
+export const API_READ_SLICE_CANONICAL_SCENE_IDS = signalArcCanonicalSceneIds
+export const API_READ_SLICE_MOCK_ONLY_PREVIEW_SCENE_IDS = signalArcMockOnlyPreviewSceneIds
+export const API_READ_SLICE_LEGACY_FALLBACK_SCENE_IDS = [
+  ...API_READ_SLICE_CANONICAL_SCENE_IDS,
+  ...API_READ_SLICE_MOCK_ONLY_PREVIEW_SCENE_IDS,
+]
 
 export interface ExpectedApiReadRequest {
   method: 'GET'
@@ -194,7 +198,7 @@ export function buildLegacyApiReadSliceExpectedRequests(
       method: 'GET' as const,
       path: apiRouteContract.chapterStructure({ projectId, chapterId }),
     })),
-    ...API_READ_SLICE_SCENE_IDS.flatMap((sceneId) => [
+    ...API_READ_SLICE_LEGACY_FALLBACK_SCENE_IDS.flatMap((sceneId) => [
       {
         method: 'GET' as const,
         path: apiRouteContract.sceneProse({ projectId, sceneId }),
@@ -243,7 +247,7 @@ export function buildLegacyApiReadSliceExpectedQueryKeys() {
     ['review', 'decisions', API_READ_SLICE_BOOK_ID],
     ['review', 'fix-actions', API_READ_SLICE_BOOK_ID],
     ...API_READ_SLICE_CHAPTER_IDS.map((chapterId) => ['chapter', 'workspace', chapterId]),
-    ...API_READ_SLICE_SCENE_IDS.flatMap((sceneId) => [
+    ...API_READ_SLICE_LEGACY_FALLBACK_SCENE_IDS.flatMap((sceneId) => [
       ['scene', 'prose', sceneId, 'en'],
       ['scene', 'execution', sceneId, 'en'],
       ['scene', 'inspector', sceneId, 'en'],

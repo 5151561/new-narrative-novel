@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import {
+  getSignalArcCanonicalSceneIdsForChapter,
+  signalArcChapterIds,
+} from '@narrative-novel/fixture-seed'
 
 import { withTestServer } from './test/support/test-server.js'
 
@@ -6,7 +10,15 @@ type TestApp = Parameters<Parameters<typeof withTestServer>[0]>[0]['app']
 
 const PROJECT_ID = 'book-signal-arc'
 const BOOK_ID = 'book-signal-arc'
-const CANONICAL_CHAPTER_IDS = ['chapter-signals-in-rain', 'chapter-open-water-signals'] as const
+const CANONICAL_NAVIGATOR_SCENE_IDS_BY_CHAPTER = {
+  'chapter-signals-in-rain': getSignalArcCanonicalSceneIdsForChapter('chapter-signals-in-rain').slice(0, 2),
+  'chapter-open-water-signals': getSignalArcCanonicalSceneIdsForChapter('chapter-open-water-signals'),
+} as const
+
+const CANONICAL_NAVIGATOR_SCENE_IDS = signalArcChapterIds.flatMap((chapterId) => [
+  ...CANONICAL_NAVIGATOR_SCENE_IDS_BY_CHAPTER[chapterId],
+])
+type SignalArcChapterId = (typeof signalArcChapterIds)[number]
 
 type BookStructureResponse = {
   bookId: string
@@ -112,19 +124,17 @@ describe('fixture API server integrity guards', () => {
     await withTestServer(async ({ app }) => {
       const book = await fetchBookStructure(app)
       expect(book.bookId).toBe(BOOK_ID)
-      expect(book.chapterIds).toEqual(CANONICAL_CHAPTER_IDS)
+      expect(book.chapterIds).toEqual(signalArcChapterIds)
 
       const chapterStructures = await Promise.all(book.chapterIds.map((chapterId) => fetchChapterStructure(app, chapterId)))
       const navigatorSceneIds = chapterStructures.flatMap((chapter) => chapter.scenes.map((scene) => scene.id))
 
-      expect(navigatorSceneIds).toEqual([
-        'scene-midnight-platform',
-        'scene-concourse-delay',
-        'scene-warehouse-bridge',
-      ])
+      expect(navigatorSceneIds).toEqual(CANONICAL_NAVIGATOR_SCENE_IDS)
 
       for (const chapter of chapterStructures) {
-        expect(book.chapterIds).toContain(chapter.chapterId)
+        const chapterId = chapter.chapterId as SignalArcChapterId
+        expect(book.chapterIds).toContain(chapterId)
+        expect(chapter.scenes.map((scene) => scene.id)).toEqual(CANONICAL_NAVIGATOR_SCENE_IDS_BY_CHAPTER[chapterId])
 
         for (const scene of chapter.scenes) {
           const [workspace, setup, execution, prose, inspector, dockSummary] = await Promise.all([
@@ -153,19 +163,19 @@ describe('fixture API server integrity guards', () => {
   it('keeps draft assembly rows anchored to chapter and scene ids instead of anonymous or title-matched identity', async () => {
     await withTestServer(async ({ app }) => {
       const book = await fetchBookStructure(app)
-      const chapterStructures = await Promise.all(book.chapterIds.map((chapterId) => fetchChapterStructure(app, chapterId)))
-      const sceneIdsByChapter = new Map(
-        chapterStructures.map((chapter) => [chapter.chapterId, new Set(chapter.scenes.map((scene) => scene.id))]),
-      )
       const assembly = await fetchDraftAssembly(app)
 
+      expect(assembly.chapters.map((chapter) => chapter.chapterId)).toEqual(signalArcChapterIds)
+
       for (const chapterRow of assembly.chapters) {
-        expect(book.chapterIds).toContain(chapterRow.chapterId)
-        const chapterSceneIds = sceneIdsByChapter.get(chapterRow.chapterId)
-        expect(chapterSceneIds).toBeTruthy()
+        const chapterId = chapterRow.chapterId as SignalArcChapterId
+        expect(book.chapterIds).toContain(chapterId)
+        expect(chapterRow.scenes.map((scene) => scene.sceneId)).toEqual(
+          CANONICAL_NAVIGATOR_SCENE_IDS_BY_CHAPTER[chapterId],
+        )
 
         for (const sceneRow of chapterRow.scenes) {
-          expect(chapterSceneIds?.has(sceneRow.sceneId)).toBe(true)
+          expect(CANONICAL_NAVIGATOR_SCENE_IDS_BY_CHAPTER[chapterId]).toContain(sceneRow.sceneId)
 
           const proseResponse = await fetchSceneSurface(app, sceneRow.sceneId, 'prose')
           expect(proseResponse.statusCode).toBe(200)

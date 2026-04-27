@@ -13,6 +13,7 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
+    "@narrative-novel/fixture-seed": "workspace:*",
     "@tanstack/react-query": "^5.75.4",
     "clsx": "^2.1.1",
     "lucide-react": "^0.511.0",

@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest'
+import {
+  getSignalArcCanonicalSceneIdsForChapter,
+  signalArcBookId,
+  signalArcChapterIds,
+} from '@narrative-novel/fixture-seed'
 
 import { withTestServer } from './test/support/test-server.js'
 
 type TestApp = Parameters<Parameters<typeof withTestServer>[0]>[0]['app']
+
+const SIGNALS_IN_RAIN_ASSEMBLY_SCENE_IDS = getSignalArcCanonicalSceneIdsForChapter('chapter-signals-in-rain').slice(0, 2)
+const OPEN_WATER_ASSEMBLY_SCENE_IDS = getSignalArcCanonicalSceneIdsForChapter('chapter-open-water-signals')
 
 function findEventRef(
   events: Array<{
@@ -15,7 +23,7 @@ function findEventRef(
   return events.find((event) => event.kind === eventKind)?.refs?.find((ref) => ref.kind === refKind)
 }
 
-async function fetchBookDraftAssembly(app: TestApp, bookId = 'book-signal-arc') {
+async function fetchBookDraftAssembly(app: TestApp, bookId = signalArcBookId) {
   const response = await app.inject({
     method: 'GET',
     url: `/api/projects/book-signal-arc/books/${bookId}/draft-assembly`,
@@ -62,16 +70,13 @@ describe('fixture API server book draft live assembly', () => {
       const assembly = await fetchBookDraftAssembly(app)
 
       expect(assembly).toMatchObject({
-        bookId: 'book-signal-arc',
+        bookId: signalArcBookId,
         chapterCount: 2,
         sceneCount: 3,
         draftedSceneCount: 1,
         missingDraftSceneCount: 2,
       })
-      expect(assembly.chapters.map((chapter: { chapterId: string }) => chapter.chapterId)).toEqual([
-        'chapter-signals-in-rain',
-        'chapter-open-water-signals',
-      ])
+      expect(assembly.chapters.map((chapter: { chapterId: string }) => chapter.chapterId)).toEqual(signalArcChapterIds)
 
       expect(assembly.chapters[0]).toMatchObject({
         chapterId: 'chapter-signals-in-rain',
@@ -80,14 +85,16 @@ describe('fixture API server book draft live assembly', () => {
         draftedSceneCount: 1,
         missingDraftCount: 1,
       })
-      expect(assembly.chapters[0].scenes.map((scene: { sceneId: string }) => scene.sceneId)).toEqual([
-        'scene-midnight-platform',
-        'scene-concourse-delay',
-      ])
+      expect(assembly.chapters[0].scenes.map((scene: { sceneId: string }) => scene.sceneId)).toEqual(
+        SIGNALS_IN_RAIN_ASSEMBLY_SCENE_IDS,
+      )
       expect(assembly.chapters[1]).toMatchObject({
         chapterId: 'chapter-open-water-signals',
         order: 2,
       })
+      expect(assembly.chapters[1].scenes.map((scene: { sceneId: string }) => scene.sceneId)).toEqual(
+        OPEN_WATER_ASSEMBLY_SCENE_IDS,
+      )
 
       expect(assembly.chapters[0].scenes[0]).toMatchObject({
         kind: 'draft',

@@ -2,23 +2,18 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { describe, expect, it } from 'vitest'
+import {
+  getSignalArcCanonicalSceneIdsForChapter,
+  isSignalArcCanonicalSceneId,
+  signalArcChapterIds,
+  signalArcMockOnlyPreviewSceneIds,
+} from '@narrative-novel/fixture-seed'
 
 import { I18nProvider } from '@/app/i18n'
 import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
 import { createChapterClient } from '@/features/chapter/api/chapter-client'
 import { createSceneClient } from '@/features/scene/api/scene-client'
 import { useBookDraftWorkspaceQuery } from '@/features/book/hooks/useBookDraftWorkspaceQuery'
-
-const canonicalChapterIds = ['chapter-signals-in-rain', 'chapter-open-water-signals'] as const
-const canonicalSceneIdsByChapter = {
-  'chapter-open-water-signals': ['scene-warehouse-bridge'],
-  'chapter-signals-in-rain': [
-    'scene-midnight-platform',
-    'scene-concourse-delay',
-    'scene-ticket-window',
-    'scene-departure-bell',
-  ],
-} as const
 
 function createMockPersistence() {
   return {
@@ -61,22 +56,44 @@ describe('mock project runtime fixture integrity', () => {
 
     const book = await runtime.bookClient.getBookStructureRecord({ bookId: 'book-signal-arc' })
 
-    expect(book?.chapterIds).toEqual(canonicalChapterIds)
+    expect(book?.chapterIds).toEqual(signalArcChapterIds)
   })
 
   it('keeps the canonical chapter scene ids reachable from mock chapter and scene clients', async () => {
     const chapterClient = createChapterClient()
     const sceneClient = createSceneClient()
 
-    for (const chapterId of canonicalChapterIds) {
+    for (const chapterId of signalArcChapterIds) {
       const chapter = await chapterClient.getChapterStructureWorkspace({ chapterId })
       expect(chapter).not.toBeNull()
 
       const sceneIds = chapter?.scenes.map((scene) => scene.id) ?? []
-      for (const sceneId of canonicalSceneIdsByChapter[chapterId]) {
+      const expectedCanonicalSceneIds = getSignalArcCanonicalSceneIdsForChapter(chapterId)
+      expect(sceneIds.slice(0, expectedCanonicalSceneIds.length)).toEqual(expectedCanonicalSceneIds)
+
+      for (const sceneId of expectedCanonicalSceneIds) {
         expect(sceneIds).toContain(sceneId)
         await expect(sceneClient.getSceneWorkspace(sceneId)).resolves.toMatchObject({ id: sceneId })
       }
+    }
+  })
+
+  it('keeps mock-only preview extras explicit and outside the canonical scene seed', async () => {
+    const chapterClient = createChapterClient()
+    const sceneClient = createSceneClient()
+
+    const chapter = await chapterClient.getChapterStructureWorkspace({ chapterId: 'chapter-open-water-signals' })
+    expect(chapter).not.toBeNull()
+
+    const mockOnlyPreviewSceneIds = (chapter?.scenes.map((scene) => scene.id) ?? []).filter(
+      (sceneId) => !isSignalArcCanonicalSceneId(sceneId),
+    )
+
+    expect(mockOnlyPreviewSceneIds).toEqual(signalArcMockOnlyPreviewSceneIds)
+
+    for (const sceneId of signalArcMockOnlyPreviewSceneIds) {
+      expect(isSignalArcCanonicalSceneId(sceneId)).toBe(false)
+      await expect(sceneClient.getSceneWorkspace(sceneId)).resolves.toMatchObject({ id: sceneId })
     }
   })
 
@@ -108,7 +125,7 @@ describe('mock project runtime fixture integrity', () => {
     })
 
     expect(hook.result.current.error).toBeNull()
-    expect(hook.result.current.workspace?.chapters.map((chapter) => chapter.chapterId)).toEqual(canonicalChapterIds)
+    expect(hook.result.current.workspace?.chapters.map((chapter) => chapter.chapterId)).toEqual(signalArcChapterIds)
     const selectedChapterSections = hook.result.current.workspace?.selectedChapter?.sections ?? []
     const fallbackGapRow = selectedChapterSections.find((section) => section.sceneId === 'scene-warehouse-bridge')
 

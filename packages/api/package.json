@@ -10,6 +10,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@narrative-novel/fixture-seed": "workspace:*",
     "@fastify/cors": "^11.1.0",
     "fastify": "^5.3.3"
   },

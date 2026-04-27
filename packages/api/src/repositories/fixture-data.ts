@@ -1,3 +1,9 @@
+import {
+  getSignalArcCanonicalSceneIdsForChapter,
+  signalArcBookId,
+  signalArcChapterIds,
+} from '@narrative-novel/fixture-seed'
+
 import type {
   AssetKnowledgeWorkspaceRecord,
   BookExperimentBranchRecord,
@@ -21,15 +27,34 @@ function text(en: string, zhCN: string): LocalizedTextRecord {
   }
 }
 
+type ApiChapterSceneRecord = ChapterStructureWorkspaceRecord['scenes'][number]
+
+const SIGNALS_IN_RAIN_API_SCENE_IDS = getSignalArcCanonicalSceneIdsForChapter('chapter-signals-in-rain').slice(0, 2)
+const OPEN_WATER_API_SCENE_IDS = getSignalArcCanonicalSceneIdsForChapter('chapter-open-water-signals')
+
+function buildApiChapterScenes(
+  sceneIds: readonly string[],
+  sceneRecordsById: Record<string, ApiChapterSceneRecord>,
+  sourceLabel: string,
+) {
+  return sceneIds.map((sceneId) => {
+    const sceneRecord = sceneRecordsById[sceneId]
+    if (!sceneRecord) {
+      throw new Error(`Missing API chapter fixture scene record for ${sourceLabel}:${sceneId}`)
+    }
+    return sceneRecord
+  })
+}
+
 function createBookStructure(): BookStructureRecord {
   return {
-    bookId: 'book-signal-arc',
+    bookId: signalArcBookId,
     title: text('Signal Arc', '信号弧线'),
     summary: text(
       'Fixture-backed project root for the BE-PR1 API server skeleton.',
       '用于 BE-PR1 API server skeleton 的 fixture 项目根数据。',
     ),
-    chapterIds: ['chapter-signals-in-rain', 'chapter-open-water-signals'],
+    chapterIds: [...signalArcChapterIds],
     viewsMeta: {
       availableViews: ['sequence', 'outliner', 'signals'],
     },
@@ -194,6 +219,90 @@ function createBookExperimentBranches(): BookExperimentBranchRecord[] {
 }
 
 function createChapterRecords(): Record<string, ChapterStructureWorkspaceRecord> {
+  const signalsInRainScenesById: Record<string, ApiChapterSceneRecord> = {
+    'scene-midnight-platform': {
+      id: 'scene-midnight-platform',
+      order: 1,
+      title: text('Midnight Platform', '午夜站台'),
+      summary: text(
+        'Ren has to lock the bargain before the platform witness turns the ledger into public leverage.',
+        'Ren 必须在站台目击者把账本变成公开筹码之前锁定交易。',
+      ),
+      purpose: text(
+        'Push the ledger bargain into a public stalemate without opening the ledger.',
+        '在不翻开账本的前提下，把交易推进到公开可见的僵局。',
+      ),
+      pov: text('Ren Voss', '任·沃斯'),
+      location: text('Eastbound platform', '东行月台'),
+      conflict: text(
+        'Ren needs leverage, Mei needs a higher price, and the witness keeps both of them public.',
+        'Ren 需要筹码，美伊需要更高代价，站务员让一切都不能失控。',
+      ),
+      reveal: text('The courier signal stays legible only to Ren.', '信使暗号仍只对 Ren 可读。'),
+      statusLabel: text('Current', '当前'),
+      proseStatusLabel: text('Needs draft', '需修订'),
+      runStatusLabel: text('Paused', '已暂停'),
+      unresolvedCount: 3,
+      lastRunLabel: text('Run 07', '运行 07'),
+    },
+    'scene-concourse-delay': {
+      id: 'scene-concourse-delay',
+      order: 2,
+      title: text('Concourse Delay', '候车厅延误'),
+      summary: text(
+        'A crowd bottleneck should slow the exit without resolving who controls the courier line.',
+        '人潮阻塞会拖慢离场，但不会解决谁掌控信使线索。',
+      ),
+      purpose: text(
+        'Hold the exit timing back so the chapter can keep pressure for one more scene.',
+        '继续压住离场节拍，让压力留到下一场。',
+      ),
+      pov: text('Mei Arden', '美伊·阿登'),
+      location: text('Concourse hall', '候车大厅'),
+      conflict: text(
+        'The crowd slows everyone down, but Ren still cannot afford to lose initiative.',
+        '拥堵拖慢节奏，但 Ren 不能失去主动权。',
+      ),
+      reveal: text('Witness pressure carries inward from the platform.', '目击者压力从月台延伸到室内。'),
+      statusLabel: text('Queued', '排队中'),
+      proseStatusLabel: text('Queued for draft', '待起草'),
+      runStatusLabel: text('Idle', '未开始'),
+      unresolvedCount: 2,
+      lastRunLabel: text('Not run', '未运行'),
+    },
+  }
+
+  const openWaterScenesById: Record<string, ApiChapterSceneRecord> = {
+    'scene-warehouse-bridge': {
+      id: 'scene-warehouse-bridge',
+      order: 1,
+      title: text('Warehouse Bridge', '仓桥交接'),
+      summary: text(
+        'The first handoff stays tentative so the betrayal beat can remain deferred.',
+        '第一次交接保持试探性，让背叛节拍继续延后。',
+      ),
+      purpose: text(
+        'Keep the first handoff reversible so later betrayal pressure survives.',
+        '把第一次交接压在“仍可撤回”的边缘上。',
+      ),
+      pov: text('Leya Marr', '莱娅'),
+      location: text('Warehouse bridge', '仓桥'),
+      conflict: text(
+        'Every move risks exposing the package owner too early.',
+        '任何一步都可能让货物归属暴露得太早。',
+      ),
+      reveal: text(
+        'The betrayal line still lives in gesture, not explicit dialogue.',
+        '背叛线仍只在动作里出现，不在对白里落明。',
+      ),
+      statusLabel: text('Current', '当前'),
+      proseStatusLabel: text('Queued for draft', '待起草'),
+      runStatusLabel: text('Running', '运行中'),
+      unresolvedCount: 2,
+      lastRunLabel: text('Run 04', '运行 04'),
+    },
+  }
+
   return {
     'chapter-signals-in-rain': {
       chapterId: 'chapter-signals-in-rain',
@@ -205,58 +314,11 @@ function createChapterRecords(): Record<string, ChapterStructureWorkspaceRecord>
       viewsMeta: {
         availableViews: ['sequence', 'outliner', 'assembly'],
       },
-      scenes: [
-        {
-          id: 'scene-midnight-platform',
-          order: 1,
-          title: text('Midnight Platform', '午夜站台'),
-          summary: text(
-            'Ren has to lock the bargain before the platform witness turns the ledger into public leverage.',
-            'Ren 必须在站台目击者把账本变成公开筹码之前锁定交易。',
-          ),
-          purpose: text(
-            'Push the ledger bargain into a public stalemate without opening the ledger.',
-            '在不翻开账本的前提下，把交易推进到公开可见的僵局。',
-          ),
-          pov: text('Ren Voss', '任·沃斯'),
-          location: text('Eastbound platform', '东行月台'),
-          conflict: text(
-            'Ren needs leverage, Mei needs a higher price, and the witness keeps both of them public.',
-            'Ren 需要筹码，美伊需要更高代价，站务员让一切都不能失控。',
-          ),
-          reveal: text('The courier signal stays legible only to Ren.', '信使暗号仍只对 Ren 可读。'),
-          statusLabel: text('Current', '当前'),
-          proseStatusLabel: text('Needs draft', '需修订'),
-          runStatusLabel: text('Paused', '已暂停'),
-          unresolvedCount: 3,
-          lastRunLabel: text('Run 07', '运行 07'),
-        },
-        {
-          id: 'scene-concourse-delay',
-          order: 2,
-          title: text('Concourse Delay', '候车厅延误'),
-          summary: text(
-            'A crowd bottleneck should slow the exit without resolving who controls the courier line.',
-            '人潮阻塞会拖慢离场，但不会解决谁掌控信使线索。',
-          ),
-          purpose: text(
-            'Hold the exit timing back so the chapter can keep pressure for one more scene.',
-            '继续压住离场节拍，让压力留到下一场。',
-          ),
-          pov: text('Mei Arden', '美伊·阿登'),
-          location: text('Concourse hall', '候车大厅'),
-          conflict: text(
-            'The crowd slows everyone down, but Ren still cannot afford to lose initiative.',
-            '拥堵拖慢节奏，但 Ren 不能失去主动权。',
-          ),
-          reveal: text('Witness pressure carries inward from the platform.', '目击者压力从月台延伸到室内。'),
-          statusLabel: text('Queued', '排队中'),
-          proseStatusLabel: text('Queued for draft', '待起草'),
-          runStatusLabel: text('Idle', '未开始'),
-          unresolvedCount: 2,
-          lastRunLabel: text('Not run', '未运行'),
-        },
-      ],
+      scenes: buildApiChapterScenes(
+        SIGNALS_IN_RAIN_API_SCENE_IDS,
+        signalsInRainScenesById,
+        'chapter-signals-in-rain',
+      ),
       inspector: {
         chapterNotes: [
           text(
@@ -296,36 +358,11 @@ function createChapterRecords(): Record<string, ChapterStructureWorkspaceRecord>
       viewsMeta: {
         availableViews: ['sequence', 'outliner', 'assembly'],
       },
-      scenes: [
-        {
-          id: 'scene-warehouse-bridge',
-          order: 1,
-          title: text('Warehouse Bridge', '仓桥交接'),
-          summary: text(
-            'The first handoff stays tentative so the betrayal beat can remain deferred.',
-            '第一次交接保持试探性，让背叛节拍继续延后。',
-          ),
-          purpose: text(
-            'Keep the first handoff reversible so later betrayal pressure survives.',
-            '把第一次交接压在“仍可撤回”的边缘上。',
-          ),
-          pov: text('Leya Marr', '莱娅'),
-          location: text('Warehouse bridge', '仓桥'),
-          conflict: text(
-            'Every move risks exposing the package owner too early.',
-            '任何一步都可能让货物归属暴露得太早。',
-          ),
-          reveal: text(
-            'The betrayal line still lives in gesture, not explicit dialogue.',
-            '背叛线仍只在动作里出现，不在对白里落明。',
-          ),
-          statusLabel: text('Current', '当前'),
-          proseStatusLabel: text('Queued for draft', '待起草'),
-          runStatusLabel: text('Running', '运行中'),
-          unresolvedCount: 2,
-          lastRunLabel: text('Run 04', '运行 04'),
-        },
-      ],
+      scenes: buildApiChapterScenes(
+        OPEN_WATER_API_SCENE_IDS,
+        openWaterScenesById,
+        'chapter-open-water-signals',
+      ),
       inspector: {
         chapterNotes: [
           text('Keep alternate views pointed at the same chapter identity.', '不同视图仍然指向同一个章节身份。'),
