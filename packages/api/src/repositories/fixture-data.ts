@@ -27,6 +27,10 @@ function text(en: string, zhCN: string): LocalizedTextRecord {
   }
 }
 
+function clone<T>(value: T): T {
+  return structuredClone(value)
+}
+
 type ApiChapterSceneRecord = ChapterStructureWorkspaceRecord['scenes'][number]
 
 const SIGNALS_IN_RAIN_API_SCENE_IDS = getSignalArcCanonicalSceneIdsForChapter('chapter-signals-in-rain')
@@ -1800,7 +1804,33 @@ export function createSignalArcProjectTemplate(input: {
   apiBaseUrl: string
   runtimeSummary?: string
   versionLabel?: string
+  includeSeedRunReferences?: boolean
 }): FixtureProjectData {
+  const scenes = createSceneRecords()
+
+  if (input.includeSeedRunReferences === false) {
+    for (const scene of Object.values(scenes)) {
+      const latestRunId = scene.workspace.latestRunId
+      if (!latestRunId) {
+        continue
+      }
+
+      delete scene.workspace.latestRunId
+      if (scene.execution.runId === latestRunId) {
+        delete scene.execution.runId
+      }
+
+      scene.dock.events = scene.dock.events.map((entry) => (
+        entry.meta === latestRunId
+          ? {
+              ...entry,
+              meta: 'Review queue',
+            }
+          : entry
+      ))
+    }
+  }
+
   return {
     runtimeInfo: {
       projectId: input.projectId,
@@ -1841,7 +1871,7 @@ export function createSignalArcProjectTemplate(input: {
     assets: createAssetWorkspace(),
     reviewDecisions: createReviewDecisions(),
     reviewFixActions: createReviewFixActions(),
-    scenes: createSceneRecords(),
+    scenes: clone(scenes),
   }
 }
 

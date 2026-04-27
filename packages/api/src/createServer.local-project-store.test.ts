@@ -6,6 +6,33 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { createTestServer } from './test/support/test-server.js'
 
+async function expectSceneLatestRunToResolve(
+  inject: (options: { method: string; url: string }) => Promise<{ statusCode: number; json(): any }>,
+  projectId: string,
+  sceneId: string,
+) {
+  const sceneResponse = await inject({
+    method: 'GET',
+    url: `/api/projects/${projectId}/scenes/${sceneId}/workspace`,
+  })
+  expect(sceneResponse.statusCode).toBe(200)
+
+  const scene = sceneResponse.json() as { latestRunId?: string }
+  if (!scene.latestRunId) {
+    expect(scene).not.toHaveProperty('latestRunId')
+    return
+  }
+
+  const runResponse = await inject({
+    method: 'GET',
+    url: `/api/projects/${projectId}/runs/${scene.latestRunId}`,
+  })
+  expect(runResponse.statusCode).toBe(200)
+  expect(runResponse.json()).toMatchObject({
+    id: scene.latestRunId,
+  })
+}
+
 describe('fixture API server selected local project store', () => {
   const tempDirectories = [] as string[]
 
@@ -100,8 +127,13 @@ describe('fixture API server selected local project store', () => {
       expect(sceneResponse.json()).toMatchObject({
         id: 'scene-midnight-platform',
         chapterId: 'chapter-signals-in-rain',
-        latestRunId: 'run-scene-midnight-platform-001',
       })
+
+      await expectSceneLatestRunToResolve(
+        firstServer.app.inject.bind(firstServer.app),
+        'local-project-alpha',
+        'scene-midnight-platform',
+      )
 
       const startResponse = await firstServer.app.inject({
         method: 'POST',
@@ -226,6 +258,12 @@ describe('fixture API server selected local project store', () => {
           sourcePatchId: 'patch-midnight-platform-001',
         },
       })
+
+      await expectSceneLatestRunToResolve(
+        secondServer.app.inject.bind(secondServer.app),
+        'local-project-alpha',
+        'scene-midnight-platform',
+      )
     } finally {
       await secondServer.app.close()
     }

@@ -238,6 +238,7 @@ function createTemplateRecord(options: Omit<CreateLocalProjectStorePersistenceOp
         apiBaseUrl: options.apiBaseUrl,
         runtimeSummary: options.runtimeSummary,
         versionLabel: options.versionLabel,
+        includeSeedRunReferences: false,
       }),
     },
   }
