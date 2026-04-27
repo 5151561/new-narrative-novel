@@ -179,6 +179,12 @@ VITE_NARRATIVE_PROJECT_ID=book-signal-arc
 
 不配置 `VITE_NARRATIVE_API_BASE_URL` 时，renderer 使用 mock runtime，适合 Storybook、测试和静态演示。
 
+当前仓库刻意保留三类前端 runtime mode：
+
+- `web/mock`：浏览器环境且未配置 `VITE_NARRATIVE_API_BASE_URL`，renderer 保持 mock runtime fallback。
+- `web/api`：浏览器环境且配置 `VITE_NARRATIVE_API_BASE_URL`，renderer 直接消费 `/api/projects/{projectId}/...`。
+- `desktop-local`：Electron preload 通过 `window.narrativeDesktop.getRuntimeConfig()` 注入本地 API base URL；renderer 仍走同一套 HTTP contract，但这是更严格的产品合同校验路径。
+
 ### 启动 renderer
 
 ```bash
@@ -195,24 +201,37 @@ pnpm --filter @narrative-novel/renderer dev --host 127.0.0.1 --port 4173
 
 Desktop shell 会加载现有 Web Workbench，并自动启动本地 `@narrative-novel/api` fixture server。renderer 仍保持 Web-first，业务流量继续通过 HTTP API contract；桌面端只通过 `window.narrativeDesktop` 暴露 runtime config、local API status / restart / log buffer 等窄桥接能力。
 
-先启动 renderer dev server：
-
-```bash
-pnpm --filter @narrative-novel/renderer dev --host 127.0.0.1 --port 4173
-```
-
-再启动 Electron shell：
+默认工作流：
 
 ```bash
 pnpm dev:desktop
 ```
 
-不需要再手动运行 `pnpm dev:api`。Electron main 会选择可用端口，启动 `packages/api`，并把 `http://127.0.0.1:<port>/api` 作为 desktop-local runtime config 提供给 renderer。
+这条命令默认会：
 
-如需使用其它 renderer dev server 地址：
+- 删除并重建 `packages/renderer/dist`
+- 构建 `@narrative-novel/desktop`
+- 启动 Electron
+- 由 Electron main 自动拉起本地 `@narrative-novel/api`
+
+不需要再手动运行 `pnpm dev:api`。Electron main 会选择可用端口，启动 `packages/api`，并把 `http://127.0.0.1:<port>/api` 作为 `desktop-local` runtime config 提供给 renderer。
+
+如果要显式切到 live renderer dev server 模式，再启动：
 
 ```bash
-NARRATIVE_RENDERER_DEV_URL=http://127.0.0.1:5173 pnpm dev:desktop
+NARRATIVE_DESKTOP_LIVE_RENDERER=1 pnpm dev:desktop
+```
+
+如需固定 live renderer 地址：
+
+```bash
+NARRATIVE_DESKTOP_LIVE_RENDERER=1 NARRATIVE_RENDERER_DEV_URL=http://127.0.0.1:5173 pnpm dev:desktop
+```
+
+如需复用已经手动启动好的 renderer dev server：
+
+```bash
+NARRATIVE_DESKTOP_LIVE_RENDERER=1 NARRATIVE_DESKTOP_REUSE_RENDERER=1 NARRATIVE_RENDERER_DEV_URL=http://127.0.0.1:5173 pnpm dev:desktop
 ```
 
 生产加载路径使用 `packages/renderer/dist/index.html` 或打包后的等价 renderer 资源。当前 desktop 包新增依赖后需要重新执行 `pnpm install` 才会写入 lockfile 并安装 Electron。
@@ -253,7 +272,7 @@ pnpm storybook
 - `pnpm typecheck` 同时覆盖 `@narrative-novel/api`、`@narrative-novel/renderer` 与 `@narrative-novel/desktop`。
 - `pnpm test` 同时覆盖 `@narrative-novel/api`、`@narrative-novel/renderer` 与 `@narrative-novel/desktop`。
 - `pnpm build` 当前只构建 renderer。
-- `pnpm dev:desktop` 启动 Electron thin shell，默认加载 `http://127.0.0.1:4173` 的 renderer dev server。
+- `pnpm dev:desktop` 启动 Electron thin shell，默认重建并加载 `packages/renderer/dist`；只有在 `NARRATIVE_DESKTOP_LIVE_RENDERER=1` 时才切到 live renderer dev server。
 - `pnpm storybook` 当前只启动 renderer Storybook。
 
 包级命令：

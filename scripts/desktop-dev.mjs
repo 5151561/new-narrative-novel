@@ -1,12 +1,16 @@
+import fs from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 
-import { resolveRendererDevServer } from './desktop-dev-utils.mjs'
+import { createDesktopDevElectronEnv, getRendererBuildArgs, resolveRendererDevServer } from './desktop-dev-utils.mjs'
 
 const requestedRendererDevUrl = process.env.NARRATIVE_RENDERER_DEV_URL || 'http://127.0.0.1:5173'
 const reuseRenderer = process.env.NARRATIVE_DESKTOP_REUSE_RENDERER === '1'
+const useLiveRenderer = process.env.NARRATIVE_DESKTOP_LIVE_RENDERER === '1'
 const strictRequestedPort = Boolean(process.env.NARRATIVE_RENDERER_DEV_URL)
 const workspaceRoot = new URL('..', import.meta.url)
+const rendererDistDir = new URL('../packages/renderer/dist', import.meta.url)
 
 let rendererProcess
 let electronProcess
@@ -94,6 +98,15 @@ async function ensureRenderer() {
   await waitForRenderer(rendererDevUrl)
 }
 
+async function rebuildRenderer() {
+  console.log(`[desktop-dev] Removing old renderer build at ${fileURLToPath(rendererDistDir)}`)
+  await fs.rm(rendererDistDir, { force: true, recursive: true })
+
+  console.log('[desktop-dev] Rebuilding renderer dist before launching Electron.')
+  const rendererBuildProcess = run('pnpm', getRendererBuildArgs())
+  await waitForExit(rendererBuildProcess, 'Renderer build')
+}
+
 function shutdown(exitCode = 0) {
   if (isShuttingDown) {
     return
@@ -109,19 +122,31 @@ process.on('SIGINT', () => shutdown(0))
 process.on('SIGTERM', () => shutdown(0))
 
 try {
-  await ensureRenderer()
+  if (useLiveRenderer) {
+    await ensureRenderer()
+  } else {
+    if (process.env.NARRATIVE_RENDERER_DEV_URL) {
+      console.log('[desktop-dev] Ignoring NARRATIVE_RENDERER_DEV_URL because fresh renderer rebuild mode is the default.')
+    }
+
+    await rebuildRenderer()
+  }
 
   const buildProcess = run('pnpm', ['--filter', '@narrative-novel/desktop', 'build'])
   await waitForExit(buildProcess, 'Desktop build')
+
+  if (useLiveRenderer && process.env.NARRATIVE_DESKTOP_LOAD_PROD === '1') {
+    console.log('[desktop-dev] Ignoring NARRATIVE_DESKTOP_LOAD_PROD=1 so live renderer mode still loads the current dev server.')
+  }
 
   electronProcess = run(
     'pnpm',
     ['--filter', '@narrative-novel/desktop', 'exec', 'electron', 'dist/main.js'],
     {
-      env: {
-        ...process.env,
-        NARRATIVE_RENDERER_DEV_URL: rendererDevUrl,
-      },
+      env: createDesktopDevElectronEnv(process.env, {
+        rendererDevUrl,
+        useLiveRenderer,
+      }),
     },
   )
 

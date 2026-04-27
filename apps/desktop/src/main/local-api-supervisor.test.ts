@@ -212,6 +212,75 @@ describe('LocalApiSupervisor', () => {
     expect(spawnLocalApi).toHaveBeenCalledTimes(1)
   })
 
+  it('does not expose runtimeConfig before the local API status becomes ready', async () => {
+    const child = new FakeLocalApiChild()
+    const health = deferred<Response>()
+    const supervisor = new LocalApiSupervisor({
+      fetch: vi.fn(() => health.promise),
+      findAvailablePort: async () => 4888,
+      sleep: async () => {},
+      spawnLocalApi: () => child,
+    })
+
+    const startPromise = supervisor.start()
+
+    expect(supervisor.getSnapshot()).toMatchObject({
+      runtimeConfig: undefined,
+      status: 'starting',
+    })
+
+    health.resolve(okResponse())
+
+    await expect(startPromise).resolves.toMatchObject({
+      runtimeConfig: {
+        apiBaseUrl: 'http://127.0.0.1:4888/api',
+      },
+      status: 'ready',
+    })
+  })
+
+  it('clears stale failed status and error details on restart before returning a fresh ready snapshot', async () => {
+    const childOne = new FakeLocalApiChild()
+    const childTwo = new FakeLocalApiChild()
+    const children = [childOne, childTwo]
+    let healthOk = false
+    const supervisor = new LocalApiSupervisor({
+      fetch: vi.fn(async () => (healthOk ? okResponse() : ({ ok: false, status: 503 } as Response))),
+      findAvailablePort: async () => 4888,
+      healthPollIntervalMs: 1,
+      healthTimeoutMs: 2,
+      sleep: async () => {},
+      spawnLocalApi: () => children.shift() ?? new FakeLocalApiChild(),
+    })
+
+    await expect(supervisor.start()).resolves.toMatchObject({
+      lastError: expect.stringContaining('Local API health check failed'),
+      status: 'failed',
+    })
+    expect(supervisor.getSnapshot()).toMatchObject({
+      lastError: expect.stringContaining('Local API health check failed'),
+      runtimeConfig: undefined,
+      status: 'failed',
+    })
+
+    healthOk = true
+    const restarted = await supervisor.restart()
+
+    expect(restarted).toEqual({
+      lastError: undefined,
+      logs: [],
+      runtimeConfig: {
+        apiBaseUrl: 'http://127.0.0.1:4888/api',
+        apiHealthUrl: 'http://127.0.0.1:4888/api/health',
+        port: 4888,
+        runtimeMode: 'desktop-local',
+      },
+      status: 'ready',
+    })
+    expect(supervisor.getSnapshot()).toEqual(restarted)
+    expect(childOne.killed).toBe(true)
+  })
+
   it('restarts by stopping the current child and spawning a fresh process', async () => {
     const firstChild = new FakeLocalApiChild()
     const secondChild = new FakeLocalApiChild()

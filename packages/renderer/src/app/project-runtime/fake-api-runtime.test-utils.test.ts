@@ -192,6 +192,32 @@ describe('createFakeApiRuntime override matching', () => {
     })
   })
 
+  it('exposes book draft assembly through the fake API runtime with canonical fixture ids', async () => {
+    const { requests, runtime } = createFakeApiRuntime({
+      projectId: 'project-1',
+      mockRuntimeOptions: {
+        projectId: 'book-signal-arc',
+      },
+    })
+
+    const assembly = await runtime.bookClient.getBookDraftAssembly?.({ bookId: 'book-signal-arc' })
+
+    expect(assembly?.bookId).toBe('book-signal-arc')
+    expect(assembly?.chapters.find((chapter) => chapter.chapterId === 'chapter-signals-in-rain')?.scenes.map((scene) => scene.sceneId)).toEqual([
+      'scene-midnight-platform',
+      'scene-concourse-delay',
+      'scene-ticket-window',
+      'scene-departure-bell',
+    ])
+    expect(
+      assembly?.chapters.find((chapter) => chapter.chapterId === 'chapter-open-water-signals')?.scenes.map((scene) => scene.sceneId),
+    ).toContain('scene-warehouse-bridge')
+    expectRecordedRequest(requests, {
+      method: 'GET',
+      path: '/api/projects/project-1/books/book-signal-arc/draft-assembly',
+    })
+  })
+
   it('supports runtime-info overrides for auth, availability, and malformed-json style failures', async () => {
     const unauthorizedRuntime = createFakeApiRuntime({
       projectId: 'project-unauthorized',

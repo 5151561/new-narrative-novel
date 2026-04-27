@@ -77,3 +77,31 @@ export async function resolveRendererDevServer({
 
   throw new Error(`No available renderer dev port found at or above ${requestedPort}.`)
 }
+
+export function createDesktopDevElectronEnv(
+  baseEnv,
+  { rendererDevUrl, useLiveRenderer },
+) {
+  const env = {
+    ...baseEnv,
+  }
+
+  if (useLiveRenderer) {
+    return {
+      ...env,
+      NARRATIVE_DESKTOP_LOAD_PROD: '0',
+      NARRATIVE_RENDERER_DEV_URL: rendererDevUrl,
+    }
+  }
+
+  delete env.NARRATIVE_RENDERER_DEV_URL
+
+  return {
+    ...env,
+    NARRATIVE_DESKTOP_LOAD_PROD: '1',
+  }
+}
+
+export function getRendererBuildArgs() {
+  return ['--filter', '@narrative-novel/renderer', 'exec', 'vite', 'build']
+}

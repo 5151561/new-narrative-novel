@@ -31,6 +31,8 @@ describe('createNarrativeDesktopApi', () => {
       'restartLocalApi',
     ])
     expect('ipcRenderer' in api).toBe(false)
+    expect('fs' in api).toBe(false)
+    expect('child_process' in api).toBe(false)
 
     await expect(api.getAppVersion()).resolves.toBe('0.1.0')
     await expect(api.getPlatform()).resolves.toBe('darwin')

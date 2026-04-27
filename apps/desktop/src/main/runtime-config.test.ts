@@ -2,9 +2,18 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { createLocalApiProcessConfig } from './runtime-config.js'
+import { createDesktopRuntimeConfig, createLocalApiProcessConfig } from './runtime-config.js'
 
 describe('createLocalApiProcessConfig', () => {
+  it('creates the desktop-local runtime config with the expected API and health URLs', () => {
+    expect(createDesktopRuntimeConfig(4888)).toEqual({
+      apiBaseUrl: 'http://127.0.0.1:4888/api',
+      apiHealthUrl: 'http://127.0.0.1:4888/api/health',
+      port: 4888,
+      runtimeMode: 'desktop-local',
+    })
+  })
+
   it('spawns the API server through the local tsx executable instead of a pnpm wrapper', () => {
     const config = createLocalApiProcessConfig({
       env: {
