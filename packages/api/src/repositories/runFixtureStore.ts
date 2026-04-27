@@ -15,12 +15,19 @@ import type {
 } from '../contracts/api-records.js'
 import { badRequest, conflict, notFound } from '../http/errors.js'
 import {
+  createScenePlannerGateway,
+  type ScenePlannerGatewayRequest,
+  type ScenePlannerGatewayResult,
+} from '../orchestration/modelGateway/scenePlannerGateway.js'
+import { FIXTURE_SCENE_PLANNER_MODEL_ID } from '../orchestration/modelGateway/scenePlannerFixtureProvider.js'
+import {
   buildAgentInvocationDetail,
   buildCanonPatchDetail,
   buildContextPacketDetail,
   buildProposalSetDetail,
   buildProseDraftDetail,
 } from '../orchestration/sceneRun/sceneRunArtifactDetails.js'
+import { buildDefaultPlannerOutput } from '../orchestration/sceneRun/sceneRunArtifacts.js'
 import { applySceneRunReviewDecisionTransition } from '../orchestration/sceneRun/sceneRunTransitions.js'
 import type { SceneRunArtifactRecord } from '../orchestration/sceneRun/sceneRunRecords.js'
 import {
@@ -35,6 +42,10 @@ import type { PersistedRunStore } from './project-state-persistence.js'
 
 const EVENT_PAGE_SIZE = 4
 const DEFAULT_PROJECT_ID = 'book-signal-arc'
+
+interface ScenePlannerGatewayLike {
+  generate(request: ScenePlannerGatewayRequest): Promise<ScenePlannerGatewayResult>
+}
 
 interface RunState {
   sequence: number
@@ -62,6 +73,15 @@ interface PersistedRunStateRecord {
 function trimNote(note?: string) {
   const value = note?.trim()
   return value ? value : undefined
+}
+
+function formatSceneName(sceneId: string) {
+  return sceneId
+    .replace(/^scene-/, '')
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 }
 
 function clone<T>(value: T): T {
@@ -347,6 +367,30 @@ function isRunReviewDecisionKind(value: string): value is RunReviewDecisionKind 
     || value === 'reject'
 }
 
+function buildFixturePlannerResult(sceneId: string): ScenePlannerGatewayResult {
+  return {
+    output: buildDefaultPlannerOutput(sceneId),
+    provenance: {
+      provider: 'fixture',
+      modelId: FIXTURE_SCENE_PLANNER_MODEL_ID,
+    },
+  }
+}
+
+function createScenePlannerRequest(input: StartSceneRunInput): ScenePlannerGatewayRequest {
+  const modeLabel = input.mode ?? 'continue'
+  const note = trimNote(input.note)
+  const sceneName = formatSceneName(input.sceneId)
+
+  return {
+    sceneId: input.sceneId,
+    instructions: 'Return scene-planning proposals only.',
+    input: note
+      ? `Context packet for ${sceneName}. Requested mode: ${modeLabel}. Editorial note: ${note}.`
+      : `Context packet for ${sceneName}. Requested mode: ${modeLabel}.`,
+  }
+}
+
 function createSeedRun(): {
   projectId: string
   sceneId: string
@@ -359,9 +403,12 @@ function createSeedRun(): {
   const projectId = DEFAULT_PROJECT_ID
   const sceneId = 'scene-midnight-platform'
   const sequence = 1
+  const plannerResult = buildFixturePlannerResult(sceneId)
   const workflow = startSceneRunWorkflow({
     sceneId,
     sequence,
+    plannerOutput: plannerResult.output,
+    plannerProvenance: plannerResult.provenance,
   }, {
     buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
   })
@@ -393,7 +440,7 @@ export interface RunFixtureStore {
   clearProject(projectId: string): void
   exportProjectState(projectId: string): PersistedRunStore | undefined
   hydrateProjectState(projectId: string, snapshot: PersistedRunStore): void
-  startSceneRun(projectId: string, input: StartSceneRunInput): RunRecord
+  startSceneRun(projectId: string, input: StartSceneRunInput): Promise<RunRecord>
   getRun(projectId: string, runId: string): RunRecord | null
   getRunEvents(projectId: string, input: { runId: string; cursor?: string }): RunEventsPageRecord
   listRunArtifacts(projectId: string, runId: string): RunArtifactSummaryRecord[] | null
@@ -402,9 +449,14 @@ export interface RunFixtureStore {
   submitRunReviewDecision(projectId: string, input: SubmitRunReviewDecisionInput): RunRecord
 }
 
-export function createRunFixtureStore(): RunFixtureStore {
+export function createRunFixtureStore(options: {
+  scenePlannerGateway?: ScenePlannerGatewayLike
+} = {}): RunFixtureStore {
   const runStatesByProjectId = new Map<string, Map<string, RunState>>()
   const sceneRunSequenceByProjectId = new Map<string, Map<string, number>>()
+  const scenePlannerGateway = options.scenePlannerGateway ?? createScenePlannerGateway({
+    modelProvider: 'fixture',
+  })
 
   function getRunBucket(projectId: string, createIfMissing = false) {
     const existing = runStatesByProjectId.get(projectId)
@@ -443,7 +495,7 @@ export function createRunFixtureStore(): RunFixtureStore {
     artifacts: SceneRunArtifactRecord[],
     latestReviewDecision?: RunReviewDecisionKind,
     selectedVariants?: RunSelectedProposalVariantRecord[],
-    ) {
+  ) {
     const state: RunState = {
       sequence,
       run: clone(run),
@@ -576,14 +628,17 @@ export function createRunFixtureStore(): RunFixtureStore {
         storeRunState(projectId, state)
       }
     },
-    startSceneRun(projectId, input) {
+    async startSceneRun(projectId, input) {
       const sequenceBucket = getSequenceBucket(projectId, true)
       const nextSequence = (sequenceBucket?.get(input.sceneId) ?? 0) + 1
       sequenceBucket!.set(input.sceneId, nextSequence)
+      const plannerResult = await scenePlannerGateway.generate(createScenePlannerRequest(input))
 
       const workflow = startSceneRunWorkflow({
         ...input,
         sequence: nextSequence,
+        plannerOutput: plannerResult.output,
+        plannerProvenance: plannerResult.provenance,
       }, {
         buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
       })

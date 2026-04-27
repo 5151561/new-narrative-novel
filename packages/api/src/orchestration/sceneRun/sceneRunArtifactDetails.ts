@@ -18,7 +18,11 @@ import {
   buildReviewId,
   buildTraceLinkId,
 } from './sceneRunIds.js'
-import type { SceneRunArtifactRecord } from './sceneRunRecords.js'
+import type {
+  SceneRunArtifactRecord,
+  SceneRunCanonicalPlannerProposalRecord,
+  SceneRunCanonicalPlannerVariantRecord,
+} from './sceneRunRecords.js'
 
 interface ArtifactSummaryLabelOverrides {
   title?: LocalizedTextRecord
@@ -108,6 +112,10 @@ function formatSceneName(sceneId: string) {
     .join(' ')
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 function assertArtifactKind<TKind extends SceneRunArtifactRecord['kind']>(
   artifact: SceneRunArtifactRecord,
   kind: TKind,
@@ -149,6 +157,7 @@ function buildDefaultTitle(artifact: SceneRunArtifactRecord): LocalizedTextRecor
 function buildDefaultSummary(artifact: SceneRunArtifactRecord): LocalizedTextRecord {
   const sceneName = formatSceneName(artifact.sceneId)
   const sequenceLabel = parseSequenceLabel(artifact.id)
+  const plannerProvenance = artifact.kind === 'agent-invocation' ? readPlannerProvenance(artifact) : undefined
 
   switch (artifact.kind) {
     case 'context-packet':
@@ -159,8 +168,12 @@ function buildDefaultSummary(artifact: SceneRunArtifactRecord): LocalizedTextRec
     case 'agent-invocation':
       return artifact.meta?.role === 'planner'
         ? localize(
-            `Planner fixture output is ready for ${sceneName}.`,
-            `面向 ${sceneName} 的规划 fixture 输出已就绪。`,
+            plannerProvenance?.fallbackReason
+              ? `Fallback planner output is ready for ${sceneName}.`
+              : `Planner output is ready for ${sceneName}.`,
+            plannerProvenance?.fallbackReason
+              ? `面向 ${sceneName} 的回退规划输出已就绪。`
+              : `面向 ${sceneName} 的规划输出已就绪。`,
           )
         : localize(
             `Writer fixture output is ready for ${sceneName}.`,
@@ -241,6 +254,35 @@ function buildArtifactSummary(input: BuildArtifactDetailBaseInput) {
   }
 }
 
+function readPlannerProvenance(artifact: SceneRunArtifactRecord) {
+  const provenance = artifact.meta?.provenance
+  if (!isRecord(provenance)) {
+    return undefined
+  }
+
+  const provider = provenance.provider
+  const modelId = provenance.modelId
+  const fallbackReason = provenance.fallbackReason
+  if ((provider !== 'fixture' && provider !== 'openai') || typeof modelId !== 'string') {
+    return undefined
+  }
+
+  if (
+    fallbackReason !== undefined
+    && fallbackReason !== 'missing-config'
+    && fallbackReason !== 'provider-error'
+    && fallbackReason !== 'invalid-output'
+  ) {
+    return undefined
+  }
+
+  return {
+    provider,
+    modelId,
+    ...(fallbackReason ? { fallbackReason } : {}),
+  }
+}
+
 function readAgentRole(artifact: SceneRunArtifactRecord): AgentInvocationArtifactDetailRecord['agentRole'] {
   const role = artifact.meta?.role
 
@@ -269,6 +311,172 @@ function buildSettingAsset(sceneId: string, sceneName: string) {
     label: localize(`${sceneName} setting`, `${sceneName} 场景地点`),
     kind: 'location' as const,
   }
+}
+
+function isCanonicalPlannerVariant(value: unknown): value is SceneRunCanonicalPlannerVariantRecord {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  return typeof value.id === 'string'
+    && typeof value.label === 'string'
+    && typeof value.summary === 'string'
+    && typeof value.rationale === 'string'
+    && (value.tradeoffLabel === undefined || typeof value.tradeoffLabel === 'string')
+    && (value.riskLabel === undefined || typeof value.riskLabel === 'string')
+}
+
+function isCanonicalPlannerProposal(value: unknown): value is SceneRunCanonicalPlannerProposalRecord {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  return typeof value.id === 'string'
+    && typeof value.title === 'string'
+    && typeof value.summary === 'string'
+    && (
+      value.changeKind === 'action'
+      || value.changeKind === 'reveal'
+      || value.changeKind === 'state-change'
+      || value.changeKind === 'continuity-note'
+    )
+    && typeof value.riskLabel === 'string'
+    && (value.variants === undefined || (Array.isArray(value.variants) && value.variants.every(isCanonicalPlannerVariant)))
+}
+
+function readCanonicalPlannerProposals(artifact: SceneRunArtifactRecord): SceneRunCanonicalPlannerProposalRecord[] | undefined {
+  const proposals = artifact.meta?.proposals
+  return Array.isArray(proposals) && proposals.every(isCanonicalPlannerProposal)
+    ? proposals
+    : undefined
+}
+
+function buildProposalRelatedAssets(
+  sceneId: string,
+  sceneName: string,
+  proposal: SceneRunCanonicalPlannerProposalRecord,
+) {
+  return proposal.changeKind === 'reveal'
+    ? [buildSettingAsset(sceneId, sceneName)]
+    : [buildLeadAsset(sceneId, sceneName)]
+}
+
+function buildVariantRelatedAssets(
+  sceneId: string,
+  sceneName: string,
+  variantIndex: number,
+) {
+  const leadAsset = buildLeadAsset(sceneId, sceneName)
+  const settingAsset = buildSettingAsset(sceneId, sceneName)
+  return variantIndex === 0 ? [leadAsset] : [leadAsset, settingAsset]
+}
+
+function localizePlannerTitle(value: string) {
+  switch (value) {
+    case 'Anchor the arrival beat':
+      return localize(value, '固定抵达节拍')
+    case 'Stage the reveal through the setting':
+      return localize(value, '通过场景地点推进揭示')
+    default:
+      return localize(value)
+  }
+}
+
+function localizePlannerSummary(sceneName: string, value: string) {
+  switch (value) {
+    case `Open on ${sceneName} before introducing any new reveal.`:
+      return localize(value, `先在 ${sceneName} 落定开场，再引入新的揭示。`)
+    case `Let the ${sceneName} setting carry the reveal instead of adding raw exposition.`:
+      return localize(value, `让 ${sceneName} 场景来承载揭示，而不是直接堆叠说明。`)
+    case `Keep ${sceneName} grounded in the lead character's arrival before escalating the reveal.`:
+      return localize(value, `先通过主角抵达让 ${sceneName} 稳住，再升级揭示。`)
+    case `Let the reveal intrude earlier while ${sceneName} is still settling.`:
+      return localize(value, `在 ${sceneName} 尚未完全落定时提前压入揭示。`)
+    default:
+      return localize(value)
+  }
+}
+
+function localizePlannerLabel(value: string) {
+  switch (value) {
+    case 'Arrival-first':
+      return localize(value, '先抵达')
+    case 'Reveal pressure':
+      return localize(value, '揭示加压')
+    default:
+      return localize(value)
+  }
+}
+
+function localizePlannerRationale(value: string) {
+  switch (value) {
+    case 'Preserves continuity while still giving the scene a clear forward beat.':
+      return localize(value, '在保住连续性的同时，让场景拥有清晰的推进节拍。')
+    case 'Creates a sharper hook, but asks review to accept a faster continuity turn.':
+      return localize(value, '制造更强钩子，但需要审阅接受更快的连续性转折。')
+    default:
+      return localize(value)
+  }
+}
+
+function localizePlannerTradeoff(value: string) {
+  switch (value) {
+    case 'Slower escalation':
+      return localize(value, '升级较慢')
+    case 'Sharper hook':
+      return localize(value, '钩子更强')
+    default:
+      return localize(value)
+  }
+}
+
+function localizePlannerRisk(value: string) {
+  switch (value) {
+    case 'Low continuity risk':
+      return localize(value, '连续性风险低')
+    case 'Higher continuity risk':
+      return localize(value, '连续性风险较高')
+    case 'Editor check recommended':
+      return localize(value, '建议编辑复核')
+    default:
+      return localize(value)
+  }
+}
+
+function buildLocalizedCanonicalProposalSetProposals(
+  artifact: SceneRunArtifactRecord,
+  proposals: SceneRunCanonicalPlannerProposalRecord[],
+  selectedVariants: RunSelectedProposalVariantRecord[] = [],
+): ProposalSetArtifactDetailRecord['proposals'] {
+  const sceneName = formatSceneName(artifact.sceneId)
+
+  return proposals.map((proposal) => {
+    const selectedVariantId = selectedVariants.find((variant) => variant.proposalId === proposal.id)?.variantId
+
+    return {
+      id: proposal.id,
+      title: localizePlannerTitle(proposal.title),
+      summary: localizePlannerSummary(sceneName, proposal.summary),
+      changeKind: proposal.changeKind,
+      riskLabel: localizePlannerRisk(proposal.riskLabel),
+      relatedAssets: buildProposalRelatedAssets(artifact.sceneId, sceneName, proposal),
+      ...(proposal.variants
+        ? {
+            variants: proposal.variants.map((variant, index) => ({
+              id: variant.id,
+              label: localizePlannerLabel(variant.label),
+              summary: localizePlannerSummary(sceneName, variant.summary),
+              rationale: localizePlannerRationale(variant.rationale),
+              ...(variant.tradeoffLabel ? { tradeoffLabel: localizePlannerTradeoff(variant.tradeoffLabel) } : {}),
+              ...(variant.riskLabel ? { riskLabel: localizePlannerRisk(variant.riskLabel) } : {}),
+              relatedAssets: buildVariantRelatedAssets(artifact.sceneId, sceneName, index),
+            })),
+            defaultVariantId: proposal.variants[0]?.id,
+          }
+        : {}),
+      ...(selectedVariantId ? { selectedVariantId } : {}),
+    }
+  })
 }
 
 function buildProposalIds(artifact: SceneRunArtifactRecord) {
@@ -494,6 +702,11 @@ function buildDefaultProposalSetProposals(
   artifact: SceneRunArtifactRecord,
   selectedVariants: RunSelectedProposalVariantRecord[] = [],
 ): ProposalSetArtifactDetailRecord['proposals'] {
+  const canonicalProposals = readCanonicalPlannerProposals(artifact)
+  if (canonicalProposals) {
+    return buildLocalizedCanonicalProposalSetProposals(artifact, canonicalProposals, selectedVariants)
+  }
+
   const sceneName = formatSceneName(artifact.sceneId)
   const leadAsset = buildLeadAsset(artifact.sceneId, sceneName)
   const settingAsset = buildSettingAsset(artifact.sceneId, sceneName)
@@ -695,13 +908,20 @@ export function buildAgentInvocationDetail(
   const agentRole = readAgentRole(input.artifact)
   const isPlanner = agentRole === 'scene-planner'
   const sequence = parseRunSequenceNumber(input.artifact.runId)
+  const plannerProvenance = readPlannerProvenance(input.artifact)
 
   return {
     ...buildArtifactSummary(input),
     kind: 'agent-invocation',
     agentRole,
     modelLabel: isPlanner
-      ? localize('Fixture planner profile', 'Fixture 规划模型')
+      ? plannerProvenance?.provider === 'openai'
+        ? localize(`OpenAI planner profile (${plannerProvenance.modelId})`, `OpenAI 规划模型 (${plannerProvenance.modelId})`)
+        : plannerProvenance?.fallbackReason
+          ? localize(`Fixture planner fallback (${plannerProvenance.modelId})`, `Fixture 回退规划模型 (${plannerProvenance.modelId})`)
+          : plannerProvenance
+            ? localize(`Fixture planner profile (${plannerProvenance.modelId})`, `Fixture 规划模型 (${plannerProvenance.modelId})`)
+            : localize('Fixture planner profile', 'Fixture 规划模型')
       : localize('Fixture writer profile', 'Fixture 写作模型'),
     inputSummary: isPlanner
       ? localize(

@@ -4,6 +4,10 @@ import Fastify from 'fastify'
 import { getApiServerConfig, type ApiServerConfig } from './config.js'
 import { notFound, registerGlobalErrorHandler } from './http/errors.js'
 import {
+  createScenePlannerGateway,
+  type ScenePlannerGatewayDependencies,
+} from './orchestration/modelGateway/scenePlannerGateway.js'
+import {
   createFixtureRepository,
   type FixtureRepositoryProjectStatePersistence,
 } from './repositories/fixtureRepository.js'
@@ -20,13 +24,19 @@ import { registerSceneRoutes } from './routes/scene.js'
 export interface CreateServerOptions {
   config?: ApiServerConfig
   projectStatePersistence?: FixtureRepositoryProjectStatePersistence
+  scenePlannerGatewayDependencies?: ScenePlannerGatewayDependencies
 }
 
 export function createServer(options: CreateServerOptions = {}) {
   const config = options.config ?? getApiServerConfig()
   const app = Fastify()
+  const scenePlannerGateway = createScenePlannerGateway(
+    config,
+    options.scenePlannerGatewayDependencies,
+  )
   const repository = createFixtureRepository({
     apiBaseUrl: config.apiBaseUrl,
+    scenePlannerGateway,
     projectStatePersistence: options.projectStatePersistence ?? createProjectStatePersistence({
       filePath: config.projectStateFilePath,
     }),

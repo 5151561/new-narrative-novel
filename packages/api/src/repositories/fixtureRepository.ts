@@ -42,6 +42,10 @@ import type {
   SubmitRunReviewDecisionInput,
 } from '../contracts/api-records.js'
 import { conflict, notFound } from '../http/errors.js'
+import type {
+  ScenePlannerGatewayRequest,
+  ScenePlannerGatewayResult,
+} from '../orchestration/modelGateway/scenePlannerGateway.js'
 import {
   buildAcceptedFactsFromCanonPatch,
   buildSceneProseFromProseDraftArtifact,
@@ -355,13 +359,20 @@ export interface FixtureRepositoryProjectStatePersistence {
 
 export function createFixtureRepository(options: {
   apiBaseUrl: string
+  scenePlannerGateway: {
+    generate(request: ScenePlannerGatewayRequest): Promise<ScenePlannerGatewayResult>
+  }
   projectStatePersistence?: FixtureRepositoryProjectStatePersistence
 }): FixtureRepository {
   const createSeedSnapshot = () => createFixtureDataSnapshot(options.apiBaseUrl)
-  const createSeedRunStore = () => createRunFixtureStore()
+  const createSeedRunStore = () => createRunFixtureStore({
+    scenePlannerGateway: options.scenePlannerGateway,
+  })
 
   let snapshot = createSeedSnapshot()
-  const runStore: RunFixtureStore = createRunFixtureStore()
+  const runStore: RunFixtureStore = createRunFixtureStore({
+    scenePlannerGateway: options.scenePlannerGateway,
+  })
   let persistenceQueue = Promise.resolve()
 
   function getProject(projectId: string): FixtureProjectData {
@@ -1070,7 +1081,7 @@ export function createFixtureRepository(options: {
     applySceneProposalAction(_projectId, _sceneId, _action, _input) {},
     async startSceneRun(projectId, input) {
       getScene(projectId, input.sceneId)
-      const run = runStore.startSceneRun(projectId, input)
+      const run = await runStore.startSceneRun(projectId, input)
       syncRunMutations(projectId, run)
       await persistProjectOverlay(projectId)
       return run

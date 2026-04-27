@@ -3,10 +3,15 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { createServer } from '../../createServer.js'
+import { createServer, type CreateServerOptions } from '../../createServer.js'
+import type { ApiServerConfig } from '../../config.js'
+import type { FixtureRepositoryProjectStatePersistence } from '../../repositories/fixtureRepository.js'
 
 interface CreateTestServerOptions {
   projectStateFilePath?: string
+  configOverrides?: Partial<ApiServerConfig>
+  projectStatePersistence?: FixtureRepositoryProjectStatePersistence
+  scenePlannerGatewayDependencies?: CreateServerOptions['scenePlannerGatewayDependencies']
 }
 
 function createIsolatedProjectStateFilePath() {
@@ -29,7 +34,10 @@ export function createTestServer(options: CreateTestServerOptions = {}) {
       corsOrigin: true,
       projectStateFilePath: options.projectStateFilePath ?? isolatedState!.filePath,
       modelProvider: 'fixture',
+      ...options.configOverrides,
     },
+    projectStatePersistence: options.projectStatePersistence,
+    scenePlannerGatewayDependencies: options.scenePlannerGatewayDependencies,
   })
 
   return {

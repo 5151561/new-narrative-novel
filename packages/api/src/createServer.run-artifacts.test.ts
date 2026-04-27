@@ -114,7 +114,7 @@ describe('fixture API server run artifact read surfaces', () => {
       expect(proposalSetResponse.statusCode).toBe(200)
       const selectedVariant = {
         proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
-        variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-reveal-pressure',
+        variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-002',
       }
       const proposalSetArtifact = proposalSetResponse.json().artifact
       expect(proposalSetResponse.json()).toMatchObject({
@@ -125,7 +125,7 @@ describe('fixture API server run artifact read surfaces', () => {
             expect.objectContaining({
               id: selectedVariant.proposalId,
               changeKind: 'action',
-              defaultVariantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-arrival-first',
+              defaultVariantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-001',
               variants: expect.arrayContaining([
                 expect.objectContaining({
                   id: selectedVariant.variantId,

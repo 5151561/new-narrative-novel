@@ -10,6 +10,42 @@ describe('startSceneRunWorkflow legacy deterministic start contract', () => {
       mode: 'rewrite' as const,
       sequence: 1,
       note: '  Parity guard note.  ',
+      plannerOutput: {
+        proposals: [
+          {
+            title: 'Anchor the arrival beat',
+            summary: 'Open on Parity Check before introducing any new reveal.',
+            changeKind: 'action',
+            riskLabel: 'Low continuity risk',
+            variants: [
+              {
+                label: 'Arrival-first',
+                summary: "Keep Parity Check grounded in the lead character's arrival before escalating the reveal.",
+                rationale: 'Preserves continuity while still giving the scene a clear forward beat.',
+                tradeoffLabel: 'Slower escalation',
+                riskLabel: 'Low continuity risk',
+              },
+              {
+                label: 'Reveal pressure',
+                summary: 'Let the reveal intrude earlier while Parity Check is still settling.',
+                rationale: 'Creates a sharper hook, but asks review to accept a faster continuity turn.',
+                tradeoffLabel: 'Sharper hook',
+                riskLabel: 'Higher continuity risk',
+              },
+            ],
+          },
+          {
+            title: 'Stage the reveal through the setting',
+            summary: 'Let the Parity Check setting carry the reveal instead of adding raw exposition.',
+            changeKind: 'reveal',
+            riskLabel: 'Editor check recommended',
+          },
+        ],
+      },
+      plannerProvenance: {
+        provider: 'fixture',
+        modelId: 'fixture-scene-planner',
+      },
     }, {
       buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
     })
@@ -188,6 +224,10 @@ describe('startSceneRunWorkflow legacy deterministic start contract', () => {
         meta: {
           role: 'planner',
           index: 1,
+          provenance: {
+            provider: 'fixture',
+            modelId: 'fixture-scene-planner',
+          },
         },
       },
       {
@@ -211,6 +251,42 @@ describe('startSceneRunWorkflow legacy deterministic start contract', () => {
         title: 'Scene proposal set',
         summary: 'Combined planner and writer output is ready for editorial review.',
         status: 'ready',
+        meta: {
+          proposals: [
+            {
+              id: 'proposal-set-scene-parity-check-run-001-proposal-001',
+              title: 'Anchor the arrival beat',
+              summary: 'Open on Parity Check before introducing any new reveal.',
+              changeKind: 'action',
+              riskLabel: 'Low continuity risk',
+              variants: [
+                {
+                  id: 'proposal-set-scene-parity-check-run-001-proposal-001-variant-001',
+                  label: 'Arrival-first',
+                  summary: "Keep Parity Check grounded in the lead character's arrival before escalating the reveal.",
+                  rationale: 'Preserves continuity while still giving the scene a clear forward beat.',
+                  tradeoffLabel: 'Slower escalation',
+                  riskLabel: 'Low continuity risk',
+                },
+                {
+                  id: 'proposal-set-scene-parity-check-run-001-proposal-001-variant-002',
+                  label: 'Reveal pressure',
+                  summary: 'Let the reveal intrude earlier while Parity Check is still settling.',
+                  rationale: 'Creates a sharper hook, but asks review to accept a faster continuity turn.',
+                  tradeoffLabel: 'Sharper hook',
+                  riskLabel: 'Higher continuity risk',
+                },
+              ],
+            },
+            {
+              id: 'proposal-set-scene-parity-check-run-001-proposal-002',
+              title: 'Stage the reveal through the setting',
+              summary: 'Let the Parity Check setting carry the reveal instead of adding raw exposition.',
+              changeKind: 'reveal',
+              riskLabel: 'Editor check recommended',
+            },
+          ],
+        },
       },
     ])
   })

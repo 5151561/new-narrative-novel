@@ -20,7 +20,7 @@ describe('sceneRunProseMaterialization', () => {
   const sceneId = 'scene-midnight-platform'
   const selectedVariant = {
     proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
-    variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-reveal-pressure',
+    variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-002',
   }
 
   function buildAcceptedDetails() {

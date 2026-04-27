@@ -245,7 +245,7 @@ describe('fixture API server integrity guards', () => {
     await withTestServer(async ({ app }) => {
       const selectedVariant = {
         proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
-        variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-reveal-pressure',
+        variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-002',
       }
 
       const startResponse = await app.inject({

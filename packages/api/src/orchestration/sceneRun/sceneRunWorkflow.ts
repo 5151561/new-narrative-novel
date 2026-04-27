@@ -57,6 +57,7 @@ export function startSceneRunWorkflow(
     sequence: input.sequence,
     index: 1,
     role: 'planner',
+    provenance: input.plannerProvenance,
   })
   const writerInvocationArtifact = createAgentInvocationArtifact({
     runId,
@@ -69,6 +70,7 @@ export function startSceneRunWorkflow(
     runId,
     sceneId: input.sceneId,
     sequence: input.sequence,
+    plannerOutput: input.plannerOutput,
   })
 
   const artifacts = [

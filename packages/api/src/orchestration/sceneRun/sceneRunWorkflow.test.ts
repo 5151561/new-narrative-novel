@@ -3,12 +3,153 @@ import { describe, expect, it } from 'vitest'
 import { startSceneRunWorkflow } from './sceneRunWorkflow.js'
 
 describe('startSceneRunWorkflow', () => {
+  it('threads canonical planner proposals and compact provenance into start artifacts before details are built', () => {
+    const workflow = startSceneRunWorkflow({
+      sceneId: 'scene-midnight-platform',
+      sequence: 2,
+      plannerOutput: {
+        proposals: [
+          {
+            title: '  Shift the first alarm  ',
+            summary: '  Start on the alarm before the train doors settle.  ',
+            changeKind: 'action',
+            riskLabel: '  Editor check recommended  ',
+            variants: [
+              {
+                label: '  Hold wide  ',
+                summary: '  Keep the platform wide before focusing on Ren.  ',
+                rationale: '  Gives the reveal more runway.  ',
+                tradeoffLabel: '  Slower focus  ',
+                riskLabel: '  Low continuity risk  ',
+              },
+              {
+                label: 'Cut to Ren',
+                summary: 'Snap straight to Ren before the station settles.',
+                rationale: 'Raises tension immediately.',
+              },
+            ],
+          },
+          {
+            title: 'Echo the bargain promise',
+            summary: 'Carry the promise through platform ambience instead of exposition.',
+            changeKind: 'reveal',
+            riskLabel: 'Continuity review required',
+          },
+        ],
+      },
+      plannerProvenance: {
+        provider: 'openai',
+        modelId: 'gpt-5.4',
+      },
+    }, {
+      buildTimelineLabel: (order) => `step-${String(order).padStart(3, '0')}`,
+    })
+
+    expect(workflow.artifacts[1]).toMatchObject({
+      kind: 'agent-invocation',
+      id: 'agent-invocation-scene-midnight-platform-run-002-001',
+      meta: {
+        role: 'planner',
+        index: 1,
+        provenance: {
+          provider: 'openai',
+          modelId: 'gpt-5.4',
+        },
+      },
+    })
+
+    expect(workflow.artifacts[2]).toMatchObject({
+      kind: 'agent-invocation',
+      id: 'agent-invocation-scene-midnight-platform-run-002-002',
+      meta: {
+        role: 'writer',
+        index: 2,
+      },
+    })
+    expect(JSON.stringify(workflow.artifacts[1])).not.toContain('Start on the alarm before the train doors settle')
+
+    expect(workflow.artifacts[3]).toMatchObject({
+      kind: 'proposal-set',
+      id: 'proposal-set-scene-midnight-platform-run-002',
+      meta: {
+        proposals: [
+          {
+            id: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+            title: 'Shift the first alarm',
+            summary: 'Start on the alarm before the train doors settle.',
+            changeKind: 'action',
+            riskLabel: 'Editor check recommended',
+            variants: [
+              {
+                id: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-001',
+                label: 'Hold wide',
+                summary: 'Keep the platform wide before focusing on Ren.',
+                rationale: 'Gives the reveal more runway.',
+                tradeoffLabel: 'Slower focus',
+                riskLabel: 'Low continuity risk',
+              },
+              {
+                id: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-002',
+                label: 'Cut to Ren',
+                summary: 'Snap straight to Ren before the station settles.',
+                rationale: 'Raises tension immediately.',
+              },
+            ],
+          },
+          {
+            id: 'proposal-set-scene-midnight-platform-run-002-proposal-002',
+            title: 'Echo the bargain promise',
+            summary: 'Carry the promise through platform ambience instead of exposition.',
+            changeKind: 'reveal',
+            riskLabel: 'Continuity review required',
+          },
+        ],
+      },
+    })
+  })
+
   it('builds a pure scene run workflow state with ordered events and internal artifacts', () => {
     const workflow = startSceneRunWorkflow({
       sceneId: 'scene-midnight-platform',
       sequence: 2,
       mode: 'rewrite',
       note: 'Tighten the ending beat.',
+      plannerOutput: {
+        proposals: [
+          {
+            title: 'Anchor the arrival beat',
+            summary: 'Open on Midnight Platform before introducing any new reveal.',
+            changeKind: 'action',
+            riskLabel: 'Low continuity risk',
+            variants: [
+              {
+                label: 'Arrival-first',
+                summary: "Keep Midnight Platform grounded in the lead character's arrival before escalating the reveal.",
+                rationale: 'Preserves continuity while still giving the scene a clear forward beat.',
+                tradeoffLabel: 'Slower escalation',
+                riskLabel: 'Low continuity risk',
+              },
+              {
+                label: 'Reveal pressure',
+                summary: 'Let the reveal intrude earlier while Midnight Platform is still settling.',
+                rationale: 'Creates a sharper hook, but asks review to accept a faster continuity turn.',
+                tradeoffLabel: 'Sharper hook',
+                riskLabel: 'Higher continuity risk',
+              },
+            ],
+          },
+          {
+            title: 'Stage the reveal through the setting',
+            summary: 'Let the Midnight Platform setting carry the reveal instead of adding raw exposition.',
+            changeKind: 'reveal',
+            riskLabel: 'Editor check recommended',
+          },
+        ],
+      },
+      plannerProvenance: {
+        provider: 'fixture',
+        modelId: 'fixture-scene-planner',
+      },
     }, {
       buildTimelineLabel: (order) => `step-${String(order).padStart(3, '0')}`,
     })
@@ -86,6 +227,10 @@ describe('startSceneRunWorkflow', () => {
         meta: {
           role: 'planner',
           index: 1,
+          provenance: {
+            provider: 'fixture',
+            modelId: 'fixture-scene-planner',
+          },
         },
       }),
       expect.objectContaining({
@@ -103,6 +248,42 @@ describe('startSceneRunWorkflow', () => {
         id: 'proposal-set-scene-midnight-platform-run-002',
         runId: 'run-scene-midnight-platform-002',
         sceneId: 'scene-midnight-platform',
+        meta: {
+          proposals: [
+            {
+              id: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+              title: 'Anchor the arrival beat',
+              summary: 'Open on Midnight Platform before introducing any new reveal.',
+              changeKind: 'action',
+              riskLabel: 'Low continuity risk',
+              variants: [
+                {
+                  id: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-001',
+                  label: 'Arrival-first',
+                  summary: "Keep Midnight Platform grounded in the lead character's arrival before escalating the reveal.",
+                  rationale: 'Preserves continuity while still giving the scene a clear forward beat.',
+                  tradeoffLabel: 'Slower escalation',
+                  riskLabel: 'Low continuity risk',
+                },
+                {
+                  id: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-002',
+                  label: 'Reveal pressure',
+                  summary: 'Let the reveal intrude earlier while Midnight Platform is still settling.',
+                  rationale: 'Creates a sharper hook, but asks review to accept a faster continuity turn.',
+                  tradeoffLabel: 'Sharper hook',
+                  riskLabel: 'Higher continuity risk',
+                },
+              ],
+            },
+            {
+              id: 'proposal-set-scene-midnight-platform-run-002-proposal-002',
+              title: 'Stage the reveal through the setting',
+              summary: 'Let the Midnight Platform setting carry the reveal instead of adding raw exposition.',
+              changeKind: 'reveal',
+              riskLabel: 'Editor check recommended',
+            },
+          ],
+        },
       }),
     ])
 

@@ -5,6 +5,8 @@ import type {
   RunSelectedProposalVariantRecord,
   StartSceneRunInput,
 } from '../../contracts/api-records.js'
+import type { ScenePlannerGatewayProvenance } from '../modelGateway/scenePlannerGateway.js'
+import type { ScenePlannerOutput } from '../modelGateway/scenePlannerOutputSchema.js'
 
 export type SceneRunArtifactKind =
   | 'context-packet'
@@ -13,7 +15,35 @@ export type SceneRunArtifactKind =
   | 'canon-patch'
   | 'prose-draft'
 
-export type SceneRunArtifactMetaValue = string | number | boolean | null | undefined
+export type SceneRunArtifactMetaValue =
+  | string
+  | number
+  | boolean
+  | null
+  | SceneRunArtifactMetaValue[]
+  | SceneRunArtifactMetaRecord
+
+export interface SceneRunArtifactMetaRecord {
+  [key: string]: SceneRunArtifactMetaValue | undefined
+}
+
+export interface SceneRunCanonicalPlannerVariantRecord extends SceneRunArtifactMetaRecord {
+  id: string
+  label: string
+  summary: string
+  rationale: string
+  tradeoffLabel?: string
+  riskLabel?: string
+}
+
+export interface SceneRunCanonicalPlannerProposalRecord extends SceneRunArtifactMetaRecord {
+  id: string
+  title: string
+  summary: string
+  changeKind: ScenePlannerOutput['proposals'][number]['changeKind']
+  riskLabel: string
+  variants?: SceneRunCanonicalPlannerVariantRecord[]
+}
 
 export interface SceneRunArtifactRecord {
   kind: SceneRunArtifactKind
@@ -23,11 +53,13 @@ export interface SceneRunArtifactRecord {
   title: string
   summary: string
   status?: string
-  meta?: Record<string, SceneRunArtifactMetaValue>
+  meta?: SceneRunArtifactMetaRecord
 }
 
 export interface SceneRunWorkflowStartInput extends StartSceneRunInput {
   sequence: number
+  plannerOutput: ScenePlannerOutput
+  plannerProvenance: ScenePlannerGatewayProvenance
 }
 
 export type SceneRunTimelineLabelBuilder = (order: number) => string

@@ -188,11 +188,11 @@ describe('fixture API server unified errors', () => {
             selectedVariants: [
               {
                 proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
-                variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-arrival-first',
+                variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-001',
               },
               {
                 proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
-                variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-reveal-pressure',
+                variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-002',
               },
             ],
           },

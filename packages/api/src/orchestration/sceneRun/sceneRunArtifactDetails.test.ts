@@ -186,6 +186,10 @@ describe('sceneRunArtifactDetails', () => {
       sequence: 2,
       index: 1,
       role: 'planner',
+      provenance: {
+        provider: 'openai',
+        modelId: 'gpt-5.4',
+      },
     })
 
     const detail = buildAgentInvocationDetail({
@@ -197,7 +201,7 @@ describe('sceneRunArtifactDetails', () => {
       kind: 'agent-invocation',
       agentRole: 'scene-planner',
       contextPacketId: 'ctx-scene-midnight-platform-run-002',
-      modelLabel: text('Fixture planner profile', 'Fixture 规划模型'),
+      modelLabel: text('OpenAI planner profile (gpt-5.4)', 'OpenAI 规划模型 (gpt-5.4)'),
       inputSummary: text(
         'Consumes the packed scene context and editorial note for Midnight Platform.',
         '消费 Midnight Platform 的上下文包和编辑备注。',
@@ -254,7 +258,7 @@ describe('sceneRunArtifactDetails', () => {
         ],
         variants: [
           {
-            id: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-arrival-first',
+            id: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-001',
             label: text('Arrival-first', '先抵达'),
             summary: text(
               "Keep Midnight Platform grounded in the lead character's arrival before escalating the reveal.",
@@ -275,7 +279,7 @@ describe('sceneRunArtifactDetails', () => {
             ],
           },
           {
-            id: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-reveal-pressure',
+            id: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-002',
             label: text('Reveal pressure', '揭示加压'),
             summary: text(
               'Let the reveal intrude earlier while Midnight Platform is still settling.',
@@ -301,7 +305,7 @@ describe('sceneRunArtifactDetails', () => {
             ],
           },
         ],
-        defaultVariantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-arrival-first',
+        defaultVariantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-001',
       },
       {
         id: 'proposal-set-scene-midnight-platform-run-002-proposal-002',
@@ -355,7 +359,7 @@ describe('sceneRunArtifactDetails', () => {
 
     const selectedVariant = {
       proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
-      variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-reveal-pressure',
+      variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-002',
     }
 
     const detail = buildProposalSetDetail({
@@ -366,9 +370,106 @@ describe('sceneRunArtifactDetails', () => {
 
     expect(detail.proposals[0]).toMatchObject({
       id: selectedVariant.proposalId,
-      defaultVariantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-arrival-first',
+      defaultVariantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-001',
       selectedVariantId: selectedVariant.variantId,
     })
+  })
+
+  it('builds proposal set detail from persisted canonical planner metadata instead of regenerating fixture copy', () => {
+    const artifact = createProposalSetArtifact({
+      runId,
+      sceneId,
+      sequence: 2,
+      plannerOutput: {
+        proposals: [
+          {
+            title: 'Open with the station alarm',
+            summary: 'Lead with the alarm before Ren enters the frame.',
+            changeKind: 'action',
+            riskLabel: 'Editor check recommended',
+            variants: [
+              {
+                label: 'Alarm-wide',
+                summary: 'Stay wide on the station alarm beat.',
+                rationale: 'Lets the reveal breathe before character focus.',
+              },
+              {
+                label: 'Ren-cut',
+                summary: 'Cut directly to Ren on the alarm hit.',
+                rationale: 'Makes the entrance feel abrupt and urgent.',
+                tradeoffLabel: 'Sharper cut',
+                riskLabel: 'Higher continuity risk',
+              },
+            ],
+          },
+        ],
+      },
+    })
+
+    const detail = buildProposalSetDetail({
+      artifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-008'],
+      selectedVariants: [
+        {
+          proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+          variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-002',
+        },
+      ],
+    })
+
+    expect(detail.proposals).toEqual([
+      {
+        id: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
+        title: text('Open with the station alarm'),
+        summary: text('Lead with the alarm before Ren enters the frame.'),
+        changeKind: 'action',
+        riskLabel: text('Editor check recommended', '建议编辑复核'),
+        relatedAssets: [
+          {
+            assetId: 'asset-scene-midnight-platform-lead',
+            label: text('Midnight Platform lead', 'Midnight Platform 主角'),
+            kind: 'character',
+          },
+        ],
+        variants: [
+          {
+            id: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-001',
+            label: text('Alarm-wide'),
+            summary: text('Stay wide on the station alarm beat.'),
+            rationale: text('Lets the reveal breathe before character focus.'),
+            relatedAssets: [
+              {
+                assetId: 'asset-scene-midnight-platform-lead',
+                label: text('Midnight Platform lead', 'Midnight Platform 主角'),
+                kind: 'character',
+              },
+            ],
+          },
+          {
+            id: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-002',
+            label: text('Ren-cut'),
+            summary: text('Cut directly to Ren on the alarm hit.'),
+            rationale: text('Makes the entrance feel abrupt and urgent.'),
+            tradeoffLabel: text('Sharper cut'),
+            riskLabel: text('Higher continuity risk', '连续性风险较高'),
+            relatedAssets: [
+              {
+                assetId: 'asset-scene-midnight-platform-lead',
+                label: text('Midnight Platform lead', 'Midnight Platform 主角'),
+                kind: 'character',
+              },
+              {
+                assetId: 'asset-scene-midnight-platform-setting',
+                label: text('Midnight Platform setting', 'Midnight Platform 场景地点'),
+                kind: 'location',
+              },
+            ],
+          },
+        ],
+        defaultVariantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-001',
+        selectedVariantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-002',
+      },
+    ])
   })
 
   it('parameterizes proposal wording for non-platform scenes', () => {
@@ -466,7 +567,7 @@ describe('sceneRunArtifactDetails', () => {
   it('carries selected variant provenance into canon patch and prose details', () => {
     const selectedVariant = {
       proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
-      variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-reveal-pressure',
+      variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-002',
     }
     const canonPatchArtifact = createCanonPatchArtifact({
       runId,

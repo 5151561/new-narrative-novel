@@ -1,8 +1,59 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { createRunFixtureStore } from './runFixtureStore.js'
+import { createTestServer } from '../test/support/test-server.js'
 
 describe('runFixtureStore', () => {
+  function createPlannerResult(overrides?: Partial<{
+    provider: 'fixture' | 'openai'
+    modelId: string
+    fallbackReason: 'missing-config' | 'provider-error' | 'invalid-output'
+    proposals: Array<{
+      title: string
+      summary: string
+      changeKind: 'action' | 'reveal' | 'state-change' | 'continuity-note'
+      riskLabel: string
+      variants?: Array<{
+        label: string
+        summary: string
+        rationale: string
+        tradeoffLabel?: string
+        riskLabel?: string
+      }>
+    }>
+  }>) {
+    return {
+      output: {
+        proposals: overrides?.proposals ?? [
+          {
+            title: 'Hold on the departure bell',
+            summary: 'Delay the reveal until the platform bell has landed.',
+            changeKind: 'action' as const,
+            riskLabel: 'Editor check recommended',
+            variants: [
+              {
+                label: 'Wide bell',
+                summary: 'Stay wide on the bell before focusing on Ren.',
+                rationale: 'Preserves staging before the reveal tightens.',
+              },
+              {
+                label: 'Hard cut',
+                summary: 'Cut directly to Ren when the bell hits.',
+                rationale: 'Makes the scene feel more urgent.',
+                tradeoffLabel: 'Faster escalation',
+              },
+            ],
+          },
+        ],
+      },
+      provenance: {
+        provider: overrides?.provider ?? 'openai',
+        modelId: overrides?.modelId ?? 'gpt-5.4',
+        ...(overrides?.fallbackReason ? { fallbackReason: overrides.fallbackReason } : {}),
+      },
+    }
+  }
+
   function listAllEventPages(
     store: ReturnType<typeof createRunFixtureStore>,
     projectId: string,
@@ -22,9 +73,283 @@ describe('runFixtureStore', () => {
     }
   }
 
-  it('lists readable start-run artifacts for context, invocations, and proposal sets', () => {
+  function findPersistedRunState(
+    store: ReturnType<typeof createRunFixtureStore>,
+    projectId: string,
+    runId: string,
+  ) {
+    const snapshot = store.exportProjectState(projectId) as
+      | {
+          runStates: Array<{
+            run: { id: string }
+            artifacts: Array<{ kind: string; id: string; meta?: Record<string, unknown> }>
+          }>
+        }
+      | undefined
+
+    expect(snapshot).toBeTruthy()
+    const runState = snapshot?.runStates.find((candidate) => candidate.run.id === runId)
+    expect(runState).toBeTruthy()
+    return runState!
+  }
+
+  it('allocates distinct scene sequences for concurrent start requests before planner generation resolves', async () => {
+    let resolveFirst: ((value: ReturnType<typeof createPlannerResult>) => void) | undefined
+    let resolveSecond: ((value: ReturnType<typeof createPlannerResult>) => void) | undefined
+    const firstPlanner = new Promise<ReturnType<typeof createPlannerResult>>((resolve) => {
+      resolveFirst = resolve
+    })
+    const secondPlanner = new Promise<ReturnType<typeof createPlannerResult>>((resolve) => {
+      resolveSecond = resolve
+    })
+    const generate = vi.fn()
+      .mockImplementationOnce(() => firstPlanner)
+      .mockImplementationOnce(() => secondPlanner)
+    const store = createRunFixtureStore({
+      scenePlannerGateway: { generate },
+    })
+
+    const startOne = store.startSceneRun('project-concurrent', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+    })
+    const startTwo = store.startSceneRun('project-concurrent', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+    })
+
+    resolveSecond?.(createPlannerResult({
+      proposals: [
+        {
+          title: 'Second planner result',
+          summary: 'Resolve the second request first.',
+          changeKind: 'action',
+          riskLabel: 'Low continuity risk',
+        },
+      ],
+    }))
+    resolveFirst?.(createPlannerResult({
+      proposals: [
+        {
+          title: 'First planner result',
+          summary: 'Resolve the first request second.',
+          changeKind: 'action',
+          riskLabel: 'Low continuity risk',
+        },
+      ],
+    }))
+
+    const [runOne, runTwo] = await Promise.all([startOne, startTwo])
+
+    expect(runOne.id).toBe('run-scene-midnight-platform-001')
+    expect(runTwo.id).toBe('run-scene-midnight-platform-002')
+    expect(runOne.id).not.toBe(runTwo.id)
+    expect(store.getRun('project-concurrent', runOne.id)).toMatchObject({ id: runOne.id })
+    expect(store.getRun('project-concurrent', runTwo.id)).toMatchObject({ id: runTwo.id })
+  })
+
+  it('awaits planner gateway output and persists canonical planner metadata before artifact details are derived', async () => {
+    const generate = vi.fn().mockResolvedValue(createPlannerResult())
+    const store = createRunFixtureStore({
+      scenePlannerGateway: {
+        generate,
+      },
+    })
+
+    const runPromise = store.startSceneRun('project-artifacts', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+    })
+    expect(runPromise).toBeInstanceOf(Promise)
+
+    const run = await runPromise
+    expect(generate).toHaveBeenCalledWith({
+      sceneId: 'scene-midnight-platform',
+      instructions: 'Return scene-planning proposals only.',
+      input: expect.stringContaining('Midnight Platform'),
+    })
+
+    const runState = findPersistedRunState(store, 'project-artifacts', run.id)
+    expect(runState.artifacts.find((artifact) => artifact.id === 'agent-invocation-scene-midnight-platform-run-001-001')).toMatchObject({
+      meta: {
+        role: 'planner',
+        index: 1,
+        provenance: {
+          provider: 'openai',
+          modelId: 'gpt-5.4',
+        },
+      },
+    })
+    expect(runState.artifacts.find((artifact) => artifact.id === 'proposal-set-scene-midnight-platform-run-001')).toMatchObject({
+      meta: {
+        proposals: [
+          {
+            id: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+            title: 'Hold on the departure bell',
+            variants: [
+              {
+                id: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-001',
+                label: 'Wide bell',
+              },
+              {
+                id: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-002',
+                label: 'Hard cut',
+                tradeoffLabel: 'Faster escalation',
+              },
+            ],
+          },
+        ],
+      },
+    })
+    expect(JSON.stringify(runState)).not.toContain('Return scene-planning proposals only.')
+  })
+
+  it('surfaces stored non-default planner proposals and provenance through getRunArtifact', async () => {
+    const store = createRunFixtureStore({
+      scenePlannerGateway: {
+        generate: vi.fn().mockResolvedValue(createPlannerResult({
+          proposals: [
+            {
+              title: 'Open with the station alarm',
+              summary: 'Lead with the alarm before Ren enters the frame.',
+              changeKind: 'action',
+              riskLabel: 'Editor check recommended',
+              variants: [
+                {
+                  label: 'Alarm-wide',
+                  summary: 'Stay wide on the station alarm beat.',
+                  rationale: 'Lets the reveal breathe before character focus.',
+                },
+                {
+                  label: 'Ren-cut',
+                  summary: 'Cut directly to Ren on the alarm hit.',
+                  rationale: 'Makes the entrance feel abrupt and urgent.',
+                  tradeoffLabel: 'Sharper cut',
+                  riskLabel: 'Higher continuity risk',
+                },
+              ],
+            },
+            {
+              title: 'Thread the ledger rumor',
+              summary: 'Carry the rumor through ambient station detail.',
+              changeKind: 'reveal',
+              riskLabel: 'Continuity review required',
+            },
+          ],
+        })),
+      },
+    })
+
+    const run = await store.startSceneRun('project-custom-readback', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+    })
+    const proposalSet = store.getRunArtifact('project-custom-readback', run.id, 'proposal-set-scene-midnight-platform-run-001')
+    const plannerInvocation = store.getRunArtifact(
+      'project-custom-readback',
+      run.id,
+      'agent-invocation-scene-midnight-platform-run-001-001',
+    )
+
+    expect(proposalSet?.kind).toBe('proposal-set')
+    if (proposalSet?.kind !== 'proposal-set') {
+      throw new Error('expected proposal-set detail')
+    }
+
+    expect(proposalSet.proposals[0]).toMatchObject({
+      id: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+      title: {
+        en: 'Open with the station alarm',
+      },
+      summary: {
+        en: 'Lead with the alarm before Ren enters the frame.',
+      },
+      defaultVariantId: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-001',
+    })
+    expect(proposalSet.proposals[0]?.variants?.map((variant) => variant.id)).toEqual([
+      'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-001',
+      'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-002',
+    ])
+    expect(proposalSet.proposals[0]?.variants?.map((variant) => variant.label.en)).toEqual([
+      'Alarm-wide',
+      'Ren-cut',
+    ])
+    expect(proposalSet.proposals[1]).toMatchObject({
+      id: 'proposal-set-scene-midnight-platform-run-001-proposal-002',
+      title: {
+        en: 'Thread the ledger rumor',
+      },
+    })
+    expect(plannerInvocation).toMatchObject({
+      kind: 'agent-invocation',
+      modelLabel: {
+        en: 'OpenAI planner profile (gpt-5.4)',
+      },
+    })
+  })
+
+  it('routes createServer start-run persistence through the constructed planner gateway fallback path', async () => {
+    const savedOverlays = new Map<string, unknown>()
+    const server = createTestServer({
+      configOverrides: {
+        modelProvider: 'openai',
+      },
+      projectStatePersistence: {
+        async load() {
+          return {
+            schemaVersion: 1,
+            seedVersion: 'prototype-fixture-seed-v1',
+            projects: {},
+          }
+        },
+        async saveProjectOverlay(projectId, overlay) {
+          savedOverlays.set(projectId, overlay)
+        },
+        async clearProjectOverlay(projectId) {
+          savedOverlays.delete(projectId)
+        },
+      },
+    })
+
+    try {
+      await server.repository.whenReady()
+
+      const run = await server.repository.startSceneRun('book-signal-arc', {
+        sceneId: 'scene-midnight-platform',
+        mode: 'rewrite',
+      })
+      const overlay = savedOverlays.get('book-signal-arc') as
+        | {
+            runStore?: {
+              runStates: Array<{
+                run: { id: string }
+                artifacts: Array<{ id: string; meta?: Record<string, unknown> }>
+              }>
+            }
+          }
+        | undefined
+
+      const runState = overlay?.runStore?.runStates.find((candidate) => candidate.run.id === run.id)
+      expect(runState?.artifacts.find((artifact) => artifact.meta?.role === 'planner')).toMatchObject({
+        meta: {
+          role: 'planner',
+          index: 1,
+          provenance: {
+            provider: 'fixture',
+            modelId: 'fixture-scene-planner',
+            fallbackReason: 'missing-config',
+          },
+        },
+      })
+    } finally {
+      await server.app.close()
+      await server.cleanupProjectStateFile()
+    }
+  })
+
+  it('lists readable start-run artifacts for context, invocations, and proposal sets', async () => {
     const store = createRunFixtureStore()
-    const run = store.startSceneRun('project-artifacts', {
+    const run = await store.startSceneRun('project-artifacts', {
       sceneId: 'scene-midnight-platform',
       mode: 'rewrite',
     })
@@ -39,9 +364,9 @@ describe('runFixtureStore', () => {
     ])
   })
 
-  it('resolves every start-run artifact event ref through getRunArtifact', () => {
+  it('resolves every start-run artifact event ref through getRunArtifact', async () => {
     const store = createRunFixtureStore()
-    const run = store.startSceneRun('project-ref-resolution', {
+    const run = await store.startSceneRun('project-ref-resolution', {
       sceneId: 'scene-midnight-platform',
       mode: 'rewrite',
     })
@@ -61,9 +386,9 @@ describe('runFixtureStore', () => {
     }
   })
 
-  it('adds canon patch and prose draft details after acceptance', () => {
+  it('adds canon patch and prose draft details after acceptance', async () => {
     const store = createRunFixtureStore()
-    const run = store.startSceneRun('project-accept-artifacts', {
+    const run = await store.startSceneRun('project-accept-artifacts', {
       sceneId: 'scene-midnight-platform',
       mode: 'rewrite',
     })
@@ -96,15 +421,15 @@ describe('runFixtureStore', () => {
     })
   })
 
-  it('persists selected variants and exposes lightweight review provenance after acceptance', () => {
+  it('persists selected variants and exposes lightweight review provenance after acceptance', async () => {
     const store = createRunFixtureStore()
-    const run = store.startSceneRun('project-selected-variants', {
+    const run = await store.startSceneRun('project-selected-variants', {
       sceneId: 'scene-midnight-platform',
       mode: 'rewrite',
     })
     const selectedVariant = {
       proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
-      variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-reveal-pressure',
+      variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-002',
     }
 
     store.submitRunReviewDecision('project-selected-variants', {
@@ -152,21 +477,31 @@ describe('runFixtureStore', () => {
     })
   })
 
-  it('rejects invalid selected variants before mutating run state', () => {
+  it('rejects invalid selected variants before mutating run state', async () => {
     const invalidCases = [
       {
         name: 'duplicate proposal ids',
         selectedVariants: [
           {
             proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
-            variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-arrival-first',
+            variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-001',
           },
+          {
+            proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+            variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-002',
+          },
+        ],
+        message: 'selectedVariants proposalId proposal-set-scene-midnight-platform-run-001-proposal-001 must be unique.',
+      },
+      {
+        name: 'legacy fixture variant id',
+        selectedVariants: [
           {
             proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
             variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-reveal-pressure',
           },
         ],
-        message: 'selectedVariants proposalId proposal-set-scene-midnight-platform-run-001-proposal-001 must be unique.',
+        message: 'selectedVariants variantId proposal-set-scene-midnight-platform-run-001-proposal-001-variant-reveal-pressure does not exist for proposal proposal-set-scene-midnight-platform-run-001-proposal-001.',
       },
       {
         name: 'unknown proposal id',
@@ -203,7 +538,7 @@ describe('runFixtureStore', () => {
     for (const invalidCase of invalidCases) {
       const store = createRunFixtureStore()
       const projectId = `project-invalid-selected-variants-${invalidCase.name.replaceAll(' ', '-')}`
-      const run = store.startSceneRun(projectId, {
+      const run = await store.startSceneRun(projectId, {
         sceneId: 'scene-midnight-platform',
         mode: 'rewrite',
       })
@@ -239,9 +574,9 @@ describe('runFixtureStore', () => {
     }
   })
 
-  it('rejects custom patch ids that collide with an existing artifact id and preserves current read surfaces', () => {
+  it('rejects custom patch ids that collide with an existing artifact id and preserves current read surfaces', async () => {
     const store = createRunFixtureStore()
-    const run = store.startSceneRun('project-patchid-collision', {
+    const run = await store.startSceneRun('project-patchid-collision', {
       sceneId: 'scene-midnight-platform',
       mode: 'rewrite',
     })
@@ -271,9 +606,9 @@ describe('runFixtureStore', () => {
     expect(store.listRunArtifacts('project-patchid-collision', run.id)).toEqual(beforeArtifacts)
   })
 
-  it('accepts valid custom patch ids and keeps artifact lookup and trace complete', () => {
+  it('accepts valid custom patch ids and keeps artifact lookup and trace complete', async () => {
     const store = createRunFixtureStore()
-    const run = store.startSceneRun('project-custom-patchid', {
+    const run = await store.startSceneRun('project-custom-patchid', {
       sceneId: 'scene-midnight-platform',
       mode: 'rewrite',
     })
@@ -332,9 +667,9 @@ describe('runFixtureStore', () => {
     })
   })
 
-  it('returns a minimal proposal to canon to prose trace after acceptance', () => {
+  it('returns a minimal proposal to canon to prose trace after acceptance', async () => {
     const store = createRunFixtureStore()
-    const run = store.startSceneRun('project-accept-trace', {
+    const run = await store.startSceneRun('project-accept-trace', {
       sceneId: 'scene-midnight-platform',
       mode: 'rewrite',
     })
@@ -406,9 +741,9 @@ describe('runFixtureStore', () => {
     ]))
   })
 
-  it('does not create canon or prose artifacts for rejection', () => {
+  it('does not create canon or prose artifacts for rejection', async () => {
     const store = createRunFixtureStore()
-    const run = store.startSceneRun('project-reject-artifacts', {
+    const run = await store.startSceneRun('project-reject-artifacts', {
       sceneId: 'scene-midnight-platform',
       mode: 'rewrite',
     })
@@ -435,9 +770,9 @@ describe('runFixtureStore', () => {
     })
   })
 
-  it('returns null for invalid artifact ids', () => {
+  it('returns null for invalid artifact ids', async () => {
     const store = createRunFixtureStore()
-    const run = store.startSceneRun('project-invalid-artifact', {
+    const run = await store.startSceneRun('project-invalid-artifact', {
       sceneId: 'scene-midnight-platform',
       mode: 'rewrite',
     })
@@ -445,13 +780,13 @@ describe('runFixtureStore', () => {
     expect(store.getRunArtifact('project-invalid-artifact', run.id, 'artifact-missing')).toBeNull()
   })
 
-  it('keeps artifacts isolated by project and run', () => {
+  it('keeps artifacts isolated by project and run', async () => {
     const store = createRunFixtureStore()
-    const runA = store.startSceneRun('project-artifact-a', {
+    const runA = await store.startSceneRun('project-artifact-a', {
       sceneId: 'scene-midnight-platform',
       mode: 'rewrite',
     })
-    const runB = store.startSceneRun('project-artifact-b', {
+    const runB = await store.startSceneRun('project-artifact-b', {
       sceneId: 'scene-midnight-platform',
       mode: 'rewrite',
     })
@@ -472,9 +807,9 @@ describe('runFixtureStore', () => {
     })
   })
 
-  it('appends accept-with-edit review events and clears the pending review', () => {
+  it('appends accept-with-edit review events and clears the pending review', async () => {
     const store = createRunFixtureStore()
-    const run = store.startSceneRun('project-review', {
+    const run = await store.startSceneRun('project-review', {
       sceneId: 'scene-midnight-platform',
       mode: 'rewrite',
     })
@@ -512,9 +847,9 @@ describe('runFixtureStore', () => {
     })
   })
 
-  it('keeps request-rewrite semantics terminal without producing new artifacts', () => {
+  it('keeps request-rewrite semantics terminal without producing new artifacts', async () => {
     const store = createRunFixtureStore()
-    const run = store.startSceneRun('project-rewrite', {
+    const run = await store.startSceneRun('project-rewrite', {
       sceneId: 'scene-midnight-platform',
       mode: 'rewrite',
     })
@@ -558,10 +893,10 @@ describe('runFixtureStore', () => {
     })
   })
 
-  it('exports, hydrates, and clears project-scoped run snapshots', () => {
+  it('exports, hydrates, and clears project-scoped run snapshots', async () => {
     const store = createRunFixtureStore()
     const projectId = 'project-persisted-run-store'
-    const run = store.startSceneRun(projectId, {
+    const run = await store.startSceneRun(projectId, {
       sceneId: 'scene-midnight-platform',
       mode: 'rewrite',
       note: 'Persist this run across a fresh API server.',
@@ -574,7 +909,7 @@ describe('runFixtureStore', () => {
       selectedVariants: [
         {
           proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
-          variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-reveal-pressure',
+          variantId: 'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-002',
         },
       ],
     })
@@ -620,10 +955,10 @@ describe('runFixtureStore', () => {
     expect(hydratedStore.getRun(projectId, run.id)).toBeNull()
   })
 
-  it('keeps existing project run state intact when any persisted run snapshot entry is invalid', () => {
+  it('keeps existing project run state intact when any persisted run snapshot entry is invalid', async () => {
     const store = createRunFixtureStore()
     const projectId = 'project-atomic-hydration'
-    const run = store.startSceneRun(projectId, {
+    const run = await store.startSceneRun(projectId, {
       sceneId: 'scene-midnight-platform',
       mode: 'rewrite',
     })

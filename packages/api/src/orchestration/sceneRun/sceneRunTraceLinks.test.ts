@@ -275,7 +275,7 @@ describe('sceneRunTraceLinks', () => {
   it('carries selected variant provenance in accepted and rendered trace labels', () => {
     const selectedVariant = {
       proposalId: 'proposal-set-scene-midnight-platform-run-002-proposal-001',
-      variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-reveal-pressure',
+      variantId: 'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-002',
     }
     const initial = buildInitialArtifacts([selectedVariant])
     const canonPatch = buildCanonPatchDetail({
