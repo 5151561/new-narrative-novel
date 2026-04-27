@@ -76,12 +76,53 @@ export function registerRunRoutes({ app, apiBasePath, repository }: ApiRouteCont
     return repository.getRunEvents(projectId, { runId, cursor })
   })
 
-  app.get(`${projectBase}/runs/:runId/events/stream`, async () => {
-    throw new ApiHttpError({
-      status: 501,
-      message: 'Run event streaming is not implemented in the fixture API. Use paginated events for now.',
-      code: 'RUN_EVENT_STREAM_UNIMPLEMENTED',
+  app.get(`${projectBase}/runs/:runId/events/stream`, async (request, reply) => {
+    const { projectId, runId } = request.params as { projectId: string; runId: string }
+    const { cursor } = request.query as { cursor?: string }
+    if (!repository.supportsRunEventStream()) {
+      throw new ApiHttpError({
+        status: 501,
+        message: 'Run event streaming is not implemented in the fixture API. Use paginated events for now.',
+        code: 'RUN_EVENT_STREAM_UNIMPLEMENTED',
+      })
+    }
+
+    const abortController = new AbortController()
+    const stream = repository.streamRunEvents(projectId, {
+      runId,
+      cursor,
+      signal: abortController.signal,
     })
+
+    reply.hijack()
+    reply.raw.writeHead(200, {
+      'content-type': 'text/event-stream; charset=utf-8',
+      'cache-control': 'no-cache, no-transform',
+      connection: 'keep-alive',
+      'x-accel-buffering': 'no',
+    })
+    reply.raw.flushHeaders?.()
+    reply.raw.write(': stream-open\n\n')
+
+    const abortStream = () => abortController.abort()
+    request.raw.on('close', abortStream)
+
+    try {
+      for await (const page of stream) {
+        const lastEventId = page.events.at(-1)?.id
+        if (lastEventId) {
+          reply.raw.write(`id: ${lastEventId}\n`)
+        }
+
+        reply.raw.write('event: run-events\n')
+        reply.raw.write(`data: ${JSON.stringify(page)}\n\n`)
+      }
+    } finally {
+      request.raw.off('close', abortStream)
+      if (!reply.raw.writableEnded) {
+        reply.raw.end()
+      }
+    }
   })
 
   app.post(`${projectBase}/runs/:runId/review-decisions`, async (request) => {

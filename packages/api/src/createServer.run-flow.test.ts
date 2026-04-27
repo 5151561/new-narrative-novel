@@ -1,6 +1,8 @@
+import { setTimeout as delay } from 'node:timers/promises'
+
 import { describe, expect, it } from 'vitest'
 
-import { withTestServer } from './test/support/test-server.js'
+import { createTestServer, withTestServer } from './test/support/test-server.js'
 
 function findEventRef(
   events: Array<{
@@ -13,8 +15,36 @@ function findEventRef(
   return events.find((event) => event.kind === eventKind)?.refs?.find((ref) => ref.kind === refKind)
 }
 
+function parseSsePayloads(chunks: string[]) {
+  return chunks
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .flatMap((entry) => {
+      const dataLine = entry.split('\n').find((line) => line.startsWith('data: '))
+      if (!dataLine) {
+        return []
+      }
+
+      return [JSON.parse(dataLine.slice('data: '.length))]
+    })
+}
+
+async function waitFor(condition: () => boolean, label: string, timeoutMs = 3_000) {
+  const deadline = Date.now() + timeoutMs
+
+  while (Date.now() < deadline) {
+    if (condition()) {
+      return
+    }
+
+    await delay(10)
+  }
+
+  throw new Error(`Timed out waiting for ${label}`)
+}
+
 describe('fixture API server run flow', () => {
-  it('supports start, detail, paged events, review decision submission, and stream placeholder', async () => {
+  it('supports start, detail, paged events, and review decision submission', async () => {
     await withTestServer(async ({ app }) => {
       const startResponse = await app.inject({
         method: 'POST',
@@ -233,15 +263,236 @@ describe('fixture API server run flow', () => {
       expect(JSON.stringify(postReviewEvents)).not.toContain('Midnight Platform opens from the accepted run artifact')
       expect(JSON.stringify(postReviewEvents)).not.toContain('sourceProposalIds')
 
-      const streamResponse = await app.inject({
-        method: 'GET',
-        url: `/api/projects/book-signal-arc/runs/${startedRun.id}/events/stream`,
-      })
-      expect(streamResponse.statusCode).toBe(501)
-      expect(streamResponse.json()).toMatchObject({
-        code: 'RUN_EVENT_STREAM_UNIMPLEMENTED',
-      })
     })
+  })
+
+  it('serves the run event stream as text/event-stream with replay-from-cursor and later tail batches', async () => {
+    const server = createTestServer()
+
+    try {
+      await server.app.listen({ port: 0, host: '127.0.0.1' })
+      const address = server.app.server.address()
+      if (!address || typeof address === 'string') {
+        throw new Error('Expected a bound HTTP server address.')
+      }
+
+      const baseUrl = `http://127.0.0.1:${address.port}`
+      const startResponse = await fetch(`${baseUrl}/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          mode: 'rewrite',
+          note: 'Tail stream after replay.',
+        }),
+      })
+      expect(startResponse.status).toBe(200)
+      const startedRun = await startResponse.json() as {
+        id: string
+        pendingReviewId?: string
+      }
+
+      const firstEventsPageResponse = await fetch(`${baseUrl}/api/projects/book-signal-arc/runs/${startedRun.id}/events`)
+      expect(firstEventsPageResponse.status).toBe(200)
+      const firstEventsPage = await firstEventsPageResponse.json() as {
+        nextCursor?: string
+      }
+
+      const secondEventsPageResponse = await fetch(
+        `${baseUrl}/api/projects/book-signal-arc/runs/${startedRun.id}/events?cursor=${firstEventsPage.nextCursor}`,
+      )
+      expect(secondEventsPageResponse.status).toBe(200)
+      const secondEventsPage = await secondEventsPageResponse.json() as {
+        events: Array<{ id: string; kind: string }>
+      }
+
+      const finalEventsPageResponse = await fetch(
+        `${baseUrl}/api/projects/book-signal-arc/runs/${startedRun.id}/events?cursor=${secondEventsPage.events.at(-1)?.id}`,
+      )
+      expect(finalEventsPageResponse.status).toBe(200)
+      const finalEventsPage = await finalEventsPageResponse.json() as {
+        events: Array<{ id: string; kind: string }>
+      }
+
+      const streamPayloads = [] as Array<{ runId: string; events: Array<{ id: string; kind: string }> }>
+      const streamResponse = await fetch(
+        `${baseUrl}/api/projects/book-signal-arc/runs/${startedRun.id}/events/stream?cursor=${firstEventsPage.nextCursor}`,
+      )
+
+      expect(streamResponse.status).toBe(200)
+      expect(streamResponse.headers.get('content-type')).toContain('text/event-stream')
+      expect(streamResponse.body).toBeTruthy()
+
+      const reader = streamResponse.body!.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let streamClosed = false
+      const readLoop = (async () => {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) {
+            streamClosed = true
+            return
+          }
+
+          buffer += decoder.decode(value, { stream: true })
+          const parts = buffer.split('\n\n')
+          buffer = parts.pop() ?? ''
+          streamPayloads.push(...parseSsePayloads(parts))
+        }
+      })()
+
+      await waitFor(() => streamPayloads.length >= 1, 'initial replay payload')
+      expect(streamPayloads[0]).toEqual({
+        runId: startedRun.id,
+        events: [...secondEventsPage.events, ...finalEventsPage.events],
+      })
+
+      const reviewResponse = await fetch(`${baseUrl}/api/projects/book-signal-arc/runs/${startedRun.id}/review-decisions`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          reviewId: startedRun.pendingReviewId,
+          decision: 'accept',
+          note: 'Ship it.',
+        }),
+      })
+      expect(reviewResponse.status).toBe(200)
+
+      const postReviewEventsResponse = await fetch(
+        `${baseUrl}/api/projects/book-signal-arc/runs/${startedRun.id}/events?cursor=${finalEventsPage.events.at(-1)?.id}`,
+      )
+      expect(postReviewEventsResponse.status).toBe(200)
+      const postReviewEventsPage = await postReviewEventsResponse.json() as {
+        events: Array<{ id: string; kind: string }>
+      }
+
+      await waitFor(() => streamPayloads.length >= 2, 'post-review tail payload')
+      expect(streamPayloads[1]).toEqual({
+        runId: startedRun.id,
+        events: postReviewEventsPage.events,
+      })
+
+      await waitFor(() => streamClosed, 'stream close after run completion')
+      await readLoop
+    } finally {
+      await server.app.close()
+      await server.cleanupProjectStateFile()
+    }
+  })
+
+  it('opens tail-only stream subscriptions immediately even when replay is empty', async () => {
+    const server = createTestServer()
+
+    try {
+      await server.app.listen({ port: 0, host: '127.0.0.1' })
+      const address = server.app.server.address()
+      if (!address || typeof address === 'string') {
+        throw new Error('Expected a bound HTTP server address.')
+      }
+
+      const baseUrl = `http://127.0.0.1:${address.port}`
+      const startResponse = await fetch(`${baseUrl}/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          mode: 'rewrite',
+          note: 'Open the stream before review arrives.',
+        }),
+      })
+      expect(startResponse.status).toBe(200)
+      const startedRun = await startResponse.json() as {
+        id: string
+        latestEventId: string
+        pendingReviewId?: string
+      }
+
+      const handshakeAbortController = new AbortController()
+      const handshakeAbortTimeout = setTimeout(() => handshakeAbortController.abort(), 250)
+      let streamResponse: Response
+      try {
+        streamResponse = await fetch(
+          `${baseUrl}/api/projects/book-signal-arc/runs/${startedRun.id}/events/stream?cursor=${startedRun.latestEventId}`,
+          { signal: handshakeAbortController.signal },
+        )
+      } finally {
+        clearTimeout(handshakeAbortTimeout)
+      }
+
+      expect(streamResponse.status).toBe(200)
+      expect(streamResponse.headers.get('content-type')).toContain('text/event-stream')
+      expect(streamResponse.body).toBeTruthy()
+
+      const reader = streamResponse.body!.getReader()
+      const decoder = new TextDecoder()
+      const initialChunk = await Promise.race([
+        reader.read(),
+        delay(250).then(() => 'timeout' as const),
+      ])
+      expect(initialChunk).not.toBe('timeout')
+      if (initialChunk === 'timeout') {
+        throw new Error('expected an immediate SSE frame')
+      }
+      expect(initialChunk.done).toBe(false)
+      const initialText = decoder.decode(initialChunk.value, { stream: true })
+      expect(initialText.startsWith(':')).toBe(true)
+
+      const streamPayloads = [] as Array<{ runId: string; events: Array<{ id: string; kind: string }> }>
+      let buffer = initialText
+      let streamClosed = false
+      const readLoop = (async () => {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) {
+            streamClosed = true
+            return
+          }
+
+          buffer += decoder.decode(value, { stream: true })
+          const parts = buffer.split('\n\n')
+          buffer = parts.pop() ?? ''
+          streamPayloads.push(...parseSsePayloads(parts))
+        }
+      })()
+
+      const reviewResponse = await fetch(`${baseUrl}/api/projects/book-signal-arc/runs/${startedRun.id}/review-decisions`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          reviewId: startedRun.pendingReviewId,
+          decision: 'accept',
+          note: 'Ship it.',
+        }),
+      })
+      expect(reviewResponse.status).toBe(200)
+
+      const postReviewEventsResponse = await fetch(
+        `${baseUrl}/api/projects/book-signal-arc/runs/${startedRun.id}/events?cursor=${startedRun.latestEventId}`,
+      )
+      expect(postReviewEventsResponse.status).toBe(200)
+      const postReviewEventsPage = await postReviewEventsResponse.json() as {
+        events: Array<{ id: string; kind: string }>
+      }
+
+      await waitFor(() => streamPayloads.length >= 1, 'tail-only payload after review')
+      expect(streamPayloads[0]).toEqual({
+        runId: startedRun.id,
+        events: postReviewEventsPage.events,
+      })
+
+      await waitFor(() => streamClosed, 'tail-only stream close after completion')
+      await readLoop
+    } finally {
+      await server.app.close()
+      await server.cleanupProjectStateFile()
+    }
   })
 
   it('materializes prose after accept-with-edit review decisions', async () => {

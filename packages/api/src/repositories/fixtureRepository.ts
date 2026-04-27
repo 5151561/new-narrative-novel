@@ -345,6 +345,8 @@ export interface FixtureRepository {
   getRunArtifact(projectId: string, runId: string, artifactId: string): RunArtifactDetailRecord | null
   getRunTrace(projectId: string, runId: string): RunTraceResponse | null
   getRunEvents(projectId: string, input: { runId: string; cursor?: string }): RunEventsPageRecord
+  streamRunEvents(projectId: string, input: { runId: string; cursor?: string; signal?: AbortSignal }): AsyncIterable<RunEventsPageRecord>
+  supportsRunEventStream(): boolean
   submitRunReviewDecision(projectId: string, input: SubmitRunReviewDecisionInput): Promise<RunRecord>
   exportSnapshot(): FixtureDataSnapshot
   resetProject(projectId: string): Promise<void>
@@ -363,15 +365,18 @@ export function createFixtureRepository(options: {
     generate(request: ScenePlannerGatewayRequest): Promise<ScenePlannerGatewayResult>
   }
   projectStatePersistence?: FixtureRepositoryProjectStatePersistence
+  runEventStreamEnabled?: boolean
 }): FixtureRepository {
   const createSeedSnapshot = () => createFixtureDataSnapshot(options.apiBaseUrl)
   const createSeedRunStore = () => createRunFixtureStore({
     scenePlannerGateway: options.scenePlannerGateway,
+    runEventStreamEnabled: options.runEventStreamEnabled,
   })
 
   let snapshot = createSeedSnapshot()
   const runStore: RunFixtureStore = createRunFixtureStore({
     scenePlannerGateway: options.scenePlannerGateway,
+    runEventStreamEnabled: options.runEventStreamEnabled,
   })
   let persistenceQueue = Promise.resolve()
 
@@ -808,7 +813,9 @@ export function createFixtureRepository(options: {
       return readyPromise
     },
     getProjectRuntimeInfo(projectId) {
-      return clone(getProject(projectId).runtimeInfo)
+      const runtimeInfo = clone(getProject(projectId).runtimeInfo)
+      runtimeInfo.capabilities.runEventStream = runStore.supportsRunEventStream()
+      return runtimeInfo
     },
     getBookStructure(projectId, bookId) {
       const record = getBook(projectId, bookId)
@@ -1100,6 +1107,12 @@ export function createFixtureRepository(options: {
     },
     getRunEvents(projectId, input) {
       return runStore.getRunEvents(projectId, input)
+    },
+    streamRunEvents(projectId, input) {
+      return runStore.streamRunEvents(projectId, input)
+    },
+    supportsRunEventStream() {
+      return runStore.supportsRunEventStream()
     },
     async submitRunReviewDecision(projectId, input) {
       const run = runStore.submitRunReviewDecision(projectId, input)

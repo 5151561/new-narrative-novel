@@ -39,6 +39,7 @@ import {
 import { buildFixtureSceneRunTimelineLabel } from '../orchestration/sceneRun/sceneRunTimeline.js'
 import { startSceneRunWorkflow } from '../orchestration/sceneRun/sceneRunWorkflow.js'
 import type { PersistedRunStore } from './project-state-persistence.js'
+import { createRunEventStreamBroker } from './run-event-stream-broker.js'
 
 const EVENT_PAGE_SIZE = 4
 const DEFAULT_PROJECT_ID = 'book-signal-arc'
@@ -443,6 +444,8 @@ export interface RunFixtureStore {
   startSceneRun(projectId: string, input: StartSceneRunInput): Promise<RunRecord>
   getRun(projectId: string, runId: string): RunRecord | null
   getRunEvents(projectId: string, input: { runId: string; cursor?: string }): RunEventsPageRecord
+  streamRunEvents(projectId: string, input: { runId: string; cursor?: string; signal?: AbortSignal }): AsyncIterable<RunEventsPageRecord>
+  supportsRunEventStream(): boolean
   listRunArtifacts(projectId: string, runId: string): RunArtifactSummaryRecord[] | null
   getRunArtifact(projectId: string, runId: string, artifactId: string): RunArtifactDetailRecord | null
   getRunTrace(projectId: string, runId: string): RunTraceResponse | null
@@ -451,9 +454,12 @@ export interface RunFixtureStore {
 
 export function createRunFixtureStore(options: {
   scenePlannerGateway?: ScenePlannerGatewayLike
+  runEventStreamEnabled?: boolean
 } = {}): RunFixtureStore {
   const runStatesByProjectId = new Map<string, Map<string, RunState>>()
   const sceneRunSequenceByProjectId = new Map<string, Map<string, number>>()
+  const runEventStreamBroker = createRunEventStreamBroker()
+  const runEventStreamEnabled = options.runEventStreamEnabled ?? true
   const scenePlannerGateway = options.scenePlannerGateway ?? createScenePlannerGateway({
     modelProvider: 'fixture',
   })
@@ -488,6 +494,10 @@ export function createRunFixtureStore(options: {
     return next
   }
 
+  function toRunStreamKey(projectId: string, runId: string) {
+    return `${projectId}::${runId}`
+  }
+
   function createRunState(
     sequence: number,
     run: RunRecord,
@@ -520,6 +530,10 @@ export function createRunFixtureStore(options: {
 
   function storeRunState(projectId: string, state: RunState) {
     getRunBucket(projectId, true)!.set(state.run.id, state)
+  }
+
+  function isTerminalRunStatus(status: RunRecord['status']) {
+    return status === 'completed' || status === 'failed' || status === 'cancelled'
   }
 
   function serializeRunState(state: RunState): PersistedRunStateRecord {
@@ -559,9 +573,26 @@ export function createRunFixtureStore(options: {
     return state
   }
 
+  function resolveEventStartIndex(state: RunState, projectId: string, runId: string, cursor?: string) {
+    if (!cursor) {
+      return 0
+    }
+
+    const cursorIndex = state.events.findIndex((event) => event.id === cursor)
+    if (cursorIndex < 0) {
+      throw conflict(`Run cursor ${cursor} does not exist for ${runId}.`, {
+        code: 'RUN_EVENTS_CURSOR_CONFLICT',
+        detail: { projectId, runId, cursor },
+      })
+    }
+
+    return cursorIndex + 1
+  }
+
   function reset() {
     runStatesByProjectId.clear()
     sceneRunSequenceByProjectId.clear()
+    runEventStreamBroker.reset()
 
     const seed = createSeedRun()
     storeRunState(seed.projectId, createRunState(
@@ -572,6 +603,9 @@ export function createRunFixtureStore(options: {
       seed.latestReviewDecision,
     ))
     getSequenceBucket(seed.projectId, true)!.set(seed.sceneId, seed.sequence)
+    if (isTerminalRunStatus(seed.run.status)) {
+      runEventStreamBroker.complete(toRunStreamKey(seed.projectId, seed.run.id))
+    }
   }
 
   reset()
@@ -579,6 +613,11 @@ export function createRunFixtureStore(options: {
   return {
     reset,
     clearProject(projectId) {
+      const runBucket = getRunBucket(projectId)
+      for (const runId of runBucket?.keys() ?? []) {
+        runEventStreamBroker.complete(toRunStreamKey(projectId, runId))
+      }
+
       runStatesByProjectId.delete(projectId)
       sceneRunSequenceByProjectId.delete(projectId)
     },
@@ -626,6 +665,9 @@ export function createRunFixtureStore(options: {
 
       for (const state of validatedStates) {
         storeRunState(projectId, state)
+        if (isTerminalRunStatus(state.run.status)) {
+          runEventStreamBroker.complete(toRunStreamKey(projectId, state.run.id))
+        }
       }
     },
     async startSceneRun(projectId, input) {
@@ -643,12 +685,16 @@ export function createRunFixtureStore(options: {
         buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
       })
 
-      storeRunState(projectId, createRunState(
+      const state = createRunState(
         nextSequence,
         workflow.run,
         workflow.events,
         workflow.artifacts,
-      ))
+      )
+      storeRunState(projectId, state)
+      if (runEventStreamEnabled) {
+        runEventStreamBroker.publish(toRunStreamKey(projectId, workflow.run.id), clone(workflow.events))
+      }
       return clone(workflow.run)
     },
     getRun(projectId, runId) {
@@ -657,20 +703,7 @@ export function createRunFixtureStore(options: {
     },
     getRunEvents(projectId, { runId, cursor }) {
       const state = requireRunState(projectId, runId)
-      const startIndex = cursor
-        ? (() => {
-            const cursorIndex = state.events.findIndex((event) => event.id === cursor)
-            if (cursorIndex < 0) {
-              throw conflict(`Run cursor ${cursor} does not exist for ${runId}.`, {
-                code: 'RUN_EVENTS_CURSOR_CONFLICT',
-                detail: { projectId, runId, cursor },
-              })
-            }
-
-            return cursorIndex + 1
-          })()
-        : 0
-
+      const startIndex = resolveEventStartIndex(state, projectId, runId, cursor)
       const pageEvents = state.events.slice(startIndex, startIndex + EVENT_PAGE_SIZE)
       const hasMore = startIndex + pageEvents.length < state.events.length
 
@@ -679,6 +712,44 @@ export function createRunFixtureStore(options: {
         events: clone(pageEvents),
         nextCursor: hasMore ? pageEvents.at(-1)?.id : undefined,
       }
+    },
+    streamRunEvents(projectId, { runId, cursor, signal }) {
+      if (!runEventStreamEnabled) {
+        return {
+          async *[Symbol.asyncIterator]() {},
+        }
+      }
+
+      const state = requireRunState(projectId, runId)
+      const replayEvents = state.events.slice(resolveEventStartIndex(state, projectId, runId, cursor))
+      const tailStream = isTerminalRunStatus(state.run.status)
+        ? undefined
+        : runEventStreamBroker.subscribe(toRunStreamKey(projectId, runId), signal)
+
+      return {
+        async *[Symbol.asyncIterator]() {
+          if (replayEvents.length > 0) {
+            yield {
+              runId,
+              events: clone(replayEvents),
+            }
+          }
+
+          if (!tailStream) {
+            return
+          }
+
+          for await (const events of tailStream) {
+            yield {
+              runId,
+              events: clone(events),
+            }
+          }
+        },
+      }
+    },
+    supportsRunEventStream() {
+      return runEventStreamEnabled
     },
     listRunArtifacts(projectId, runId) {
       const artifacts = getRunBucket(projectId)?.get(runId)?.artifactSummaries
@@ -759,6 +830,12 @@ export function createRunFixtureStore(options: {
       state.latestReviewDecision = input.decision
       state.selectedVariants = cloneSelectedVariants(input.selectedVariants)
       indexRunReadSurfaces(state)
+      if (runEventStreamEnabled) {
+        runEventStreamBroker.publish(toRunStreamKey(projectId, input.runId), clone(transition.appendedEvents))
+        if (isTerminalRunStatus(state.run.status)) {
+          runEventStreamBroker.complete(toRunStreamKey(projectId, input.runId))
+        }
+      }
 
       return clone(state.run)
     },

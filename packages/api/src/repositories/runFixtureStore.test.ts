@@ -148,6 +148,123 @@ describe('runFixtureStore', () => {
     expect(store.getRun('project-concurrent', runTwo.id)).toMatchObject({ id: runTwo.id })
   })
 
+  it('replays events after an optional cursor and then tails later review-transition publications without changing event records', async () => {
+    const store = createRunFixtureStore({
+      scenePlannerGateway: {
+        generate: vi.fn().mockResolvedValue(createPlannerResult()),
+      },
+    })
+
+    const run = await store.startSceneRun('project-stream-replay', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+      note: 'Replay from cursor and then tail.',
+    })
+    const firstPage = store.getRunEvents('project-stream-replay', { runId: run.id })
+    const secondPage = store.getRunEvents('project-stream-replay', {
+      runId: run.id,
+      cursor: firstPage.nextCursor,
+    })
+    const finalPreReviewPage = store.getRunEvents('project-stream-replay', {
+      runId: run.id,
+      cursor: secondPage.nextCursor,
+    })
+    const iterator = store.streamRunEvents('project-stream-replay', {
+      runId: run.id,
+      cursor: firstPage.nextCursor,
+    })[Symbol.asyncIterator]()
+
+    await expect(iterator.next()).resolves.toEqual({
+      done: false,
+      value: {
+        runId: run.id,
+        events: [...secondPage.events, ...finalPreReviewPage.events],
+      },
+    })
+
+    const tailPromise = iterator.next()
+    const completedRun = store.submitRunReviewDecision('project-stream-replay', {
+      runId: run.id,
+      reviewId: run.pendingReviewId!,
+      decision: 'accept',
+      note: 'Ship it.',
+    })
+    const postReviewPage = store.getRunEvents('project-stream-replay', {
+      runId: completedRun.id,
+      cursor: finalPreReviewPage.events.at(-1)?.id,
+    })
+
+    await expect(tailPromise).resolves.toEqual({
+      done: false,
+      value: {
+        runId: run.id,
+        events: postReviewPage.events,
+      },
+    })
+    await expect(iterator.next()).resolves.toEqual({
+      done: true,
+      value: undefined,
+    })
+  })
+
+  it('tails stream events again after clearProject when a later run reuses the same run id', async () => {
+    const projectId = 'project-stream-reuse'
+    const store = createRunFixtureStore({
+      scenePlannerGateway: {
+        generate: vi.fn().mockResolvedValue(createPlannerResult()),
+      },
+    })
+
+    const firstRun = await store.startSceneRun(projectId, {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+      note: 'First pass before reset.',
+    })
+    expect(firstRun.id).toBe('run-scene-midnight-platform-001')
+    store.submitRunReviewDecision(projectId, {
+      runId: firstRun.id,
+      reviewId: firstRun.pendingReviewId!,
+      decision: 'accept',
+    })
+
+    store.clearProject(projectId)
+
+    const secondRun = await store.startSceneRun(projectId, {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+      note: 'Second pass after reset.',
+    })
+    expect(secondRun.id).toBe(firstRun.id)
+
+    const iterator = store.streamRunEvents(projectId, {
+      runId: secondRun.id,
+      cursor: secondRun.latestEventId,
+    })[Symbol.asyncIterator]()
+    const tailPromise = iterator.next()
+
+    store.submitRunReviewDecision(projectId, {
+      runId: secondRun.id,
+      reviewId: secondRun.pendingReviewId!,
+      decision: 'accept',
+    })
+    const postReviewPage = store.getRunEvents(projectId, {
+      runId: secondRun.id,
+      cursor: secondRun.latestEventId,
+    })
+
+    await expect(tailPromise).resolves.toEqual({
+      done: false,
+      value: {
+        runId: secondRun.id,
+        events: postReviewPage.events,
+      },
+    })
+    await expect(iterator.next()).resolves.toEqual({
+      done: true,
+      value: undefined,
+    })
+  })
+
   it('awaits planner gateway output and persists canonical planner metadata before artifact details are derived', async () => {
     const generate = vi.fn().mockResolvedValue(createPlannerResult())
     const store = createRunFixtureStore({

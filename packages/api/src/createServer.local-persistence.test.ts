@@ -1,12 +1,41 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { createTestServer } from './test/support/test-server.js'
 
 type TestApp = ReturnType<typeof createTestServer>['app']
+
+function parseSsePayloads(chunks: string[]) {
+  return chunks
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .flatMap((entry) => {
+      const dataLine = entry.split('\n').find((line) => line.startsWith('data: '))
+      if (!dataLine) {
+        return []
+      }
+
+      return [JSON.parse(dataLine.slice('data: '.length))]
+    })
+}
+
+async function waitFor(condition: () => boolean, label: string, timeoutMs = 3_000) {
+  const deadline = Date.now() + timeoutMs
+
+  while (Date.now() < deadline) {
+    if (condition()) {
+      return
+    }
+
+    await delay(10)
+  }
+
+  throw new Error(`Timed out waiting for ${label}`)
+}
 
 async function fetchAllRunEventPages(app: TestApp, runId: string) {
   const events = [] as Array<Record<string, unknown>>
@@ -501,7 +530,7 @@ describe('fixture API server local project-state persistence', () => {
     const secondServer = createTestServer({ projectStateFilePath })
 
     try {
-      const [decisionListResponse, assemblyResponse, runResponse, streamResponse] = await Promise.all([
+      const [decisionListResponse, assemblyResponse, runResponse, seedEventsResponse] = await Promise.all([
         secondServer.app.inject({
           method: 'GET',
           url: '/api/projects/book-signal-arc/books/book-signal-arc/review-decisions',
@@ -516,7 +545,7 @@ describe('fixture API server local project-state persistence', () => {
         }),
         secondServer.app.inject({
           method: 'GET',
-          url: '/api/projects/book-signal-arc/runs/run-scene-midnight-platform-001/events/stream',
+          url: '/api/projects/book-signal-arc/runs/run-scene-midnight-platform-001/events',
         }),
       ])
 
@@ -536,10 +565,115 @@ describe('fixture API server local project-state persistence', () => {
 
       expect(runResponse.statusCode).toBe(200)
       expect(runResponse.json()).toBeNull()
-      expect(streamResponse.statusCode).toBe(501)
-      expect(streamResponse.json()).toMatchObject({
-        code: 'RUN_EVENT_STREAM_UNIMPLEMENTED',
+      expect(seedEventsResponse.statusCode).toBe(200)
+      expect(seedEventsResponse.json()).toMatchObject({
+        runId: 'run-scene-midnight-platform-001',
+        events: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'run_created',
+          }),
+        ]),
       })
+
+      await secondServer.app.listen({ port: 0, host: '127.0.0.1' })
+      const address = secondServer.app.server.address()
+      if (!address || typeof address === 'string') {
+        throw new Error('Expected a bound HTTP server address.')
+      }
+
+      const baseUrl = `http://127.0.0.1:${address.port}`
+      const restartedRunResponse = await fetch(`${baseUrl}/api/projects/book-signal-arc/scenes/scene-warehouse-bridge/runs`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          mode: 'rewrite',
+          note: 'Run again after reset.',
+        }),
+      })
+      expect(restartedRunResponse.status).toBe(200)
+      const restartedRun = await restartedRunResponse.json() as {
+        id: string
+        latestEventId: string
+        pendingReviewId?: string
+      }
+      expect(restartedRun.id).toBe(runId)
+
+      const handshakeAbortController = new AbortController()
+      const handshakeAbortTimeout = setTimeout(() => handshakeAbortController.abort(), 250)
+      let streamResponse: Response
+      try {
+        streamResponse = await fetch(
+          `${baseUrl}/api/projects/book-signal-arc/runs/${restartedRun.id}/events/stream?cursor=${restartedRun.latestEventId}`,
+          { signal: handshakeAbortController.signal },
+        )
+      } finally {
+        clearTimeout(handshakeAbortTimeout)
+      }
+
+      expect(streamResponse.status).toBe(200)
+      expect(streamResponse.headers.get('content-type')).toContain('text/event-stream')
+      const reader = streamResponse.body!.getReader()
+      const decoder = new TextDecoder()
+      const initialChunk = await Promise.race([
+        reader.read(),
+        delay(250).then(() => 'timeout' as const),
+      ])
+      expect(initialChunk).not.toBe('timeout')
+      if (initialChunk === 'timeout') {
+        throw new Error('expected an immediate SSE frame after reset')
+      }
+
+      const initialText = decoder.decode(initialChunk.value, { stream: true })
+      expect(initialText.startsWith(':')).toBe(true)
+
+      const streamPayloads = [] as Array<{ runId: string; events: Array<{ id: string; kind: string }> }>
+      let buffer = initialText
+      let streamClosed = false
+      const readLoop = (async () => {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) {
+            streamClosed = true
+            return
+          }
+
+          buffer += decoder.decode(value, { stream: true })
+          const parts = buffer.split('\n\n')
+          buffer = parts.pop() ?? ''
+          streamPayloads.push(...parseSsePayloads(parts))
+        }
+      })()
+
+      const reviewResponse = await fetch(`${baseUrl}/api/projects/book-signal-arc/runs/${restartedRun.id}/review-decisions`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          reviewId: restartedRun.pendingReviewId,
+          decision: 'accept',
+        }),
+      })
+      expect(reviewResponse.status).toBe(200)
+
+      const postReviewEventsResponse = await fetch(
+        `${baseUrl}/api/projects/book-signal-arc/runs/${restartedRun.id}/events?cursor=${restartedRun.latestEventId}`,
+      )
+      expect(postReviewEventsResponse.status).toBe(200)
+      const postReviewEventsPage = await postReviewEventsResponse.json() as {
+        events: Array<{ id: string; kind: string }>
+      }
+
+      await waitFor(() => streamPayloads.length >= 1, 'stream payload after reset')
+      expect(streamPayloads[0]).toEqual({
+        runId: restartedRun.id,
+        events: postReviewEventsPage.events,
+      })
+
+      await waitFor(() => streamClosed, 'stream close after reset replay')
+      await readLoop
     } finally {
       await secondServer.app.close()
     }
