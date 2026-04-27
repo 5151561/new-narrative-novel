@@ -338,4 +338,150 @@ describe('SceneExecutionContainer', () => {
       expect(screen.getByText('Review filters idle')).toBeInTheDocument()
     })
   })
+
+  it('surfaces one primary Run Scene CTA while keeping review-gate-first behavior during waiting review', async () => {
+    const startRun = vi.fn()
+
+    window.history.replaceState({}, '', '/workbench?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
+    vi.doUnmock('../components/SceneExecutionTab')
+    vi.doMock('./scene-run-session-context', () => ({
+      useSharedSceneRunSession: () => ({
+        run: {
+          id: 'run-from-execution-surface',
+          scope: 'scene',
+          scopeId: 'scene-midnight-platform',
+          status: 'waiting_review',
+          title: 'Midnight platform scene run',
+          summary: 'Planner and writer output are ready for review.',
+          startedAtLabel: '2026-04-21 10:00',
+          pendingReviewId: 'review-scene-midnight-platform-001',
+          latestEventId: 'run-event-001',
+          eventCount: 1,
+        },
+        events: [
+          {
+            id: 'run-event-001',
+            runId: 'run-from-execution-surface',
+            order: 1,
+            kind: 'review_requested',
+            label: 'Review requested',
+            summary: 'Editorial review is waiting on the proposal set.',
+            createdAtLabel: '2026-04-21 10:09',
+            severity: 'warning' as const,
+            refs: [{ kind: 'review' as const, id: 'review-scene-midnight-platform-001' }],
+          },
+        ],
+        pendingReviewId: 'review-scene-midnight-platform-001',
+        isReviewPending: true,
+        isLoading: false,
+        error: null,
+        isStartingRun: false,
+        isSubmittingDecision: false,
+        startRun,
+        submitDecision: vi.fn(),
+        reviewVariants: createReviewVariants({
+          selectedVariantsForSubmit: [
+            {
+              proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+              variantId: 'variant-midnight-platform-raise-conflict',
+            },
+          ],
+        }),
+      }),
+    }))
+    vi.doMock('../hooks/useSceneExecutionQuery', () => ({
+      useSceneExecutionQuery: () => ({
+        runId: 'run-from-execution-surface',
+        objective: {
+          goal: 'Keep the ledger closed while forcing Mei to show her leverage.',
+          warningsCount: 2,
+          unresolvedCount: 1,
+          cast: [
+            { id: 'ren', name: 'Ren Voss', role: 'POV' },
+            { id: 'mei', name: 'Mei Arden', role: 'Counterforce' },
+          ],
+          constraintSummary: ['Ledger stays shut.'],
+          location: { id: 'platform', name: 'Rain-soaked platform' },
+        },
+        beats: [
+          {
+            id: 'beat-bargain',
+            index: 2,
+            title: 'Bargain over the ledger',
+            status: 'review' as const,
+            proposalCount: 3,
+            warningCount: 1,
+            summary: 'Primary review beat.',
+          },
+        ],
+        proposals: [
+          {
+            id: 'proposal-pending',
+            beatId: 'beat-bargain',
+            actor: { id: 'scene-manager', name: 'Scene Manager', type: 'scene-manager' as const },
+            kind: 'conflict' as const,
+            title: 'Pending conflict proposal',
+            summary: 'Pending proposal stays visible before filtering.',
+            status: 'pending' as const,
+            impactTags: ['stakes'],
+            affects: [{ path: 'scene.conflict', label: 'Conflict', deltaSummary: 'Escalates pressure.' }],
+            risks: [{ severity: 'warn' as const, message: 'Could crowd the witness beat.' }],
+          },
+        ],
+        acceptedSummary: {
+          sceneSummary: 'One accepted proposal is ready for prose review.',
+          acceptedFacts: [{ id: 'fact-1', label: 'Ledger', value: 'Still closed.' }],
+          readiness: 'draftable' as const,
+          pendingProposalCount: 1,
+          warningCount: 1,
+          patchCandidateCount: 1,
+        },
+        canContinueRun: false,
+        canOpenProse: true,
+        isLoading: false,
+        error: null,
+      }),
+    }))
+    vi.doMock('../hooks/useProposalActions', () => ({
+      useProposalActions: () => ({
+        accept: vi.fn(),
+        editAccept: vi.fn(),
+        requestRewrite: vi.fn(),
+        reject: vi.fn(),
+        isMutating: false,
+      }),
+    }))
+    vi.doMock('../hooks/useSceneWorkspaceActions', () => ({
+      useSceneWorkspaceActions: () => ({
+        continueRun: vi.fn(),
+        openPatchPreview: vi.fn(),
+        openProse: vi.fn(),
+        openTab: vi.fn(),
+      }),
+    }))
+
+    const { SceneExecutionContainer } = await import('./SceneExecutionContainer')
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+      },
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <I18nProvider>
+          <SceneExecutionContainer sceneId="scene-midnight-platform" />
+        </I18nProvider>
+      </QueryClientProvider>,
+    )
+
+    expect(screen.getAllByRole('button', { name: 'Run Scene' }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Continue Active Run' })).not.toBeInTheDocument()
+    expect(screen.getAllByText('Review requested').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Run Review Gate').length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: 'Run Scene' })[0]).toBeDisabled()
+    expect(screen.getAllByRole('button', { name: 'Rewrite Run' })[0]).toBeDisabled()
+    expect(screen.getAllByRole('button', { name: 'Run From Scratch' })[0]).toBeDisabled()
+    expect(startRun).not.toHaveBeenCalled()
+  })
 })

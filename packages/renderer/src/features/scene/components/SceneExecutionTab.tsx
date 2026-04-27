@@ -100,6 +100,7 @@ export function SceneExecutionTab({
   const activeRun = runSession.run
   const latestEvent = runSession.events.at(-1)
   const isRunBusy = runSession.isStartingRun || runSession.isSubmittingDecision
+  const areRunStartControlsDisabled = isRunBusy || runSession.isReviewPending
 
   const runStatusLabels: Record<Locale, Record<NonNullable<RunRecord['status']>, string>> = {
     en: {
@@ -151,18 +152,18 @@ export function SceneExecutionTab({
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                className="rounded-md border border-line-soft bg-surface-2 px-3 py-2 text-sm disabled:opacity-60"
-                disabled={!canContinueRun || isRunBusy}
+                className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+                disabled={areRunStartControlsDisabled}
                 onClick={() => {
                   void runSession.onStartRun('continue')
                 }}
               >
-                {locale === 'zh-CN' ? '继续当前运行' : 'Continue Active Run'}
+                {locale === 'zh-CN' ? '运行场景' : 'Run Scene'}
               </button>
               <button
                 type="button"
                 className="rounded-md border border-line-soft bg-surface-2 px-3 py-2 text-sm disabled:opacity-60"
-                disabled={isRunBusy}
+                disabled={areRunStartControlsDisabled}
                 onClick={() => {
                   void runSession.onStartRun('rewrite')
                 }}
@@ -172,7 +173,7 @@ export function SceneExecutionTab({
               <button
                 type="button"
                 className="rounded-md border border-line-soft bg-surface-1 px-3 py-2 text-sm text-text-main disabled:opacity-60"
-                disabled={isRunBusy}
+                disabled={areRunStartControlsDisabled}
                 onClick={() => {
                   void runSession.onStartRun('from-scratch')
                 }}

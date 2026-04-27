@@ -163,13 +163,23 @@ describe('SceneExecutionTab', () => {
     expect(screen.getAllByRole('button', { name: 'Accept With Edit' }).length).toBeGreaterThan(0)
     expect(screen.getAllByText('1 proposal variant prepared as draft context for this Main Stage review decision.').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Variant choices still require this review decision and do not write canon on their own.').length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: 'Run Scene' })[0]).toHaveClass('bg-accent', 'text-white')
+    expect(screen.getAllByRole('button', { name: 'Run Scene' })[0]).toBeDisabled()
+    expect(screen.getAllByRole('button', { name: 'Rewrite Run' })[0]).toBeDisabled()
+    expect(screen.getAllByRole('button', { name: 'Run From Scratch' })[0]).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Open Prose' })).not.toHaveClass('bg-accent', 'text-white')
     expect(screen.queryByText('run-scene-midnight-platform-001')).not.toBeInTheDocument()
     expect(screen.queryByText('review-scene-midnight-platform-001')).not.toBeInTheDocument()
   })
 
-  it('routes run controls through prepared run-session handlers', async () => {
+  it('routes the primary Run Scene CTA and secondary run controls through prepared run-session handlers on the non-review-pending path', async () => {
     const user = userEvent.setup()
     const onStartRun = vi.fn()
+    const runnableRun: RunRecord = {
+      ...run,
+      status: 'running',
+      pendingReviewId: undefined,
+    }
 
     render(
       <I18nProvider>
@@ -181,10 +191,10 @@ describe('SceneExecutionTab', () => {
           filters={{ beatId: 'beat-bargain' }}
           acceptedSummary={acceptedSummary}
           runSession={{
-            run,
+            run: runnableRun,
             events: runEvents,
-            pendingReviewId: run.pendingReviewId ?? null,
-            isReviewPending: true,
+            pendingReviewId: null,
+            isReviewPending: false,
             selectedVariantsForSubmit: [],
             isLoading: false,
             error: null,
@@ -210,8 +220,10 @@ describe('SceneExecutionTab', () => {
       </I18nProvider>,
     )
 
-    const continueButtons = screen.getAllByRole('button', { name: 'Continue Active Run' })
-    await user.click(continueButtons[0]!)
+    expect(screen.queryByRole('button', { name: 'Continue Active Run' })).not.toBeInTheDocument()
+
+    const runSceneButtons = screen.getAllByRole('button', { name: 'Run Scene' })
+    await user.click(runSceneButtons[0]!)
     await user.click(screen.getAllByRole('button', { name: 'Rewrite Run' })[0]!)
     await user.click(screen.getAllByRole('button', { name: 'Run From Scratch' })[0]!)
 

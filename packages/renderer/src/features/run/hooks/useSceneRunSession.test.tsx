@@ -537,6 +537,69 @@ describe('useSceneRunSession', () => {
     expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: sceneQueryKeys.prose('scene-midnight-platform') })
   })
 
+  it('submits review decisions against the active run and current pending review while preserving selected variants', async () => {
+    const queryClient = createQueryClient()
+    const selectedVariants = [
+      {
+        proposalId: 'proposal-set-scene-midnight-platform-run-001-proposal-001',
+        variantId: 'variant-midnight-platform-raise-conflict',
+      },
+    ]
+    const runClient = createRunClient({
+      getRun: vi.fn(async ({ runId }) =>
+        createRun({
+          id: runId,
+          status: 'waiting_review',
+          pendingReviewId: 'review-scene-midnight-platform-002',
+          summary: 'Waiting for review.',
+        }),
+      ),
+      submitRunReviewDecision: vi.fn(async (_input: SubmitRunReviewDecisionInput) =>
+        createRun({
+          id: 'run-scene-midnight-platform-002',
+          status: 'completed',
+          pendingReviewId: undefined,
+          summary: 'Accepted and applied.',
+          completedAtLabel: '2026-04-21 10:20',
+        }),
+      ),
+    })
+
+    const hook = renderHook(
+      () =>
+        useSceneRunSession({
+          sceneId: 'scene-midnight-platform',
+          runId: 'run-scene-midnight-platform-002',
+          latestRunId: 'run-scene-midnight-platform-001',
+        }),
+      {
+        wrapper: createWrapper(runClient, queryClient),
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.canSubmitDecision).toBe(true)
+    })
+
+    await act(async () => {
+      await hook.result.current.submitDecision({
+        decision: 'accept-with-edit',
+        note: 'Adopt the sharper opening.',
+        patchId: 'patch-scene-midnight-platform-001',
+        selectedVariants,
+      })
+    })
+
+    expect(runClient.submitRunReviewDecision).toHaveBeenCalledWith({
+      runId: 'run-scene-midnight-platform-002',
+      reviewId: 'review-scene-midnight-platform-002',
+      decision: 'accept-with-edit',
+      note: 'Adopt the sharper opening.',
+      patchId: 'patch-scene-midnight-platform-001',
+      selectedVariants,
+    })
+  })
+
   it('uses runClient boundaries without touching sceneClient', async () => {
     const queryClient = createQueryClient()
     const runClient = createRunClient({

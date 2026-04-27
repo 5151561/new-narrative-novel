@@ -83,7 +83,7 @@ describe('App scene runtime smoke', () => {
     }
   })
 
-  it('drives the HTTP runtime through start, waiting review, accept, and scene refresh surfaces', async () => {
+  it('drives the HTTP runtime through Run Scene, waiting review, accept, and scene refresh surfaces', async () => {
     const user = userEvent.setup()
     const server = createTestServer()
     servers.push(server)
@@ -117,13 +117,15 @@ describe('App scene runtime smoke', () => {
     expect(within(navigator).queryByRole('button', { name: /Canal Watch/i })).not.toBeInTheDocument()
     expect(within(navigator).queryByRole('button', { name: /Dawn Slip/i })).not.toBeInTheDocument()
 
-    await user.click(screen.getAllByRole('button', { name: 'Rewrite Run' })[0]!)
+    expect(screen.getAllByRole('button', { name: 'Run Scene' }).length).toBeGreaterThan(0)
+
+    await user.click(screen.getAllByRole('button', { name: 'Run Scene' })[0]!)
 
     const bottomDock = screen.getByRole('region', { name: 'Bottom Dock' })
 
     await waitFor(() => {
       expect(within(bottomDock).getByText('Active Run Support')).toBeInTheDocument()
-      expect(within(bottomDock).getByText('scene-midnight-platform run')).toBeInTheDocument()
+      expect(within(bottomDock).getByText('Midnight platform scene run')).toBeInTheDocument()
     })
 
     await waitFor(() => {
