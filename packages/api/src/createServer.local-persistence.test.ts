@@ -6,6 +6,33 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { createTestServer } from './test/support/test-server.js'
 
+type TestApp = ReturnType<typeof createTestServer>['app']
+
+async function fetchAllRunEventPages(app: TestApp, runId: string) {
+  const events = [] as Array<Record<string, unknown>>
+  let cursor: string | undefined
+
+  while (true) {
+    const response = await app.inject({
+      method: 'GET',
+      url: cursor
+        ? `/api/projects/book-signal-arc/runs/${runId}/events?cursor=${cursor}`
+        : `/api/projects/book-signal-arc/runs/${runId}/events`,
+    })
+    expect(response.statusCode).toBe(200)
+    const page = response.json() as {
+      events: Array<Record<string, unknown>>
+      nextCursor?: string
+    }
+    events.push(...page.events)
+    if (!page.nextCursor) {
+      return events
+    }
+
+    cursor = page.nextCursor
+  }
+}
+
 describe('fixture API server local project-state persistence', () => {
   const tempDirectories = [] as string[]
 
@@ -252,6 +279,109 @@ describe('fixture API server local project-state persistence', () => {
         id: runId,
         status: 'completed',
       })
+    } finally {
+      await secondServer.app.close()
+    }
+  })
+
+  it('persists planner-backed artifact detail across a fresh API server restart', async () => {
+    const projectStateFilePath = await createSharedStateFilePath()
+    const firstServer = createTestServer({
+      projectStateFilePath,
+      configOverrides: {
+        modelProvider: 'openai',
+        openAiModel: 'gpt-5.4',
+        openAiApiKey: 'sk-test',
+      },
+      scenePlannerGatewayDependencies: {
+        openAiProvider: {
+          async generate() {
+            return {
+              proposals: [
+                {
+                  title: 'Open with the station alarm',
+                  summary: 'Lead with the alarm before Ren enters the frame.',
+                  changeKind: 'action',
+                  riskLabel: 'Editor check recommended',
+                  variants: [
+                    {
+                      label: 'Alarm-wide',
+                      summary: 'Stay wide on the station alarm beat.',
+                      rationale: 'Lets the reveal breathe before character focus.',
+                    },
+                  ],
+                },
+              ],
+            }
+          },
+        },
+      },
+    })
+
+    let runId = ''
+
+    try {
+      const startResponse = await firstServer.app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
+          note: 'Persist the custom planner output.',
+        },
+      })
+      expect(startResponse.statusCode).toBe(200)
+      runId = startResponse.json().id
+      expect(runId).toBe('run-scene-midnight-platform-002')
+    } finally {
+      await firstServer.app.close()
+    }
+
+    const secondServer = createTestServer({ projectStateFilePath })
+
+    try {
+      const [proposalSetResponse, plannerInvocationResponse] = await Promise.all([
+        secondServer.app.inject({
+          method: 'GET',
+          url: `/api/projects/book-signal-arc/runs/${runId}/artifacts/proposal-set-scene-midnight-platform-run-002`,
+        }),
+        secondServer.app.inject({
+          method: 'GET',
+          url: `/api/projects/book-signal-arc/runs/${runId}/artifacts/agent-invocation-scene-midnight-platform-run-002-001`,
+        }),
+      ])
+
+      expect(proposalSetResponse.statusCode).toBe(200)
+      expect(proposalSetResponse.json().artifact.id).toBe('proposal-set-scene-midnight-platform-run-002')
+      expect(proposalSetResponse.json().artifact.kind).toBe('proposal-set')
+      expect(proposalSetResponse.json().artifact.proposals).toHaveLength(1)
+      expect(proposalSetResponse.json().artifact.proposals[0]?.id).toBe(
+        'proposal-set-scene-midnight-platform-run-002-proposal-001',
+      )
+      expect(proposalSetResponse.json().artifact.proposals[0]?.title.en).toBe('Open with the station alarm')
+      expect(proposalSetResponse.json().artifact.proposals[0]?.summary.en).toBe(
+        'Lead with the alarm before Ren enters the frame.',
+      )
+      expect(proposalSetResponse.json().artifact.proposals[0]?.defaultVariantId).toBe(
+        'proposal-set-scene-midnight-platform-run-002-proposal-001-variant-001',
+      )
+
+      expect(plannerInvocationResponse.statusCode).toBe(200)
+      expect(plannerInvocationResponse.json()).toMatchObject({
+        artifact: {
+          id: 'agent-invocation-scene-midnight-platform-run-002-001',
+          kind: 'agent-invocation',
+          modelLabel: {
+            en: 'OpenAI planner profile (gpt-5.4)',
+          },
+        },
+      })
+
+      const restartedEvents = await fetchAllRunEventPages(secondServer.app, runId)
+      const serializedEvents = JSON.stringify(restartedEvents)
+      expect(serializedEvents).not.toContain('transcript')
+      expect(serializedEvents).not.toContain('Persist the custom planner output.')
+      expect(serializedEvents).not.toContain('Return scene-planning proposals only.')
+      expect(serializedEvents).not.toContain('Open with the station alarm')
     } finally {
       await secondServer.app.close()
     }

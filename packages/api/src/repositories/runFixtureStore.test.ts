@@ -288,6 +288,75 @@ describe('runFixtureStore', () => {
     })
   })
 
+  it('rehydrates planner-backed proposal detail and lightweight events from exported snapshots', async () => {
+    const projectId = 'project-hydrated-planner-output'
+    const store = createRunFixtureStore({
+      scenePlannerGateway: {
+        generate: vi.fn().mockResolvedValue(createPlannerResult({
+          modelId: 'gpt-5.4-mini',
+          proposals: [
+            {
+              title: 'Open with the station alarm',
+              summary: 'Lead with the alarm before Ren enters the frame.',
+              changeKind: 'action',
+              riskLabel: 'Editor check recommended',
+              variants: [
+                {
+                  label: 'Alarm-wide',
+                  summary: 'Stay wide on the station alarm beat.',
+                  rationale: 'Lets the reveal breathe before character focus.',
+                },
+              ],
+            },
+          ],
+        })),
+      },
+    })
+
+    const run = await store.startSceneRun(projectId, {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+      note: 'Persist the validated planner output.',
+    })
+    const snapshot = store.exportProjectState(projectId)
+    expect(snapshot).toBeTruthy()
+
+    const hydratedStore = createRunFixtureStore()
+    hydratedStore.clearProject(projectId)
+    hydratedStore.hydrateProjectState(projectId, snapshot!)
+
+    const proposalSet = hydratedStore.getRunArtifact(projectId, run.id, 'proposal-set-scene-midnight-platform-run-001')
+    const plannerInvocation = hydratedStore.getRunArtifact(
+      projectId,
+      run.id,
+      'agent-invocation-scene-midnight-platform-run-001-001',
+    )
+
+    expect(proposalSet?.kind).toBe('proposal-set')
+    if (proposalSet?.kind !== 'proposal-set') {
+      throw new Error('expected hydrated proposal-set detail')
+    }
+    expect(proposalSet.proposals).toHaveLength(1)
+    expect(proposalSet.proposals[0]?.id).toBe('proposal-set-scene-midnight-platform-run-001-proposal-001')
+    expect(proposalSet.proposals[0]?.title.en).toBe('Open with the station alarm')
+    expect(proposalSet.proposals[0]?.summary.en).toBe('Lead with the alarm before Ren enters the frame.')
+    expect(proposalSet.proposals[0]?.defaultVariantId).toBe(
+      'proposal-set-scene-midnight-platform-run-001-proposal-001-variant-001',
+    )
+    expect(plannerInvocation).toMatchObject({
+      kind: 'agent-invocation',
+      modelLabel: {
+        en: 'OpenAI planner profile (gpt-5.4-mini)',
+      },
+    })
+
+    const serializedEvents = JSON.stringify(listAllEventPages(hydratedStore, projectId, run.id))
+    expect(serializedEvents).not.toContain('transcript')
+    expect(serializedEvents).not.toContain('Persist the validated planner output.')
+    expect(serializedEvents).not.toContain('Return scene-planning proposals only.')
+    expect(serializedEvents).not.toContain('Open with the station alarm')
+  })
+
   it('routes createServer start-run persistence through the constructed planner gateway fallback path', async () => {
     const savedOverlays = new Map<string, unknown>()
     const server = createTestServer({

@@ -112,6 +112,15 @@ describe('fixture API server run flow', () => {
       expect(finalPreReviewEventsResponse.json().events.map((event: { kind: string }) => event.kind)).toEqual([
         'review_requested',
       ])
+      const serializedPreReviewEvents = JSON.stringify([
+        ...firstEventsPage.events,
+        ...nextEventsPage.events,
+        ...finalPreReviewEventsResponse.json().events,
+      ])
+      expect(serializedPreReviewEvents).not.toContain('transcript')
+      expect(serializedPreReviewEvents).not.toContain('Tighten the ending beat.')
+      expect(serializedPreReviewEvents).not.toContain('Return scene-planning proposals only.')
+      expect(serializedPreReviewEvents).not.toContain('Anchor the arrival beat')
 
       const reviewResponse = await app.inject({
         method: 'POST',
@@ -220,6 +229,7 @@ describe('fixture API server run flow', () => {
         'prose_generated',
         'run_completed',
       ])
+      expect(JSON.stringify(postReviewEvents)).not.toContain('transcript')
       expect(JSON.stringify(postReviewEvents)).not.toContain('Midnight Platform opens from the accepted run artifact')
       expect(JSON.stringify(postReviewEvents)).not.toContain('sourceProposalIds')
 

@@ -222,6 +222,42 @@ describe('sceneRunArtifactDetails', () => {
     ])
   })
 
+  it('compresses planner fallback provenance into labels without leaking raw gateway payloads', () => {
+    const artifact = createAgentInvocationArtifact({
+      runId,
+      sceneId,
+      sequence: 2,
+      index: 1,
+      role: 'planner',
+      provenance: {
+        provider: 'fixture',
+        modelId: 'fixture-scene-planner',
+        fallbackReason: 'invalid-output',
+      },
+    })
+    artifact.meta = {
+      ...artifact.meta,
+      prompt: 'Return scene-planning proposals only.',
+      transcript: [
+        {
+          role: 'assistant',
+          content: 'raw planner transcript',
+        },
+      ],
+    }
+
+    const detail = buildAgentInvocationDetail({
+      artifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-005'],
+    })
+
+    expect(detail.modelLabel).toEqual(
+      text('Fixture planner fallback (fixture-scene-planner)', 'Fixture 回退规划模型 (fixture-scene-planner)'),
+    )
+    expect(JSON.stringify(detail)).not.toContain('Return scene-planning proposals only.')
+    expect(JSON.stringify(detail)).not.toContain('raw planner transcript')
+  })
+
   it('builds proposal set detail with deterministic proposals and review options', () => {
     const artifact = createProposalSetArtifact({
       runId,
