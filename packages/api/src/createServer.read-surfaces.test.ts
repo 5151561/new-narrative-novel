@@ -133,6 +133,28 @@ describe('fixture API server read surfaces', () => {
           }),
         ]),
       )
+
+      const chapterSceneIds = chapter.json().scenes.map((sceneRecord: { id: string }) => sceneRecord.id)
+      const chapterSceneWorkspaces = await Promise.all(
+        chapterSceneIds.map(async (sceneId: string) => ({
+          sceneId,
+          response: await app.inject({
+            method: 'GET',
+            url: `/api/projects/book-signal-arc/scenes/${sceneId}/workspace`,
+          }),
+        })),
+      )
+
+      expect(chapterSceneWorkspaces).toEqual(
+        expect.arrayContaining(
+          chapterSceneIds.map((sceneId: string) => ({
+            sceneId,
+            response: expect.objectContaining({
+              statusCode: 200,
+            }),
+          })),
+        ),
+      )
     })
   })
 

@@ -684,6 +684,320 @@ function createReviewFixActions(): Record<string, ReviewIssueFixActionRecord[]> 
   }
 }
 
+interface LightweightSceneSeed {
+  sceneId: string
+  title: string
+  chapterId: string
+  chapterTitle: string
+  status: SceneFixtureRecord['workspace']['status']
+  runStatus: SceneFixtureRecord['workspace']['runStatus']
+  objective: string
+  chapterLabel: string
+  locationId: string
+  locationLabel: string
+  povCharacterId: string
+  timeboxLabel: string
+  setupSummary: string
+  cast: SceneFixtureRecord['setup']['cast']
+  externalGoal: string
+  emotionalGoal: string
+  successSignal: string
+  failureCost: string
+  constraints: SceneFixtureRecord['setup']['constraints']
+  knowledgeBoundaries: SceneFixtureRecord['setup']['knowledgeBoundaries']
+  executionGoal: string
+  tensionLabel: string
+  pacingLabel: string
+  beatId: string
+  beatTitle: string
+  beatSummary: string
+  proposalId: string
+  proposalTitle: string
+  proposalSummary: string
+  acceptedFactLabel: string
+  acceptedFactValue: string
+  acceptedFactTrace?: {
+    sourceProposals?: SceneFixtureRecord['execution']['acceptedSummary']['acceptedFacts'][number]['sourceProposals']
+    relatedAssets?: SceneFixtureRecord['execution']['acceptedSummary']['acceptedFacts'][number]['relatedAssets']
+  }
+  proseDraft?: string
+  proseStatusLabel: string
+  proseTraceSummary?: SceneFixtureRecord['prose']['traceSummary']
+  dockEventTitle: string
+  dockEventDetail: string
+  problemTitle: string
+  problemRecommendation: string
+  latestRunId?: string
+  runId?: string
+  currentVersionLabel?: string
+}
+
+function createFixtureRuntimePresetOptions(): SceneFixtureRecord['setup']['runtimePreset']['presetOptions'] {
+  return [
+    {
+      id: 'runtime-measured-pressure',
+      label: 'Measured Pressure',
+      focus: 'Controlled escalation',
+      intensity: 'Medium',
+      summary: 'Keep the scene light enough for parity coverage while preserving scene-shape integrity.',
+    },
+  ]
+}
+
+function createLightweightSceneFixture(seed: LightweightSceneSeed): SceneFixtureRecord {
+  const selectedCast = seed.cast.filter((member) => member.selected)
+  const acceptedFacts: SceneFixtureRecord['execution']['acceptedSummary']['acceptedFacts'] = [
+    {
+      id: `fact-${seed.sceneId}`,
+      label: seed.acceptedFactLabel,
+      value: seed.acceptedFactValue,
+      sourceProposals: seed.acceptedFactTrace?.sourceProposals,
+      relatedAssets: seed.acceptedFactTrace?.relatedAssets,
+    },
+  ]
+  const guardedBoundaries = seed.knowledgeBoundaries.filter((boundary) => boundary.status !== 'known')
+
+  return {
+    workspace: {
+      id: seed.sceneId,
+      title: seed.title,
+      chapterId: seed.chapterId,
+      chapterTitle: seed.chapterTitle,
+      status: seed.status,
+      runStatus: seed.runStatus,
+      objective: seed.objective,
+      castIds: selectedCast.map((member) => member.id),
+      locationId: seed.locationId,
+      latestRunId: seed.latestRunId,
+      pendingProposalCount: 1,
+      warningCount: 1,
+      currentVersionLabel: seed.currentVersionLabel,
+      activeThreadId: 'thread-main',
+      availableThreads: [{ id: 'thread-main', label: 'Mainline' }],
+    },
+    setup: {
+      sceneId: seed.sceneId,
+      identity: {
+        title: seed.title,
+        chapterLabel: seed.chapterLabel,
+        locationLabel: seed.locationLabel,
+        povCharacterId: seed.povCharacterId,
+        timeboxLabel: seed.timeboxLabel,
+        summary: seed.setupSummary,
+      },
+      objective: {
+        externalGoal: seed.externalGoal,
+        emotionalGoal: seed.emotionalGoal,
+        successSignal: seed.successSignal,
+        failureCost: seed.failureCost,
+      },
+      cast: seed.cast,
+      constraints: seed.constraints,
+      knowledgeBoundaries: seed.knowledgeBoundaries,
+      runtimePreset: {
+        selectedPresetId: 'runtime-measured-pressure',
+        presetOptions: createFixtureRuntimePresetOptions(),
+      },
+    },
+    execution: {
+      runId: seed.runId,
+      objective: {
+        goal: seed.executionGoal,
+        tensionLabel: seed.tensionLabel,
+        pacingLabel: seed.pacingLabel,
+        cast: selectedCast.map((member) => ({ id: member.id, name: member.name, role: member.role })),
+        location: { id: seed.locationId, name: seed.locationLabel },
+        warningsCount: 1,
+        unresolvedCount: seed.knowledgeBoundaries.length,
+        constraintSummary: seed.constraints.map((constraint) => constraint.summary),
+      },
+      beats: [
+        {
+          id: seed.beatId,
+          index: 1,
+          title: seed.beatTitle,
+          status: 'review',
+          proposalCount: 1,
+          warningCount: 1,
+          summary: seed.beatSummary,
+        },
+      ],
+      proposals: [
+        {
+          id: seed.proposalId,
+          beatId: seed.beatId,
+          actor: { id: 'scene-manager', name: 'Scene Manager', type: 'scene-manager' },
+          kind: 'state-change',
+          title: seed.proposalTitle,
+          summary: seed.proposalSummary,
+          status: 'pending',
+          impactTags: ['handoff', 'continuity'],
+          affects: [
+            {
+              path: 'scene.accepted-summary',
+              label: 'Accepted pressure',
+              deltaSummary: seed.proposalSummary,
+            },
+          ],
+          risks: [{ severity: 'warn', message: seed.problemTitle }],
+          evidencePeek: [seed.acceptedFactValue],
+          sourceTraceId: `trace-${seed.sceneId}`,
+        },
+      ],
+      acceptedSummary: {
+        sceneSummary: `Accepted state already keeps ${seed.acceptedFactLabel.toLowerCase()} in play while the next handoff stays reviewable.`,
+        acceptedFacts,
+        readiness: 'draftable',
+        pendingProposalCount: 1,
+        warningCount: 1,
+        patchCandidateCount: 0,
+      },
+      runtimeSummary: {
+        runHealth: 'attention',
+        latencyLabel: seed.runId ? '1.2s avg step' : 'Awaiting run',
+        tokenLabel: seed.runId ? '2.4k tokens' : '0 tokens',
+        costLabel: seed.runId ? '$0.06 est.' : '$0.00',
+        latestFailureSummary: seed.problemTitle,
+      },
+      consistencySummary: {
+        warningsCount: 1,
+        topIssues: [seed.problemTitle],
+      },
+      canContinueRun: false,
+      canOpenProse: true,
+    },
+    prose: {
+      sceneId: seed.sceneId,
+      proseDraft: seed.proseDraft,
+      revisionModes: ['rewrite', 'compress', 'expand', 'tone_adjust', 'continuity_fix'],
+      latestDiffSummary: 'No prose revision requested yet.',
+      warningsCount: 1,
+      focusModeAvailable: true,
+      revisionQueueCount: 0,
+      draftWordCount: seed.proseDraft?.trim() ? seed.proseDraft.trim().split(/\s+/).length : 0,
+      statusLabel: seed.proseStatusLabel,
+      traceSummary: seed.proseTraceSummary,
+    },
+    inspector: {
+      context: {
+        acceptedFacts,
+        privateInfoGuard: {
+          summary:
+            guardedBoundaries.length > 0
+              ? `Protect ${guardedBoundaries.length} guarded reveal point${guardedBoundaries.length === 1 ? '' : 's'} while review stays open.`
+              : 'No guarded reveal points remain.',
+          items: guardedBoundaries.map((boundary) => ({
+            id: `guard-${boundary.id}`,
+            label: boundary.label,
+            summary: boundary.summary,
+            status: boundary.status === 'guarded' ? 'guarded' : 'watching',
+          })),
+        },
+        actorKnowledgeBoundaries: selectedCast.map((member) => ({
+          actor: { id: member.id, name: member.name, role: member.role },
+          boundaries: seed.knowledgeBoundaries.map((boundary) => ({
+            ...boundary,
+          })),
+        })),
+        localState: [
+          { id: 'state-1', label: 'Active beat', value: seed.beatTitle },
+          { id: 'state-2', label: 'Selected runtime preset', value: 'Measured Pressure' },
+          { id: 'state-3', label: 'Accepted patch candidates', value: '0 semantic candidates' },
+        ],
+        overrides: [
+          {
+            id: `override-${seed.sceneId}`,
+            label: 'Chapter handoff',
+            summary: seed.problemRecommendation,
+            status: 'active',
+          },
+        ],
+      },
+      versions: {
+        checkpoints: [
+          {
+            id: `checkpoint-${seed.sceneId}`,
+            label: seed.currentVersionLabel ?? 'Scaffold checkpoint',
+            summary: `Fixture parity for ${seed.title} is available in scene scope.`,
+            status: 'review',
+          },
+        ],
+        acceptanceTimeline: [
+          {
+            id: `timeline-${seed.sceneId}`,
+            title: seed.dockEventTitle,
+            detail: seed.dockEventDetail,
+            meta: 'Review',
+            tone: 'accent',
+          },
+        ],
+        patchCandidates: [],
+      },
+      runtime: {
+        profile: {
+          label: 'Measured Pressure',
+          summary: `Keep ${seed.title} light enough for parity coverage while preserving scene-shape integrity.`,
+        },
+        runHealth: 'attention',
+        metrics: {
+          latencyLabel: seed.runId ? '1.2s avg step' : 'Awaiting run',
+          tokenLabel: seed.runId ? '2.4k tokens' : '0 tokens',
+          costLabel: seed.runId ? '$0.06 est.' : '$0.00',
+        },
+        latestFailure: seed.problemTitle,
+      },
+    },
+    dock: {
+      events: [
+        {
+          id: `event-${seed.sceneId}`,
+          title: seed.dockEventTitle,
+          detail: seed.dockEventDetail,
+          meta: 'Event',
+          tone: 'accent',
+        },
+      ],
+      trace: [
+        {
+          id: `trace-${seed.sceneId}`,
+          title: `Trace / ${seed.title}`,
+          detail: seed.proposalSummary,
+          meta: 'Trace',
+          tone: 'neutral',
+        },
+      ],
+      consistency: {
+        summary: `One continuity checkpoint remains open for ${seed.title}.`,
+        checks: [
+          {
+            id: `consistency-${seed.sceneId}`,
+            label: seed.problemTitle,
+            status: 'warn',
+            detail: seed.problemRecommendation,
+          },
+        ],
+      },
+      problems: {
+        summary: 'Keep the remaining risk visible without expanding the scene scaffold.',
+        items: [
+          {
+            id: `problem-${seed.sceneId}`,
+            title: seed.problemTitle,
+            severity: 'warn',
+            recommendation: seed.problemRecommendation,
+          },
+        ],
+      },
+      cost: {
+        currentWindowLabel: seed.runId ? '$0.06 estimated' : '$0.00 estimated',
+        trendLabel: 'Lightweight parity fixture.',
+        breakdown: [{ id: `cost-${seed.sceneId}`, label: 'Fixture status', value: 'Parity scaffold' }],
+      },
+    },
+    patchPreview: null,
+  }
+}
+
 function createSceneRecords(): Record<string, SceneFixtureRecord> {
   return {
     'scene-midnight-platform': {
@@ -1075,6 +1389,198 @@ function createSceneRecords(): Record<string, SceneFixtureRecord> {
         ],
       },
     },
+    'scene-concourse-delay': createLightweightSceneFixture({
+      sceneId: 'scene-concourse-delay',
+      title: 'Concourse Delay',
+      chapterId: 'chapter-signals-in-rain',
+      chapterTitle: 'Signals in Rain',
+      status: 'draft',
+      runStatus: 'idle',
+      objective: 'Hold the crowd bottleneck long enough to keep platform pressure alive.',
+      chapterLabel: 'Signals in Rain / Scene 5',
+      locationId: 'concourse-hall',
+      locationLabel: 'Crowded concourse hall',
+      povCharacterId: 'asset-mei-arden',
+      timeboxLabel: '03:18-03:22',
+      setupSummary: 'A crowd-bound transition scene that delays the exit without resolving who controls the courier line.',
+      cast: [
+        { id: 'asset-mei-arden', name: 'Mei Arden', role: 'POV', agenda: 'Hold the crowd between Ren and the gate.', selected: true },
+        { id: 'asset-ren-voss', name: 'Ren Voss', role: 'Counterforce', agenda: 'Slip through before the delay hardens.', selected: true },
+        { id: 'asset-platform-ushers', name: 'Platform ushers', role: 'Ambient pressure', agenda: 'Keep bodies moving, not answers.', selected: false },
+      ],
+      externalGoal: 'Delay the exit without giving up the courier advantage.',
+      emotionalGoal: 'Let Mei keep control without showing panic.',
+      successSignal: 'The crowd slows the move and the witness pressure survives.',
+      failureCost: 'The handoff escapes the chapter before the pressure lands.',
+      constraints: [
+        {
+          id: 'constraint-concourse-1',
+          label: 'Do not settle courier ownership',
+          kind: 'canon',
+          summary: 'No one proves who controls the courier line here.',
+        },
+      ],
+      knowledgeBoundaries: [
+        {
+          id: 'boundary-concourse-1',
+          label: 'Courier-line owner',
+          summary: 'The crowd delay should not confirm who actually commands the courier path.',
+          status: 'guarded',
+        },
+      ],
+      executionGoal: 'Use the bottleneck to delay motion without turning the chapter private.',
+      tensionLabel: 'Held',
+      pacingLabel: 'Crowded',
+      beatId: 'beat-concourse-delay',
+      beatTitle: 'Crowd bottleneck',
+      beatSummary: 'Bodies compress the exit while Mei tries to keep the witness pressure public.',
+      proposalId: 'proposal-concourse-delay',
+      proposalTitle: 'Keep the delay visible from both sides of the crowd',
+      proposalSummary: 'Let the bottleneck slow everyone down while the witness pressure carries inward from the platform.',
+      acceptedFactLabel: 'Crowd delay established',
+      acceptedFactValue: 'The concourse bottleneck slows motion without resolving courier ownership.',
+      acceptedFactTrace: {
+        sourceProposals: [{ proposalId: 'proposal-concourse-delay', sourceTraceId: 'trace-scene-concourse-delay' }],
+        relatedAssets: [
+          { assetId: 'asset-mei-arden', title: 'Mei Arden', kind: 'character' },
+          { assetId: 'asset-midnight-platform', title: 'Midnight Platform', kind: 'location' },
+        ],
+      },
+      proseStatusLabel: 'Draft handoff ready',
+      dockEventTitle: 'Concourse delay preserved',
+      dockEventDetail: 'The scene scaffold keeps crowd pressure active without settling the courier line.',
+      problemTitle: 'Crowd pressure still needs a clean exit path',
+      problemRecommendation: 'Keep the witness line visible while the crowd delay hands the chapter forward.',
+    }),
+    'scene-ticket-window': createLightweightSceneFixture({
+      sceneId: 'scene-ticket-window',
+      title: 'Ticket Window',
+      chapterId: 'chapter-signals-in-rain',
+      chapterTitle: 'Signals in Rain',
+      status: 'review',
+      runStatus: 'paused',
+      objective: 'Put speed and certainty in the same beat without letting Ren’s alias surface.',
+      chapterLabel: 'Signals in Rain / Scene 6',
+      locationId: 'ticket-window',
+      locationLabel: 'Station ticket window',
+      povCharacterId: 'asset-ren-voss',
+      timeboxLabel: '03:22-03:25',
+      setupSummary: 'A narrow transaction scene where speed is useful only if the alias stays out of public reach.',
+      cast: [
+        { id: 'asset-ren-voss', name: 'Ren Voss', role: 'POV', agenda: 'Buy speed without naming the alias.', selected: true },
+        { id: 'asset-mei-arden', name: 'Mei Arden', role: 'Counterforce', agenda: 'Force commitment before motion resumes.', selected: true },
+        { id: 'asset-ticket-clerk', name: 'Ticket clerk', role: 'Witness', agenda: 'Notice urgency, not the hidden identity.', selected: true },
+      ],
+      externalGoal: 'Secure the next move before the gate closes.',
+      emotionalGoal: 'Keep Ren contained while Mei sharpens the trade-off.',
+      successSignal: 'The trade-off tightens and the alias remains private.',
+      failureCost: 'The chapter exposes the alias before the handoff earns it.',
+      constraints: [
+        {
+          id: 'constraint-ticket-1',
+          label: 'Alias stays offstage',
+          kind: 'canon',
+          summary: 'No public alias reveal is allowed at the ticket window.',
+        },
+      ],
+      knowledgeBoundaries: [
+        {
+          id: 'boundary-ticket-1',
+          label: 'Alias exposure',
+          summary: 'The alias remains withheld from the clerk and the crowd.',
+          status: 'guarded',
+        },
+      ],
+      executionGoal: 'Turn urgency into a visible trade-off instead of an explanation dump.',
+      tensionLabel: 'Tight',
+      pacingLabel: 'Controlled',
+      beatId: 'beat-ticket-window',
+      beatTitle: 'Window bargain',
+      beatSummary: 'Ren reaches for speed while Mei keeps the cost public enough to matter.',
+      proposalId: 'proposal-ticket-window',
+      proposalTitle: 'Force the trade-off into one visible exchange',
+      proposalSummary: 'Let the clerk witness urgency without learning the alias that gives the urgency its edge.',
+      acceptedFactLabel: 'Alias still offstage',
+      acceptedFactValue: 'The ticket-window exchange keeps the alias outside public knowledge.',
+      acceptedFactTrace: {
+        sourceProposals: [{ proposalId: 'proposal-ticket-window', sourceTraceId: 'trace-scene-ticket-window' }],
+        relatedAssets: [
+          { assetId: 'asset-ren-voss', title: 'Ren Voss', kind: 'character' },
+          { assetId: 'asset-ticket-window', title: 'Ticket Window', kind: 'location' },
+        ],
+      },
+      proseStatusLabel: 'Ready for prose pass',
+      dockEventTitle: 'Ticket-window trade-off held',
+      dockEventDetail: 'The scene remains usable in scene scope without exposing the alias.',
+      problemTitle: 'Alias pressure needs tighter public cover',
+      problemRecommendation: 'Keep the clerk focused on urgency so the alias never enters the room.',
+      latestRunId: 'run-03',
+      runId: 'run-03',
+      currentVersionLabel: 'Run 03',
+    }),
+    'scene-departure-bell': createLightweightSceneFixture({
+      sceneId: 'scene-departure-bell',
+      title: 'Departure Bell',
+      chapterId: 'chapter-signals-in-rain',
+      chapterTitle: 'Signals in Rain',
+      status: 'draft',
+      runStatus: 'idle',
+      objective: 'Place the bell without collapsing witness pressure before the chapter closes.',
+      chapterLabel: 'Signals in Rain / Scene 7',
+      locationId: 'departure-gate',
+      locationLabel: 'Departure gate',
+      povCharacterId: 'asset-station-conductor',
+      timeboxLabel: '03:25-03:27',
+      setupSummary: 'A final timing scene still testing where motion begins and scrutiny stops.',
+      cast: [
+        { id: 'asset-station-conductor', name: 'Station Conductor', role: 'POV', agenda: 'Keep the platform moving on schedule.', selected: true },
+        { id: 'asset-ren-voss', name: 'Ren Voss', role: 'Pressure point', agenda: 'Leave before the bell turns him into a public fact.', selected: true },
+        { id: 'asset-mei-arden', name: 'Mei Arden', role: 'Counterforce', agenda: 'Make the bell land on her terms.', selected: true },
+      ],
+      externalGoal: 'Choose a bell cue that preserves confrontation pressure to the end.',
+      emotionalGoal: 'Let the conductor read the tension without explaining it.',
+      successSignal: 'The bell lands and the witness pressure still matters.',
+      failureCost: 'Motion starts too early and drains the confrontation.',
+      constraints: [
+        {
+          id: 'constraint-bell-1',
+          label: 'Bell cannot pre-resolve the chapter',
+          kind: 'timing',
+          summary: 'The bell must not end the pressure before the final beat lands.',
+        },
+      ],
+      knowledgeBoundaries: [
+        {
+          id: 'boundary-bell-1',
+          label: 'Final exit trigger',
+          summary: 'The exact trigger for motion stays provisional until the chapter handoff is stable.',
+          status: 'open-question',
+        },
+      ],
+      executionGoal: 'Hold the final cue long enough for the chapter to keep its witness line.',
+      tensionLabel: 'Edge',
+      pacingLabel: 'Measured',
+      beatId: 'beat-departure-bell',
+      beatTitle: 'Bell placement review',
+      beatSummary: 'The conductor measures when the bell becomes motion instead of pressure.',
+      proposalId: 'proposal-departure-bell',
+      proposalTitle: 'Tie the bell to the last visible concession',
+      proposalSummary: 'Keep the bell attached to a visible choice so the chapter does not drift into abstract timing.',
+      acceptedFactLabel: 'Bell timing still provisional',
+      acceptedFactValue: 'The chapter still needs one safe bell cue before motion can begin.',
+      acceptedFactTrace: {
+        sourceProposals: [{ proposalId: 'proposal-departure-bell', sourceTraceId: 'trace-scene-departure-bell' }],
+        relatedAssets: [
+          { assetId: 'asset-station-conductor', title: 'Station Conductor', kind: 'character' },
+          { assetId: 'asset-departure-gate', title: 'Departure gate', kind: 'location' },
+        ],
+      },
+      proseStatusLabel: 'Waiting for first prose pass',
+      dockEventTitle: 'Bell timing still under review',
+      dockEventDetail: 'The departure cue can open in scene scope, but the final placement still needs chapter alignment.',
+      problemTitle: 'Bell timing could still drain pressure too early',
+      problemRecommendation: 'Tie the bell to the last visible concession instead of an empty timing slot.',
+    }),
     'scene-warehouse-bridge': {
       workspace: {
         id: 'scene-warehouse-bridge',

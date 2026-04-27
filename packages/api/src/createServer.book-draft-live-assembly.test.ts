@@ -113,7 +113,7 @@ describe('fixture API server book draft live assembly', () => {
         sceneId: 'scene-concourse-delay',
         order: 2,
         gapReason: {
-          en: expect.stringContaining('read model is unavailable'),
+          en: expect.stringContaining('No prose draft'),
         },
         traceReady: false,
         traceRollup: {
