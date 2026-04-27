@@ -204,6 +204,7 @@ PR20 的前端运行路径统一收敛到 `/api/projects/{projectId}/...`。
   - `api` 表示当前客户端正在通过 `/api/projects/{projectId}/...` 合同读写真实产品路径。
 - `status`：`healthy | checking | unavailable | unauthorized | forbidden | not_found | unknown`。
 - `summary`：给 workbench 级 runtime boundary 直接展示的简短说明，强调当前连接状态，而不是 feature 细节。
+  - 对 `source: 'api'` 的 degraded demo path，summary 可以直接提示操作者重启 fixture API 或重开 `desktop-local` demo，而不是把恢复逻辑藏在 feature 级报错里。
 - `checkedAtLabel` / `apiBaseUrl` / `versionLabel`：可选展示字段，不要求所有实现都返回。
 - `capabilities`：项目级能力开关，不是 route state，也不是 UI 权限缓存。
 

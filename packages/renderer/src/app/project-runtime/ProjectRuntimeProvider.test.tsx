@@ -74,6 +74,31 @@ describe('ProjectRuntimeProvider', () => {
     expect(hook.result.current.persistence).toBeUndefined()
   })
 
+  it('keeps generic web runtime on the mock fallback when the API env is absent', () => {
+    delete runtimeEnv.VITE_NARRATIVE_API_BASE_URL
+    delete runtimeEnv.VITE_NARRATIVE_PROJECT_ID
+
+    function Wrapper({ children }: PropsWithChildren) {
+      return (
+        <ProjectRuntimeProvider
+          runtimeConfig={{
+            apiBaseUrl: 'http://127.0.0.1:4888/api',
+            runtimeMode: 'web',
+          }}
+        >
+          {children}
+        </ProjectRuntimeProvider>
+      )
+    }
+
+    const hook = renderHook(() => useProjectRuntime(), {
+      wrapper: Wrapper,
+    })
+
+    expect(hook.result.current.projectId).toBe('book-signal-arc')
+    expect(hook.result.current.persistence).toBeDefined()
+  })
+
   it('creates an API runtime from desktop-local runtime config even when web API env is absent', async () => {
     delete runtimeEnv.VITE_NARRATIVE_API_BASE_URL
     delete runtimeEnv.VITE_NARRATIVE_PROJECT_ID

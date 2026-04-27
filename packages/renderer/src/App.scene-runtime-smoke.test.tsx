@@ -177,5 +177,53 @@ describe('App scene runtime smoke', () => {
     expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
     expect(within(bottomDock).getByText('Active Run Support')).toBeInTheDocument()
     expect(within(bottomDock).getAllByText('Proposal set accepted with editor adjustments applied to canon and prose.').length).toBeGreaterThan(0)
+    expect(screen.getByText(/Midnight Platform opens from the accepted run artifact/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Chapter' }))
+    await user.click(screen.getByRole('button', { name: 'Draft' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('chapter')
+      expect(params.get('id')).toBe('chapter-signals-in-rain')
+      expect(params.get('lens')).toBe('draft')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Chapter draft' })).toBeInTheDocument()
+
+    const midnightDraftButtons = await screen.findAllByRole('button', { name: /Scene 1 Midnight Platform/i })
+    await user.click(midnightDraftButtons.at(-1)!)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Selected section' })).toBeInTheDocument()
+    })
+
+    const selectedSection = screen.getByRole('heading', { name: 'Selected section' }).closest('section')
+    if (!selectedSection) {
+      throw new Error('Expected the selected chapter section to be visible.')
+    }
+
+    expect(within(screen.getByTestId('workbench-main-stage-scroll-body')).getByText(/Midnight Platform opens from the accepted run artifact/i)).toBeInTheDocument()
+    expect(within(selectedSection).getByText('A fixture prose draft was rendered for Midnight Platform.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Book' }))
+    await user.click(screen.getByRole('button', { name: 'Draft' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('book')
+      expect(params.get('id')).toBe('book-signal-arc')
+      expect(params.get('lens')).toBe('draft')
+    })
+
+    expect(await screen.findAllByText('Book manuscript')).not.toHaveLength(0)
+
+    await user.click(screen.getAllByRole('button', { name: 'Chapter 1 Signals in Rain' })[0]!)
+
+    expect(within(screen.getByTestId('workbench-main-stage-scroll-body')).getByText(/Midnight Platform opens from the accepted run artifact/i)).toBeInTheDocument()
+    const selectedDestination = screen.getByRole('region', { name: 'Selected manuscript destination' })
+    expect(within(selectedDestination).getByText('Keep the chapter order stable, then return here once the scene draft is ready.')).toBeInTheDocument()
+    expect(within(selectedDestination).getByText('Concourse Delay')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Book draft bottom dock' })).getByText('Focused Signals in Rain')).toBeInTheDocument()
   }, 20000)
 })

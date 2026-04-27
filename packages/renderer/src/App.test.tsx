@@ -1656,6 +1656,9 @@ describe('App scene workbench', () => {
       expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Unavailable')
     })
 
+    expect(
+      screen.getByText('API demo runtime is unavailable. Start the fixture API or reopen the desktop-local demo, then retry.'),
+    ).toBeInTheDocument()
     expect(screen.getByText('Workbench stays available while the runtime health recovers.')).toBeInTheDocument()
     expect(window.location.search).toBe(initialSearch)
   })

@@ -188,6 +188,22 @@ VITE_NARRATIVE_PROJECT_ID=book-signal-arc
 - `web/api`：浏览器环境且配置 `VITE_NARRATIVE_API_BASE_URL`，renderer 直接消费 `/api/projects/{projectId}/...`。
 - `desktop-local`：Electron preload 通过 `window.narrativeDesktop.getRuntimeConfig()` 注入本地 API base URL；renderer 仍走同一套 HTTP contract，但这是更严格的产品合同校验路径。
 
+usable prototype demo 的精确启动/演示步骤见：
+
+- [doc/usable-prototype-demo-script.md](/Users/changlepan/new-narrative-novel/doc/usable-prototype-demo-script.md)
+
+如果你要跑 API-backed demo，请直接使用默认验证路由：
+
+```txt
+/workbench?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution
+```
+
+如果顶栏 runtime badge 变成 degraded：
+
+- `Unavailable`：web 路径重启 `pnpm dev:api`；desktop 路径重启 `pnpm dev:desktop`；然后点 `Retry`。
+- `Not found`：确认 `VITE_NARRATIVE_PROJECT_ID=book-signal-arc`，或确认 desktop-local 仍指向 seeded fixture project。
+- 未配置 `VITE_NARRATIVE_API_BASE_URL` 的普通 web 环境会继续保持 mock fallback；这不是 API-backed demo drift，而是当前刻意保留的 fallback 行为。
+
 ### 启动 renderer
 
 ```bash

@@ -65,6 +65,23 @@ export const HealthyLimited: Story = {
   },
 }
 
+export const ApiDemoUnavailable: Story = {
+  args: {
+    info: createProjectRuntimeInfoRecord({
+      projectId: 'project-story-runtime',
+      projectTitle: 'Signal Arc',
+      source: 'api',
+      status: 'unavailable',
+      summary: 'API demo runtime is unavailable. Start the fixture API or reopen the desktop-local demo, then retry.',
+      capabilities: {
+        read: false,
+        write: false,
+      },
+    }),
+    onRetry: () => {},
+  },
+}
+
 export const AllStates: Story = {
   render: () => {
     const statuses = [
@@ -143,7 +160,7 @@ export const AllStates: Story = {
             projectTitle: 'Signal Arc',
             source: 'api',
             status: 'unavailable',
-            summary: 'Project runtime is unavailable.',
+            summary: 'API demo runtime is unavailable. Start the fixture API or reopen the desktop-local demo, then retry.',
             capabilities: {
               read: false,
               write: false,
@@ -160,7 +177,7 @@ export const AllStates: Story = {
             projectTitle: 'Signal Arc',
             source: 'api',
             status: 'unauthorized',
-            summary: 'Project runtime authentication is required.',
+            summary: 'API demo runtime requires authentication before this project can load.',
             capabilities: {
               read: false,
               write: false,

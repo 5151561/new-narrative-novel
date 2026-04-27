@@ -146,17 +146,26 @@ describe('useProjectRuntimeHealthQuery', () => {
   })
 
   it.each([
-    new ApiRequestError({
-      status: 503,
-      message: 'runtime-unavailable',
-    }),
-    new Error('fetch failed'),
-    new ApiRequestError({
-      status: 200,
-      message: 'Malformed JSON response',
-      detail: '<html>gateway error</html>',
-    }),
-  ])('classifies unavailable runtime-info failures for %s', async (error) => {
+    {
+      error: new ApiRequestError({
+        status: 503,
+        message: 'runtime-unavailable',
+      }),
+      summary: 'API demo runtime is unavailable. Start the fixture API or reopen the desktop-local demo, then retry.',
+    },
+    {
+      error: new Error('fetch failed'),
+      summary: 'API demo runtime is unavailable. Start the fixture API or reopen the desktop-local demo, then retry.',
+    },
+    {
+      error: new ApiRequestError({
+        status: 200,
+        message: 'Malformed JSON response',
+        detail: '<html>gateway error</html>',
+      }),
+      summary: 'API demo runtime returned malformed runtime info. Restart the fixture API or reopen the desktop-local demo, then retry.',
+    },
+  ])('classifies unavailable runtime-info failures for %s', async ({ error, summary }) => {
     const { runtime } = createFakeApiRuntime({
       projectId: 'project-down',
       overrides: [
@@ -179,8 +188,41 @@ describe('useProjectRuntimeHealthQuery', () => {
       projectId: 'project-down',
       source: 'api',
       status: 'unavailable',
+      summary,
     })
     expect(hook.result.current.error).toBe(error)
+  })
+
+  it('guides the API-backed demo path when runtime-info returns not_found', async () => {
+    const apiError = new ApiRequestError({
+      status: 404,
+      message: 'runtime-404',
+    })
+    const { runtime } = createFakeApiRuntime({
+      projectId: 'project-demo-missing',
+      overrides: [
+        {
+          method: 'GET',
+          path: '/api/projects/project-demo-missing/runtime-info',
+          error: apiError,
+        },
+      ],
+    })
+    const wrapper = createProjectRuntimeTestWrapper({ runtime })
+
+    const hook = renderHook(() => useProjectRuntimeHealthQuery(), { wrapper })
+
+    await waitFor(() => {
+      expect(hook.result.current.isChecking).toBe(false)
+    })
+
+    expect(hook.result.current.info).toMatchObject({
+      projectId: 'project-demo-missing',
+      source: 'api',
+      status: 'not_found',
+      summary: 'API demo project "project-demo-missing" was not found. Verify the runtime project id and seeded fixture data, then retry.',
+    })
+    expect(hook.result.current.error).toBe(apiError)
   })
 
   it('classifies unknown runtime-info failures when the API status falls through', async () => {
