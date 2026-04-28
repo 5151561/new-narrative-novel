@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import type { FixtureProjectData } from '../contracts/api-records.js'
 
 import { createSignalArcProjectTemplate } from './fixture-data.js'
+import { createProjectBackup } from './project-backup.js'
 
 export const LOCAL_PROJECT_STORE_SCHEMA_VERSION = 1 as const
 export const LOCAL_PROJECT_STORE_KIND = 'narrative-local-project-store' as const
@@ -47,7 +48,23 @@ interface CreateLocalProjectStorePersistenceOptions {
   projectTitle: string
   runtimeSummary?: string
   versionLabel?: string
+  now?: () => string
+  createBackup?: typeof createProjectBackup
   fileSystem?: LocalProjectStoreFileSystem
+}
+
+interface LegacyProjectStateEnvelope {
+  schemaVersion: number
+  seedVersion: string
+  projects: Record<string, {
+    updatedAt: string
+    reviewDecisions?: Record<string, unknown>
+    reviewFixActions?: Record<string, unknown>
+    exportArtifacts?: Record<string, unknown>
+    chapters?: Record<string, unknown>
+    scenes?: Record<string, unknown>
+    runStore?: unknown
+  }>
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -143,6 +160,10 @@ function invalidLocalProjectStoreError(filePath: string) {
   return new Error(`Local project store is invalid: ${filePath}`)
 }
 
+function unsupportedLocalProjectStoreSchemaVersionError() {
+  return new Error('Unsupported local project store schemaVersion')
+}
+
 function sanitizeLocalProjectStoreRecord(
   value: unknown,
   options: Pick<CreateLocalProjectStorePersistenceOptions, 'filePath' | 'projectId'>,
@@ -152,7 +173,7 @@ function sanitizeLocalProjectStoreRecord(
   }
 
   if (value.schemaVersion !== LOCAL_PROJECT_STORE_SCHEMA_VERSION) {
-    throw new Error('Unsupported local project store schemaVersion')
+    throw unsupportedLocalProjectStoreSchemaVersionError()
   }
 
   if (value.storeKind !== LOCAL_PROJECT_STORE_KIND) {
@@ -220,8 +241,13 @@ async function writeLocalProjectStoreRecord(
   await fileSystem.rename(tempFilePath, filePath)
 }
 
-function createTemplateRecord(options: Omit<CreateLocalProjectStorePersistenceOptions, 'fileSystem'>): LocalProjectStoreRecord {
-  const now = new Date().toISOString()
+function createTemplateRecord(
+  options: Pick<
+    CreateLocalProjectStorePersistenceOptions,
+    'apiBaseUrl' | 'projectId' | 'projectTitle' | 'runtimeSummary' | 'versionLabel' | 'now'
+  >,
+): LocalProjectStoreRecord {
+  const now = options.now ? options.now() : new Date().toISOString()
 
   return {
     schemaVersion: LOCAL_PROJECT_STORE_SCHEMA_VERSION,
@@ -244,6 +270,80 @@ function createTemplateRecord(options: Omit<CreateLocalProjectStorePersistenceOp
   }
 }
 
+function isLegacyProjectStateEnvelope(value: unknown): value is {
+  schemaVersion: unknown
+  seedVersion: unknown
+  projects: unknown
+} {
+  return (
+    isRecord(value)
+    && 'schemaVersion' in value
+    && 'seedVersion' in value
+    && 'projects' in value
+  )
+}
+
+function sanitizeLegacyProjectStateEnvelope(
+  value: unknown,
+  options: Pick<CreateLocalProjectStorePersistenceOptions, 'filePath' | 'projectId' | 'projectTitle' | 'apiBaseUrl' | 'runtimeSummary' | 'versionLabel' | 'now'>,
+): LocalProjectStoreRecord {
+  if (!isLegacyProjectStateEnvelope(value)) {
+    throw invalidLocalProjectStoreError(options.filePath)
+  }
+
+  if (value.schemaVersion !== 1) {
+    throw unsupportedLocalProjectStoreSchemaVersionError()
+  }
+
+  if (typeof value.seedVersion !== 'string' || !isRecord(value.projects)) {
+    throw invalidLocalProjectStoreError(options.filePath)
+  }
+
+  const legacyProject = value.projects[options.projectId]
+  if (!isRecord(legacyProject) || typeof legacyProject.updatedAt !== 'string') {
+    throw invalidLocalProjectStoreError(options.filePath)
+  }
+
+  const migratedRecord = createTemplateRecord(options)
+  migratedRecord.project.updatedAt = legacyProject.updatedAt
+
+  if (legacyProject.reviewDecisions && isRecord(legacyProject.reviewDecisions)) {
+    migratedRecord.project.data.reviewDecisions = toJsonClone(
+      legacyProject.reviewDecisions as unknown as FixtureProjectData['reviewDecisions'],
+    )
+  }
+  if (legacyProject.reviewFixActions && isRecord(legacyProject.reviewFixActions)) {
+    migratedRecord.project.data.reviewFixActions = toJsonClone(
+      legacyProject.reviewFixActions as unknown as FixtureProjectData['reviewFixActions'],
+    )
+  }
+  if (legacyProject.exportArtifacts && isRecord(legacyProject.exportArtifacts)) {
+    migratedRecord.project.data.exportArtifacts = toJsonClone(
+      legacyProject.exportArtifacts as unknown as FixtureProjectData['exportArtifacts'],
+    )
+  }
+  if (legacyProject.chapters && isRecord(legacyProject.chapters)) {
+    migratedRecord.project.data.chapters = toJsonClone(
+      legacyProject.chapters as unknown as FixtureProjectData['chapters'],
+    )
+  }
+  if (legacyProject.scenes && isRecord(legacyProject.scenes)) {
+    migratedRecord.project.data.scenes = toJsonClone(
+      legacyProject.scenes as unknown as FixtureProjectData['scenes'],
+    )
+  }
+  if ('runStore' in legacyProject) {
+    const runStore = sanitizeRunStore(legacyProject.runStore)
+    if (!runStore) {
+      throw invalidLocalProjectStoreError(options.filePath)
+    }
+
+    migratedRecord.runStore = runStore
+  }
+
+  return migratedRecord
+}
+
 export function resolveDefaultProjectStoreFilePath() {
   return fileURLToPath(new URL('../../../../.narrative/local-project-store.json', import.meta.url))
 }
@@ -261,11 +361,24 @@ const defaultFileSystem: LocalProjectStoreFileSystem = {
 
 export function createLocalProjectStorePersistence(options: CreateLocalProjectStorePersistenceOptions) {
   const fileSystem = options.fileSystem ?? defaultFileSystem
+  const createBackup = options.createBackup ?? createProjectBackup
 
   async function readExistingRecord() {
     try {
       const fileContents = await fileSystem.readFile(options.filePath, 'utf8')
-      return sanitizeLocalProjectStoreRecord(JSON.parse(fileContents), options)
+      const parsed = JSON.parse(fileContents) as unknown
+
+      if (isLegacyProjectStateEnvelope(parsed)) {
+        const migratedRecord = sanitizeLegacyProjectStateEnvelope(parsed, options)
+        await createBackup({
+          now: options.now,
+          projectRoot: path.dirname(path.dirname(options.filePath)),
+          storeFilePath: options.filePath,
+        })
+        return writeRecord(migratedRecord)
+      }
+
+      return sanitizeLocalProjectStoreRecord(parsed, options)
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException
       if (nodeError.code === 'ENOENT') {

@@ -88,4 +88,28 @@ describe('RecentProjectsStore', () => {
     await expect(store.list()).resolves.toEqual([])
     await expect(readFile(path.join(userDataPath, 'recent-projects.json'), 'utf8')).resolves.toContain('"projects": []')
   })
+
+  it('sanitizes persisted recent-project records back to SelectedProjectSession fields only', async () => {
+    const userDataPath = createUserDataPath()
+    writeFileSync(path.join(userDataPath, 'recent-projects.json'), JSON.stringify({
+      projects: [
+        {
+          lastOpenedAt: '2026-04-28T00:00:00.000Z',
+          projectId: 'local-project-alpha',
+          projectRoot: '/tmp/workbench-alpha',
+          projectTitle: 'Workbench Alpha',
+        },
+      ],
+    }), 'utf8')
+
+    const store = new RecentProjectsStore({ userDataPath })
+
+    await expect(store.list()).resolves.toEqual([
+      {
+        projectId: 'local-project-alpha',
+        projectRoot: '/tmp/workbench-alpha',
+        projectTitle: 'Workbench Alpha',
+      },
+    ])
+  })
 })
