@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx src/server.ts",
+    "dev": "node ../../scripts/run-with-cleanup.mjs tsx src/server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "node ../../scripts/run-with-cleanup.mjs vitest run",
+    "test:watch": "node ../../scripts/run-with-cleanup.mjs vitest"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",

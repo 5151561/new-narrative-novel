@@ -3,17 +3,17 @@
   "private": true,
   "packageManager": "pnpm@10.8.0",
   "scripts": {
-    "dev:api": "pnpm --filter @narrative-novel/api dev",
-    "dev:desktop": "pnpm --filter @narrative-novel/desktop dev",
+    "dev:api": "node ./scripts/run-with-cleanup.mjs pnpm --filter @narrative-novel/api dev",
+    "dev:desktop": "node ./scripts/run-with-cleanup.mjs pnpm --filter @narrative-novel/desktop dev",
     "desktop:dev": "pnpm dev:desktop",
-    "dev:renderer": "pnpm --filter @narrative-novel/renderer dev",
+    "dev:renderer": "node ./scripts/run-with-cleanup.mjs pnpm --filter @narrative-novel/renderer dev",
     "build:desktop": "pnpm --filter @narrative-novel/desktop build",
-    "test:desktop": "pnpm --filter @narrative-novel/desktop test",
+    "test:desktop": "node ./scripts/run-with-cleanup.mjs pnpm --filter @narrative-novel/desktop test",
     "typecheck:desktop": "pnpm --filter @narrative-novel/desktop typecheck",
     "typecheck": "pnpm -r --filter @narrative-novel/fixture-seed --filter @narrative-novel/api --filter @narrative-novel/renderer --filter @narrative-novel/desktop typecheck",
-    "test": "pnpm -r --filter @narrative-novel/fixture-seed --filter @narrative-novel/api --filter @narrative-novel/renderer --filter @narrative-novel/desktop test",
+    "test": "node ./scripts/run-with-cleanup.mjs pnpm -r --filter @narrative-novel/fixture-seed --filter @narrative-novel/api --filter @narrative-novel/renderer --filter @narrative-novel/desktop test",
     "build": "pnpm --filter @narrative-novel/renderer build",
-    "storybook": "pnpm --filter @narrative-novel/renderer storybook",
+    "storybook": "node ./scripts/run-with-cleanup.mjs pnpm --filter @narrative-novel/renderer storybook",
     "verify:prototype": "node ./scripts/verify-prototype.mjs"
   }
 }

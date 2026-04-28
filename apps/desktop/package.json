@@ -5,14 +5,14 @@
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
-    "dev": "node ../../scripts/desktop-dev.mjs",
+    "dev": "node ../../scripts/run-with-cleanup.mjs node ../../scripts/desktop-dev.mjs",
     "dev:electron": "pnpm run build && electron dist/main.js",
     "build": "pnpm run build:main && pnpm run build:preload",
     "build:main": "vite build --config vite.main.config.ts",
     "build:preload": "vite build --config vite.preload.config.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "node ../../scripts/run-with-cleanup.mjs vitest run",
+    "test:watch": "node ../../scripts/run-with-cleanup.mjs vitest"
   },
   "devDependencies": {
     "@types/node": "^22.14.1",

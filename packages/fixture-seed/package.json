@@ -13,7 +13,7 @@
   "types": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "node ../../scripts/run-with-cleanup.mjs vitest run"
   },
   "devDependencies": {
     "@types/node": "^22.14.1",
