@@ -294,4 +294,60 @@ describe('fixture API server run recovery routes', () => {
       },
     })
   })
+
+  it('keeps a hydrated waiting-review run reviewable after restart', async () => {
+    const seedStore = createRunFixtureStore()
+    const seededRun = await seedStore.startSceneRun('book-signal-arc', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+      note: 'Persist waiting review.',
+    })
+    const persistedState = seedStore.exportProjectState('book-signal-arc')!
+
+    await withTestServer(async ({ app }) => {
+      const getRunResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/book-signal-arc/runs/${seededRun.id}`,
+      })
+      expect(getRunResponse.statusCode).toBe(200)
+      expect(getRunResponse.json()).toMatchObject({
+        id: seededRun.id,
+        status: 'waiting_review',
+        pendingReviewId: seededRun.pendingReviewId,
+      })
+
+      const reviewResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/book-signal-arc/runs/${seededRun.id}/review-decisions`,
+        payload: {
+          reviewId: seededRun.pendingReviewId,
+          decision: 'accept',
+        },
+      })
+
+      expect(reviewResponse.statusCode).toBe(200)
+      expect(reviewResponse.json()).toMatchObject({
+        id: seededRun.id,
+        status: 'completed',
+      })
+      expect(reviewResponse.json()).not.toHaveProperty('pendingReviewId')
+    }, {
+      projectStatePersistence: {
+        async load() {
+          return {
+            schemaVersion: 1,
+            seedVersion: 'test-seed',
+            projects: {
+              'book-signal-arc': {
+                updatedAt: '2026-04-28T10:00:00.000Z',
+                runStore: persistedState,
+              },
+            },
+          }
+        },
+        async saveProjectOverlay() {},
+        async clearProjectOverlay() {},
+      },
+    })
+  })
 })

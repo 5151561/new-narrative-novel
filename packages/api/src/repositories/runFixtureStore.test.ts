@@ -33,6 +33,16 @@ interface MutablePersistedRunState {
     severity?: 'info' | 'warning' | 'error'
     metadata?: Record<string, string | number | boolean | null>
   }>
+  artifacts?: Array<{
+    id: string
+    kind: string
+    runId?: string
+    sceneId?: string
+    title?: string
+    summary?: string
+    status?: string
+    meta?: Record<string, unknown>
+  }>
 }
 
 describe('runFixtureStore', () => {
@@ -529,6 +539,113 @@ describe('runFixtureStore', () => {
       cursor: completedRun.latestEventId,
     })[Symbol.asyncIterator]()
     await expect(streamIterator.next()).resolves.toEqual({ done: true, value: undefined })
+  })
+
+  it('rehydrates a waiting-review run without promoting it to completed truth', async () => {
+    const store = createRunFixtureStore()
+    const projectId = 'project-waiting-review'
+    const run = await store.startSceneRun(projectId, {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+      note: 'Persist waiting review.',
+    })
+
+    const snapshot = store.exportProjectState(projectId)
+    expect(snapshot).toBeTruthy()
+
+    const hydrated = createRunFixtureStore()
+    hydrated.clearProject(projectId)
+    hydrated.hydrateProjectState(projectId, snapshot!)
+
+    expect(hydrated.getRun(projectId, run.id)).toMatchObject({
+      id: run.id,
+      status: 'waiting_review',
+      pendingReviewId: run.pendingReviewId,
+    })
+    expect(hydrated.getRunTrace(projectId, run.id)?.summary).toEqual({
+      proposalSetCount: 1,
+      canonPatchCount: 0,
+      proseDraftCount: 0,
+      missingTraceCount: 0,
+    })
+  })
+
+  it('rehydrates a failed resumable run with artifacts and trace still readable', async () => {
+    const store = createRunFixtureStore()
+    const projectId = 'project-failed-recovery'
+    const seededRun = await store.startSceneRun(projectId, {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+      note: 'Persist failed recovery.',
+    })
+    const snapshot = store.exportProjectState(projectId)! as unknown as {
+      runStates: MutablePersistedRunState[]
+      sceneSequences: Record<string, number>
+    }
+    const runState = snapshot.runStates.find((entry) => entry.run.id === seededRun.id)!
+    runState.run.status = 'failed'
+    runState.run.summary = 'Run failed after provider timeout.'
+    runState.run.failureClass = 'model_timeout'
+    runState.run.failureMessage = 'Provider timed out after the planner invocation.'
+    runState.run.resumableFromEventId = runState.run.latestEventId
+    runState.run.pendingReviewId = undefined
+
+    const failureEventId = `run-event-${seededRun.id.replace(/^run-/, '')}-010`
+    runState.events.push({
+      id: failureEventId,
+      runId: seededRun.id,
+      order: 10,
+      kind: 'run_failed',
+      label: 'Run failed',
+      summary: 'Provider timed out after the planner invocation.',
+      createdAtLabel: '2026-04-28 10:10',
+      severity: 'error',
+      metadata: { failureClass: 'model_timeout' },
+    })
+    const plannerInvocation = runState.artifacts?.find((artifact) => artifact.kind === 'agent-invocation')
+    if (plannerInvocation) {
+      plannerInvocation.meta = {
+        ...plannerInvocation.meta,
+        failureDetail: {
+          failureClass: 'model_timeout',
+          message: 'Provider timed out after the planner invocation.',
+          provider: 'openai',
+          modelId: 'gpt-5.4',
+          retryable: true,
+          sourceEventIds: [failureEventId],
+        },
+      }
+    }
+    runState.run.latestEventId = failureEventId
+    runState.run.eventCount = runState.events.length
+
+    const hydrated = createRunFixtureStore()
+    hydrated.clearProject(projectId)
+    hydrated.hydrateProjectState(projectId, snapshot as unknown as import('./project-state-persistence.js').PersistedRunStore)
+
+    const plannerInvocationId = runState.artifacts?.find((artifact) => artifact.kind === 'agent-invocation')?.id
+    expect(hydrated.getRun(projectId, seededRun.id)).toMatchObject({
+      id: seededRun.id,
+      status: 'failed',
+      resumableFromEventId: runState.run.resumableFromEventId,
+    })
+    expect(plannerInvocationId && hydrated.getRunArtifact(projectId, seededRun.id, plannerInvocationId)).toMatchObject({
+      id: plannerInvocationId,
+      failureDetail: {
+        failureClass: 'model_timeout',
+        retryable: true,
+      },
+    })
+    expect(hydrated.getRunTrace(projectId, seededRun.id)).toMatchObject({
+      runId: seededRun.id,
+      isPartialFailure: true,
+      summary: {
+        proposalSetCount: 1,
+        canonPatchCount: 0,
+        proseDraftCount: 0,
+        missingTraceCount: 0,
+      },
+    })
   })
 
   it('awaits planner gateway output and persists canonical planner metadata before artifact details are derived', async () => {
