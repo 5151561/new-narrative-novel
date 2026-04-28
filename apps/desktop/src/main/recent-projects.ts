@@ -30,6 +30,14 @@ function isRecentProjectRecord(value: unknown): value is RecentProjectRecord {
   )
 }
 
+function sanitizeRecentProjectRecord(value: RecentProjectRecord): RecentProjectRecord {
+  return {
+    projectId: value.projectId,
+    projectRoot: value.projectRoot,
+    projectTitle: value.projectTitle,
+  }
+}
+
 function normalizeRecentProjects(value: unknown): RecentProjectRecord[] {
   if (!value || typeof value !== 'object') {
     return []
@@ -40,7 +48,7 @@ function normalizeRecentProjects(value: unknown): RecentProjectRecord[] {
     return []
   }
 
-  return projects.filter(isRecentProjectRecord)
+  return projects.filter(isRecentProjectRecord).map(sanitizeRecentProjectRecord)
 }
 
 function isPersistedRecentProjectsRecord(value: unknown): value is PersistedRecentProjectsRecord {
@@ -66,7 +74,7 @@ export class RecentProjectsStore {
   async add(project: RecentProjectRecord): Promise<RecentProjectRecord[]> {
     const projects = await this.readProjects()
     const updatedProjects = [
-      project,
+      sanitizeRecentProjectRecord(project),
       ...projects.filter((candidate) => candidate.projectRoot !== project.projectRoot),
     ].slice(0, MAX_RECENT_PROJECTS)
 

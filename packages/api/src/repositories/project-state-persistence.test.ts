@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -47,6 +47,17 @@ describe('localProjectStorePersistence', () => {
         projectTitle: 'Desktop Local Prototype',
       }),
     }
+  }
+
+  async function createPersistenceWithPaths(paths: Awaited<ReturnType<typeof createTempStorePaths>>) {
+    return createLocalProjectStorePersistence({
+      filePath: paths.filePath,
+      artifactDirPath: paths.artifactDirPath,
+      apiBaseUrl: 'http://127.0.0.1:4174/api',
+      projectId: 'book-signal-arc',
+      projectTitle: 'Desktop Local Prototype',
+      now: () => '2026-04-28T00:00:00.000Z',
+    })
   }
 
   async function writeStoreFile(filePath: string, contents: string) {
@@ -134,6 +145,80 @@ describe('localProjectStorePersistence', () => {
     }))
 
     await expect(persistence.load()).rejects.toThrow('Unsupported local project store schemaVersion')
+  })
+
+  it('refuses to migrate an unsupported future schema and leaves the original store file intact', async () => {
+    const paths = await createTempStorePaths()
+    const persistence = await createPersistenceWithPaths(paths)
+    const originalContents = `${JSON.stringify({
+      schemaVersion: 2,
+      seedVersion: 'prototype-fixture-seed-v2',
+      projects: {},
+    }, null, 2)}\n`
+    await writeStoreFile(paths.filePath, originalContents)
+
+    await expect(persistence.load()).rejects.toThrow('Unsupported local project store schemaVersion')
+    await expect(readFile(paths.filePath, 'utf8')).resolves.toBe(originalContents)
+  })
+
+  it('writes an automatic backup before migrating a supported legacy overlay to the v1 local project store', async () => {
+    const paths = await createTempStorePaths()
+    const persistence = await createPersistenceWithPaths(paths)
+    const originalContents = `${JSON.stringify({
+      schemaVersion: 1,
+      seedVersion: 'prototype-fixture-seed-v1',
+      projects: {
+        'book-signal-arc': {
+          updatedAt: '2026-04-27T12:00:00.000Z',
+          reviewDecisions: {
+            'book-signal-arc': [
+              {
+                issueId: 'compare-delta-scene-midnight-platform',
+                issueSignature: 'compare-delta-scene-midnight-platform::compare_delta',
+                status: 'reviewed',
+                note: 'Migrated decision note.',
+              },
+            ],
+          },
+        },
+      },
+    }, null, 2)}\n`
+    await writeStoreFile(paths.filePath, originalContents)
+
+    const migrated = await persistence.load()
+    const backups = await readdir(path.join(paths.directory, '.narrative', 'backups'))
+
+    expect(backups).toHaveLength(1)
+    expect(JSON.parse(await readFile(path.join(paths.directory, '.narrative', 'backups', backups[0]!), 'utf8'))).toMatchObject({
+      kind: 'narrative-project-backup',
+      manifest: {
+        content: null,
+        relativePath: 'narrative.project.json',
+      },
+      store: {
+        content: originalContents,
+      },
+    })
+    expect(migrated).toMatchObject({
+      schemaVersion: LOCAL_PROJECT_STORE_SCHEMA_VERSION,
+      storeKind: LOCAL_PROJECT_STORE_KIND,
+      templateVersion: LOCAL_PROJECT_STORE_TEMPLATE_VERSION,
+      project: {
+        projectId: 'book-signal-arc',
+        projectTitle: 'Desktop Local Prototype',
+        updatedAt: '2026-04-27T12:00:00.000Z',
+        data: {
+          reviewDecisions: {
+            'book-signal-arc': [
+              {
+                issueId: 'compare-delta-scene-midnight-platform',
+                note: 'Migrated decision note.',
+              },
+            ],
+          },
+        },
+      },
+    })
   })
 
   it('rejects an unsupported store kind', async () => {
@@ -283,7 +368,7 @@ describe('localProjectStorePersistence', () => {
     expect(savedRecord.project.data.runtimeInfo.summary).toBe('Persisted runtime summary.')
   })
 
-  it('keeps the previous file intact when the atomic rename step fails', async () => {
+  it('keeps the previous file byte-for-byte intact when the atomic rename step fails', async () => {
     const paths = await createTempStorePaths()
     const bootstrapPersistence = createLocalProjectStorePersistence({
       filePath: paths.filePath,
@@ -293,6 +378,7 @@ describe('localProjectStorePersistence', () => {
       projectTitle: 'Desktop Local Prototype',
     })
     const original = await bootstrapPersistence.load()
+    const originalBytes = await readFile(paths.filePath, 'utf8')
 
     const persistence = createLocalProjectStorePersistence({
       filePath: paths.filePath,
@@ -320,8 +406,8 @@ describe('localProjectStorePersistence', () => {
       },
     })).rejects.toThrow('simulated rename failure')
 
-    const reloaded = JSON.parse(await readFile(paths.filePath, 'utf8'))
-    expect(reloaded.project.data.runtimeInfo.summary).toBe('Connected to local project store v1.')
+    await expect(readFile(paths.filePath, 'utf8')).resolves.toBe(originalBytes)
+    expect(original.project.data.runtimeInfo.summary).toBe('Connected to local project store v1.')
   })
 
   it('resets the store to a fresh template with the same selected project identity', async () => {

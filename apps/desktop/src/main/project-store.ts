@@ -1,12 +1,16 @@
 import {
+  createProjectWithDialog,
   openProjectWithDialog,
+  readExistingProjectSession,
   readOrInitializeProjectSession,
   type SelectedProjectSession,
 } from './project-picker.js'
 import { RecentProjectsStore, type RecentProjectRecord } from './recent-projects.js'
 
 interface ProjectPickerPort {
+  createProjectWithDialog(): Promise<SelectedProjectSession | null>
   openProjectWithDialog(): Promise<SelectedProjectSession | null>
+  readExistingProjectSession(projectRoot: string): Promise<SelectedProjectSession>
   readOrInitializeProjectSession(projectRoot: string): Promise<SelectedProjectSession>
 }
 
@@ -31,7 +35,9 @@ export class ProjectStore {
 
   constructor({
     picker = {
+      createProjectWithDialog,
       openProjectWithDialog,
+      readExistingProjectSession,
       readOrInitializeProjectSession,
     },
     recentProjects = new RecentProjectsStore(),
@@ -65,7 +71,7 @@ export class ProjectStore {
 
     for (const project of this.recentProjectsSnapshot) {
       try {
-        const selectedProject = await this.picker.readOrInitializeProjectSession(project.projectRoot)
+        const selectedProject = await this.picker.readExistingProjectSession(project.projectRoot)
         return this.rememberProjectSelection(selectedProject)
       } catch {
         this.recentProjectsSnapshot = await this.recentProjects.remove(project.projectRoot)
@@ -77,6 +83,15 @@ export class ProjectStore {
 
   async selectProjectRoot(projectRoot: string): Promise<SelectedProjectSession> {
     const selectedProject = await this.picker.readOrInitializeProjectSession(projectRoot)
+    return this.rememberProjectSelection(selectedProject)
+  }
+
+  async createProject(): Promise<SelectedProjectSession | null> {
+    const selectedProject = await this.picker.createProjectWithDialog()
+    if (!selectedProject) {
+      return null
+    }
+
     return this.rememberProjectSelection(selectedProject)
   }
 
