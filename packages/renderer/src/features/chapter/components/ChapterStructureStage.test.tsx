@@ -13,6 +13,11 @@ const workspace: ChapterStructureWorkspaceViewModel = {
   sceneCount: 3,
   unresolvedCount: 6,
   selectedSceneId: 'scene-midnight-platform',
+  planning: {
+    goal: 'Keep the chapter pressure public while the ledger stays unread.',
+    constraints: [],
+    proposals: [],
+  },
   scenes: [
     {
       id: 'scene-midnight-platform',
@@ -24,6 +29,8 @@ const workspace: ChapterStructureWorkspaceViewModel = {
       location: 'Eastbound platform',
       conflict: 'Ren needs leverage, Mei needs a higher price.',
       reveal: 'The courier signal stays readable only to Ren.',
+      backlogStatus: 'planned',
+      backlogStatusLabel: 'Planned',
       statusLabel: 'Current',
       proseStatusLabel: 'Needs draft',
       runStatusLabel: 'Paused',
@@ -40,6 +47,8 @@ const workspace: ChapterStructureWorkspaceViewModel = {
       location: 'Concourse hall',
       conflict: 'The crowd slows everyone down.',
       reveal: 'Witness pressure carries inward.',
+      backlogStatus: 'needs_review',
+      backlogStatusLabel: 'Needs review',
       statusLabel: 'Queued',
       proseStatusLabel: 'Queued for draft',
       runStatusLabel: 'Idle',
@@ -56,6 +65,8 @@ const workspace: ChapterStructureWorkspaceViewModel = {
       location: 'Ticket window',
       conflict: 'Ren wants speed, Mei wants commitment first.',
       reveal: 'The alias still has not entered public knowledge.',
+      backlogStatus: 'drafted',
+      backlogStatusLabel: 'Drafted',
       statusLabel: 'Guarded',
       proseStatusLabel: 'Needs draft',
       runStatusLabel: 'Guarded',
@@ -102,6 +113,7 @@ describe('ChapterStructureStage', () => {
             sequence: 'Sequence',
             outliner: 'Outliner',
             assembly: 'Assembly',
+            backlog: 'Backlog',
           }}
           workspace={workspace}
           title="Chapter structure"
@@ -128,6 +140,7 @@ describe('ChapterStructureStage', () => {
             sequence: 'Sequence',
             outliner: 'Outliner',
             assembly: 'Assembly',
+            backlog: 'Backlog',
           }}
           availableViews={['sequence', 'assembly']}
           workspace={workspace}
@@ -151,6 +164,7 @@ describe('ChapterStructureStage', () => {
             sequence: 'Sequence',
             outliner: 'Outliner',
             assembly: 'Assembly',
+            backlog: 'Backlog',
           }}
           availableViews={['sequence', 'assembly']}
           workspace={workspace}
@@ -164,5 +178,55 @@ describe('ChapterStructureStage', () => {
     expect(screen.getByRole('button', { name: 'Assembly' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.queryByRole('button', { name: /Sequence 1 Midnight Platform/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Current seam' })).not.toBeInTheDocument()
+  })
+
+  it('renders backlog as a single main-stage task when the backlog view is active', () => {
+    const backlogWorkspace = {
+      ...workspace,
+      planning: {
+        ...workspace.planning,
+        proposals: [
+          {
+            proposalId: 'chapter-signals-in-rain-backlog-proposal-001',
+            chapterId: workspace.chapterId,
+            goalSnapshot: workspace.planning.goal,
+            constraintSnapshot: [],
+            status: 'draft' as const,
+            scenes: workspace.scenes.map((scene) => ({
+              proposalSceneId: `chapter-signals-in-rain-backlog-proposal-001::${scene.id}`,
+              sceneId: scene.id,
+              order: scene.order,
+              title: scene.title,
+              summary: scene.summary,
+              purpose: scene.purpose,
+              backlogStatus: scene.backlogStatus,
+              backlogStatusLabel: scene.backlogStatusLabel,
+              plannerNotes: workspace.planning.goal,
+            })),
+          },
+        ],
+      },
+    }
+
+    render(
+      <I18nProvider>
+        <ChapterStructureStage
+          activeView="backlog"
+          labels={{
+            sequence: 'Sequence',
+            outliner: 'Outliner',
+            assembly: 'Assembly',
+            backlog: 'Backlog',
+          }}
+          workspace={backlogWorkspace}
+          title="Chapter structure"
+          onViewChange={() => {}}
+        />
+      </I18nProvider>,
+    )
+
+    expect(screen.getByText('Review and accept the scene backlog')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Incoming' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Keep the bargain public and constrained.')).toBeInTheDocument()
   })
 })

@@ -14,6 +14,11 @@ const workspace: ChapterStructureWorkspaceViewModel = {
   sceneCount: 3,
   unresolvedCount: 6,
   selectedSceneId: 'scene-concourse-delay',
+  planning: {
+    goal: 'Keep the chapter pressure public while the ledger stays unread.',
+    constraints: [],
+    proposals: [],
+  },
   scenes: [
     {
       id: 'scene-midnight-platform',
@@ -25,6 +30,8 @@ const workspace: ChapterStructureWorkspaceViewModel = {
       location: 'Eastbound platform',
       conflict: 'Ren needs leverage, Mei needs a higher price.',
       reveal: 'The courier signal stays readable only to Ren.',
+      backlogStatus: 'planned',
+      backlogStatusLabel: 'Planned',
       statusLabel: 'Current',
       proseStatusLabel: 'Needs draft',
       runStatusLabel: 'Paused',
@@ -41,6 +48,8 @@ const workspace: ChapterStructureWorkspaceViewModel = {
       location: 'Concourse hall',
       conflict: 'The crowd slows everyone down.',
       reveal: 'Witness pressure carries inward.',
+      backlogStatus: 'needs_review',
+      backlogStatusLabel: 'Needs review',
       statusLabel: 'Queued',
       proseStatusLabel: 'Queued for draft',
       runStatusLabel: 'Idle',
@@ -57,6 +66,8 @@ const workspace: ChapterStructureWorkspaceViewModel = {
       location: 'Ticket window',
       conflict: 'Ren wants speed, Mei wants commitment first.',
       reveal: 'The alias still has not entered public knowledge.',
+      backlogStatus: 'drafted',
+      backlogStatusLabel: 'Drafted',
       statusLabel: 'Guarded',
       proseStatusLabel: 'Needs draft',
       runStatusLabel: 'Guarded',
@@ -112,6 +123,7 @@ describe('ChapterBinderPane', () => {
     expect(screen.getByText('3 scenes')).toBeInTheDocument()
     expect(screen.getByText('Unresolved 6')).toBeInTheDocument()
     expect(screen.getByText('Sequence')).toBeInTheDocument()
+    expect(screen.getByText('Needs review')).toBeInTheDocument()
 
     const ticketWindowItem = screen.getByRole('button', { name: /Scene 3 Ticket Window/i })
     expect(within(ticketWindowItem).getByText('Unresolved 1')).toBeInTheDocument()

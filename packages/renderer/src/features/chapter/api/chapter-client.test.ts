@@ -16,7 +16,7 @@ describe('chapterClient', () => {
         'zh-CN': '雨中信号',
       },
       viewsMeta: {
-        availableViews: ['sequence', 'outliner', 'assembly'],
+        availableViews: expect.arrayContaining(['backlog', 'sequence', 'outliner', 'assembly']),
       },
       scenes: expect.arrayContaining([
         expect.objectContaining({
@@ -35,6 +35,11 @@ describe('chapterClient', () => {
             'zh-CN': '排序属于结构层，这里不引入正文合并。',
           },
         ]),
+      }),
+      planning: expect.objectContaining({
+        goal: expect.objectContaining({
+          en: expect.any(String),
+        }),
       }),
     })
   })
@@ -142,5 +147,73 @@ describe('chapterClient', () => {
         },
       }),
     ).resolves.toEqual(beforeWrite)
+  })
+
+  it('supports chapter backlog input, proposal generation, proposal scene edit, and acceptance through the writable chapter boundary', async () => {
+    const client = createChapterClient()
+
+    const patchedPlanning = await client.updateChapterBacklogInput({
+      chapterId: 'chapter-signals-in-rain',
+      locale: 'en',
+      goal: 'Keep the chapter pressure public.',
+      constraints: ['Keep the ledger shut.'],
+    })
+    expect(patchedPlanning).toMatchObject({
+      planning: {
+        goal: {
+          en: 'Keep the chapter pressure public.',
+        },
+        constraints: [
+          {
+            label: {
+              en: 'Keep the ledger shut.',
+            },
+          },
+        ],
+      },
+    })
+
+    const generated = await client.generateChapterBacklogProposal({
+      chapterId: 'chapter-signals-in-rain',
+      locale: 'en',
+    })
+    const proposal = generated?.planning.proposals.at(-1)
+    expect(proposal).toBeTruthy()
+
+    const edited = await client.updateChapterBacklogProposalScene({
+      chapterId: 'chapter-signals-in-rain',
+      proposalId: proposal!.proposalId,
+      proposalSceneId: proposal!.scenes[1]!.proposalSceneId,
+      locale: 'en',
+      patch: {
+        summary: 'Start with the crowd bottleneck.',
+      },
+      order: 1,
+      backlogStatus: 'needs_review',
+    })
+    expect(edited?.planning.proposals.at(-1)?.scenes[0]).toMatchObject({
+      sceneId: 'scene-concourse-delay',
+      backlogStatus: 'needs_review',
+      summary: {
+        en: 'Start with the crowd bottleneck.',
+      },
+    })
+
+    await expect(client.acceptChapterBacklogProposal({
+      chapterId: 'chapter-signals-in-rain',
+      proposalId: proposal!.proposalId,
+      locale: 'en',
+    })).resolves.toEqual(expect.objectContaining({
+      planning: expect.objectContaining({
+        acceptedProposalId: proposal!.proposalId,
+      }),
+      scenes: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'scene-concourse-delay',
+          order: 1,
+          backlogStatus: 'needs_review',
+        }),
+      ]),
+    }))
   })
 })

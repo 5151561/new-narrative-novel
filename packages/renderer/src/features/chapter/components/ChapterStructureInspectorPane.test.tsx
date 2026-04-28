@@ -17,6 +17,8 @@ describe('ChapterStructureInspectorPane', () => {
           chapterSummary={workspace.summary}
           unresolvedCount={workspace.unresolvedCount}
           inspector={workspace.inspector}
+          planning={workspace.planning}
+          selectedSceneBacklogStatusLabel={workspace.scenes[0]?.backlogStatusLabel}
         />
       </I18nProvider>,
     )
@@ -29,6 +31,10 @@ describe('ChapterStructureInspectorPane', () => {
     expect(within(summarySection!).getByText('Keep public witness pressure alive at the edge of the scene.')).toBeInTheDocument()
     expect(within(summarySection!).getByText('Midnight Platform · Unresolved 3')).toBeInTheDocument()
     expect(within(summarySection!).getByText('Ordering remains structural.')).toBeInTheDocument()
+    expect(within(summarySection!).getByText('Backlog judgment')).toBeInTheDocument()
+    expect(within(summarySection!).getByText('Keep the chapter pressure public while the ledger stays unread.')).toBeInTheDocument()
+    expect(within(summarySection!).getByText(/Accepted plan:/)).toBeInTheDocument()
+    expect(within(summarySection!).getByText(/Selected scene backlog status:/)).toBeInTheDocument()
   })
 
   it('renders problems summary and assembly hints in Problems', () => {
@@ -41,6 +47,8 @@ describe('ChapterStructureInspectorPane', () => {
           chapterSummary={workspace.summary}
           unresolvedCount={workspace.unresolvedCount}
           inspector={workspace.inspector}
+          planning={workspace.planning}
+          selectedSceneBacklogStatusLabel={workspace.scenes[1]?.backlogStatusLabel}
         />
       </I18nProvider>,
     )
@@ -65,6 +73,8 @@ describe('ChapterStructureInspectorPane', () => {
           chapterSummary={firstWorkspace.summary}
           unresolvedCount={firstWorkspace.unresolvedCount}
           inspector={firstWorkspace.inspector}
+          planning={firstWorkspace.planning}
+          selectedSceneBacklogStatusLabel={firstWorkspace.scenes[0]?.backlogStatusLabel}
         />
       </I18nProvider>,
     )
@@ -79,6 +89,8 @@ describe('ChapterStructureInspectorPane', () => {
           chapterSummary={secondWorkspace.summary}
           unresolvedCount={secondWorkspace.unresolvedCount}
           inspector={secondWorkspace.inspector}
+          planning={secondWorkspace.planning}
+          selectedSceneBacklogStatusLabel={secondWorkspace.scenes[2]?.backlogStatusLabel}
         />
       </I18nProvider>,
     )

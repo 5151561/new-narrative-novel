@@ -47,7 +47,7 @@ export interface LocalizedTextRecord {
 }
 
 export type BookStructureView = 'sequence' | 'outliner' | 'signals'
-export type ChapterStructureView = 'sequence' | 'outliner' | 'assembly'
+export type ChapterStructureView = 'sequence' | 'outliner' | 'assembly' | 'backlog'
 export type AssetKnowledgeView = 'profile' | 'mentions' | 'relations' | 'context'
 export type ChapterLens = 'structure' | 'draft'
 export type SceneLens = 'structure' | 'orchestrate' | 'draft'
@@ -287,6 +287,45 @@ export interface ChapterStructureAssemblyHintRecord {
   detail: LocalizedTextRecord
 }
 
+export type ChapterSceneBacklogStatus = 'planned' | 'running' | 'needs_review' | 'drafted' | 'revised'
+
+export interface ChapterBacklogConstraintRecord {
+  id: string
+  label: LocalizedTextRecord
+  detail: LocalizedTextRecord
+}
+
+export interface ChapterBacklogProposalSceneRecord {
+  proposalSceneId: string
+  sceneId: string
+  order: number
+  title: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  purpose: LocalizedTextRecord
+  pov: LocalizedTextRecord
+  location: LocalizedTextRecord
+  conflict: LocalizedTextRecord
+  reveal: LocalizedTextRecord
+  backlogStatus: ChapterSceneBacklogStatus
+  plannerNotes: LocalizedTextRecord
+}
+
+export interface ChapterBacklogProposalRecord {
+  proposalId: string
+  chapterId: string
+  goalSnapshot: LocalizedTextRecord
+  constraintSnapshot: ChapterBacklogConstraintRecord[]
+  scenes: ChapterBacklogProposalSceneRecord[]
+  status: 'draft' | 'accepted'
+}
+
+export interface ChapterBacklogPlanningRecord {
+  goal: LocalizedTextRecord
+  constraints: ChapterBacklogConstraintRecord[]
+  proposals: ChapterBacklogProposalRecord[]
+  acceptedProposalId?: string
+}
+
 export interface ChapterStructureSceneRecord {
   id: string
   order: number
@@ -297,6 +336,7 @@ export interface ChapterStructureSceneRecord {
   location: LocalizedTextRecord
   conflict: LocalizedTextRecord
   reveal: LocalizedTextRecord
+  backlogStatus: ChapterSceneBacklogStatus
   statusLabel: LocalizedTextRecord
   proseStatusLabel: LocalizedTextRecord
   runStatusLabel: LocalizedTextRecord
@@ -314,6 +354,7 @@ export interface ChapterStructureWorkspaceRecord {
   chapterId: string
   title: LocalizedTextRecord
   summary: LocalizedTextRecord
+  planning: ChapterBacklogPlanningRecord
   scenes: ChapterStructureSceneRecord[]
   inspector: ChapterStructureInspectorRecord
   viewsMeta?: {
@@ -323,6 +364,19 @@ export interface ChapterStructureWorkspaceRecord {
 
 export type ChapterSceneStructureField = 'summary' | 'purpose' | 'pov' | 'location' | 'conflict' | 'reveal'
 export type ChapterSceneStructurePatch = Partial<Record<ChapterSceneStructureField, string>>
+
+export interface PatchChapterBacklogPlanningInput {
+  locale: 'en' | 'zh-CN'
+  goal?: string
+  constraints?: string[]
+}
+
+export interface UpdateChapterBacklogProposalSceneInput {
+  locale: 'en' | 'zh-CN'
+  patch?: Partial<Record<'title' | 'summary' | 'purpose' | 'pov' | 'location' | 'conflict' | 'reveal' | 'plannerNotes', string>>
+  order?: number
+  backlogStatus?: ChapterSceneBacklogStatus
+}
 
 export type StoredReviewDecisionStatus = 'reviewed' | 'deferred' | 'dismissed'
 

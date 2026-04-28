@@ -2,10 +2,11 @@ import { PaneHeader } from '@/components/ui/PaneHeader'
 import type { ChapterSceneStructurePatch } from '../api/chapter-record-mutations'
 import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
 import { ChapterAssemblyView } from './ChapterAssemblyView'
+import { ChapterBacklogPlannerView } from './ChapterBacklogPlannerView'
 import { ChapterOutlinerView } from './ChapterOutlinerView'
 import { ChapterSequenceView } from './ChapterSequenceView'
 
-const defaultAvailableViews: ChapterStructureView[] = ['sequence', 'outliner', 'assembly']
+const defaultAvailableViews: ChapterStructureView[] = ['sequence', 'outliner', 'assembly', 'backlog']
 
 interface ChapterStructureStageProps {
   activeView: ChapterStructureView
@@ -18,6 +19,22 @@ interface ChapterStructureStageProps {
   savingSceneId?: string | null
   onOpenScene?: (sceneId: string, lens: 'orchestrate' | 'draft') => void
   availableViews?: ChapterStructureView[]
+  onSavePlanningInput?: (input: { goal: string; constraints: string[] }) => Promise<void> | void
+  onGenerateProposal?: () => Promise<void> | void
+  onUpdateProposalScene?: (
+    proposalId: string,
+    proposalSceneId: string,
+    input: {
+      patch?: Partial<Record<'title' | 'summary' | 'purpose' | 'pov' | 'location' | 'conflict' | 'reveal' | 'plannerNotes', string>>
+      order?: number
+      backlogStatus?: 'planned' | 'running' | 'needs_review' | 'drafted' | 'revised'
+    },
+  ) => Promise<void> | void
+  onAcceptProposal?: (proposalId: string) => Promise<void> | void
+  savingPlanning?: boolean
+  generatingProposal?: boolean
+  updatingProposalSceneId?: string | null
+  acceptingProposalId?: string | null
 }
 
 export function ChapterStructureStage({
@@ -31,6 +48,14 @@ export function ChapterStructureStage({
   savingSceneId,
   onOpenScene,
   availableViews = defaultAvailableViews,
+  onSavePlanningInput,
+  onGenerateProposal,
+  onUpdateProposalScene,
+  onAcceptProposal,
+  savingPlanning = false,
+  generatingProposal = false,
+  updatingProposalSceneId = null,
+  acceptingProposalId = null,
 }: ChapterStructureStageProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -72,6 +97,20 @@ export function ChapterStructureStage({
         ) : null}
         {activeView === 'assembly' ? (
           <ChapterAssemblyView workspace={workspace} onSelectScene={onSelectScene} onOpenScene={onOpenScene} />
+        ) : null}
+        {activeView === 'backlog' ? (
+          <ChapterBacklogPlannerView
+            workspace={workspace}
+            onSelectScene={onSelectScene}
+            onSavePlanningInput={onSavePlanningInput}
+            onGenerateProposal={onGenerateProposal}
+            onUpdateProposalScene={onUpdateProposalScene}
+            onAcceptProposal={onAcceptProposal}
+            savingPlanning={savingPlanning}
+            generatingProposal={generatingProposal}
+            updatingProposalSceneId={updatingProposalSceneId}
+            acceptingProposalId={acceptingProposalId}
+          />
         ) : null}
       </div>
     </div>

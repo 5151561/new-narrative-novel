@@ -14,6 +14,11 @@ const workspace: ChapterStructureWorkspaceViewModel = {
   sceneCount: 3,
   unresolvedCount: 6,
   selectedSceneId: 'scene-ticket-window',
+  planning: {
+    goal: 'Keep the chapter pressure public while the ledger stays unread.',
+    constraints: [],
+    proposals: [],
+  },
   scenes: [
     {
       id: 'scene-midnight-platform',
@@ -25,6 +30,8 @@ const workspace: ChapterStructureWorkspaceViewModel = {
       location: 'Eastbound platform',
       conflict: 'Ren needs leverage, Mei needs a higher price.',
       reveal: 'The courier signal stays readable only to Ren.',
+      backlogStatus: 'planned',
+      backlogStatusLabel: 'Planned',
       statusLabel: 'Current',
       proseStatusLabel: 'Needs draft',
       runStatusLabel: 'Paused',
@@ -41,6 +48,8 @@ const workspace: ChapterStructureWorkspaceViewModel = {
       location: 'Concourse hall',
       conflict: 'The crowd slows everyone down.',
       reveal: 'Witness pressure carries inward.',
+      backlogStatus: 'needs_review',
+      backlogStatusLabel: 'Needs review',
       statusLabel: 'Queued',
       proseStatusLabel: 'Queued for draft',
       runStatusLabel: 'Idle',
@@ -57,6 +66,8 @@ const workspace: ChapterStructureWorkspaceViewModel = {
       location: 'Ticket window',
       conflict: 'Ren wants speed, Mei wants commitment first.',
       reveal: 'The alias still has not entered public knowledge.',
+      backlogStatus: 'drafted',
+      backlogStatusLabel: 'Drafted',
       statusLabel: 'Guarded',
       proseStatusLabel: 'Needs draft',
       runStatusLabel: 'Guarded',
@@ -105,6 +116,8 @@ describe('ChapterSequenceView', () => {
     expect(screen.getByText('Keep the bargain public and constrained.')).toBeInTheDocument()
     expect(screen.getByText('Current')).toBeInTheDocument()
     expect(screen.getByText('Unresolved 3')).toBeInTheDocument()
+    const concourseCard = screen.getByRole('button', { name: /Sequence 2 Concourse Delay/i }).closest('li')
+    expect(within(concourseCard!).getAllByText('Needs review').length).toBeGreaterThan(0)
   })
 
   it('follows workspace.selectedSceneId and calls onSelectScene when a card is clicked', async () => {

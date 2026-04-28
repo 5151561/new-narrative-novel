@@ -479,6 +479,63 @@ async function handleFakeApiRequest<TResponse, TBody>(
   const chapterSceneReorderMatch = path.match(
     new RegExp(`${projectBasePattern}/chapters/([^/]+)/scenes/([^/]+)/reorder$`),
   )
+  const chapterPlanningInputMatch = path.match(
+    new RegExp(`${projectBasePattern}/chapters/([^/]+)/planning-input$`),
+  )
+  if (method === 'PATCH' && chapterPlanningInputMatch) {
+    const planningBody = body as { locale: 'en' | 'zh-CN'; goal?: string; constraints?: string[] }
+    return mockRuntime.chapterClient.updateChapterBacklogInput({
+      chapterId: decodeSegment(chapterPlanningInputMatch[1]!),
+      locale: planningBody.locale,
+      goal: planningBody.goal,
+      constraints: planningBody.constraints,
+    }) as Promise<TResponse>
+  }
+
+  const chapterBacklogProposalsMatch = path.match(
+    new RegExp(`${projectBasePattern}/chapters/([^/]+)/backlog-proposals$`),
+  )
+  if (method === 'POST' && chapterBacklogProposalsMatch) {
+    const generateBody = body as { locale: 'en' | 'zh-CN' }
+    return mockRuntime.chapterClient.generateChapterBacklogProposal({
+      chapterId: decodeSegment(chapterBacklogProposalsMatch[1]!),
+      locale: generateBody.locale,
+    }) as Promise<TResponse>
+  }
+
+  const chapterBacklogProposalSceneMatch = path.match(
+    new RegExp(`${projectBasePattern}/chapters/([^/]+)/backlog-proposals/([^/]+)/scenes/([^/]+)$`),
+  )
+  if (method === 'PATCH' && chapterBacklogProposalSceneMatch) {
+    const proposalSceneBody = body as {
+      locale: 'en' | 'zh-CN'
+      patch?: Partial<Record<'title' | 'summary' | 'purpose' | 'plannerNotes', string>>
+      order?: number
+      backlogStatus?: 'planned' | 'running' | 'needs_review' | 'drafted' | 'revised'
+    }
+    return mockRuntime.chapterClient.updateChapterBacklogProposalScene({
+      chapterId: decodeSegment(chapterBacklogProposalSceneMatch[1]!),
+      proposalId: decodeSegment(chapterBacklogProposalSceneMatch[2]!),
+      proposalSceneId: decodeSegment(chapterBacklogProposalSceneMatch[3]!),
+      locale: proposalSceneBody.locale,
+      patch: proposalSceneBody.patch,
+      order: proposalSceneBody.order,
+      backlogStatus: proposalSceneBody.backlogStatus,
+    }) as Promise<TResponse>
+  }
+
+  const chapterBacklogProposalAcceptMatch = path.match(
+    new RegExp(`${projectBasePattern}/chapters/([^/]+)/backlog-proposals/([^/]+)/accept$`),
+  )
+  if (method === 'POST' && chapterBacklogProposalAcceptMatch) {
+    const acceptBody = body as { locale: 'en' | 'zh-CN' }
+    return mockRuntime.chapterClient.acceptChapterBacklogProposal({
+      chapterId: decodeSegment(chapterBacklogProposalAcceptMatch[1]!),
+      proposalId: decodeSegment(chapterBacklogProposalAcceptMatch[2]!),
+      locale: acceptBody.locale,
+    }) as Promise<TResponse>
+  }
+
   if (method === 'POST' && chapterSceneReorderMatch) {
     const reorderBody = body as { targetIndex: number }
     return mockRuntime.chapterClient.reorderChapterScene({

@@ -80,6 +80,7 @@ export function ChapterBinderPane({
                         <span className="block text-sm font-medium text-text-main">{scene.title}</span>
                       </span>
                       <span className="flex shrink-0 flex-wrap justify-end gap-2">
+                        <Badge tone="neutral">{scene.backlogStatusLabel}</Badge>
                         <Badge tone={active ? 'accent' : 'neutral'}>{scene.statusLabel}</Badge>
                         <Badge tone={scene.unresolvedCount > 0 ? 'warn' : 'success'}>
                           {getChapterUnresolvedCountLabel(locale, scene.unresolvedCount)}

@@ -1,4 +1,4 @@
-import { getChapterUnresolvedCountLabel, type Locale } from '@/app/i18n'
+import { getChapterBacklogStatusLabel, getChapterUnresolvedCountLabel, type Locale } from '@/app/i18n'
 
 import type {
   ChapterDraftSelectedSceneTraceabilityViewModel,
@@ -43,6 +43,7 @@ const structureSceneRecords = [
     location: text('Eastbound platform', '东行站台'),
     conflict: text('Ren needs leverage, Mei needs a higher price.', '任需要筹码，梅则要求更高代价。'),
     reveal: text('The courier signal stays readable only to Ren.', '只有任还能读懂信使留下的信号。'),
+    backlogStatus: 'planned' as const,
     statusLabel: text('Current', '当前'),
     proseStatusLabel: text('Needs draft', '待起草'),
     runStatusLabel: text('Paused', '已暂停'),
@@ -63,6 +64,7 @@ const structureSceneRecords = [
     location: text('Concourse hall', '候车厅'),
     conflict: text('The crowd slows everyone down.', '拥挤的人群拖慢了所有人。'),
     reveal: text('Witness pressure carries inward.', '见证压力继续向内层传导。'),
+    backlogStatus: 'needs_review' as const,
     statusLabel: text('Queued', '排队中'),
     proseStatusLabel: text('Queued for draft', '待起草'),
     runStatusLabel: text('Idle', '未开始'),
@@ -83,6 +85,7 @@ const structureSceneRecords = [
     location: text('Ticket window', '售票窗'),
     conflict: text('Ren wants speed, Mei wants commitment first.', '任想要速度，梅先要承诺。'),
     reveal: text('The alias still has not entered public knowledge.', '化名仍然没有进入公共认知。'),
+    backlogStatus: 'drafted' as const,
     statusLabel: text('Guarded', '受控'),
     proseStatusLabel: text('Needs draft', '待起草'),
     runStatusLabel: text('Guarded', '受控'),
@@ -94,6 +97,66 @@ const structureSceneRecords = [
     ),
   },
 ] as const
+
+const structurePlanningGoal = text(
+  'Keep the chapter pressure public while the ledger stays unread.',
+  '让章节压力继续保持公开，同时不要让账本被翻开。',
+)
+
+const structurePlanningConstraints = [
+  {
+    id: 'constraint-ledger',
+    label: text('Keep the ledger shut in public.', '让账本在公共场域保持关闭。'),
+    detail: text('', ''),
+  },
+  {
+    id: 'constraint-witness',
+    label: text('Keep witness pressure visible across the handoff.', '让见证压力在交接过程中持续可见。'),
+    detail: text('', ''),
+  },
+] as const
+
+function buildStoryPlanning(locale: Locale, accepted = false) {
+  const proposalId = 'chapter-signals-in-rain-backlog-proposal-001'
+
+  return {
+    goal: pick(locale, structurePlanningGoal),
+    constraints: structurePlanningConstraints.map((constraint) => ({
+      id: constraint.id,
+      label: pick(locale, constraint.label),
+      detail: pick(locale, constraint.detail),
+    })),
+    acceptedProposalId: accepted ? proposalId : undefined,
+    proposals: [
+      {
+        proposalId,
+        chapterId: 'chapter-signals-in-rain',
+        goalSnapshot: pick(locale, structurePlanningGoal),
+        constraintSnapshot: structurePlanningConstraints.map((constraint) => ({
+          id: constraint.id,
+          label: pick(locale, constraint.label),
+          detail: pick(locale, constraint.detail),
+        })),
+        status: accepted ? ('accepted' as const) : ('draft' as const),
+        scenes: structureSceneRecords.map((scene) => ({
+          proposalSceneId: `${proposalId}::${scene.id}`,
+          sceneId: scene.id,
+          order: scene.order,
+          title: pick(locale, scene.title),
+          summary: pick(locale, scene.summary),
+          purpose: pick(locale, scene.purpose),
+          pov: pick(locale, scene.pov),
+          location: pick(locale, scene.location),
+          conflict: pick(locale, scene.conflict),
+          reveal: pick(locale, scene.reveal),
+          backlogStatus: scene.backlogStatus,
+          backlogStatusLabel: getChapterBacklogStatusLabel(locale, scene.backlogStatus),
+          plannerNotes: pick(locale, structurePlanningGoal),
+        })),
+      },
+    ],
+  }
+}
 
 function buildSelectedSceneBrief(selectedSceneId: string, locale: Locale) {
   const scene = structureSceneRecords.find((item) => item.id === selectedSceneId) ?? structureSceneRecords[0]
@@ -118,6 +181,7 @@ export function buildChapterStoryWorkspace(
     sceneCount: structureSceneRecords.length,
     unresolvedCount: structureSceneRecords.reduce((total, scene) => total + scene.unresolvedCount, 0),
     selectedSceneId,
+    planning: buildStoryPlanning(locale),
     scenes: structureSceneRecords.map((scene) => ({
       id: scene.id,
       order: scene.order,
@@ -128,6 +192,8 @@ export function buildChapterStoryWorkspace(
       location: pick(locale, scene.location),
       conflict: pick(locale, scene.conflict),
       reveal: pick(locale, scene.reveal),
+      backlogStatus: scene.backlogStatus,
+      backlogStatusLabel: getChapterBacklogStatusLabel(locale, scene.backlogStatus),
       statusLabel: pick(locale, scene.statusLabel),
       proseStatusLabel: pick(locale, scene.proseStatusLabel),
       runStatusLabel: pick(locale, scene.runStatusLabel),
@@ -153,8 +219,20 @@ export function buildChapterStoryWorkspace(
       ],
     },
     viewsMeta: {
-      availableViews: ['sequence', 'outliner', 'assembly'],
+      availableViews: ['backlog', 'sequence', 'outliner', 'assembly'],
     },
+  }
+}
+
+export function buildChapterBacklogAcceptedStoryWorkspace(
+  selectedSceneId: string,
+  locale: Locale = 'en',
+): ChapterStructureWorkspaceViewModel {
+  const workspace = buildChapterStoryWorkspace(selectedSceneId, locale)
+
+  return {
+    ...workspace,
+    planning: buildStoryPlanning(locale, true),
   }
 }
 

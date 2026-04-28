@@ -67,6 +67,8 @@ export function useLocalizedChapterDraftWorkspace(
 }
 
 export function buildChapterBottomDockProblems(workspace: ChapterStructureWorkspaceViewModel) {
+  const selectedScene = workspace.scenes.find((scene) => scene.id === workspace.selectedSceneId) ?? workspace.scenes[0]
+
   return {
     unresolvedCount: workspace.unresolvedCount,
     selectedScene: workspace.inspector.selectedSceneBrief
@@ -78,6 +80,15 @@ export function buildChapterBottomDockProblems(workspace: ChapterStructureWorksp
       : null,
     problemsSummary: workspace.inspector.problemsSummary,
     assemblyHints: workspace.inspector.assemblyHints,
+    status: {
+      acceptedProposalId: workspace.planning.acceptedProposalId,
+      selectedSceneBacklogStatusLabel: selectedScene?.backlogStatusLabel,
+      sceneStatuses: workspace.scenes.map((scene) => ({
+        id: scene.id,
+        title: scene.title,
+        backlogStatusLabel: scene.backlogStatusLabel,
+      })),
+    },
   }
 }
 

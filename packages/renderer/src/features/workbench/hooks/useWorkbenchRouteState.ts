@@ -86,7 +86,7 @@ const LEGACY_INACTIVE_SCOPE_KEYS = [
 const VALID_SCENE_TABS = new Set<SceneTab>(['setup', 'execution', 'prose'])
 const VALID_SCENE_LENSES = new Set<SceneLens>(['structure', 'orchestrate', 'draft'])
 const VALID_MODALS = new Set<SceneRouteModal>(['export'])
-const VALID_CHAPTER_VIEWS = new Set<ChapterStructureView>(['sequence', 'outliner', 'assembly'])
+const VALID_CHAPTER_VIEWS = new Set<ChapterStructureView>(['sequence', 'outliner', 'assembly', 'backlog'])
 const VALID_CHAPTER_LENSES = new Set<ChapterLens>(['structure', 'draft'])
 const VALID_ASSET_VIEWS = new Set<AssetKnowledgeView>(['profile', 'mentions', 'relations', 'context'])
 const VALID_ASSET_LENSES = new Set<AssetLens>(['knowledge'])
@@ -241,7 +241,7 @@ function normalizeChapterRoute(route: Partial<ChapterRouteState>): ChapterRouteS
     scope: 'chapter',
     chapterId: route.chapterId ?? DEFAULT_CHAPTER_ID,
     lens: route.lens && VALID_CHAPTER_LENSES.has(route.lens) ? route.lens : 'structure',
-    view: route.view && VALID_CHAPTER_VIEWS.has(route.view) ? route.view : 'sequence',
+    view: route.view && VALID_CHAPTER_VIEWS.has(route.view) ? route.view : 'backlog',
     sceneId: route.sceneId,
   }
 }

@@ -168,6 +168,24 @@ describe('ChapterStructureWorkspace', () => {
     expect(screen.getByRole('button', { name: /Sequence 1 Midnight Platform/i })).toBeInTheDocument()
   })
 
+  it('defaults into backlog view for chapter structure routes without an explicit view', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=structure&sceneId=scene-midnight-platform',
+    )
+
+    render(
+      <AppProviders>
+        <ChapterRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Chapter goal and constraints')).toBeInTheDocument()
+    expect(screen.getByText('Review and accept the scene backlog')).toBeInTheDocument()
+    expect(new URLSearchParams(window.location.search).get('view')).toBeNull()
+  })
+
   it('replaces a rendered dock with loading fallback content so stale activity cannot linger', async () => {
     const currentResult: ReturnType<typeof chapterWorkspaceQuery.useChapterStructureWorkspaceQuery> = {
       workspace: buildChapterStoryWorkspace('scene-midnight-platform'),
@@ -488,6 +506,138 @@ describe('ChapterStructureWorkspace', () => {
         refetchType: 'active',
       })
     })
+  })
+
+  it('saves backlog input, generates and edits a proposal, accepts it through the API runtime, and keeps route.sceneId stable', async () => {
+    const user = userEvent.setup()
+    const queryClient = createRuntimeQueryClient()
+    const { requests, runtime } = createFakeApiRuntime({
+      projectId: 'project-chapter-backlog-route',
+    })
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=backlog&sceneId=scene-midnight-platform',
+    )
+
+    render(
+      <AppProviders runtime={runtime} queryClient={queryClient}>
+        <ChapterRouteHarness />
+      </AppProviders>,
+    )
+
+    const dockRegion = await screen.findByRole('region', { name: 'Chapter bottom dock' })
+    const goalInput = await screen.findByLabelText('Chapter goal')
+    await user.clear(goalInput)
+    await user.type(goalInput, 'Keep the chapter pressure public.')
+    await user.clear(screen.getByLabelText('Chapter constraints'))
+    await user.type(screen.getByLabelText('Chapter constraints'), 'Keep the ledger shut.')
+    await user.click(screen.getByRole('button', { name: 'Save input' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Saved backlog input')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Generate backlog proposal' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Generated backlog proposal')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Accept scene plan' })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /Proposal scene 2/i }))
+    expect(new URLSearchParams(window.location.search).get('sceneId')).toBe('scene-concourse-delay')
+
+    const orderInputs = screen.getAllByRole('spinbutton')
+    await user.clear(orderInputs[1]!)
+    await user.type(orderInputs[1]!, '1')
+    const summaryInputs = screen.getAllByRole('textbox', { name: 'Scene summary' })
+    await user.clear(summaryInputs[1]!)
+    await user.type(summaryInputs[1]!, 'Open on the bottleneck first.')
+    await user.click(screen.getAllByRole('button', { name: 'Save scene plan' })[1]!)
+    await user.click(within(dockRegion).getByRole('tab', { name: /Activity/i }))
+
+    await waitFor(() => {
+      expect(new URLSearchParams(window.location.search).get('sceneId')).toBe('scene-concourse-delay')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Accept scene plan' }))
+    await user.click(within(dockRegion).getByRole('tab', { name: /Activity/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Accepted backlog proposal')).toBeInTheDocument()
+      expect(screen.getAllByRole('button', { name: /Scene 1 Concourse Delay/i })[0]).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByText('Current canonical plan')).toBeInTheDocument()
+    })
+
+    expect(requests).toContainEqual(
+      expect.objectContaining({
+        method: 'PATCH',
+        path: apiRouteContract.chapterPlanningInput({
+          projectId: 'project-chapter-backlog-route',
+          chapterId: 'chapter-signals-in-rain',
+        }),
+      }),
+    )
+    expect(requests).toContainEqual(
+      expect.objectContaining({
+        method: 'POST',
+        path: apiRouteContract.chapterBacklogProposals({
+          projectId: 'project-chapter-backlog-route',
+          chapterId: 'chapter-signals-in-rain',
+        }),
+      }),
+    )
+    expect(requests).toContainEqual(
+      expect.objectContaining({
+        method: 'POST',
+        path: apiRouteContract.chapterBacklogProposalAccept({
+          projectId: 'project-chapter-backlog-route',
+          chapterId: 'chapter-signals-in-rain',
+          proposalId: 'chapter-signals-in-rain-backlog-proposal-001',
+        }),
+      }),
+    )
+  })
+
+  it('roundtrips chapter backlog -> scene draft -> browser back while restoring backlog view and selected scene', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=backlog&sceneId=scene-concourse-delay',
+    )
+
+    render(
+      <AppProviders>
+        <ChapterRouteHarness />
+      </AppProviders>,
+    )
+
+    await screen.findByText('Review and accept the scene backlog')
+    await user.click(screen.getByRole('button', { name: 'Open in Draft: Concourse Delay' }))
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('scene')
+      expect(params.get('id')).toBe('scene-concourse-delay')
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('tab')).toBe('prose')
+    })
+
+    window.history.back()
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('scope')).toBe('chapter')
+      expect(params.get('view')).toBe('backlog')
+      expect(params.get('sceneId')).toBe('scene-concourse-delay')
+    })
+
+    expect(screen.getByRole('button', { name: /Scene 2 Concourse Delay/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Review and accept the scene backlog')).toBeInTheDocument()
   })
 
   it('does not record reorder success activity when the API runtime resolves the mutation to null', async () => {

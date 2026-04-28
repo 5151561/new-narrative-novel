@@ -588,6 +588,74 @@ describe('api project runtime', () => {
     })
   })
 
+  it('uses chapter backlog write routes for planning input, proposal generation, proposal scene edit, and proposal acceptance', async () => {
+    const transport = createTransportMock()
+    const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })
+
+    await runtime.chapterClient.updateChapterBacklogInput({
+      chapterId: 'chapter-1',
+      locale: 'en',
+      goal: 'Keep pressure public.',
+      constraints: ['Keep the ledger shut.'],
+    })
+    await runtime.chapterClient.generateChapterBacklogProposal({
+      chapterId: 'chapter-1',
+      locale: 'en',
+    })
+    await runtime.chapterClient.updateChapterBacklogProposalScene({
+      chapterId: 'chapter-1',
+      proposalId: 'proposal-1',
+      proposalSceneId: 'proposal-1::scene-2',
+      locale: 'zh-CN',
+      patch: {
+        summary: '新的摘要',
+      },
+      order: 1,
+      backlogStatus: 'needs_review',
+    })
+    await runtime.chapterClient.acceptChapterBacklogProposal({
+      chapterId: 'chapter-1',
+      proposalId: 'proposal-1',
+      locale: 'en',
+    })
+
+    expect(transport).toHaveBeenNthCalledWith(1, {
+      method: 'PATCH',
+      path: '/api/projects/project-1/chapters/chapter-1/planning-input',
+      body: {
+        locale: 'en',
+        goal: 'Keep pressure public.',
+        constraints: ['Keep the ledger shut.'],
+      },
+    })
+    expect(transport).toHaveBeenNthCalledWith(2, {
+      method: 'POST',
+      path: '/api/projects/project-1/chapters/chapter-1/backlog-proposals',
+      body: {
+        locale: 'en',
+      },
+    })
+    expect(transport).toHaveBeenNthCalledWith(3, {
+      method: 'PATCH',
+      path: '/api/projects/project-1/chapters/chapter-1/backlog-proposals/proposal-1/scenes/proposal-1%3A%3Ascene-2',
+      body: {
+        locale: 'zh-CN',
+        patch: {
+          summary: '新的摘要',
+        },
+        order: 1,
+        backlogStatus: 'needs_review',
+      },
+    })
+    expect(transport).toHaveBeenNthCalledWith(4, {
+      method: 'POST',
+      path: '/api/projects/project-1/chapters/chapter-1/backlog-proposals/proposal-1/accept',
+      body: {
+        locale: 'en',
+      },
+    })
+  })
+
   it('provides asset knowledge through the runtime and does not expose persistence', async () => {
     const transport = createTransportMock()
     const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })

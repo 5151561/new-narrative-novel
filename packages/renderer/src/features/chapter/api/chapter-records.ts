@@ -18,6 +18,45 @@ export interface ChapterStructureAssemblyHintRecord {
   detail: ChapterLocalizedText
 }
 
+export type ChapterSceneBacklogStatus = 'planned' | 'running' | 'needs_review' | 'drafted' | 'revised'
+
+export interface ChapterBacklogConstraintRecord {
+  id: string
+  label: ChapterLocalizedText
+  detail: ChapterLocalizedText
+}
+
+export interface ChapterBacklogProposalSceneRecord {
+  proposalSceneId: string
+  sceneId: string
+  order: number
+  title: ChapterLocalizedText
+  summary: ChapterLocalizedText
+  purpose: ChapterLocalizedText
+  pov: ChapterLocalizedText
+  location: ChapterLocalizedText
+  conflict: ChapterLocalizedText
+  reveal: ChapterLocalizedText
+  backlogStatus: ChapterSceneBacklogStatus
+  plannerNotes: ChapterLocalizedText
+}
+
+export interface ChapterBacklogProposalRecord {
+  proposalId: string
+  chapterId: string
+  goalSnapshot: ChapterLocalizedText
+  constraintSnapshot: ChapterBacklogConstraintRecord[]
+  scenes: ChapterBacklogProposalSceneRecord[]
+  status: 'draft' | 'accepted'
+}
+
+export interface ChapterBacklogPlanningRecord {
+  goal: ChapterLocalizedText
+  constraints: ChapterBacklogConstraintRecord[]
+  proposals: ChapterBacklogProposalRecord[]
+  acceptedProposalId?: string
+}
+
 export interface ChapterStructureSceneRecord {
   id: string
   order: number
@@ -28,6 +67,7 @@ export interface ChapterStructureSceneRecord {
   location: ChapterLocalizedText
   conflict: ChapterLocalizedText
   reveal: ChapterLocalizedText
+  backlogStatus: ChapterSceneBacklogStatus
   statusLabel: ChapterLocalizedText
   proseStatusLabel: ChapterLocalizedText
   runStatusLabel: ChapterLocalizedText
@@ -45,6 +85,7 @@ export interface ChapterStructureWorkspaceRecord {
   chapterId: string
   title: ChapterLocalizedText
   summary: ChapterLocalizedText
+  planning: ChapterBacklogPlanningRecord
   scenes: ChapterStructureSceneRecord[]
   inspector: ChapterStructureInspectorRecord
   viewsMeta?: {

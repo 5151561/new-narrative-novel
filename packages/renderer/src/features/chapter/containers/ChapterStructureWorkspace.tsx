@@ -13,13 +13,17 @@ import { ChapterStructureInspectorPane } from '../components/ChapterStructureIns
 import { ChapterStructureStage } from '../components/ChapterStructureStage'
 import type { ChapterSceneStructurePatch } from '../api/chapter-record-mutations'
 import { type ChapterWorkbenchMutationEvent } from '../hooks/useChapterWorkbenchActivity'
+import { useAcceptChapterBacklogProposalMutation } from '../hooks/useAcceptChapterBacklogProposalMutation'
+import { useGenerateChapterBacklogProposalMutation } from '../hooks/useGenerateChapterBacklogProposalMutation'
 import { useReorderChapterSceneMutation } from '../hooks/useReorderChapterSceneMutation'
 import { useChapterStructureWorkspaceQuery } from '../hooks/useChapterStructureWorkspaceQuery'
+import { useUpdateChapterBacklogInputMutation } from '../hooks/useUpdateChapterBacklogInputMutation'
+import { useUpdateChapterBacklogProposalSceneMutation } from '../hooks/useUpdateChapterBacklogProposalSceneMutation'
 import { useUpdateChapterSceneStructureMutation } from '../hooks/useUpdateChapterSceneStructureMutation'
 import type { ChapterStructureView } from '../types/chapter-view-models'
 import { ChapterDockContainer } from './ChapterDockContainer'
 
-const defaultChapterViews: ChapterStructureView[] = ['sequence', 'outliner', 'assembly']
+const defaultChapterViews: ChapterStructureView[] = ['backlog', 'sequence', 'outliner', 'assembly']
 
 function getEffectiveChapterView(
   activeView: ChapterStructureView,
@@ -65,6 +69,18 @@ export function ChapterStructureWorkspace() {
     chapterId: route.chapterId,
   })
   const updateSceneStructureMutation = useUpdateChapterSceneStructureMutation({
+    chapterId: route.chapterId,
+  })
+  const updateBacklogInputMutation = useUpdateChapterBacklogInputMutation({
+    chapterId: route.chapterId,
+  })
+  const generateBacklogProposalMutation = useGenerateChapterBacklogProposalMutation({
+    chapterId: route.chapterId,
+  })
+  const updateBacklogProposalSceneMutation = useUpdateChapterBacklogProposalSceneMutation({
+    chapterId: route.chapterId,
+  })
+  const acceptBacklogProposalMutation = useAcceptChapterBacklogProposalMutation({
     chapterId: route.chapterId,
   })
 
@@ -183,6 +199,93 @@ export function ChapterStructureWorkspace() {
     [locale, route.chapterId, updateSceneStructureMutation, workspace],
   )
 
+  const saveBacklogInput = useCallback(
+    async (input: { goal: string; constraints: string[] }) => {
+      const nextWorkspace = await updateBacklogInputMutation.mutateAsync({
+        locale,
+        goal: input.goal,
+        constraints: input.constraints,
+      })
+      if (nextWorkspace === null) {
+        return
+      }
+
+      setLatestMutation({
+        id: `mutation-${mutationSequenceRef.current++}`,
+        chapterId: route.chapterId,
+        action: 'saved-backlog-input',
+        sceneTitle: nextWorkspace.title,
+      })
+    },
+    [locale, route.chapterId, updateBacklogInputMutation],
+  )
+
+  const generateBacklogProposal = useCallback(async () => {
+    const nextWorkspace = await generateBacklogProposalMutation.mutateAsync()
+    if (nextWorkspace === null) {
+      return
+    }
+
+    setLatestMutation({
+      id: `mutation-${mutationSequenceRef.current++}`,
+      chapterId: route.chapterId,
+      action: 'generated-backlog-proposal',
+      sceneTitle: nextWorkspace.title,
+    })
+  }, [generateBacklogProposalMutation, route.chapterId])
+
+  const updateBacklogProposalScene = useCallback(
+    async (
+      proposalId: string,
+      proposalSceneId: string,
+      input: {
+        patch?: Partial<Record<'title' | 'summary' | 'purpose' | 'pov' | 'location' | 'conflict' | 'reveal' | 'plannerNotes', string>>
+        order?: number
+        backlogStatus?: 'planned' | 'running' | 'needs_review' | 'drafted' | 'revised'
+      },
+    ) => {
+      const nextWorkspace = await updateBacklogProposalSceneMutation.mutateAsync({
+        proposalId,
+        proposalSceneId,
+        locale,
+        ...input,
+      })
+      if (nextWorkspace === null) {
+        return
+      }
+
+      const sceneTitle = nextWorkspace.planning.proposals
+        .find((proposal) => proposal.proposalId === proposalId)
+        ?.scenes.find((scene) => scene.proposalSceneId === proposalSceneId)?.title
+        ?? proposalSceneId
+
+      setLatestMutation({
+        id: `mutation-${mutationSequenceRef.current++}`,
+        chapterId: route.chapterId,
+        action: 'updated-backlog-proposal-scene',
+        sceneTitle,
+      })
+    },
+    [locale, route.chapterId, updateBacklogProposalSceneMutation],
+  )
+
+  const acceptBacklogProposal = useCallback(
+    async (proposalId: string) => {
+      const nextWorkspace = await acceptBacklogProposalMutation.mutateAsync({ proposalId })
+      if (nextWorkspace === null) {
+        return
+      }
+
+      setLatestMutation({
+        id: `mutation-${mutationSequenceRef.current++}`,
+        chapterId: route.chapterId,
+        action: 'accepted-backlog-proposal',
+        sceneTitle: nextWorkspace.title,
+      })
+    },
+    [acceptBacklogProposalMutation, route.chapterId],
+  )
+
   useEffect(() => {
     if (error || isLoading || workspace === undefined || workspace === null) {
       return
@@ -264,6 +367,7 @@ export function ChapterStructureWorkspace() {
         <ChapterStructureStage
           activeView={effectiveView}
           labels={{
+            backlog: dictionary.app.backlog,
             sequence: dictionary.app.sequence,
             outliner: dictionary.app.outliner,
             assembly: dictionary.app.assembly,
@@ -276,6 +380,22 @@ export function ChapterStructureWorkspace() {
           onSaveScenePatch={(sceneId, patch) => saveScenePatch(sceneId, patch)}
           savingSceneId={updateSceneStructureMutation.isPending ? updateSceneStructureMutation.variables?.sceneId ?? null : null}
           onOpenScene={openSceneFromChapter}
+          onSavePlanningInput={saveBacklogInput}
+          onGenerateProposal={() => generateBacklogProposal()}
+          onUpdateProposalScene={updateBacklogProposalScene}
+          onAcceptProposal={acceptBacklogProposal}
+          savingPlanning={updateBacklogInputMutation.isPending}
+          generatingProposal={generateBacklogProposalMutation.isPending}
+          updatingProposalSceneId={
+            updateBacklogProposalSceneMutation.isPending
+              ? updateBacklogProposalSceneMutation.variables?.proposalSceneId ?? null
+              : null
+          }
+          acceptingProposalId={
+            acceptBacklogProposalMutation.isPending
+              ? acceptBacklogProposalMutation.variables?.proposalId ?? null
+              : null
+          }
         />
       }
       inspector={
@@ -284,6 +404,10 @@ export function ChapterStructureWorkspace() {
           chapterSummary={workspace.summary}
           unresolvedCount={workspace.unresolvedCount}
           inspector={workspace.inspector}
+          planning={workspace.planning}
+          selectedSceneBacklogStatusLabel={
+            workspace.scenes.find((scene) => scene.id === workspace.selectedSceneId)?.backlogStatusLabel
+          }
         />
       }
       bottomDock={<ChapterDockContainer activeView={effectiveView} workspace={workspace} latestMutation={latestMutation} />}

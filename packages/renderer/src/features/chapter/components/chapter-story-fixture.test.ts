@@ -10,6 +10,7 @@ describe('chapter story fixture localization', () => {
     expect(workspace.summary).toContain('章节工作台')
     expect(workspace.scenes[0]?.title).toBe('午夜站台')
     expect(workspace.scenes[0]?.statusLabel).toBe('当前')
+    expect(workspace.planning.constraints[0]?.label).toBe('让账本在公共场域保持关闭。')
     expect(workspace.inspector.selectedSceneBrief?.unresolvedLabel).toBe('未决 3')
   })
 

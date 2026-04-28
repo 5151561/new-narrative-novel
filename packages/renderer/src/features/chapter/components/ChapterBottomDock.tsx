@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { FactList } from '@/components/ui/FactList'
 import { SectionCard } from '@/components/ui/SectionCard'
 import { TimelineList } from '@/components/ui/TimelineList'
+import { Badge } from '@/components/ui/Badge'
 
 import { useI18n } from '@/app/i18n'
 import { WorkbenchBottomDockFrame } from '@/features/workbench/components/WorkbenchBottomDockFrame'
@@ -26,6 +27,11 @@ interface ChapterBottomDockProblems {
   selectedScene: ChapterBottomDockSelectedScene | null
   problemsSummary: ChapterBottomDockListItem[]
   assemblyHints: ChapterBottomDockListItem[]
+  status?: {
+    acceptedProposalId?: string
+    selectedSceneBacklogStatusLabel?: string
+    sceneStatuses: Array<{ id: string; title: string; backlogStatusLabel: string }>
+  }
 }
 
 interface ChapterBottomDockProps {
@@ -170,6 +176,35 @@ export function ChapterBottomDock({ problems, activity }: ChapterBottomDockProps
                     : 'Assembly hints will appear here when seam guidance is available.'
                 }
               />
+              {problems.status ? (
+                <div className="space-y-3 rounded-md border border-line-soft bg-surface-2 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
+                    {locale === 'zh-CN' ? 'backlog 状态支持' : 'Backlog status support'}
+                  </p>
+                  <FactList
+                    items={[
+                      {
+                        id: 'accepted-plan',
+                        label: locale === 'zh-CN' ? '已接受计划' : 'Accepted plan',
+                        value: problems.status.acceptedProposalId ?? (locale === 'zh-CN' ? '尚未接受' : 'Not accepted yet'),
+                      },
+                      {
+                        id: 'selected-status',
+                        label: locale === 'zh-CN' ? '当前场景状态' : 'Selected scene status',
+                        value: problems.status.selectedSceneBacklogStatusLabel ?? (locale === 'zh-CN' ? '未选中' : 'No selection'),
+                      },
+                    ]}
+                  />
+                  <ul className="space-y-2">
+                    {problems.status.sceneStatuses.map((scene) => (
+                      <li key={scene.id} className="flex items-center justify-between gap-3 rounded-md border border-line-soft bg-surface-1 px-3 py-2">
+                        <span className="text-sm text-text-main">{scene.title}</span>
+                        <Badge tone="neutral">{scene.backlogStatusLabel}</Badge>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           </SectionCard>
         </div>

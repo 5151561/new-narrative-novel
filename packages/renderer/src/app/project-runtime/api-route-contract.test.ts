@@ -29,6 +29,36 @@ describe('api route contract', () => {
     ).toBe('/api/projects/project-1/chapters/chapter-1/scenes/scene-2/structure')
   })
 
+  it('builds chapter backlog planning and proposal routes', () => {
+    expect(
+      apiRouteContract.chapterPlanningInput({
+        projectId: 'project-1',
+        chapterId: 'chapter-1',
+      }),
+    ).toBe('/api/projects/project-1/chapters/chapter-1/planning-input')
+    expect(
+      apiRouteContract.chapterBacklogProposals({
+        projectId: 'project-1',
+        chapterId: 'chapter-1',
+      }),
+    ).toBe('/api/projects/project-1/chapters/chapter-1/backlog-proposals')
+    expect(
+      apiRouteContract.chapterBacklogProposalScene({
+        projectId: 'project-1',
+        chapterId: 'chapter-1',
+        proposalId: 'proposal-1',
+        proposalSceneId: 'proposal-1::scene-2',
+      }),
+    ).toBe('/api/projects/project-1/chapters/chapter-1/backlog-proposals/proposal-1/scenes/proposal-1%3A%3Ascene-2')
+    expect(
+      apiRouteContract.chapterBacklogProposalAccept({
+        projectId: 'project-1',
+        chapterId: 'chapter-1',
+        proposalId: 'proposal-1',
+      }),
+    ).toBe('/api/projects/project-1/chapters/chapter-1/backlog-proposals/proposal-1/accept')
+  })
+
   it('builds the book export artifact write route', () => {
     expect(apiRouteContract.bookExportArtifacts({ projectId: 'project-1', bookId: 'book-1' })).toBe(
       '/api/projects/project-1/books/book-1/export-artifacts',

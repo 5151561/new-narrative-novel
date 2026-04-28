@@ -43,6 +43,7 @@ export function ChapterSequenceView({ workspace, onSelectScene, onOpenScene }: C
                     <span className="mt-1 block text-base text-text-main">{scene.title}</span>
                   </span>
                   <span className="flex shrink-0 flex-wrap justify-end gap-2">
+                    <Badge tone="neutral">{scene.backlogStatusLabel}</Badge>
                     <Badge tone={active ? 'accent' : 'neutral'}>{scene.statusLabel}</Badge>
                     <Badge tone={scene.unresolvedCount > 0 ? 'warn' : 'success'}>
                       {getChapterUnresolvedCountLabel(locale, scene.unresolvedCount)}
@@ -73,6 +74,7 @@ export function ChapterSequenceView({ workspace, onSelectScene, onOpenScene }: C
                   </span>
                 </span>
                 <span className="mt-3 flex flex-wrap gap-2">
+                  <Badge tone="neutral">{scene.backlogStatusLabel}</Badge>
                   <Badge tone="neutral">{scene.proseStatusLabel}</Badge>
                   <Badge tone="neutral">{scene.lastRunLabel}</Badge>
                 </span>

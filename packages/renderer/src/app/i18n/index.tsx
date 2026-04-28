@@ -204,11 +204,30 @@ const chapterStructureViewLabels: Record<Locale, Record<ChapterStructureView, st
     sequence: 'Sequence',
     outliner: 'Outliner',
     assembly: 'Assembly',
+    backlog: 'Backlog',
   },
   'zh-CN': {
     sequence: '顺序',
     outliner: '大纲',
     assembly: '装配',
+    backlog: '积压计划',
+  },
+}
+
+const chapterBacklogStatusLabels: Record<Locale, Record<'planned' | 'running' | 'needs_review' | 'drafted' | 'revised', string>> = {
+  en: {
+    planned: 'Planned',
+    running: 'Running',
+    needs_review: 'Needs review',
+    drafted: 'Drafted',
+    revised: 'Revised',
+  },
+  'zh-CN': {
+    planned: '已规划',
+    running: '进行中',
+    needs_review: '待审阅',
+    drafted: '已起草',
+    revised: '已修订',
   },
 }
 
@@ -403,6 +422,7 @@ const dictionaries = {
       sequence: 'Sequence',
       outliner: 'Outliner',
       assembly: 'Assembly',
+      backlog: 'Backlog',
       chapters: 'Chapters',
       assets: 'Assets',
       chapterNavigatorDescription: 'Keep chapter structure, placeholder scenes, and unresolved signals aligned.',
@@ -541,6 +561,7 @@ const dictionaries = {
       sequence: '顺序',
       outliner: '大纲',
       assembly: '装配',
+      backlog: '积压计划',
       chapters: '章节',
       assets: '资产',
       chapterNavigatorDescription: '让章节结构、占位场景和未决信号保持对齐。',
@@ -761,6 +782,13 @@ export function getProjectRuntimeHealthStatusLabel(locale: Locale, status: Proje
 
 export function getChapterStructureViewLabel(locale: Locale, view: ChapterStructureView) {
   return chapterStructureViewLabels[locale][view]
+}
+
+export function getChapterBacklogStatusLabel(
+  locale: Locale,
+  status: 'planned' | 'running' | 'needs_review' | 'drafted' | 'revised',
+) {
+  return chapterBacklogStatusLabels[locale][status]
 }
 
 export function getChapterSceneOrdinalLabel(locale: Locale, index: number) {

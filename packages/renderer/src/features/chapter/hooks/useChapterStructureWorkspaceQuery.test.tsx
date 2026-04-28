@@ -1,16 +1,21 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useEffect, type PropsWithChildren } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { APP_LOCALE_STORAGE_KEY, I18nProvider, type Locale, useI18n } from '@/app/i18n'
 import { ProjectRuntimeProvider, createTestProjectRuntime } from '@/app/project-runtime'
 
 import { createChapterClient } from '../api/chapter-client'
+import { resetMockChapterDb } from '../api/mock-chapter-db'
 import { useChapterStructureWorkspaceQuery } from './useChapterStructureWorkspaceQuery'
 import { chapterQueryKeys } from './chapter-query-keys'
 
 describe('chapter query hooks', () => {
+  beforeEach(() => {
+    resetMockChapterDb()
+  })
+
   function wrapperWithoutRuntime() {
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -149,6 +154,11 @@ describe('chapter query hooks', () => {
       chapterId: 'chapter-signals-in-rain',
       selectedSceneId: 'scene-midnight-platform',
       scenes: expect.arrayContaining([expect.objectContaining({ id: 'scene-midnight-platform', order: 1 })]),
+      planning: expect.objectContaining({
+        goal: expect.any(String),
+        constraints: expect.any(Array),
+        proposals: expect.any(Array),
+      }),
       inspector: expect.objectContaining({
         selectedSceneBrief: expect.objectContaining({
           sceneId: 'scene-midnight-platform',
@@ -161,6 +171,56 @@ describe('chapter query hooks', () => {
           }),
         ]),
       }),
+    })
+  })
+
+  it('maps planning, proposals, accepted plan id, and canonical backlog status from the raw chapter record', async () => {
+    const client = createChapterClient()
+    const generated = await client.generateChapterBacklogProposal({ chapterId: 'chapter-signals-in-rain', locale: 'en' })
+    const proposal = generated?.planning.proposals.at(-1)
+    expect(proposal).toBeTruthy()
+    await client.updateChapterBacklogProposalScene({
+      chapterId: 'chapter-signals-in-rain',
+      proposalId: proposal!.proposalId,
+      proposalSceneId: proposal!.scenes[1]!.proposalSceneId,
+      locale: 'en',
+      patch: {
+        summary: 'Open on the crowd bottleneck.',
+      },
+      order: 1,
+      backlogStatus: 'needs_review',
+    })
+    await client.acceptChapterBacklogProposal({
+      chapterId: 'chapter-signals-in-rain',
+      proposalId: proposal!.proposalId,
+      locale: 'en',
+    })
+
+    const { wrapper } = wrapperFactory()
+    const hook = renderHook(() => useChapterStructureWorkspaceQuery(baseInput, client), {
+      wrapper,
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(hook.result.current.workspace).toMatchObject({
+      planning: {
+        acceptedProposalId: proposal!.proposalId,
+      },
+    })
+    expect(hook.result.current.workspace?.scenes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'scene-concourse-delay',
+        order: 1,
+        backlogStatus: 'needs_review',
+      }),
+    ]))
+    expect(hook.result.current.workspace?.planning.proposals[0]?.scenes[0]).toMatchObject({
+      sceneId: 'scene-concourse-delay',
+      backlogStatus: 'needs_review',
+      summary: 'Open on the crowd bottleneck.',
     })
   })
 

@@ -7,6 +7,8 @@ import type {
   BookDraftAssemblySceneGapRecord,
   BookDraftAssemblySceneRecord,
   BookDraftAssemblyTraceRollupRecord,
+  ChapterBacklogPlanningRecord,
+  ChapterBacklogProposalSceneRecord,
   BookExperimentBranchRecord,
   BookExportArtifactRecord,
   BookExportProfileRecord,
@@ -18,6 +20,7 @@ import type {
   ChapterStructureWorkspaceRecord,
   FixtureDataSnapshot,
   FixtureProjectData,
+  PatchChapterBacklogPlanningInput,
   ProjectRuntimeInfoRecord,
   ProposalActionInput,
   ProposalSetArtifactDetailRecord,
@@ -42,8 +45,10 @@ import type {
   SetReviewIssueFixActionInput,
   StartSceneRunInput,
   SubmitRunReviewDecisionInput,
+  UpdateChapterBacklogProposalSceneInput,
 } from '../contracts/api-records.js'
 import { conflict, notFound } from '../http/errors.js'
+import { createChapterBacklogProposal } from '../orchestration/chapterBacklog/chapterBacklogPlanner.js'
 import type {
   ScenePlannerGatewayRequest,
   ScenePlannerGatewayResult,
@@ -203,6 +208,191 @@ function patchChapterRecordScene(
 
       return nextScene
     }),
+  }
+}
+
+function normalizeProposalSceneOrders(
+  scenes: ChapterBacklogProposalSceneRecord[],
+): ChapterBacklogProposalSceneRecord[] {
+  return scenes.map((scene, index) => ({
+    ...scene,
+    order: index + 1,
+  }))
+}
+
+function reorderProposalScenes(
+  scenes: ChapterBacklogProposalSceneRecord[],
+  proposalSceneId: string,
+  targetOrder: number,
+): ChapterBacklogProposalSceneRecord[] {
+  const normalizedScenes = normalizeProposalSceneOrders(scenes)
+  const sourceIndex = normalizedScenes.findIndex((scene) => scene.proposalSceneId === proposalSceneId)
+  if (sourceIndex < 0) {
+    return normalizedScenes
+  }
+
+  const nextScenes = [...normalizedScenes]
+  const [movedScene] = nextScenes.splice(sourceIndex, 1)
+  if (!movedScene) {
+    return normalizedScenes
+  }
+
+  const targetIndex = Math.min(Math.max(targetOrder - 1, 0), nextScenes.length)
+  nextScenes.splice(targetIndex, 0, movedScene)
+  return normalizeProposalSceneOrders(nextScenes)
+}
+
+function createConstraintId(index: number) {
+  return `constraint-${String(index + 1).padStart(3, '0')}`
+}
+
+function patchChapterBacklogPlanning(
+  record: ChapterStructureWorkspaceRecord,
+  input: PatchChapterBacklogPlanningInput,
+): ChapterStructureWorkspaceRecord {
+  const nextPlanning: ChapterBacklogPlanningRecord = {
+    ...record.planning,
+    goal: input.goal === undefined
+      ? clone(record.planning.goal)
+      : mergeLocalizedText(record.planning.goal, input.locale, input.goal),
+    constraints: input.constraints === undefined
+      ? clone(record.planning.constraints)
+      : input.constraints.map((constraint, index) => ({
+        id: record.planning.constraints[index]?.id ?? createConstraintId(index),
+        label: mergeLocalizedText(
+          record.planning.constraints[index]?.label ?? localizedText('', ''),
+          input.locale,
+          constraint,
+        ),
+        detail: clone(record.planning.constraints[index]?.detail ?? localizedText('', '')),
+      })),
+  }
+
+  return {
+    ...record,
+    planning: nextPlanning,
+  }
+}
+
+function patchChapterBacklogProposalScene(
+  record: ChapterStructureWorkspaceRecord,
+  proposalId: string,
+  proposalSceneId: string,
+  input: UpdateChapterBacklogProposalSceneInput,
+): ChapterStructureWorkspaceRecord {
+  return {
+    ...record,
+    planning: {
+      ...record.planning,
+      proposals: record.planning.proposals.map((proposal) => {
+        if (proposal.proposalId !== proposalId) {
+          return proposal
+        }
+
+    const patchedScenes = proposal.scenes.map((scene) => {
+            if (scene.proposalSceneId !== proposalSceneId) {
+              return scene
+            }
+
+            const nextScene = {
+              ...scene,
+              backlogStatus: input.backlogStatus ?? scene.backlogStatus,
+            }
+
+            if (input.patch?.title !== undefined) {
+              nextScene.title = mergeLocalizedText(nextScene.title, input.locale, input.patch.title)
+            }
+            if (input.patch?.summary !== undefined) {
+              nextScene.summary = mergeLocalizedText(nextScene.summary, input.locale, input.patch.summary)
+            }
+            if (input.patch?.purpose !== undefined) {
+              nextScene.purpose = mergeLocalizedText(nextScene.purpose, input.locale, input.patch.purpose)
+            }
+            if (input.patch?.pov !== undefined) {
+              nextScene.pov = mergeLocalizedText(nextScene.pov, input.locale, input.patch.pov)
+            }
+            if (input.patch?.location !== undefined) {
+              nextScene.location = mergeLocalizedText(nextScene.location, input.locale, input.patch.location)
+            }
+            if (input.patch?.conflict !== undefined) {
+              nextScene.conflict = mergeLocalizedText(nextScene.conflict, input.locale, input.patch.conflict)
+            }
+            if (input.patch?.reveal !== undefined) {
+              nextScene.reveal = mergeLocalizedText(nextScene.reveal, input.locale, input.patch.reveal)
+            }
+            if (input.patch?.plannerNotes !== undefined) {
+              nextScene.plannerNotes = mergeLocalizedText(nextScene.plannerNotes, input.locale, input.patch.plannerNotes)
+            }
+
+            return nextScene
+          })
+        const nextScenes = input.order === undefined
+          ? normalizeProposalSceneOrders(patchedScenes)
+          : reorderProposalScenes(patchedScenes, proposalSceneId, input.order)
+
+        return {
+          ...proposal,
+          scenes: nextScenes,
+        }
+      }),
+    },
+  }
+}
+
+function applyAcceptedChapterBacklogProposal(
+  record: ChapterStructureWorkspaceRecord,
+  proposalId: string,
+): ChapterStructureWorkspaceRecord {
+  const proposal = record.planning.proposals.find((item) => item.proposalId === proposalId)
+  if (!proposal) {
+    return record
+  }
+
+  const proposalScenesBySceneId = new Map(proposal.scenes.map((scene) => [scene.sceneId, scene]))
+
+  const nextScenes = normalizeSceneOrders({
+    ...record,
+    scenes: proposal.scenes.map((proposalScene) => {
+      const currentScene = record.scenes.find((scene) => scene.id === proposalScene.sceneId)
+      if (!currentScene) {
+        throw notFound(`Scene ${proposalScene.sceneId} was not found.`, {
+          code: 'SCENE_NOT_FOUND',
+          detail: { chapterId: record.chapterId, sceneId: proposalScene.sceneId },
+        })
+      }
+
+      return {
+        ...currentScene,
+        order: proposalScene.order,
+        title: clone(proposalScene.title),
+        summary: clone(proposalScene.summary),
+        purpose: clone(proposalScene.purpose),
+        pov: clone(proposalScene.pov),
+        location: clone(proposalScene.location),
+        conflict: clone(proposalScene.conflict),
+        reveal: clone(proposalScene.reveal),
+        backlogStatus: proposalScene.backlogStatus,
+      }
+    }),
+  }).scenes
+
+  return {
+    ...record,
+    scenes: nextScenes,
+    planning: {
+      ...record.planning,
+      acceptedProposalId: proposalId,
+      proposals: record.planning.proposals.map((item) => ({
+        ...item,
+        status: item.proposalId === proposalId ? 'accepted' : item.status,
+        scenes: item.proposalId === proposalId
+          ? normalizeProposalSceneOrders(item.scenes)
+          : item.scenes.map((scene) => ({
+            ...scene,
+            backlogStatus: proposalScenesBySceneId.get(scene.sceneId)?.backlogStatus ?? scene.backlogStatus,
+          })),
+      })),
+    },
   }
 }
 
@@ -367,6 +557,21 @@ export interface FixtureRepository {
   getBookExperimentBranches(projectId: string, bookId: string): BookExperimentBranchRecord[]
   getBookExperimentBranch(projectId: string, bookId: string, branchId: string): BookExperimentBranchRecord | null
   getChapterStructure(projectId: string, chapterId: string): ChapterStructureWorkspaceRecord | null
+  updateChapterBacklogPlanningInput(projectId: string, chapterId: string, input: PatchChapterBacklogPlanningInput): Promise<ChapterStructureWorkspaceRecord | null>
+  generateChapterBacklogProposal(projectId: string, chapterId: string): Promise<ChapterStructureWorkspaceRecord | null>
+  updateChapterBacklogProposalScene(
+    projectId: string,
+    input: {
+      chapterId: string
+      proposalId: string
+      proposalSceneId: string
+      patch: UpdateChapterBacklogProposalSceneInput
+    },
+  ): Promise<ChapterStructureWorkspaceRecord | null>
+  acceptChapterBacklogProposal(
+    projectId: string,
+    input: { chapterId: string; proposalId: string },
+  ): Promise<ChapterStructureWorkspaceRecord | null>
   reorderChapterScene(projectId: string, input: { chapterId: string; sceneId: string; targetIndex: number }): Promise<ChapterStructureWorkspaceRecord | null>
   updateChapterSceneStructure(projectId: string, input: { chapterId: string; sceneId: string; locale: 'en' | 'zh-CN'; patch: ChapterSceneStructurePatch }): Promise<ChapterStructureWorkspaceRecord | null>
   getAssetKnowledge(projectId: string, assetId: string): AssetKnowledgeWorkspaceRecord | null
@@ -1131,6 +1336,63 @@ export function createFixtureRepository(options: {
     getChapterStructure(projectId, chapterId) {
       const record = getChapter(projectId, chapterId)
       return record ? clone(record) : null
+    },
+    async updateChapterBacklogPlanningInput(projectId, chapterId, input) {
+      const record = getChapter(projectId, chapterId)
+      if (!record) {
+        return null
+      }
+
+      const nextRecord = patchChapterBacklogPlanning(record, input)
+      getProject(projectId).chapters[chapterId] = nextRecord
+      await persistProjectOverlay(projectId)
+      return clone(nextRecord)
+    },
+    async generateChapterBacklogProposal(projectId, chapterId) {
+      const record = getChapter(projectId, chapterId)
+      if (!record) {
+        return null
+      }
+
+      const proposal = createChapterBacklogProposal({
+        chapterId,
+        proposalSequence: record.planning.proposals.length + 1,
+        planning: record.planning,
+        scenes: record.scenes,
+      })
+      const nextRecord: ChapterStructureWorkspaceRecord = {
+        ...record,
+        planning: {
+          ...record.planning,
+          proposals: [...record.planning.proposals, proposal],
+        },
+      }
+
+      getProject(projectId).chapters[chapterId] = nextRecord
+      await persistProjectOverlay(projectId)
+      return clone(nextRecord)
+    },
+    async updateChapterBacklogProposalScene(projectId, { chapterId, proposalId, proposalSceneId, patch }) {
+      const record = getChapter(projectId, chapterId)
+      if (!record || !record.planning.proposals.some((proposal) => proposal.proposalId === proposalId)) {
+        return null
+      }
+
+      const nextRecord = patchChapterBacklogProposalScene(record, proposalId, proposalSceneId, patch)
+      getProject(projectId).chapters[chapterId] = nextRecord
+      await persistProjectOverlay(projectId)
+      return clone(nextRecord)
+    },
+    async acceptChapterBacklogProposal(projectId, { chapterId, proposalId }) {
+      const record = getChapter(projectId, chapterId)
+      if (!record || !record.planning.proposals.some((proposal) => proposal.proposalId === proposalId)) {
+        return null
+      }
+
+      const nextRecord = applyAcceptedChapterBacklogProposal(record, proposalId)
+      getProject(projectId).chapters[chapterId] = nextRecord
+      await persistProjectOverlay(projectId)
+      return clone(nextRecord)
     },
     async reorderChapterScene(projectId, { chapterId, sceneId, targetIndex }) {
       const record = getChapter(projectId, chapterId)

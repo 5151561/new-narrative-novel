@@ -304,6 +304,18 @@ export function createMockProjectRuntime({
         await ensureHydrated()
         return baseChapterClient.getChapterStructureWorkspace(input)
       },
+      async updateChapterBacklogInput(input) {
+        return persistAfterMutation(() => baseChapterClient.updateChapterBacklogInput(input))
+      },
+      async generateChapterBacklogProposal(input) {
+        return persistAfterMutation(() => baseChapterClient.generateChapterBacklogProposal(input))
+      },
+      async updateChapterBacklogProposalScene(input) {
+        return persistAfterMutation(() => baseChapterClient.updateChapterBacklogProposalScene(input))
+      },
+      async acceptChapterBacklogProposal(input) {
+        return persistAfterMutation(() => baseChapterClient.acceptChapterBacklogProposal(input))
+      },
       async reorderChapterScene(input) {
         return persistAfterMutation(() => baseChapterClient.reorderChapterScene(input))
       },

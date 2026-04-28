@@ -7,8 +7,12 @@ import type { BookExportProfileRecord } from '@/features/book/api/book-export-pr
 import type { BookManuscriptCheckpointRecord } from '@/features/book/api/book-manuscript-checkpoints'
 import type { BookStructureRecord } from '@/features/book/api/book-records'
 import type {
+  AcceptChapterBacklogProposalInput,
   ChapterClient,
+  GenerateChapterBacklogProposalInput,
   ReorderChapterSceneInput,
+  UpdateChapterBacklogInput,
+  UpdateChapterBacklogProposalSceneInput,
   UpdateChapterSceneStructureInput,
 } from '@/features/chapter/api/chapter-client'
 import type { ChapterStructureWorkspaceRecord } from '@/features/chapter/api/chapter-records'
@@ -123,6 +127,57 @@ function createChapterClient(projectId: string, transport: ApiTransport): Chapte
       return transport.requestJson<ChapterStructureWorkspaceRecord | null>({
         method: 'GET',
         path: apiRouteContract.chapterStructure({ projectId, chapterId }),
+      })
+    },
+    async updateChapterBacklogInput({ chapterId, locale, goal, constraints }: UpdateChapterBacklogInput) {
+      return transport.requestJson<
+        ChapterStructureWorkspaceRecord | null,
+        Pick<UpdateChapterBacklogInput, 'locale' | 'goal' | 'constraints'>
+      >({
+        method: 'PATCH',
+        path: apiRouteContract.chapterPlanningInput({ projectId, chapterId }),
+        body: {
+          locale,
+          goal,
+          constraints,
+        },
+      })
+    },
+    async generateChapterBacklogProposal({ chapterId, locale }: GenerateChapterBacklogProposalInput) {
+      return transport.requestJson<ChapterStructureWorkspaceRecord | null, Pick<GenerateChapterBacklogProposalInput, 'locale'>>({
+        method: 'POST',
+        path: apiRouteContract.chapterBacklogProposals({ projectId, chapterId }),
+        body: { locale },
+      })
+    },
+    async updateChapterBacklogProposalScene({
+      chapterId,
+      proposalId,
+      proposalSceneId,
+      locale,
+      patch,
+      order,
+      backlogStatus,
+    }: UpdateChapterBacklogProposalSceneInput) {
+      return transport.requestJson<
+        ChapterStructureWorkspaceRecord | null,
+        Pick<UpdateChapterBacklogProposalSceneInput, 'locale' | 'patch' | 'order' | 'backlogStatus'>
+      >({
+        method: 'PATCH',
+        path: apiRouteContract.chapterBacklogProposalScene({ projectId, chapterId, proposalId, proposalSceneId }),
+        body: {
+          locale,
+          patch,
+          order,
+          backlogStatus,
+        },
+      })
+    },
+    async acceptChapterBacklogProposal({ chapterId, proposalId, locale }: AcceptChapterBacklogProposalInput) {
+      return transport.requestJson<ChapterStructureWorkspaceRecord | null, Pick<AcceptChapterBacklogProposalInput, 'locale'>>({
+        method: 'POST',
+        path: apiRouteContract.chapterBacklogProposalAccept({ projectId, chapterId, proposalId }),
+        body: { locale },
       })
     },
     async reorderChapterScene({ chapterId, sceneId, targetIndex }: ReorderChapterSceneInput) {

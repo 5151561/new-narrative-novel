@@ -4,7 +4,15 @@ import {
 } from '@narrative-novel/fixture-seed'
 
 import type { ChapterLocalizedText, ChapterStructureWorkspaceRecord } from './chapter-records'
-import { patchChapterRecordScene, type ChapterSceneStructurePatch, reorderChapterRecordScenes } from './chapter-record-mutations'
+import {
+  acceptChapterBacklogProposal,
+  appendGeneratedChapterBacklogProposal,
+  patchChapterBacklogPlanning,
+  patchChapterBacklogProposalScene,
+  patchChapterRecordScene,
+  type ChapterSceneStructurePatch,
+  reorderChapterRecordScenes,
+} from './chapter-record-mutations'
 
 function text(en: string, zhCN: string): ChapterLocalizedText {
   return {
@@ -29,6 +37,14 @@ function buildMockChapterScenes<const TSceneId extends string>(
   })
 }
 
+function createEmptyChapterPlanning(goalEn: string, goalZhCN: string) {
+  return {
+    goal: text(goalEn, goalZhCN),
+    constraints: [],
+    proposals: [],
+  }
+}
+
 const signalsInRainCanonicalScenesById = {
   'scene-midnight-platform': {
     id: 'scene-midnight-platform',
@@ -49,6 +65,7 @@ const signalsInRainCanonicalScenesById = {
       'Ren 需要筹码，美伊需要更高代价，站务员让一切都不能失控。',
     ),
     reveal: text('The courier signal stays legible only to Ren.', '信使暗号仍只对 Ren 可读。'),
+    backlogStatus: 'planned',
     statusLabel: text('Current', '当前'),
     proseStatusLabel: text('Needs draft', '需修订'),
     runStatusLabel: text('Paused', '已暂停'),
@@ -74,6 +91,7 @@ const signalsInRainCanonicalScenesById = {
       '拥堵拖慢节奏，但 Ren 不能失去主动权。',
     ),
     reveal: text('Witness pressure carries inward from the platform.', '目击者压力从月台延伸到室内。'),
+    backlogStatus: 'planned',
     statusLabel: text('Queued', '排队中'),
     proseStatusLabel: text('Queued for draft', '待起草'),
     runStatusLabel: text('Idle', '未开始'),
@@ -96,6 +114,7 @@ const signalsInRainCanonicalScenesById = {
     location: text('Ticket window', '售票窗'),
     conflict: text('Ren wants speed, Mei wants commitment first.', 'Ren 想加速离场，美伊要逼他先表态。'),
     reveal: text('The alias still has not crossed into public knowledge.', '化名仍然没有进入公开层。'),
+    backlogStatus: 'planned',
     statusLabel: text('Guarded', '受控'),
     proseStatusLabel: text('Needs draft', '待起草'),
     runStatusLabel: text('Guarded', '已守护'),
@@ -121,6 +140,7 @@ const signalsInRainCanonicalScenesById = {
       '铃声一旦太早落下，章节的对峙压力就会塌掉。',
     ),
     reveal: text('The ending still lacks a safe transition into motion.', '终局节拍仍缺一个安全的过渡。'),
+    backlogStatus: 'planned',
     statusLabel: text('Pending', '待定'),
     proseStatusLabel: text('Queued for draft', '待起草'),
     runStatusLabel: text('Idle', '未开始'),
@@ -152,6 +172,7 @@ const openWaterCanonicalScenesById = {
       'The betrayal line still lives in gesture, not explicit dialogue.',
       '背叛线仍只在动作里出现，不在对白里落明。',
     ),
+    backlogStatus: 'planned',
     statusLabel: text('Current', '当前'),
     proseStatusLabel: text('Queued for draft', '待起草'),
     runStatusLabel: text('Running', '运行中'),
@@ -177,6 +198,7 @@ const openWaterMockOnlyPreviewScenesById = {
       '所有人都知道包裹重要，但没人能先承认它属于谁。',
     ),
     reveal: text('The real receiver remains hidden.', '真正的接收方仍未暴露。'),
+    backlogStatus: 'planned',
     statusLabel: text('Queued', '排队中'),
     proseStatusLabel: text('Queued for draft', '待起草'),
     runStatusLabel: text('Idle', '未开始'),
@@ -199,6 +221,7 @@ const openWaterMockOnlyPreviewScenesById = {
       '一旦动作太快，前面的试探就会白费。',
     ),
     reveal: text('The exit path still lacks a convincing handoff.', '离场路径还缺一个可信的承接点。'),
+    backlogStatus: 'planned',
     statusLabel: text('Pending', '待定'),
     proseStatusLabel: text('Queued for draft', '待起草'),
     runStatusLabel: text('Idle', '未开始'),
@@ -215,8 +238,12 @@ export const mockChapterRecordSeeds: Record<string, ChapterStructureWorkspaceRec
       'Re-cut the same chapter through order, density, and assembly pressure without leaving the workbench.',
       '在公共压力与隐秘筹码之间重新编排同一章的节奏线。',
     ),
+    planning: createEmptyChapterPlanning(
+      'Keep the platform bargain public while the ledger stays unread.',
+      '让站台交易保持公开可见，同时不让账本被翻开。',
+    ),
     viewsMeta: {
-      availableViews: ['sequence', 'outliner', 'assembly'],
+      availableViews: ['backlog', 'sequence', 'outliner', 'assembly'],
     },
     scenes: buildMockChapterScenes(
       signalArcSceneIdsByChapter['chapter-signals-in-rain'],
@@ -287,8 +314,12 @@ export const mockChapterRecordSeeds: Record<string, ChapterStructureWorkspaceRec
       'Stress-test the same chapter dataset across quieter handoff scenes and broader spatial transitions.',
       '用更开阔的场景切换验证同一份 chapter dataset 的多视图复用。',
     ),
+    planning: createEmptyChapterPlanning(
+      'Keep the first handoff reversible long enough for the betrayal line to survive.',
+      '让第一次交接保持可撤回，直到背叛线能够继续存活。',
+    ),
     viewsMeta: {
-      availableViews: ['sequence', 'outliner', 'assembly'],
+      availableViews: ['backlog', 'sequence', 'outliner', 'assembly'],
     },
     scenes: [
       ...buildMockChapterScenes(
@@ -346,6 +377,104 @@ export function resetMockChapterDb() {
 export function getMockChapterRecordById(chapterId: string): ChapterStructureWorkspaceRecord | null {
   const record = mutableMockChapterRecords[chapterId]
   return record ? clone(record) : null
+}
+
+interface UpdateMockChapterBacklogInput {
+  chapterId: string
+  locale: 'en' | 'zh-CN'
+  goal?: string
+  constraints?: string[]
+}
+
+export function updateMockChapterBacklogInput({
+  chapterId,
+  locale,
+  goal,
+  constraints,
+}: UpdateMockChapterBacklogInput): ChapterStructureWorkspaceRecord | null {
+  const record = mutableMockChapterRecords[chapterId]
+  if (!record) {
+    return null
+  }
+
+  const nextRecord = patchChapterBacklogPlanning(record, { goal, constraints }, locale)
+  mutableMockChapterRecords[chapterId] = nextRecord
+  return clone(nextRecord)
+}
+
+interface GenerateMockChapterBacklogProposalInput {
+  chapterId: string
+  locale: 'en' | 'zh-CN'
+}
+
+export function generateMockChapterBacklogProposal({
+  chapterId,
+}: GenerateMockChapterBacklogProposalInput): ChapterStructureWorkspaceRecord | null {
+  const record = mutableMockChapterRecords[chapterId]
+  if (!record) {
+    return null
+  }
+
+  const nextRecord = appendGeneratedChapterBacklogProposal(record)
+  mutableMockChapterRecords[chapterId] = nextRecord
+  return clone(nextRecord)
+}
+
+interface UpdateMockChapterBacklogProposalSceneInput {
+  chapterId: string
+  proposalId: string
+  proposalSceneId: string
+  locale: 'en' | 'zh-CN'
+  patch?: Partial<Record<'title' | 'summary' | 'purpose' | 'pov' | 'location' | 'conflict' | 'reveal' | 'plannerNotes', string>>
+  order?: number
+  backlogStatus?: 'planned' | 'running' | 'needs_review' | 'drafted' | 'revised'
+}
+
+export function updateMockChapterBacklogProposalScene({
+  chapterId,
+  proposalId,
+  proposalSceneId,
+  locale,
+  patch,
+  order,
+  backlogStatus,
+}: UpdateMockChapterBacklogProposalSceneInput): ChapterStructureWorkspaceRecord | null {
+  const record = mutableMockChapterRecords[chapterId]
+  if (!record || !record.planning.proposals.some((proposal) => proposal.proposalId === proposalId)) {
+    return null
+  }
+
+  const nextRecord = patchChapterBacklogProposalScene(
+    record,
+    proposalId,
+    proposalSceneId,
+    patch ?? {},
+    locale,
+    order,
+    backlogStatus,
+  )
+  mutableMockChapterRecords[chapterId] = nextRecord
+  return clone(nextRecord)
+}
+
+interface AcceptMockChapterBacklogProposalInput {
+  chapterId: string
+  proposalId: string
+  locale: 'en' | 'zh-CN'
+}
+
+export function acceptMockChapterBacklogProposal({
+  chapterId,
+  proposalId,
+}: AcceptMockChapterBacklogProposalInput): ChapterStructureWorkspaceRecord | null {
+  const record = mutableMockChapterRecords[chapterId]
+  if (!record || !record.planning.proposals.some((proposal) => proposal.proposalId === proposalId)) {
+    return null
+  }
+
+  const nextRecord = acceptChapterBacklogProposal(record, proposalId)
+  mutableMockChapterRecords[chapterId] = nextRecord
+  return clone(nextRecord)
 }
 
 interface ReorderMockChapterSceneInput {
