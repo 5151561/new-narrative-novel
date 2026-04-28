@@ -34,6 +34,8 @@ describe('SceneExecutionContainer', () => {
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()
+    vi.unmock('@/app/project-runtime/ProjectRuntimeProvider')
+    vi.unmock('@/features/settings/ModelSettingsProvider')
     vi.unmock('../hooks/useSceneExecutionQuery')
     vi.unmock('../hooks/useProposalActions')
     vi.unmock('../components/SceneExecutionTab')
@@ -483,5 +485,155 @@ describe('SceneExecutionContainer', () => {
     expect(screen.getAllByRole('button', { name: 'Rewrite Run' })[0]).toBeDisabled()
     expect(screen.getAllByRole('button', { name: 'Run From Scratch' })[0]).toBeDisabled()
     expect(startRun).not.toHaveBeenCalled()
+  })
+
+  it('opens model settings instead of exposing Run Scene when the real-project openai bindings are incomplete', async () => {
+    const user = userEvent.setup()
+    const setOpen = vi.fn()
+
+    window.history.replaceState({}, '', '/workbench?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
+    vi.doUnmock('../components/SceneExecutionTab')
+    vi.doMock('@/app/project-runtime/ProjectRuntimeProvider', async () => {
+      const actual = await vi.importActual<typeof import('@/app/project-runtime/ProjectRuntimeProvider')>('@/app/project-runtime/ProjectRuntimeProvider')
+      return {
+        ...actual,
+        getProjectRuntimeKind: () => 'real-local-project' as const,
+        useOptionalProjectRuntime: () => ({
+          projectId: 'local-project-alpha',
+          projectTitle: 'Local Project Alpha',
+        }),
+      }
+    })
+    vi.doMock('@/features/settings/ModelSettingsProvider', async () => {
+      const actual = await vi.importActual<typeof import('@/features/settings/ModelSettingsProvider')>('@/features/settings/ModelSettingsProvider')
+      return {
+        ...actual,
+        useOptionalModelSettingsController: () => ({
+          supported: true,
+          setOpen,
+          snapshot: {
+            bindings: {
+              continuityReviewer: { provider: 'fixture' },
+              planner: { provider: 'openai' },
+              sceneProseWriter: { modelId: 'gpt-5.4', provider: 'openai' },
+              sceneRevision: { provider: 'fixture' },
+              summary: { provider: 'fixture' },
+            },
+            credentialStatus: {
+              configured: false,
+              provider: 'openai',
+            },
+            connectionTest: {
+              status: 'never',
+            },
+          },
+        }),
+      }
+    })
+    vi.doMock('./scene-run-session-context', () => ({
+      useSharedSceneRunSession: () => ({
+        run: null,
+        events: [],
+        pendingReviewId: null,
+        isReviewPending: false,
+        isLoading: false,
+        error: null,
+        isStartingRun: false,
+        isSubmittingDecision: false,
+        startRun: vi.fn(),
+        retry: vi.fn(),
+        submitDecision: vi.fn(),
+        reviewVariants: createReviewVariants(),
+      }),
+    }))
+    vi.doMock('../hooks/useSceneExecutionQuery', () => ({
+      useSceneExecutionQuery: () => ({
+        runId: undefined,
+        objective: {
+          goal: 'Keep the ledger closed while forcing Mei to show her leverage.',
+          warningsCount: 2,
+          unresolvedCount: 1,
+          cast: [
+            { id: 'ren', name: 'Ren Voss', role: 'POV' },
+            { id: 'mei', name: 'Mei Arden', role: 'Counterforce' },
+          ],
+          constraintSummary: ['Ledger stays shut.'],
+          location: { id: 'platform', name: 'Rain-soaked platform' },
+        },
+        beats: [
+          {
+            id: 'beat-bargain',
+            index: 2,
+            title: 'Bargain over the ledger',
+            status: 'review' as const,
+            proposalCount: 3,
+            warningCount: 1,
+            summary: 'Primary review beat.',
+          },
+        ],
+        proposals: [
+          {
+            id: 'proposal-pending',
+            beatId: 'beat-bargain',
+            actor: { id: 'scene-manager', name: 'Scene Manager', type: 'scene-manager' as const },
+            kind: 'conflict' as const,
+            title: 'Pending conflict proposal',
+            summary: 'Pending proposal stays visible before filtering.',
+            status: 'pending' as const,
+            impactTags: ['stakes'],
+            affects: [{ path: 'scene.conflict', label: 'Conflict', deltaSummary: 'Escalates pressure.' }],
+            risks: [{ severity: 'warn' as const, message: 'Could crowd the witness beat.' }],
+          },
+        ],
+        acceptedSummary: {
+          sceneSummary: 'One accepted proposal is ready for prose review.',
+          acceptedFacts: [{ id: 'fact-1', label: 'Ledger', value: 'Still closed.' }],
+          readiness: 'draftable' as const,
+          pendingProposalCount: 1,
+          warningCount: 1,
+          patchCandidateCount: 1,
+        },
+        canContinueRun: false,
+        canOpenProse: false,
+        isLoading: false,
+        error: null,
+      }),
+    }))
+    vi.doMock('../hooks/useProposalActions', () => ({
+      useProposalActions: () => ({
+        accept: vi.fn(),
+        editAccept: vi.fn(),
+        requestRewrite: vi.fn(),
+        reject: vi.fn(),
+        isMutating: false,
+      }),
+    }))
+    vi.doMock('../hooks/useSceneWorkspaceActions', () => ({
+      useSceneWorkspaceActions: () => ({
+        continueRun: vi.fn(),
+        openPatchPreview: vi.fn(),
+        openProse: vi.fn(),
+        openTab: vi.fn(),
+      }),
+    }))
+
+    const { SceneExecutionContainer } = await import('./SceneExecutionContainer')
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+      },
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <I18nProvider>
+          <SceneExecutionContainer sceneId="scene-midnight-platform" />
+        </I18nProvider>
+      </QueryClientProvider>,
+    )
+
+    expect(screen.queryByRole('button', { name: 'Run Scene' })).not.toBeInTheDocument()
+    await user.click(screen.getAllByRole('button', { name: 'Model Settings' })[0]!)
+    expect(setOpen).toHaveBeenCalledWith(true)
   })
 })

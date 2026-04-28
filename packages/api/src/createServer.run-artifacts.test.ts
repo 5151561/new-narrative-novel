@@ -814,7 +814,27 @@ describe('fixture API server run artifact read surfaces', () => {
     })
   })
 
-  it('falls back to fixture prose generation over HTTP when writer OpenAI config is incomplete', async () => {
+  it('returns a config error over HTTP when global openai mode leaves planner config incomplete before artifacts exist', async () => {
+    await withTestServer(async ({ app }) => {
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
+        },
+      })
+      expect(startResponse.statusCode).toBe(400)
+      expect(startResponse.json()).toMatchObject({
+        code: 'RUN_MODEL_CONFIG_REQUIRED',
+      })
+    }, {
+      configOverrides: {
+        modelProvider: 'openai',
+      },
+    })
+  })
+
+  it('returns a config error over HTTP when accepted prose generation requires an explicit writer binding but config is incomplete', async () => {
     await withTestServer(async ({ app }) => {
       const startResponse = await app.inject({
         method: 'POST',
@@ -826,7 +846,7 @@ describe('fixture API server run artifact read surfaces', () => {
       expect(startResponse.statusCode).toBe(200)
       const run = startResponse.json()
 
-      const serverWithMissingOpenAiConfig = await app.inject({
+      const reviewResponse = await app.inject({
         method: 'POST',
         url: `/api/projects/book-signal-arc/runs/${run.id}/review-decisions`,
         payload: {
@@ -834,48 +854,107 @@ describe('fixture API server run artifact read surfaces', () => {
           decision: 'accept',
         },
       })
-      expect(serverWithMissingOpenAiConfig.statusCode).toBe(200)
-
-      const postReviewEventsResponse = await app.inject({
-        method: 'GET',
-        url: `/api/projects/book-signal-arc/runs/${run.id}/events?cursor=${run.latestEventId}`,
+      expect(reviewResponse.statusCode).toBe(400)
+      expect(reviewResponse.json()).toMatchObject({
+        code: 'RUN_MODEL_CONFIG_REQUIRED',
       })
-      expect(postReviewEventsResponse.statusCode).toBe(200)
-      const writerInvocationRef = findEventRef(postReviewEventsResponse.json().events, 'prose_generated', 'agent-invocation')
-      const proseDraftRef = findEventRef(postReviewEventsResponse.json().events, 'prose_generated', 'prose-draft')
-      expect(writerInvocationRef).toBeTruthy()
-      expect(proseDraftRef).toBeTruthy()
-
-      const [writerInvocationResponse, proseDraftResponse] = await Promise.all([
-        app.inject({
-          method: 'GET',
-          url: `/api/projects/book-signal-arc/runs/${run.id}/artifacts/${writerInvocationRef!.id}`,
-        }),
-        app.inject({
-          method: 'GET',
-          url: `/api/projects/book-signal-arc/runs/${run.id}/artifacts/${proseDraftRef!.id}`,
-        }),
-      ])
-
-      expect(writerInvocationResponse.statusCode).toBe(200)
-      expect(writerInvocationResponse.json()).toMatchObject({
-        artifact: {
-          modelLabel: {
-            en: 'Fixture writer fallback (fixture-scene-prose-writer)',
+    }, {
+      configOverrides: {
+        modelBindings: {
+          continuityReviewer: { provider: 'fixture' },
+          planner: { provider: 'fixture' },
+          sceneProseWriter: {
+            provider: 'openai',
           },
+          sceneRevision: { provider: 'fixture' },
+          summary: { provider: 'fixture' },
+        },
+        modelProvider: 'openai',
+      },
+    })
+  })
+
+  it('keeps failed writer invocation artifacts honest when accepted prose generation fails in real mode', async () => {
+    await withTestServer(async ({ app }) => {
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/local-project-alpha/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
         },
       })
-      expect(proseDraftResponse.statusCode).toBe(200)
-      expect(proseDraftResponse.json()).toMatchObject({
+      expect(startResponse.statusCode).toBe(200)
+      const run = startResponse.json()
+
+      const reviewResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/local-project-alpha/runs/${run.id}/review-decisions`,
+        payload: {
+          reviewId: run.pendingReviewId,
+          decision: 'accept',
+        },
+      })
+      expect(reviewResponse.statusCode).toBe(200)
+      expect(reviewResponse.json()).toMatchObject({
+        status: 'failed',
+        failureClass: 'provider_error',
+      })
+
+      const artifactsResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/local-project-alpha/runs/${run.id}/artifacts`,
+      })
+      expect(artifactsResponse.statusCode).toBe(200)
+      expect(artifactsResponse.json().artifacts).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          id: 'agent-invocation-scene-midnight-platform-run-001-003',
+          kind: 'agent-invocation',
+        }),
+      ]))
+      const writerArtifactResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/local-project-alpha/runs/${run.id}/artifacts/agent-invocation-scene-midnight-platform-run-001-003`,
+      })
+      expect(writerArtifactResponse.statusCode).toBe(200)
+      expect(writerArtifactResponse.json()).toMatchObject({
         artifact: {
-          summary: {
-            en: 'Fixture prose fallback was rendered for Midnight Platform.',
+          id: 'agent-invocation-scene-midnight-platform-run-001-003',
+          kind: 'agent-invocation',
+          failureDetail: {
+            failureClass: 'provider_error',
+            provider: 'openai',
+            modelId: 'gpt-5.4',
+            retryable: true,
           },
         },
       })
     }, {
       configOverrides: {
+        currentProject: {
+          projectId: 'local-project-alpha',
+          projectMode: 'real-project',
+          projectRoot: '/tmp/local-project-alpha',
+          projectTitle: 'Local Project Alpha',
+        },
+        modelBindings: {
+          continuityReviewer: { provider: 'fixture' },
+          planner: { provider: 'fixture' },
+          sceneProseWriter: {
+            apiKey: 'sk-test',
+            modelId: 'gpt-5.4',
+            provider: 'openai',
+          },
+          sceneRevision: { provider: 'fixture' },
+          summary: { provider: 'fixture' },
+        },
         modelProvider: 'openai',
+      },
+      sceneProseWriterGatewayDependencies: {
+        openAiProvider: {
+          generate: async () => {
+            throw new Error('upstream failed')
+          },
+        },
       },
     })
   })

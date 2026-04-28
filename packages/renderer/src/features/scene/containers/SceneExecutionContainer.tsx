@@ -1,7 +1,9 @@
 import { useEffect, useMemo } from 'react'
 
 import { useI18n } from '@/app/i18n'
+import { getProjectRuntimeKind, useOptionalProjectRuntime } from '@/app/project-runtime/ProjectRuntimeProvider'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { useOptionalModelSettingsController } from '@/features/settings/ModelSettingsProvider'
 
 import { SceneExecutionTab } from '../components/SceneExecutionTab'
 import { useProposalActions } from '../hooks/useProposalActions'
@@ -16,7 +18,9 @@ interface SceneExecutionContainerProps {
 }
 
 export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProps) {
-  const { locale } = useI18n()
+  const { dictionary, locale } = useI18n()
+  const runtime = useOptionalProjectRuntime()
+  const modelSettings = useOptionalModelSettingsController()
   const execution = useSceneExecutionQuery(sceneId)
   const actions = useProposalActions(sceneId)
   const workspaceActions = useSceneWorkspaceActions({ sceneId })
@@ -76,6 +80,41 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
 
     return Array.from(seen.entries()).map(([id, label]) => ({ id, label }))
   }, [execution.proposals])
+
+  const runStartGuard = useMemo(() => {
+    const runtimeKind = runtime ? getProjectRuntimeKind(runtime) : null
+    const snapshot = modelSettings?.snapshot
+    if (runtimeKind !== 'real-local-project' || !snapshot) {
+      return undefined
+    }
+
+    const requiredRoles = ['planner', 'sceneProseWriter'] as const
+    const hasMissingOpenAiModelBinding = requiredRoles.some((role) => {
+      const binding = snapshot.bindings[role]
+      return binding.provider === 'openai' && !binding.modelId?.trim()
+    })
+    const hasMissingOpenAiCredential = requiredRoles.some((role) => snapshot.bindings[role].provider === 'openai')
+      && !snapshot.credentialStatus.configured
+
+    if (!hasMissingOpenAiModelBinding && !hasMissingOpenAiCredential) {
+      return undefined
+    }
+
+    return {
+      ctaLabel: dictionary.shell.openModelSettings,
+      message: locale === 'zh-CN'
+        ? '当前真实项目的规划或正文模型设置不完整。请先修复模型配置，再从现有场景主舞台启动运行。'
+        : 'Planner or prose writer settings are incomplete for this real project.',
+      onRepair: () => {
+        if (modelSettings?.supported) {
+          modelSettings.setOpen(true)
+          return
+        }
+
+        workspaceActions.openTab('setup')
+      },
+    }
+  }, [dictionary.shell.openModelSettings, locale, modelSettings, runtime, workspaceActions])
 
   useEffect(() => {
     if (execution.isLoading) {
@@ -145,8 +184,12 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
         onStartRun: async (mode) => {
           await runSession.startRun({ mode })
         },
+        onRetryRun: async () => {
+          await runSession.retry({ mode: 'continue' })
+        },
         onSubmitDecision: runSession.submitDecision,
       }}
+      runStartGuard={runStartGuard}
       canContinueRun={execution.canContinueRun && !runSession.isStartingRun && !runSession.isSubmittingDecision}
       canOpenProse={execution.canOpenProse}
       onOpenSetup={() => workspaceActions.openTab('setup')}

@@ -11,6 +11,10 @@ import {
   type SceneProseWriterOpenAiResponsesProviderOptions,
 } from './sceneProseWriterOpenAiResponsesProvider.js'
 import {
+  ModelGatewayExecutionError,
+  ModelGatewayMissingConfigError,
+} from './modelGatewayErrors.js'
+import {
   parseSceneProseWriterOutput,
   type SceneProseWriterOutput,
 } from './sceneProseWriterOutputSchema.js'
@@ -69,14 +73,12 @@ export function createSceneProseWriterGateway(
 
   async function renderFixtureResult(
     request: SceneProseWriterGatewayRequest,
-    fallbackReason?: SceneProseWriterGatewayFallbackReason,
   ): Promise<SceneProseWriterGatewayResult> {
     return {
       output: parseSceneProseWriterOutput(await fixtureProvider.generate(request)),
       provenance: {
         provider: 'fixture',
         modelId: FIXTURE_SCENE_PROSE_WRITER_MODEL_ID,
-        ...(fallbackReason ? { fallbackReason } : {}),
       },
     }
   }
@@ -93,7 +95,10 @@ export function createSceneProseWriterGateway(
       }
 
       if (!binding.modelId || !binding.apiKey) {
-        return renderFixtureResult(request, 'missing-config')
+        throw new ModelGatewayMissingConfigError({
+          provider: 'openai',
+          role: request.task === 'revision' ? 'sceneRevision' : 'sceneProseWriter',
+        })
       }
 
       const openAiProvider = dependencies.openAiProvider ?? openAiProviderFactory({
@@ -105,7 +110,14 @@ export function createSceneProseWriterGateway(
       try {
         payload = await openAiProvider.generate(request)
       } catch {
-        return renderFixtureResult(request, 'provider-error')
+        throw new ModelGatewayExecutionError({
+          failureClass: 'provider_error',
+          message: 'OpenAI provider request failed.',
+          modelId: binding.modelId,
+          provider: 'openai',
+          retryable: true,
+          role: request.task === 'revision' ? 'sceneRevision' : 'sceneProseWriter',
+        })
       }
 
       try {
@@ -117,7 +129,14 @@ export function createSceneProseWriterGateway(
           },
         }
       } catch {
-        return renderFixtureResult(request, 'invalid-output')
+        throw new ModelGatewayExecutionError({
+          failureClass: 'invalid_output',
+          message: 'OpenAI provider returned invalid structured prose output.',
+          modelId: binding.modelId,
+          provider: 'openai',
+          retryable: true,
+          role: request.task === 'revision' ? 'sceneRevision' : 'sceneProseWriter',
+        })
       }
     },
   }

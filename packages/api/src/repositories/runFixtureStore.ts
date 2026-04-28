@@ -24,6 +24,10 @@ import {
 } from '../orchestration/modelGateway/scenePlannerGateway.js'
 import { FIXTURE_SCENE_PLANNER_MODEL_ID } from '../orchestration/modelGateway/scenePlannerFixtureProvider.js'
 import {
+  isModelGatewayExecutionError,
+  isModelGatewayMissingConfigError,
+} from '../orchestration/modelGateway/modelGatewayErrors.js'
+import {
   createSceneProseWriterGateway,
   type SceneProseWriterGatewayRequest,
   type SceneProseWriterGatewayResult,
@@ -48,7 +52,12 @@ import {
   createCanonPatchArtifact,
   createProseDraftArtifact,
 } from '../orchestration/sceneRun/sceneRunArtifacts.js'
-import { buildRunId } from '../orchestration/sceneRun/sceneRunIds.js'
+import {
+  buildAgentInvocationId,
+  buildContextPacketId,
+  buildRunId,
+} from '../orchestration/sceneRun/sceneRunIds.js'
+import { createRunEvent } from '../orchestration/sceneRun/sceneRunEventFactory.js'
 import {
   applySceneRunReviewDecisionTransition,
   createCancelSceneRunTransition,
@@ -437,6 +446,242 @@ function buildFixturePlannerResult(sceneId: string): ScenePlannerGatewayResult {
       modelId: FIXTURE_SCENE_PLANNER_MODEL_ID,
     },
   }
+}
+
+function createFailedRunUsage(modelId: string) {
+  return {
+    inputTokens: 0,
+    outputTokens: 0,
+    estimatedCostUsd: 0,
+    provider: 'openai' as const,
+    modelId,
+  }
+}
+
+function createFailedRunRuntimeSummary(failureClass: 'provider_error' | 'invalid_output', retryable: boolean) {
+  return {
+    health: 'failed' as const,
+    costLabel: '$0.0000 est.',
+    tokenLabel: '0 tokens',
+    failureClassLabel: failureClass === 'provider_error' ? 'Provider error' : 'Invalid output',
+    nextActionLabel: retryable
+      ? 'Repair model settings or retry the run after the runtime issue is resolved.'
+      : 'Repair model settings before running this scene again.',
+  }
+}
+
+function createFailedStartRunState(input: {
+  contextPacket: SceneContextPacketRecord
+  failureClass: 'provider_error' | 'invalid_output'
+  failureMessage: string
+  modelId: string
+  retryOfRunId?: string
+  resumableFromEventId?: string
+  sceneId: string
+  sequence: number
+}) {
+  const runId = buildRunId(input.sceneId, input.sequence)
+  const contextPacketId = buildContextPacketId(input.sceneId, input.sequence)
+  const plannerInvocationId = buildAgentInvocationId(input.sceneId, input.sequence, 1)
+  const events = [
+    createRunEvent(
+      runId,
+      1,
+      'run_created',
+      'Run created',
+      'Scene run request accepted.',
+      undefined,
+      { buildTimelineLabel: buildFixtureSceneRunTimelineLabel },
+    ),
+    createRunEvent(
+      runId,
+      2,
+      'run_started',
+      'Run started',
+      'Narrative runtime started the scene run.',
+      undefined,
+      { buildTimelineLabel: buildFixtureSceneRunTimelineLabel },
+    ),
+    createRunEvent(
+      runId,
+      3,
+      'context_packet_built',
+      'Context packet built',
+      'Runtime assembled the scene context packet.',
+      [{ kind: 'context-packet', id: contextPacketId, label: 'Scene context packet' }],
+      { buildTimelineLabel: buildFixtureSceneRunTimelineLabel },
+    ),
+    createRunEvent(
+      runId,
+      4,
+      'agent_invocation_started',
+      'Planner invocation started',
+      'Planning agent invocation started.',
+      [{ kind: 'agent-invocation', id: plannerInvocationId, label: 'Planner' }],
+      { buildTimelineLabel: buildFixtureSceneRunTimelineLabel },
+    ),
+    createRunEvent(
+      runId,
+      5,
+      'run_failed',
+      'Run failed',
+      input.failureMessage,
+      undefined,
+      {
+        buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
+        metadata: {
+          failureClass: input.failureClass,
+        },
+      },
+    ),
+  ]
+  const usage = createFailedRunUsage(input.modelId)
+  const artifacts = [
+    createContextPacketArtifact({
+      runId,
+      sceneId: input.sceneId,
+      sequence: input.sequence,
+      contextPacket: input.contextPacket,
+    }),
+    createAgentInvocationArtifact({
+      runId,
+      sceneId: input.sceneId,
+      sequence: input.sequence,
+      index: 1,
+      role: 'planner',
+      provenance: {
+        provider: 'openai',
+        modelId: input.modelId,
+      },
+      usage,
+      failureDetail: {
+        failureClass: input.failureClass,
+        message: input.failureMessage,
+        modelId: input.modelId,
+        provider: 'openai',
+        retryable: true,
+        sourceEventIds: [events[4]!.id],
+      },
+    }),
+  ]
+  const run: RunRecord = {
+    id: runId,
+    scope: 'scene',
+    scopeId: input.sceneId,
+    status: 'failed',
+    title: `${input.sceneId} run`,
+    summary: input.failureClass === 'provider_error'
+      ? 'Scene run failed before review because the planner model request failed.'
+      : 'Scene run failed before review because the planner returned invalid structured output.',
+    startedAtLabel: events[0]?.createdAtLabel,
+    completedAtLabel: events[4]?.createdAtLabel,
+    latestEventId: events[4]?.id,
+    failureClass: input.failureClass,
+    failureMessage: input.failureMessage,
+    retryOfRunId: input.retryOfRunId,
+    resumableFromEventId: input.resumableFromEventId,
+    usage,
+    runtimeSummary: createFailedRunRuntimeSummary(input.failureClass, true),
+    eventCount: events.length,
+  }
+
+  return {
+    sequence: input.sequence,
+    run,
+    events,
+    artifacts,
+    artifactDetailsById: new Map(),
+    artifactSummaries: [],
+    selectedVariants: [],
+    traceLinksById: new Map(),
+    traceNodesById: new Map(),
+    traceSummary: {
+      proposalSetCount: 0,
+      canonPatchCount: 0,
+      proseDraftCount: 0,
+      missingTraceCount: 0,
+    },
+  } satisfies RunState
+}
+
+function applyAcceptedProseGenerationFailure(state: RunState, input: {
+  decision: Extract<RunReviewDecisionKind, 'accept' | 'accept-with-edit'>
+  failureClass: 'provider_error' | 'invalid_output'
+  failureMessage: string
+  modelId: string
+  reviewId: string
+  selectedVariants?: RunSelectedProposalVariantRecord[]
+}) {
+  const writerInvocationArtifact = createAgentInvocationArtifact({
+    runId: state.run.id,
+    sceneId: state.run.scopeId,
+    sequence: state.sequence,
+    index: 3,
+    role: 'writer',
+    provenance: {
+      provider: 'openai',
+      modelId: input.modelId,
+    },
+    usage: createFailedRunUsage(input.modelId),
+    failureDetail: {
+      failureClass: input.failureClass,
+      message: input.failureMessage,
+      modelId: input.modelId,
+      provider: 'openai',
+      retryable: true,
+      sourceEventIds: [],
+    },
+  })
+  const reviewDecisionEvent = createRunEvent(
+    state.run.id,
+    state.events.length + 1,
+    'review_decision_submitted',
+    'Review decision submitted',
+    input.decision === 'accept-with-edit'
+      ? 'Review accepted the proposal set with edits, but prose generation did not complete.'
+      : 'Review accepted the proposal set, but prose generation did not complete.',
+    [{ kind: 'review', id: input.reviewId, label: 'Editorial review' }],
+    {
+      buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
+      metadata: {
+        selectedVariantCount: input.selectedVariants?.length ?? 0,
+      },
+    },
+  )
+  const failedEvent = createRunEvent(
+    state.run.id,
+    state.events.length + 2,
+    'run_failed',
+    'Run failed',
+    input.failureMessage,
+    [{ kind: 'agent-invocation', id: writerInvocationArtifact.id, label: 'Writer' }],
+    {
+      buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
+      metadata: {
+        failureClass: input.failureClass,
+      },
+    },
+  )
+  writerInvocationArtifact.meta = {
+    ...writerInvocationArtifact.meta,
+    failureDetail: {
+      ...(writerInvocationArtifact.meta?.failureDetail as Record<string, unknown>),
+      sourceEventIds: [failedEvent.id],
+    },
+  }
+
+  state.events.push(reviewDecisionEvent, failedEvent)
+  state.artifacts.push(writerInvocationArtifact)
+  state.run.status = 'failed'
+  state.run.summary = 'Scene run failed while generating accepted prose after review.'
+  state.run.completedAtLabel = failedEvent.createdAtLabel
+  state.run.pendingReviewId = undefined
+  state.run.latestEventId = failedEvent.id
+  state.run.eventCount = state.events.length
+  state.run.failureClass = input.failureClass
+  state.run.failureMessage = input.failureMessage
+  state.run.usage = createFailedRunUsage(input.modelId)
+  state.run.runtimeSummary = createFailedRunRuntimeSummary(input.failureClass, true)
 }
 
 function createScenePlannerRequest(
@@ -903,7 +1148,40 @@ export function createRunFixtureStore(options: {
         sceneId: input.sceneId,
         sequence: nextSequence,
       })
-      const plannerResult = await scenePlannerGateway.generate(createScenePlannerRequest(input, contextPacket))
+      let plannerResult: ScenePlannerGatewayResult
+      try {
+        plannerResult = await scenePlannerGateway.generate(createScenePlannerRequest(input, contextPacket))
+      } catch (error) {
+        if (isModelGatewayMissingConfigError(error)) {
+          sequenceBucket!.set(input.sceneId, nextSequence - 1)
+          throw badRequest('Selected real-model planner binding is missing required OpenAI settings.', {
+            code: 'RUN_MODEL_CONFIG_REQUIRED',
+            detail: {
+              projectId,
+              role: error.role,
+              sceneId: input.sceneId,
+            },
+          })
+        }
+
+        if (isModelGatewayExecutionError(error)) {
+          const failedState = createFailedStartRunState({
+            contextPacket,
+            failureClass: error.failureClass,
+            failureMessage: error.message,
+            modelId: error.modelId,
+            sceneId: input.sceneId,
+            sequence: nextSequence,
+          })
+          indexRunReadSurfaces(failedState)
+          storeRunState(projectId, failedState)
+          publishRunEvents(projectId, failedState.run.id, failedState.events)
+          completeRunStream(projectId, failedState.run.id)
+          return clone(failedState.run)
+        }
+
+        throw error
+      }
 
       const workflow = startSceneRunWorkflow({
         ...input,
@@ -946,10 +1224,59 @@ export function createRunFixtureStore(options: {
         sceneId: state.run.scopeId,
         sequence: nextSequence,
       })
-      const plannerResult = await scenePlannerGateway.generate(createScenePlannerRequest({
-        sceneId: state.run.scopeId,
-        mode: input.mode,
-      }, contextPacket))
+      let plannerResult: ScenePlannerGatewayResult
+      try {
+        plannerResult = await scenePlannerGateway.generate(createScenePlannerRequest({
+          sceneId: state.run.scopeId,
+          mode: input.mode,
+        }, contextPacket))
+      } catch (error) {
+        if (isModelGatewayMissingConfigError(error)) {
+          sequenceBucket!.set(state.run.scopeId, nextSequence - 1)
+          throw badRequest('Selected real-model planner binding is missing required OpenAI settings.', {
+            code: 'RUN_MODEL_CONFIG_REQUIRED',
+            detail: {
+              projectId,
+              role: error.role,
+              runId: input.runId,
+            },
+          })
+        }
+
+        if (isModelGatewayExecutionError(error)) {
+          const failedState = createFailedStartRunState({
+            contextPacket,
+            failureClass: error.failureClass,
+            failureMessage: error.message,
+            modelId: error.modelId,
+            retryOfRunId: state.run.id,
+            sceneId: state.run.scopeId,
+            sequence: nextSequence,
+          })
+          const transition = createRetryScheduledSceneRunTransition({
+            runId: state.run.id,
+            priorEventCount: state.events.length,
+            nextRunId: failedState.run.id,
+            mode: input.mode,
+          }, {
+            buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
+          })
+
+          state.events.push(...clone(transition.appendedEvents))
+          state.run.latestEventId = state.events.at(-1)?.id
+          state.run.eventCount = state.events.length
+          indexRunReadSurfaces(state)
+          publishRunEvents(projectId, state.run.id, transition.appendedEvents)
+
+          indexRunReadSurfaces(failedState)
+          storeRunState(projectId, failedState)
+          publishRunEvents(projectId, failedState.run.id, failedState.events)
+          completeRunStream(projectId, failedState.run.id)
+          return clone(failedState.run)
+        }
+
+        throw error
+      }
       const workflow = startSceneRunWorkflow({
         sceneId: state.run.scopeId,
         mode: input.mode,
@@ -1051,11 +1378,46 @@ export function createRunFixtureStore(options: {
         sceneId: state.run.scopeId,
         sequence: nextSequence,
       })
-      const plannerResult = await scenePlannerGateway.generate(createScenePlannerRequest({
-        sceneId: state.run.scopeId,
-        mode: 'continue',
-        note: `Resume from ${state.run.resumableFromEventId}`,
-      }, contextPacket))
+      let plannerResult: ScenePlannerGatewayResult
+      try {
+        plannerResult = await scenePlannerGateway.generate(createScenePlannerRequest({
+          sceneId: state.run.scopeId,
+          mode: 'continue',
+          note: `Resume from ${state.run.resumableFromEventId}`,
+        }, contextPacket))
+      } catch (error) {
+        if (isModelGatewayMissingConfigError(error)) {
+          sequenceBucket!.set(state.run.scopeId, nextSequence - 1)
+          throw badRequest('Selected real-model planner binding is missing required OpenAI settings.', {
+            code: 'RUN_MODEL_CONFIG_REQUIRED',
+            detail: {
+              projectId,
+              role: error.role,
+              runId: input.runId,
+            },
+          })
+        }
+
+        if (isModelGatewayExecutionError(error)) {
+          const failedState = createFailedStartRunState({
+            contextPacket,
+            failureClass: error.failureClass,
+            failureMessage: error.message,
+            modelId: error.modelId,
+            retryOfRunId: state.run.id,
+            resumableFromEventId: state.run.resumableFromEventId,
+            sceneId: state.run.scopeId,
+            sequence: nextSequence,
+          })
+          indexRunReadSurfaces(failedState)
+          storeRunState(projectId, failedState)
+          publishRunEvents(projectId, failedState.run.id, failedState.events)
+          completeRunStream(projectId, failedState.run.id)
+          return clone(failedState.run)
+        }
+
+        throw error
+      }
       const workflow = startSceneRunWorkflow({
         sceneId: state.run.scopeId,
         mode: 'continue',
@@ -1203,12 +1565,43 @@ export function createRunFixtureStore(options: {
         }))
       }
 
-      const proseGeneration = isAcceptedReviewDecision(input.decision)
-        ? await sceneProseWriterGateway.generate(createSceneProseWriterRequest(state, {
-          ...input,
-          decision: input.decision,
-        }))
-        : undefined
+      let proseGeneration: SceneProseWriterGatewayResult | undefined
+      if (isAcceptedReviewDecision(input.decision)) {
+        try {
+          proseGeneration = await sceneProseWriterGateway.generate(createSceneProseWriterRequest(state, {
+            ...input,
+            decision: input.decision,
+          }))
+        } catch (error) {
+          if (isModelGatewayMissingConfigError(error)) {
+            throw badRequest('Selected real-model prose writer binding is missing required OpenAI settings.', {
+              code: 'RUN_MODEL_CONFIG_REQUIRED',
+              detail: {
+                projectId,
+                role: error.role,
+                runId: input.runId,
+              },
+            })
+          }
+
+          if (isModelGatewayExecutionError(error)) {
+            applyAcceptedProseGenerationFailure(state, {
+              decision: input.decision,
+              failureClass: error.failureClass,
+              failureMessage: error.message,
+              modelId: error.modelId,
+              reviewId: input.reviewId,
+              selectedVariants: input.selectedVariants,
+            })
+            indexRunReadSurfaces(state)
+            publishRunEvents(projectId, input.runId, state.events.slice(-2))
+            completeRunStream(projectId, input.runId)
+            return clone(state.run)
+          }
+
+          throw error
+        }
+      }
 
       const note = trimNote(input.note)
       const transition = applySceneRunReviewDecisionTransition({

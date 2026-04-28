@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { createSceneProseWriterFixtureProvider } from './sceneProseWriterFixtureProvider.js'
 import { DEFAULT_MODEL_BINDINGS } from './model-binding.js'
+import {
+  ModelGatewayExecutionError,
+  ModelGatewayMissingConfigError,
+} from './modelGatewayErrors.js'
 import { createSceneProseWriterGateway } from './sceneProseWriterGateway.js'
 
 function createRequest(overrides?: Partial<{
@@ -65,7 +69,7 @@ describe('createSceneProseWriterGateway', () => {
     })
   })
 
-  it('falls back to fixture with missing-config when provider=openai but model config is incomplete', async () => {
+  it('rejects with missing-config when provider=openai but model config is incomplete', async () => {
     const openAiProviderFactory = vi.fn()
     const gateway = createSceneProseWriterGateway(
       {
@@ -78,15 +82,11 @@ describe('createSceneProseWriterGateway', () => {
       },
     )
 
-    const result = await gateway.generate(createRequest())
-
+    await expect(gateway.generate(createRequest())).rejects.toEqual(new ModelGatewayMissingConfigError({
+      provider: 'openai',
+      role: 'sceneProseWriter',
+    }))
     expect(openAiProviderFactory).not.toHaveBeenCalled()
-    expect(result.provenance).toEqual({
-      provider: 'fixture',
-      modelId: 'fixture-scene-prose-writer',
-      fallbackReason: 'missing-config',
-    })
-    expect(result.output.body.en).toContain('Accepted proposal proposal-set-scene-midnight-platform-run-002-proposal-001 anchors the draft.')
   })
 
   it('uses the openai provider when config is complete and the structured output is valid', async () => {
@@ -285,7 +285,7 @@ describe('createSceneProseWriterGateway', () => {
     })
   })
 
-  it('falls back to fixture with provider-error when the openai provider throws', async () => {
+  it('rejects with provider_error when the openai provider throws', async () => {
     const gateway = createSceneProseWriterGateway(
       {
         modelProvider: 'openai',
@@ -300,18 +300,16 @@ describe('createSceneProseWriterGateway', () => {
       },
     )
 
-    const result = await gateway.generate(createRequest())
-
-    expect(result.provenance).toEqual({
-      provider: 'fixture',
-      modelId: 'fixture-scene-prose-writer',
-      fallbackReason: 'provider-error',
+    await expect(gateway.generate(createRequest())).rejects.toMatchObject({
+      name: ModelGatewayExecutionError.name,
+      failureClass: 'provider_error',
+      modelId: 'gpt-5.4',
+      provider: 'openai',
+      role: 'sceneProseWriter',
     })
-    expect(result.output.body.en).toContain('The scene resolves into generated prose')
-    expect(JSON.stringify(result)).not.toContain('sk-test')
   })
 
-  it('falls back to fixture with invalid-output when the openai provider returns data outside the writer schema', async () => {
+  it('rejects with invalid_output when the openai provider returns data outside the writer schema', async () => {
     const gateway = createSceneProseWriterGateway(
       {
         modelProvider: 'openai',
@@ -328,13 +326,12 @@ describe('createSceneProseWriterGateway', () => {
       },
     )
 
-    const result = await gateway.generate(createRequest())
-
-    expect(result.provenance).toEqual({
-      provider: 'fixture',
-      modelId: 'fixture-scene-prose-writer',
-      fallbackReason: 'invalid-output',
+    await expect(gateway.generate(createRequest())).rejects.toMatchObject({
+      name: ModelGatewayExecutionError.name,
+      failureClass: 'invalid_output',
+      modelId: 'gpt-5.4',
+      provider: 'openai',
+      role: 'sceneProseWriter',
     })
-    expect(result.output.excerpt.en).toBe('Midnight Platform settles into view before the next reveal turns visible.')
   })
 })

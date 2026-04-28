@@ -93,13 +93,90 @@ describe('fixture API server scene prose revision', () => {
       })
     }, {
       configOverrides: {
+        modelBindings: {
+          continuityReviewer: { provider: 'fixture' },
+          planner: { provider: 'fixture' },
+          sceneProseWriter: {
+            provider: 'openai',
+            modelId: 'gpt-5.4',
+            apiKey: 'sk-test',
+          },
+          sceneRevision: { provider: 'fixture' },
+          summary: { provider: 'fixture' },
+        },
         modelProvider: 'openai',
-        openAiModel: 'gpt-5.4',
-        openAiApiKey: 'sk-test',
       },
       sceneProseWriterGatewayDependencies: {
         openAiProvider: {
           generate,
+        },
+      },
+    })
+  })
+
+  it('leaves prose unchanged and returns a failed run when accepted openai prose generation fails', async () => {
+    await withTestServer(async ({ app }) => {
+      const proseBeforeRun = await app.inject({
+        method: 'GET',
+        url: '/api/projects/local-project-alpha/scenes/scene-midnight-platform/prose',
+      })
+      expect(proseBeforeRun.statusCode).toBe(200)
+
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/local-project-alpha/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
+        },
+      })
+      expect(startResponse.statusCode).toBe(200)
+
+      const reviewResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/local-project-alpha/runs/${startResponse.json().id}/review-decisions`,
+        payload: {
+          reviewId: startResponse.json().pendingReviewId,
+          decision: 'accept',
+        },
+      })
+      expect(reviewResponse.statusCode).toBe(200)
+      expect(reviewResponse.json()).toMatchObject({
+        status: 'failed',
+        failureClass: 'provider_error',
+      })
+
+      const proseAfterFailure = await app.inject({
+        method: 'GET',
+        url: '/api/projects/local-project-alpha/scenes/scene-midnight-platform/prose',
+      })
+      expect(proseAfterFailure.statusCode).toBe(200)
+      expect(proseAfterFailure.json()).toEqual(proseBeforeRun.json())
+    }, {
+      configOverrides: {
+        currentProject: {
+          projectId: 'local-project-alpha',
+          projectMode: 'real-project',
+          projectRoot: '/tmp/local-project-alpha',
+          projectTitle: 'Local Project Alpha',
+        },
+        modelBindings: {
+          continuityReviewer: { provider: 'fixture' },
+          planner: { provider: 'fixture' },
+          sceneProseWriter: {
+            apiKey: 'sk-test',
+            modelId: 'gpt-5.4',
+            provider: 'openai',
+          },
+          sceneRevision: { provider: 'fixture' },
+          summary: { provider: 'fixture' },
+        },
+        modelProvider: 'openai',
+      },
+      sceneProseWriterGatewayDependencies: {
+        openAiProvider: {
+          generate: async () => {
+            throw new Error('upstream failed')
+          },
         },
       },
     })

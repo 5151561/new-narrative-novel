@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { createScenePlannerFixtureProvider } from './scenePlannerFixtureProvider.js'
+import {
+  ModelGatewayExecutionError,
+  ModelGatewayMissingConfigError,
+} from './modelGatewayErrors.js'
 import { createScenePlannerGateway } from './scenePlannerGateway.js'
 import { DEFAULT_MODEL_BINDINGS } from './model-binding.js'
 
@@ -68,7 +72,7 @@ describe('createScenePlannerGateway', () => {
     })
   })
 
-  it('falls back to fixture with missing-config when provider=openai but model config is incomplete', async () => {
+  it('rejects with missing-config when provider=openai but model config is incomplete', async () => {
     const openAiProviderFactory = vi.fn()
 
     const gateway = createScenePlannerGateway(
@@ -82,15 +86,11 @@ describe('createScenePlannerGateway', () => {
       },
     )
 
-    const result = await gateway.generate(createRequest())
-
+    await expect(gateway.generate(createRequest())).rejects.toEqual(new ModelGatewayMissingConfigError({
+      provider: 'openai',
+      role: 'planner',
+    }))
     expect(openAiProviderFactory).not.toHaveBeenCalled()
-    expect(result.provenance).toEqual({
-      provider: 'fixture',
-      modelId: 'fixture-scene-planner',
-      fallbackReason: 'missing-config',
-    })
-    expect(result.output.proposals).toHaveLength(2)
   })
 
   it('uses the openai provider when config is complete and the structured output is valid', async () => {
@@ -186,7 +186,7 @@ describe('createScenePlannerGateway', () => {
     })
   })
 
-  it('falls back to fixture with provider-error when the openai provider throws', async () => {
+  it('rejects with provider_error when the openai provider throws', async () => {
     const gateway = createScenePlannerGateway(
       {
         modelProvider: 'openai',
@@ -201,18 +201,16 @@ describe('createScenePlannerGateway', () => {
       },
     )
 
-    const result = await gateway.generate(createRequest())
-
-    expect(result.provenance).toEqual({
-      provider: 'fixture',
-      modelId: 'fixture-scene-planner',
-      fallbackReason: 'provider-error',
+    await expect(gateway.generate(createRequest())).rejects.toMatchObject({
+      name: ModelGatewayExecutionError.name,
+      failureClass: 'provider_error',
+      modelId: 'gpt-5.4',
+      provider: 'openai',
+      role: 'planner',
     })
-    expect(result.output.proposals[0]?.title).toBe('Anchor the arrival beat')
-    expect(JSON.stringify(result)).not.toContain('sk-test')
   })
 
-  it('falls back to fixture with invalid-output when the openai provider returns data outside the planner schema', async () => {
+  it('rejects with invalid_output when the openai provider returns data outside the planner schema', async () => {
     const gateway = createScenePlannerGateway(
       {
         modelProvider: 'openai',
@@ -229,46 +227,12 @@ describe('createScenePlannerGateway', () => {
       },
     )
 
-    const result = await gateway.generate(createRequest())
-
-    expect(result).toEqual({
-      output: {
-        proposals: [
-          {
-            title: 'Anchor the arrival beat',
-            summary: 'Open on Midnight Platform before introducing any new reveal.',
-            changeKind: 'action',
-            riskLabel: 'Low continuity risk',
-            variants: [
-              {
-                label: 'Arrival-first',
-                summary: "Keep Midnight Platform grounded in the lead character's arrival before escalating the reveal.",
-                rationale: 'Preserves continuity while still giving the scene a clear forward beat.',
-                tradeoffLabel: 'Slower escalation',
-                riskLabel: 'Low continuity risk',
-              },
-              {
-                label: 'Reveal pressure',
-                summary: 'Let the reveal intrude earlier while Midnight Platform is still settling.',
-                rationale: 'Creates a sharper hook, but asks review to accept a faster continuity turn.',
-                tradeoffLabel: 'Sharper hook',
-                riskLabel: 'Higher continuity risk',
-              },
-            ],
-          },
-          {
-            title: 'Stage the reveal through the setting',
-            summary: 'Let the Midnight Platform setting carry the reveal instead of adding raw exposition.',
-            changeKind: 'reveal',
-            riskLabel: 'Editor check recommended',
-          },
-        ],
-      },
-      provenance: {
-        provider: 'fixture',
-        modelId: 'fixture-scene-planner',
-        fallbackReason: 'invalid-output',
-      },
+    await expect(gateway.generate(createRequest())).rejects.toMatchObject({
+      name: ModelGatewayExecutionError.name,
+      failureClass: 'invalid_output',
+      modelId: 'gpt-5.4',
+      provider: 'openai',
+      role: 'planner',
     })
   })
 })

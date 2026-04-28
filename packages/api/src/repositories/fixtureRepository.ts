@@ -1834,7 +1834,7 @@ export function createFixtureRepository(options: {
   }
 
   function syncSceneProseFromAcceptedRun(projectId: string, run: RunRecord, decision: SubmitRunReviewDecisionInput['decision']) {
-    if (run.scope !== 'scene' || !isAcceptedRunDecision(decision)) {
+    if (run.scope !== 'scene' || run.status !== 'completed' || !isAcceptedRunDecision(decision)) {
       return
     }
 
@@ -1883,7 +1883,7 @@ export function createFixtureRepository(options: {
     run: RunRecord,
     decision: SubmitRunReviewDecisionInput['decision'],
   ) {
-    if (run.scope !== 'scene') {
+    if (run.scope !== 'scene' || (isAcceptedRunDecision(decision) && run.status !== 'completed')) {
       return
     }
 

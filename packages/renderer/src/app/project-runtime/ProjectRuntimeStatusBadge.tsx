@@ -4,7 +4,10 @@ import {
   getProjectRuntimeSourceLabel,
   useI18n,
 } from '@/app/i18n'
-import { useDesktopModelSettingsSnapshot } from '@/features/settings/ModelSettingsProvider'
+import {
+  useDesktopModelSettingsSnapshot,
+  useOptionalModelSettingsController,
+} from '@/features/settings/ModelSettingsProvider'
 
 import type { ProjectRuntimeHealthStatus, ProjectRuntimeInfoRecord } from './project-runtime-info'
 
@@ -38,6 +41,7 @@ export function ProjectRuntimeStatusBadge({
   onRetry,
 }: ProjectRuntimeStatusBadgeProps) {
   const { locale, dictionary } = useI18n()
+  const modelSettingsController = useOptionalModelSettingsController()
   const modelSettingsSnapshot = useDesktopModelSettingsSnapshot()
   const visibleStatus: ProjectRuntimeHealthStatus = isChecking ? 'checking' : info.status
   const showRetry = !isChecking && retryableStatuses.has(info.status) && onRetry
@@ -49,6 +53,9 @@ export function ProjectRuntimeStatusBadge({
   const modelBadgeLabel = hasOpenAiBinding
     ? dictionary.shell.modelOpenAiLabel
     : dictionary.shell.modelFixtureLabel
+  const showModelSettingsRepair = info.runtimeKind === 'real-local-project'
+    && Boolean(modelSettingsController?.supported)
+    && hasUnusableOpenAiBindings(modelSettingsSnapshot)
 
   return (
     <div
@@ -92,16 +99,28 @@ export function ProjectRuntimeStatusBadge({
         ))}
         <span className="min-w-0 flex-1 text-xs leading-5 text-text-muted">{info.summary}</span>
       </div>
-      {showRetry ? (
-        <button
-          type="button"
-          aria-label={dictionary.shell.projectRuntimeRetryLabel}
-          onClick={onRetry}
-          className="rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-text-main transition hover:bg-surface-1"
-        >
-          {dictionary.shell.projectRuntimeRetry}
-        </button>
-      ) : null}
+      <div className="flex items-center gap-2">
+        {showModelSettingsRepair ? (
+          <button
+            type="button"
+            aria-label={dictionary.shell.openModelSettings}
+            onClick={() => modelSettingsController?.setOpen(true)}
+            className="rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-text-main transition hover:bg-surface-1"
+          >
+            {dictionary.shell.openModelSettings}
+          </button>
+        ) : null}
+        {showRetry ? (
+          <button
+            type="button"
+            aria-label={dictionary.shell.projectRuntimeRetryLabel}
+            onClick={onRetry}
+            className="rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-text-main transition hover:bg-surface-1"
+          >
+            {dictionary.shell.projectRuntimeRetry}
+          </button>
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -140,4 +159,18 @@ function getProjectBadgeLabel(
   }
 
   return undefined
+}
+
+function hasUnusableOpenAiBindings(snapshot: ReturnType<typeof useDesktopModelSettingsSnapshot>) {
+  if (!snapshot) {
+    return false
+  }
+
+  const hasOpenAiBinding = Object.values(snapshot.bindings).some((binding) => binding.provider === 'openai')
+  if (!hasOpenAiBinding) {
+    return false
+  }
+
+  const hasMissingModelId = Object.values(snapshot.bindings).some((binding) => binding.provider === 'openai' && !binding.modelId?.trim())
+  return hasMissingModelId || !snapshot.credentialStatus.configured || snapshot.connectionTest.status === 'failed'
 }

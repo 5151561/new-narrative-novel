@@ -1657,6 +1657,7 @@ describe('App scene workbench', () => {
         getRuntimeConfig: vi.fn(async () => ({
           apiBaseUrl: 'http://127.0.0.1:4888/api',
           projectId: 'desktop-project-signal-arc',
+          projectMode: 'real-project',
           projectTitle: 'Signal Arc Desktop',
           runtimeMode: 'desktop-local',
         })),

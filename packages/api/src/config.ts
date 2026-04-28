@@ -137,12 +137,17 @@ export function getApiServerConfig(): ApiServerConfig {
     ? true
     : process.env.CORS_ORIGIN
   const currentProject = readCurrentProject()
+  const defaultModelProvider = currentProject?.projectMode === 'real-project' ? 'openai' : 'fixture'
   const projectStoreFilePath = process.env.NARRATIVE_PROJECT_STORE_FILE
     ?? process.env.NARRATIVE_PROJECT_STATE_FILE
     ?? resolveDefaultProjectStoreFilePath()
   const projectArtifactDirPath = process.env.NARRATIVE_PROJECT_ARTIFACT_DIR
     ?? path.join(path.dirname(projectStoreFilePath), 'artifacts')
-  const modelProvider = readModelProvider()
+  const requestedModelProvider = readModelProvider('NARRATIVE_MODEL_PROVIDER', defaultModelProvider)
+  const modelProvider =
+    currentProject?.projectMode === 'real-project' && requestedModelProvider === 'fixture'
+      ? 'openai'
+      : requestedModelProvider
   const openAiModel = modelProvider === 'openai'
     ? readOptionalTrimmedEnv('NARRATIVE_OPENAI_MODEL')
     : undefined

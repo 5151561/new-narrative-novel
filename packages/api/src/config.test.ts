@@ -88,6 +88,75 @@ describe('getApiServerConfig', () => {
     })
   })
 
+  it('defaults real-project sessions to openai bindings instead of implicit fixture fallback', () => {
+    process.env.NARRATIVE_PROJECT_ROOT = '/tmp/local-project'
+    process.env.NARRATIVE_PROJECT_ID = 'book-signal-arc'
+    process.env.NARRATIVE_PROJECT_MODE = 'real-project'
+    process.env.NARRATIVE_PROJECT_TITLE = 'Signal Arc Desktop'
+
+    expect(getApiServerConfig()).toMatchObject({
+      currentProject: {
+        projectId: 'book-signal-arc',
+        projectMode: 'real-project',
+        projectRoot: '/tmp/local-project',
+        projectTitle: 'Signal Arc Desktop',
+      },
+      modelProvider: 'openai',
+      modelBindings: {
+        continuityReviewer: {
+          provider: 'openai',
+        },
+        planner: {
+          provider: 'openai',
+        },
+        sceneProseWriter: {
+          provider: 'openai',
+        },
+        sceneRevision: {
+          provider: 'openai',
+        },
+        summary: {
+          provider: 'openai',
+        },
+      },
+      openAiApiKey: undefined,
+      openAiModel: undefined,
+    })
+  })
+
+  it('ignores a global fixture override for real-project sessions unless roles opt into fixture explicitly', () => {
+    process.env.NARRATIVE_PROJECT_ROOT = '/tmp/local-project'
+    process.env.NARRATIVE_PROJECT_ID = 'book-signal-arc'
+    process.env.NARRATIVE_PROJECT_MODE = 'real-project'
+    process.env.NARRATIVE_PROJECT_TITLE = 'Signal Arc Desktop'
+    process.env.NARRATIVE_MODEL_PROVIDER = 'fixture'
+    process.env.NARRATIVE_PLANNER_MODEL_PROVIDER = 'fixture'
+
+    expect(getApiServerConfig()).toMatchObject({
+      currentProject: {
+        projectMode: 'real-project',
+      },
+      modelProvider: 'openai',
+      modelBindings: {
+        continuityReviewer: {
+          provider: 'openai',
+        },
+        planner: {
+          provider: 'fixture',
+        },
+        sceneProseWriter: {
+          provider: 'openai',
+        },
+        sceneRevision: {
+          provider: 'openai',
+        },
+        summary: {
+          provider: 'openai',
+        },
+      },
+    })
+  })
+
   it('rejects a PORT value that is not a full integer string', () => {
     process.env.PORT = '12abc'
 

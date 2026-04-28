@@ -232,6 +232,112 @@ describe('SceneExecutionTab', () => {
     expect(onStartRun).toHaveBeenNthCalledWith(3, 'from-scratch')
   })
 
+  it('replaces the happy-path run controls with a repair CTA when real-model settings are unusable', async () => {
+    const user = userEvent.setup()
+    const onRepair = vi.fn()
+
+    render(
+      <I18nProvider>
+        <SceneExecutionTab
+          objective={objective}
+          beats={beats}
+          proposals={proposals}
+          actorOptions={[{ id: 'scene-manager', label: 'Scene Manager' }]}
+          filters={{ beatId: 'beat-bargain' }}
+          acceptedSummary={acceptedSummary}
+          runSession={{
+            run: null,
+            events: [],
+            pendingReviewId: null,
+            isReviewPending: false,
+            selectedVariantsForSubmit: [],
+            isLoading: false,
+            error: null,
+            isStartingRun: false,
+            isSubmittingDecision: false,
+            onStartRun: vi.fn(),
+            onRetryRun: vi.fn(),
+            onSubmitDecision: vi.fn(async () => {}),
+          }}
+          runStartGuard={{
+            ctaLabel: 'Model Settings',
+            message: 'Planner or prose writer settings are incomplete for this real project.',
+            onRepair,
+          }}
+          canContinueRun={false}
+          canOpenProse={false}
+          onContinueRun={vi.fn()}
+          onOpenPatchPreview={vi.fn()}
+          onOpenProse={vi.fn()}
+          onSelectBeat={vi.fn()}
+          onSelectProposal={vi.fn()}
+          onAccept={vi.fn()}
+          onEditAccept={vi.fn()}
+          onRequestRewrite={vi.fn()}
+          onReject={vi.fn()}
+          onChangeFilters={vi.fn()}
+          onClearFilters={vi.fn()}
+        />
+      </I18nProvider>,
+    )
+
+    expect(screen.getAllByText('Planner or prose writer settings are incomplete for this real project.').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Run Scene' })).not.toBeInTheDocument()
+    await user.click(screen.getAllByRole('button', { name: 'Model Settings' })[0]!)
+    expect(onRepair).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps pre-run start failures visible even when no active run record exists yet', async () => {
+    const user = userEvent.setup()
+    const onOpenSetup = vi.fn()
+
+    render(
+      <I18nProvider>
+        <SceneExecutionTab
+          objective={objective}
+          beats={beats}
+          proposals={proposals}
+          actorOptions={[{ id: 'scene-manager', label: 'Scene Manager' }]}
+          filters={{ beatId: 'beat-bargain' }}
+          acceptedSummary={acceptedSummary}
+          runSession={{
+            run: null,
+            events: [],
+            pendingReviewId: null,
+            isReviewPending: false,
+            selectedVariantsForSubmit: [],
+            isLoading: false,
+            error: new Error('Selected real-model planner binding is missing required OpenAI settings.'),
+            isStartingRun: false,
+            isSubmittingDecision: false,
+            onStartRun: vi.fn(),
+            onRetryRun: vi.fn(),
+            onSubmitDecision: vi.fn(async () => {}),
+          }}
+          canContinueRun={false}
+          canOpenProse={false}
+          onContinueRun={vi.fn()}
+          onOpenSetup={onOpenSetup}
+          onOpenPatchPreview={vi.fn()}
+          onOpenProse={vi.fn()}
+          onSelectBeat={vi.fn()}
+          onSelectProposal={vi.fn()}
+          onAccept={vi.fn()}
+          onEditAccept={vi.fn()}
+          onRequestRewrite={vi.fn()}
+          onReject={vi.fn()}
+          onChangeFilters={vi.fn()}
+          onClearFilters={vi.fn()}
+        />
+      </I18nProvider>,
+    )
+
+    expect(screen.getAllByText('Run start failed').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Selected real-model planner binding is missing required OpenAI settings.').length).toBeGreaterThan(0)
+    await user.click(screen.getAllByRole('button', { name: 'Model Settings' })[0]!)
+    expect(onOpenSetup).toHaveBeenCalledTimes(1)
+  })
+
   it('submits waiting-review decisions from the Main Stage with prepared proposal variants', async () => {
     const user = userEvent.setup()
     const onSubmitDecision = vi.fn(async () => {})
@@ -363,5 +469,70 @@ describe('SceneExecutionTab', () => {
     expect(screen.getAllByRole('button', { name: 'Run Scene' })[0]).toBeEnabled()
     expect(screen.getAllByRole('button', { name: 'Rewrite Run' })[0]).toBeEnabled()
     expect(screen.getAllByRole('button', { name: 'Run From Scratch' })[0]).toBeEnabled()
+  })
+
+  it('surfaces failed real-model runs as retry-first instead of looking like fixture success', async () => {
+    const user = userEvent.setup()
+    const onRetryRun = vi.fn()
+    const failedRun: RunRecord = {
+      ...run,
+      status: 'failed',
+      summary: 'Scene run failed before review because the planner model request failed.',
+      pendingReviewId: undefined,
+      failureClass: 'provider_error',
+      failureMessage: 'OpenAI provider request failed.',
+      runtimeSummary: {
+        health: 'failed',
+        tokenLabel: '0 tokens',
+        costLabel: '$0.0000 est.',
+        failureClassLabel: 'Provider error',
+        nextActionLabel: 'Repair model settings or retry the run after the runtime issue is resolved.',
+      },
+    }
+
+    render(
+      <I18nProvider>
+        <SceneExecutionTab
+          objective={objective}
+          beats={beats}
+          proposals={proposals}
+          actorOptions={[{ id: 'scene-manager', label: 'Scene Manager' }]}
+          filters={{ beatId: 'beat-bargain' }}
+          acceptedSummary={acceptedSummary}
+          runSession={{
+            run: failedRun,
+            events: [],
+            pendingReviewId: null,
+            isReviewPending: false,
+            selectedVariantsForSubmit: [],
+            isLoading: false,
+            error: null,
+            isStartingRun: false,
+            isSubmittingDecision: false,
+            onStartRun: vi.fn(),
+            onRetryRun,
+            onSubmitDecision: vi.fn(async () => {}),
+          }}
+          canContinueRun={false}
+          canOpenProse={false}
+          onContinueRun={vi.fn()}
+          onOpenPatchPreview={vi.fn()}
+          onOpenProse={vi.fn()}
+          onSelectBeat={vi.fn()}
+          onSelectProposal={vi.fn()}
+          onAccept={vi.fn()}
+          onEditAccept={vi.fn()}
+          onRequestRewrite={vi.fn()}
+          onReject={vi.fn()}
+          onChangeFilters={vi.fn()}
+          onClearFilters={vi.fn()}
+        />
+      </I18nProvider>,
+    )
+
+    expect(screen.getAllByText('Scene run failed before review because the planner model request failed.').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Repair model settings or retry the run after the runtime issue is resolved.').length).toBeGreaterThan(0)
+    await user.click(screen.getAllByRole('button', { name: 'Retry Run' })[0]!)
+    expect(onRetryRun).toHaveBeenCalledTimes(1)
   })
 })

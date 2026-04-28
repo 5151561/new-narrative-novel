@@ -5,6 +5,10 @@ import type {
   RunContextAssetActivationRecord,
 } from '../contracts/api-records.js'
 import { buildSceneContextPacket } from '../orchestration/contextBuilder/sceneContextBuilder.js'
+import {
+  ModelGatewayExecutionError,
+  ModelGatewayMissingConfigError,
+} from '../orchestration/modelGateway/modelGatewayErrors.js'
 import { createRunFixtureStore } from './runFixtureStore.js'
 import { createFixtureDataSnapshot } from './fixture-data.js'
 import { createTestServer } from '../test/support/test-server.js'
@@ -243,6 +247,68 @@ describe('runFixtureStore', () => {
     expect(runOne.id).not.toBe(runTwo.id)
     expect(store.getRun('project-concurrent', runOne.id)).toMatchObject({ id: runOne.id })
     expect(store.getRun('project-concurrent', runTwo.id)).toMatchObject({ id: runTwo.id })
+  })
+
+  it('blocks real-model start when planner config is missing instead of creating a fixture-looking run', async () => {
+    const store = createRunFixtureStore({
+      scenePlannerGateway: {
+        generate: vi.fn().mockRejectedValue(new ModelGatewayMissingConfigError({
+          provider: 'openai',
+          role: 'planner',
+        })),
+      },
+    })
+
+    await expect(store.startSceneRun('project-missing-config', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+    })).rejects.toMatchObject({
+      code: 'RUN_MODEL_CONFIG_REQUIRED',
+      status: 400,
+    })
+
+    expect(store.exportProjectState('project-missing-config')).toEqual({
+      runStates: [],
+      sceneSequences: {
+        'scene-midnight-platform': 0,
+      },
+    })
+  })
+
+  it('records a failed run with honest openai provenance when planner execution fails after a real-model attempt', async () => {
+    const store = createRunFixtureStore({
+      scenePlannerGateway: {
+        generate: vi.fn().mockRejectedValue(new ModelGatewayExecutionError({
+          failureClass: 'provider_error',
+          message: 'OpenAI provider request failed.',
+          modelId: 'gpt-5.4',
+          provider: 'openai',
+          retryable: true,
+          role: 'planner',
+        })),
+      },
+    })
+
+    const run = await store.startSceneRun('project-provider-error', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+    })
+
+    expect(run).toMatchObject({
+      id: 'run-scene-midnight-platform-001',
+      status: 'failed',
+      failureClass: 'provider_error',
+      summary: 'Scene run failed before review because the planner model request failed.',
+      usage: {
+        provider: 'openai',
+        modelId: 'gpt-5.4',
+      },
+      runtimeSummary: {
+        health: 'failed',
+        failureClassLabel: 'Provider error',
+      },
+    })
+    expect(listAllEventPages(store, 'project-provider-error', run.id).map((event) => event.kind)).toContain('run_failed')
   })
 
   it('replays events after an optional cursor and then tails later review-transition publications without changing event records', async () => {
@@ -947,11 +1013,18 @@ describe('runFixtureStore', () => {
     expect(serializedEvents).not.toContain('Open with the station alarm')
   })
 
-  it('routes createServer start-run persistence through the constructed planner gateway fallback path', async () => {
+  it('routes createServer start-run persistence through the constructed explicit fixture planner path', async () => {
     const savedOverlays = new Map<string, unknown>()
     const server = createTestServer({
       configOverrides: {
         modelProvider: 'openai',
+        modelBindings: {
+          continuityReviewer: { provider: 'fixture' },
+          planner: { provider: 'fixture' },
+          sceneProseWriter: { provider: 'fixture' },
+          sceneRevision: { provider: 'fixture' },
+          summary: { provider: 'fixture' },
+        },
       },
       projectStatePersistence: {
         async load() {
@@ -996,7 +1069,6 @@ describe('runFixtureStore', () => {
           provenance: {
             provider: 'fixture',
             modelId: 'fixture-scene-planner',
-            fallbackReason: 'missing-config',
           },
         },
       })
@@ -1469,6 +1541,93 @@ describe('runFixtureStore', () => {
     expect(writerGenerate.mock.calls[0]?.[0].input).toContain('Book premise: Fixture-backed project root for the BE-PR1 API server skeleton.')
     expect(writerGenerate.mock.calls[0]?.[0].input).toContain('Accepted proposals: proposal-set-scene-midnight-platform-run-002-proposal-001.')
     expect(writerGenerate.mock.calls[0]?.[0].input).toContain('Selected variants: proposal-set-scene-midnight-platform-run-002-proposal-001-variant-002.')
+  })
+
+  it('translates accepted real-writer failures into a failed run instead of leaving review pending', async () => {
+    const store = createRunFixtureStore({
+      sceneProseWriterGateway: {
+        generate: vi.fn().mockRejectedValue(new ModelGatewayExecutionError({
+          failureClass: 'provider_error',
+          message: 'OpenAI provider request failed.',
+          modelId: 'gpt-5.4',
+          provider: 'openai',
+          retryable: true,
+          role: 'sceneProseWriter',
+        })),
+      },
+    })
+    const run = await store.startSceneRun('project-review-writer-error', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+    })
+
+    const failedRun = await store.submitRunReviewDecision('project-review-writer-error', {
+      runId: run.id,
+      reviewId: run.pendingReviewId!,
+      decision: 'accept',
+    })
+
+    expect(failedRun).toMatchObject({
+      id: run.id,
+      status: 'failed',
+      pendingReviewId: undefined,
+      failureClass: 'provider_error',
+      summary: 'Scene run failed while generating accepted prose after review.',
+      runtimeSummary: {
+        health: 'failed',
+        failureClassLabel: 'Provider error',
+        nextActionLabel: 'Repair model settings or retry the run after the runtime issue is resolved.',
+      },
+      usage: {
+        provider: 'openai',
+        modelId: 'gpt-5.4',
+      },
+    })
+    expect(listAllEventPages(store, 'project-review-writer-error', run.id).map((event) => event.kind)).toContain('run_failed')
+    expect(store.listRunArtifacts('project-review-writer-error', run.id)?.map((artifact) => artifact.kind)).toEqual([
+      'context-packet',
+      'agent-invocation',
+      'agent-invocation',
+      'agent-invocation',
+      'proposal-set',
+    ])
+  })
+
+  it('preserves accept-with-edit review history when accepted prose generation fails', async () => {
+    const store = createRunFixtureStore({
+      sceneProseWriterGateway: {
+        generate: vi.fn().mockRejectedValue(new ModelGatewayExecutionError({
+          failureClass: 'provider_error',
+          message: 'OpenAI provider request failed.',
+          modelId: 'gpt-5.4',
+          provider: 'openai',
+          retryable: true,
+          role: 'sceneProseWriter',
+        })),
+      },
+    })
+    const run = await store.startSceneRun('project-review-writer-edit-error', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+    })
+
+    await store.submitRunReviewDecision('project-review-writer-edit-error', {
+      runId: run.id,
+      reviewId: run.pendingReviewId!,
+      decision: 'accept-with-edit',
+      note: 'Polish the final exchange.',
+    })
+
+    expect(listAllEventPages(store, 'project-review-writer-edit-error', run.id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'review_decision_submitted',
+        summary: 'Review accepted the proposal set with edits, but prose generation did not complete.',
+      }),
+      expect.objectContaining({
+        kind: 'run_failed',
+        summary: 'OpenAI provider request failed.',
+      }),
+    ]))
   })
 
   it('accepts valid custom patch ids and keeps artifact lookup and trace complete', async () => {

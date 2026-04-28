@@ -6,6 +6,10 @@ import {
   type ScenePlannerOpenAiResponsesProviderOptions,
 } from './scenePlannerOpenAiResponsesProvider.js'
 import {
+  ModelGatewayExecutionError,
+  ModelGatewayMissingConfigError,
+} from './modelGatewayErrors.js'
+import {
   parseScenePlannerOutput,
   type ScenePlannerOutput,
 } from './scenePlannerOutputSchema.js'
@@ -54,14 +58,12 @@ export function createScenePlannerGateway(
 
   async function renderFixtureResult(
     request: ScenePlannerGatewayRequest,
-    fallbackReason?: ScenePlannerGatewayFallbackReason,
   ): Promise<ScenePlannerGatewayResult> {
     return {
       output: parseScenePlannerOutput(await fixtureProvider.generate(request)),
       provenance: {
         provider: 'fixture',
         modelId: FIXTURE_SCENE_PLANNER_MODEL_ID,
-        ...(fallbackReason ? { fallbackReason } : {}),
       },
     }
   }
@@ -75,7 +77,10 @@ export function createScenePlannerGateway(
       }
 
       if (!binding.modelId || !binding.apiKey) {
-        return renderFixtureResult(request, 'missing-config')
+        throw new ModelGatewayMissingConfigError({
+          provider: 'openai',
+          role: 'planner',
+        })
       }
 
       const openAiProvider = dependencies.openAiProvider ?? openAiProviderFactory({
@@ -87,7 +92,14 @@ export function createScenePlannerGateway(
       try {
         payload = await openAiProvider.generate(request)
       } catch {
-        return renderFixtureResult(request, 'provider-error')
+        throw new ModelGatewayExecutionError({
+          failureClass: 'provider_error',
+          message: 'OpenAI provider request failed.',
+          modelId: binding.modelId,
+          provider: 'openai',
+          retryable: true,
+          role: 'planner',
+        })
       }
 
       try {
@@ -99,7 +111,14 @@ export function createScenePlannerGateway(
           },
         }
       } catch {
-        return renderFixtureResult(request, 'invalid-output')
+        throw new ModelGatewayExecutionError({
+          failureClass: 'invalid_output',
+          message: 'OpenAI provider returned invalid structured planner output.',
+          modelId: binding.modelId,
+          provider: 'openai',
+          retryable: true,
+          role: 'planner',
+        })
       }
     },
   }

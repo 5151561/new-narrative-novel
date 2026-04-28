@@ -6,6 +6,7 @@ import { AllStates, RealLocalProjectTestFailed } from './ProjectRuntimeStatusBad
 import { createProjectRuntimeInfoRecord } from './project-runtime-info'
 import { createProjectRuntimeTestWrapper } from './project-runtime-test-utils'
 import { ProjectRuntimeStatusBadge } from './ProjectRuntimeStatusBadge'
+import { ModelSettingsProvider } from '@/features/settings/ModelSettingsProvider'
 
 afterEach(() => {
   Reflect.deleteProperty(window, 'narrativeDesktop')
@@ -322,5 +323,65 @@ describe('ProjectRuntimeStatusBadge', () => {
     expect(failingStatus).toHaveTextContent('Model OpenAI')
     expect(failingStatus).toHaveTextContent('Key Missing')
     expect(failingStatus).toHaveTextContent('Test Failed')
+  })
+
+  it('offers a model-settings repair CTA for real-project openai bindings that are not runnable yet', async () => {
+    const user = userEvent.setup()
+    const wrapper = createProjectRuntimeTestWrapper()
+    const updateModelBinding = vi.fn()
+    const deleteProviderCredential = vi.fn()
+    const saveProviderCredential = vi.fn()
+    const testModelSettings = vi.fn()
+
+    Object.defineProperty(window, 'narrativeDesktop', {
+      configurable: true,
+      value: {
+        getModelSettingsSnapshot: async () => ({
+          bindings: {
+            continuityReviewer: { provider: 'fixture' },
+            planner: { provider: 'openai' },
+            sceneProseWriter: { provider: 'openai', modelId: 'gpt-5.4' },
+            sceneRevision: { provider: 'fixture' },
+            summary: { provider: 'fixture' },
+          },
+          connectionTest: {
+            status: 'failed',
+            errorCode: 'missing_key',
+            summary: 'OpenAI API key is missing.',
+          },
+          credentialStatus: {
+            configured: false,
+            provider: 'openai',
+          },
+        }),
+        updateModelBinding,
+        deleteProviderCredential,
+        saveProviderCredential,
+        testModelSettings,
+      },
+    })
+
+    render(
+      <ModelSettingsProvider>
+        <ProjectRuntimeStatusBadge
+          info={createProjectRuntimeInfoRecord({
+            projectId: 'desktop-project-signal-arc',
+            projectTitle: 'Signal Arc Desktop',
+            runtimeKind: 'real-local-project',
+            source: 'api',
+            status: 'healthy',
+            summary: 'Connected to the desktop-local runtime for the current project.',
+            capabilities: {
+              read: true,
+              write: true,
+            },
+          })}
+        />
+      </ModelSettingsProvider>,
+      { wrapper },
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Model Settings' }))
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Key Missing')
   })
 })

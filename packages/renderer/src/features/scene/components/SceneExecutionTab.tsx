@@ -37,12 +37,19 @@ export interface SceneExecutionRunSessionViewModel {
   isStartingRun: boolean
   isSubmittingDecision: boolean
   onStartRun: (mode: RunMode) => Promise<void> | void
+  onRetryRun?: () => Promise<void> | void
   onSubmitDecision: (input: {
     decision: RunReviewDecisionKind
     note?: string
     patchId?: string
     selectedVariants?: RunSelectedProposalVariantRecord[]
   }) => Promise<void> | void
+}
+
+interface SceneExecutionRunStartGuard {
+  message: string
+  ctaLabel: string
+  onRepair: () => void
 }
 
 interface SceneExecutionTabProps {
@@ -55,6 +62,7 @@ interface SceneExecutionTabProps {
   filters: ProposalFilters
   acceptedSummary: SceneAcceptedSummaryModel
   runSession: SceneExecutionRunSessionViewModel
+  runStartGuard?: SceneExecutionRunStartGuard
   canContinueRun: boolean
   canOpenProse: boolean
   onOpenSetup?: () => void
@@ -81,6 +89,7 @@ export function SceneExecutionTab({
   filters,
   acceptedSummary,
   runSession,
+  runStartGuard,
   canContinueRun,
   canOpenProse,
   onOpenSetup,
@@ -96,13 +105,14 @@ export function SceneExecutionTab({
   onChangeFilters,
   onClearFilters,
 }: SceneExecutionTabProps) {
-  const { locale } = useI18n()
+  const { dictionary, locale } = useI18n()
   const activeRun = runSession.run
   const latestEvent = runSession.events.at(-1)
   const isRewriteRequestedTerminal =
     activeRun?.status === 'completed' && latestEvent?.kind === 'review_decision_submitted'
   const isRunBusy = runSession.isStartingRun || runSession.isSubmittingDecision
-  const areRunStartControlsDisabled = isRunBusy || runSession.isReviewPending
+  const areRunStartControlsDisabled = isRunBusy || runSession.isReviewPending || Boolean(runStartGuard)
+  const isFailedRun = activeRun?.status === 'failed'
 
   const runStatusLabels: Record<Locale, Record<NonNullable<RunRecord['status']>, string>> = {
     en: {
@@ -151,38 +161,72 @@ export function SceneExecutionTab({
                   ? '通过继续、重写或从头开始来驱动当前场景运行。'
                   : 'Start a fresh scene run, continue the current thread, or request a rewrite pass.'}
             </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
-                disabled={areRunStartControlsDisabled}
-                onClick={() => {
-                  void runSession.onStartRun('continue')
-                }}
-              >
-                {locale === 'zh-CN' ? '运行场景' : 'Run Scene'}
-              </button>
-              <button
-                type="button"
-                className="rounded-md border border-line-soft bg-surface-2 px-3 py-2 text-sm disabled:opacity-60"
-                disabled={areRunStartControlsDisabled}
-                onClick={() => {
-                  void runSession.onStartRun('rewrite')
-                }}
-              >
-                {locale === 'zh-CN' ? '重写运行' : 'Rewrite Run'}
-              </button>
-              <button
-                type="button"
-                className="rounded-md border border-line-soft bg-surface-1 px-3 py-2 text-sm text-text-main disabled:opacity-60"
-                disabled={areRunStartControlsDisabled}
-                onClick={() => {
-                  void runSession.onStartRun('from-scratch')
-                }}
-              >
-                {locale === 'zh-CN' ? '从头运行' : 'Run From Scratch'}
-              </button>
-            </div>
+            {runStartGuard ? (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950">
+                <p className="leading-6">{runStartGuard.message}</p>
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white"
+                    onClick={runStartGuard.onRepair}
+                  >
+                    {runStartGuard.ctaLabel}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+                  disabled={areRunStartControlsDisabled}
+                  onClick={() => {
+                    void runSession.onStartRun('continue')
+                  }}
+                >
+                  {locale === 'zh-CN' ? '运行场景' : 'Run Scene'}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-line-soft bg-surface-2 px-3 py-2 text-sm disabled:opacity-60"
+                  disabled={areRunStartControlsDisabled}
+                  onClick={() => {
+                    void runSession.onStartRun('rewrite')
+                  }}
+                >
+                  {locale === 'zh-CN' ? '重写运行' : 'Rewrite Run'}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-line-soft bg-surface-1 px-3 py-2 text-sm text-text-main disabled:opacity-60"
+                  disabled={areRunStartControlsDisabled}
+                  onClick={() => {
+                    void runSession.onStartRun('from-scratch')
+                  }}
+                >
+                  {locale === 'zh-CN' ? '从头运行' : 'Run From Scratch'}
+                </button>
+              </div>
+            )}
+            {runSession.error && !runStartGuard && !isFailedRun ? (
+              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-950">
+                <p className="font-medium">
+                  {locale === 'zh-CN' ? '运行启动失败' : 'Run start failed'}
+                </p>
+                <p className="mt-1 leading-6">{runSession.error.message}</p>
+                {!activeRun ? (
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      className="rounded-md border border-line-soft bg-white px-3 py-2 text-sm font-medium text-text-main"
+                      onClick={onOpenSetup}
+                    >
+                      {dictionary.shell.openModelSettings}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             {activeRun ? (
               <div className="grid gap-3 text-sm text-text-muted">
                 <div className="flex flex-wrap items-center gap-2">
@@ -195,6 +239,32 @@ export function SceneExecutionTab({
                     {locale === 'zh-CN' ? '最新事件：' : 'Latest event: '}
                     <span className="font-medium text-text-main">{latestEvent.label}</span>
                   </p>
+                ) : null}
+                {isFailedRun ? (
+                  <div className="rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-950">
+                    <p className="font-medium">
+                      {activeRun.summary}
+                    </p>
+                    {activeRun.failureMessage ? (
+                      <p className="mt-1 leading-6">{activeRun.failureMessage}</p>
+                    ) : null}
+                    {activeRun.runtimeSummary?.nextActionLabel ? (
+                      <p className="mt-1 leading-6">{activeRun.runtimeSummary.nextActionLabel}</p>
+                    ) : null}
+                    {runSession.onRetryRun ? (
+                      <div className="mt-3">
+                        <button
+                          type="button"
+                          className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-950"
+                          onClick={() => {
+                            void runSession.onRetryRun?.()
+                          }}
+                        >
+                          {locale === 'zh-CN' ? '重试运行' : 'Retry Run'}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 ) : null}
                 {isRewriteRequestedTerminal ? (
                   <div className="rounded-md border border-line-soft bg-surface-1 px-3 py-3">

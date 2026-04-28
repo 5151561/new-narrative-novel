@@ -797,8 +797,164 @@ describe('fixture API server run flow', () => {
       configOverrides: {
         currentProject: {
           projectId: 'local-project-alpha',
+          projectMode: 'real-project',
           projectRoot: '/tmp/local-project-alpha',
           projectTitle: 'Local Project Alpha',
+        },
+      },
+    })
+  })
+
+  it('blocks real-project run start over HTTP when the selected openai planner binding is missing config', async () => {
+    await withTestServer(async ({ app }) => {
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/local-project-alpha/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
+        },
+      })
+
+      expect(startResponse.statusCode).toBe(400)
+      expect(startResponse.json()).toMatchObject({
+        code: 'RUN_MODEL_CONFIG_REQUIRED',
+      })
+    }, {
+      configOverrides: {
+        currentProject: {
+          projectId: 'local-project-alpha',
+          projectMode: 'real-project',
+          projectRoot: '/tmp/local-project-alpha',
+          projectTitle: 'Local Project Alpha',
+        },
+        modelBindings: {
+          continuityReviewer: { provider: 'fixture' },
+          planner: { provider: 'openai' },
+          sceneProseWriter: { provider: 'openai' },
+          sceneRevision: { provider: 'openai' },
+          summary: { provider: 'fixture' },
+        },
+        modelProvider: 'openai',
+      },
+    })
+  })
+
+  it('returns a failed run over HTTP when the real planner provider errors after an openai attempt', async () => {
+    await withTestServer(async ({ app }) => {
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/local-project-alpha/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
+        },
+      })
+
+      expect(startResponse.statusCode).toBe(200)
+      expect(startResponse.json()).toMatchObject({
+        id: 'run-scene-midnight-platform-001',
+        status: 'failed',
+        failureClass: 'provider_error',
+        usage: {
+          provider: 'openai',
+          modelId: 'gpt-5.4',
+        },
+        runtimeSummary: {
+          health: 'failed',
+          failureClassLabel: 'Provider error',
+        },
+      })
+    }, {
+      configOverrides: {
+        currentProject: {
+          projectId: 'local-project-alpha',
+          projectMode: 'real-project',
+          projectRoot: '/tmp/local-project-alpha',
+          projectTitle: 'Local Project Alpha',
+        },
+        modelBindings: {
+          continuityReviewer: { provider: 'fixture' },
+          planner: {
+            apiKey: 'sk-test',
+            modelId: 'gpt-5.4',
+            provider: 'openai',
+          },
+          sceneProseWriter: { provider: 'fixture' },
+          sceneRevision: { provider: 'fixture' },
+          summary: { provider: 'fixture' },
+        },
+        modelProvider: 'openai',
+      },
+      scenePlannerGatewayDependencies: {
+        openAiProvider: {
+          generate: async () => {
+            throw new Error('upstream failed')
+          },
+        },
+      },
+    })
+  })
+
+  it('returns a failed run over HTTP when accepted prose generation fails after a real openai attempt', async () => {
+    await withTestServer(async ({ app }) => {
+      const startResponse = await app.inject({
+        method: 'POST',
+        url: '/api/projects/local-project-alpha/scenes/scene-midnight-platform/runs',
+        payload: {
+          mode: 'rewrite',
+        },
+      })
+      expect(startResponse.statusCode).toBe(200)
+      const startedRun = startResponse.json()
+
+      const reviewResponse = await app.inject({
+        method: 'POST',
+        url: `/api/projects/local-project-alpha/runs/${startedRun.id}/review-decisions`,
+        payload: {
+          reviewId: startedRun.pendingReviewId,
+          decision: 'accept',
+        },
+      })
+
+      expect(reviewResponse.statusCode).toBe(200)
+      expect(reviewResponse.json()).toMatchObject({
+        id: startedRun.id,
+        status: 'failed',
+        failureClass: 'provider_error',
+        runtimeSummary: {
+          health: 'failed',
+          failureClassLabel: 'Provider error',
+        },
+        usage: {
+          provider: 'openai',
+          modelId: 'gpt-5.4',
+        },
+      })
+    }, {
+      configOverrides: {
+        currentProject: {
+          projectId: 'local-project-alpha',
+          projectMode: 'real-project',
+          projectRoot: '/tmp/local-project-alpha',
+          projectTitle: 'Local Project Alpha',
+        },
+        modelBindings: {
+          continuityReviewer: { provider: 'fixture' },
+          planner: { provider: 'fixture' },
+          sceneProseWriter: {
+            apiKey: 'sk-test',
+            modelId: 'gpt-5.4',
+            provider: 'openai',
+          },
+          sceneRevision: { provider: 'fixture' },
+          summary: { provider: 'fixture' },
+        },
+        modelProvider: 'openai',
+      },
+      sceneProseWriterGatewayDependencies: {
+        openAiProvider: {
+          generate: async () => {
+            throw new Error('upstream failed')
+          },
         },
       },
     })
