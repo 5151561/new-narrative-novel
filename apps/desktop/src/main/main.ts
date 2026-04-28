@@ -450,7 +450,10 @@ function refreshApplicationMenu(): void {
 
 app.whenReady().then(async () => {
   const activeProjectStore = ensureProjectStore()
-  await activeProjectStore.restoreLastProject()
+  const restoredProject = await activeProjectStore.restoreLastProject()
+  if (restoredProject) {
+    await restartLocalApiForProjectSelection()
+  }
   createMainWindow()
   refreshApplicationMenu()
 })

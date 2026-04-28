@@ -9,6 +9,118 @@ afterEach(() => {
 })
 
 describe('desktop main bridge registration', () => {
+  it('starts the local API before opening the window when restoring the last desktop project', async () => {
+    const ipcHandle = vi.fn()
+    const appOn = vi.fn()
+    const createMainWindow = vi.fn(async () => undefined)
+    const setApplicationMenu = vi.fn()
+    const restoredProject = {
+      projectId: 'local-project-alpha',
+      projectMode: 'real-project' as const,
+      projectRoot: '/tmp/local-project',
+      projectTitle: 'Desktop Local Project',
+    }
+    let currentProject = restoredProject
+    const projectStore = {
+      createProject: vi.fn(async () => restoredProject),
+      forgetProjectRoot: vi.fn(async () => []),
+      getCurrentProject: vi.fn(() => currentProject),
+      getRecentProjects: vi.fn(() => []),
+      openProject: vi.fn(async () => restoredProject),
+      openRecentProject: vi.fn(async () => restoredProject),
+      restoreLastProject: vi.fn(async () => restoredProject),
+      selectDemoProject: vi.fn(async () => restoredProject),
+      selectProjectRoot: vi.fn(async () => restoredProject),
+    }
+    const workerSupervisor = {
+      getSnapshot: vi.fn(() => ({
+        implementation: 'placeholder' as const,
+        status: 'disabled' as const,
+      })),
+      restart: vi.fn(async () => ({
+        implementation: 'placeholder' as const,
+        status: 'disabled' as const,
+      })),
+      stop: vi.fn(),
+    }
+    const localApiSnapshot = {
+      lastError: undefined as string | undefined,
+      logs: [] as string[],
+      runtimeConfig: {
+        apiBaseUrl: 'http://127.0.0.1:4888/api',
+        apiHealthUrl: 'http://127.0.0.1:4888/api/health',
+        port: 4888,
+        projectId: 'local-project-alpha',
+        projectMode: 'real-project' as const,
+        projectTitle: 'Desktop Local Project',
+        runtimeMode: 'desktop-local' as const,
+      },
+      status: 'ready' as const,
+    }
+    const localApiSupervisor = {
+      getLogs: vi.fn(() => []),
+      getSnapshot: vi.fn(() => ({
+        lastError: undefined,
+        logs: [],
+        runtimeConfig: undefined,
+        status: 'stopped' as const,
+      })),
+      restart: vi.fn(async () => localApiSnapshot),
+      start: vi.fn(async () => localApiSnapshot),
+      stop: vi.fn(() => localApiSnapshot),
+      testModelSettings: vi.fn(),
+    }
+
+    vi.doMock('electron', () => ({
+      BrowserWindow: {
+        getAllWindows: vi.fn(() => []),
+      },
+      app: {
+        getVersion: vi.fn(() => '0.1.0'),
+        isPackaged: false,
+        on: appOn,
+        quit: vi.fn(),
+        whenReady: vi.fn(() => Promise.resolve()),
+      },
+      ipcMain: {
+        handle: ipcHandle,
+      },
+    }))
+    vi.doMock('./app-menu.js', () => ({
+      setApplicationMenu,
+    }))
+    vi.doMock('./create-window.js', () => ({
+      createMainWindow,
+    }))
+    vi.doMock('./local-api-supervisor.js', () => ({
+      createLocalApiSupervisor: vi.fn(() => localApiSupervisor),
+    }))
+    vi.doMock('./project-store.js', () => ({
+      ProjectStore: vi.fn(() => projectStore),
+    }))
+    vi.doMock('./credential-store.js', () => ({
+      CredentialStore: vi.fn(() => ({})),
+    }))
+    vi.doMock('./model-binding-store.js', () => ({
+      ModelBindingStore: vi.fn(() => ({})),
+    }))
+    vi.doMock('../../../../packages/api/src/repositories/project-backup.js', () => ({
+      createProjectBackup: vi.fn(),
+      exportProjectArchive: vi.fn(),
+    }))
+    vi.doMock('./worker-supervisor.js', () => ({
+      createWorkerSupervisor: vi.fn(() => workerSupervisor),
+    }))
+
+    await import('./main.js')
+
+    expect(projectStore.restoreLastProject).toHaveBeenCalledTimes(1)
+    expect(localApiSupervisor.start).toHaveBeenCalledTimes(1)
+    expect(localApiSupervisor.restart).not.toHaveBeenCalled()
+    expect(createMainWindow).toHaveBeenCalledTimes(1)
+    expect(localApiSupervisor.start.mock.invocationCallOrder[0]).toBeLessThan(createMainWindow.mock.invocationCallOrder[0])
+  })
+
   it('registers provider-profile CRUD plus provider-id-scoped credential handlers from the real main entry path', async () => {
     const ipcHandle = vi.fn()
     const appOn = vi.fn()
