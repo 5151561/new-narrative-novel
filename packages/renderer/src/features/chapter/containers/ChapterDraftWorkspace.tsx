@@ -3,8 +3,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { getWorkbenchLensLabel, useI18n } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
+import { WorkbenchStatusTopBar } from '@/features/workbench/components/WorkbenchStatusTopBar'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import type { SceneLens } from '@/features/workbench/types/workbench-route'
 
@@ -133,15 +133,10 @@ function ChapterDraftTopBar({
   const { locale, dictionary } = useI18n()
 
   return (
-    <div className="flex h-full flex-wrap items-center justify-end gap-2">
-      <div className="sr-only">
-        <h1>{dictionary.app.chapterWorkbench}</h1>
-        <p>
-          {chapterTitle} / {getWorkbenchLensLabel(locale, 'draft')}
-          {selectedSceneTitle ? ` / ${selectedSceneTitle}` : ''}
-        </p>
-      </div>
-      <LocaleToggle />
+    <WorkbenchStatusTopBar
+      title={dictionary.app.chapterWorkbench}
+      subtitle={`${chapterTitle} / ${getWorkbenchLensLabel(locale, 'draft')}${selectedSceneTitle ? ` / ${selectedSceneTitle}` : ''}`}
+    >
       {draftedSceneCount !== undefined ? (
         <Badge tone="neutral">{locale === 'zh-CN' ? `已起草 ${draftedSceneCount}` : `Drafted ${draftedSceneCount}`}</Badge>
       ) : null}
@@ -153,7 +148,7 @@ function ChapterDraftTopBar({
       {assembledWordCount !== undefined ? (
         <Badge tone="neutral">{locale === 'zh-CN' ? `合计 ${assembledWordCount} 词` : `${assembledWordCount} words`}</Badge>
       ) : null}
-    </div>
+    </WorkbenchStatusTopBar>
   )
 }
 

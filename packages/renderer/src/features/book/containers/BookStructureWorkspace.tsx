@@ -2,11 +2,11 @@ import { useCallback, useEffect } from 'react'
 
 import { EmptyState } from '@/components/ui/EmptyState'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
+import { WorkbenchStatusTopBar } from '@/features/workbench/components/WorkbenchStatusTopBar'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import type { BookStructureView } from '@/features/workbench/types/workbench-route'
 
 import { getWorkbenchLensLabel, useI18n } from '@/app/i18n'
-import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { BookInspectorPane } from '../components/BookInspectorPane'
 import { BookModeRail } from '../components/BookModeRail'
 import { BookNavigatorPane } from '../components/BookNavigatorPane'
@@ -46,15 +46,10 @@ function BookTopBar({ view }: { view: BookStructureView }) {
   const { locale } = useI18n()
 
   return (
-    <div className="flex h-full flex-wrap items-center justify-end gap-2">
-      <div className="sr-only">
-        <h1>{locale === 'zh-CN' ? '书籍工作台' : 'Book workbench'}</h1>
-        <p>
-          {locale === 'zh-CN' ? '书籍' : 'Book'} / {getWorkbenchLensLabel(locale, 'structure')} / {getBookViewLabel(locale, view)}
-        </p>
-      </div>
-      <LocaleToggle />
-    </div>
+    <WorkbenchStatusTopBar
+      title={locale === 'zh-CN' ? '书籍工作台' : 'Book workbench'}
+      subtitle={`${locale === 'zh-CN' ? '书籍' : 'Book'} / ${getWorkbenchLensLabel(locale, 'structure')} / ${getBookViewLabel(locale, view)}`}
+    />
   )
 }
 

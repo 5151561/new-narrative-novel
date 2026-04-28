@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { useI18n } from '@/app/i18n'
+import { getWorkbenchLensLabel, useI18n } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
-import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
+import { WorkbenchStatusTopBar } from '@/features/workbench/components/WorkbenchStatusTopBar'
 
 import { BookDraftBinderPane } from '../components/BookDraftBinderPane'
 import { BookDraftInspectorPane } from '../components/BookDraftInspectorPane'
@@ -140,6 +140,7 @@ function WorkspacePreview({
 }: BookDraftWorkspaceStoryProps) {
   const { locale } = useI18n()
   const workspace = useLocalizedBookDraftWorkspace({ variant, selectedChapterId })
+  const selectedChapterTitle = workspace.chapters.find((chapter) => chapter.chapterId === workspace.selectedChapterId)?.title
   const compareData = buildBookDraftCompareStoryData(locale, { variant, selectedChapterId, checkpointId })
   const branchData = buildBookDraftBranchStoryData(locale, { variant, selectedChapterId, branchId, branchBaseline, checkpointId })
   const exportData = buildBookDraftExportStoryData(locale, { variant, selectedChapterId, checkpointId, exportProfileId })
@@ -186,13 +187,15 @@ function WorkspacePreview({
   return (
     <WorkbenchShell
       topBar={
-        <div className="flex h-full flex-wrap items-center justify-end gap-2">
-          <LocaleToggle />
+        <WorkbenchStatusTopBar
+          title={locale === 'zh-CN' ? '书籍手稿' : 'Book manuscript'}
+          subtitle={`${workspace.title} / ${getWorkbenchLensLabel(locale, 'draft')}${selectedChapterTitle ? ` / ${selectedChapterTitle}` : ''}`}
+        >
           <Badge tone="neutral">{locale === 'zh-CN' ? `合计 ${workspace.assembledWordCount} 词` : `${workspace.assembledWordCount} words`}</Badge>
           <Badge tone={workspace.missingDraftChapterCount > 0 ? 'warn' : 'success'}>
             {locale === 'zh-CN' ? `缺稿 ${workspace.missingDraftChapterCount}` : `Missing ${workspace.missingDraftChapterCount}`}
           </Badge>
-        </div>
+        </WorkbenchStatusTopBar>
       }
       modeRail={<BookModeRail activeScope="book" activeLens="draft" onSelectScope={() => undefined} onSelectLens={() => undefined} />}
       navigator={<BookDraftBinderPane workspace={workspace} onSelectChapter={() => undefined} onOpenChapter={() => undefined} />}

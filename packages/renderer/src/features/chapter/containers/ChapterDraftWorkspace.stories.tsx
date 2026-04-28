@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
-import { useI18n } from '@/app/i18n'
+import { getWorkbenchLensLabel, useI18n } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
-import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
+import { WorkbenchStatusTopBar } from '@/features/workbench/components/WorkbenchStatusTopBar'
 
 import { ChapterDraftBinderPane } from '../components/ChapterDraftBinderPane'
 import { ChapterDraftBottomDock } from '../components/ChapterDraftBottomDock'
@@ -69,18 +69,21 @@ function WorkspacePreview({ workspace }: { workspace: ChapterDraftWorkspaceViewM
   const { locale } = useI18n()
   const activity = buildChapterDraftStoryActivity(locale, workspace)
   const { nextScene, blockingScenes } = resolveChapterRunGate(workspace.scenes)
+  const selectedSceneTitle = workspace.scenes.find((scene) => scene.sceneId === workspace.selectedSceneId)?.title
 
   return (
     <WorkbenchShell
       topBar={
-        <div className="flex h-full flex-wrap items-center justify-end gap-2">
-          <LocaleToggle />
+        <WorkbenchStatusTopBar
+          title={locale === 'zh-CN' ? '章节工作台' : 'Chapter workbench'}
+          subtitle={`${workspace.title} / ${getWorkbenchLensLabel(locale, 'draft')}${selectedSceneTitle ? ` / ${selectedSceneTitle}` : ''}`}
+        >
           <Badge tone="neutral">{locale === 'zh-CN' ? `已起草 ${workspace.draftedSceneCount}` : `Drafted ${workspace.draftedSceneCount}`}</Badge>
           <Badge tone={workspace.missingDraftCount > 0 ? 'warn' : 'success'}>
             {locale === 'zh-CN' ? `缺稿 ${workspace.missingDraftCount}` : `Missing ${workspace.missingDraftCount}`}
           </Badge>
           <Badge tone="neutral">{locale === 'zh-CN' ? `合计 ${workspace.assembledWordCount} 词` : `${workspace.assembledWordCount} words`}</Badge>
-        </div>
+        </WorkbenchStatusTopBar>
       }
       modeRail={<ChapterModeRail activeLens="draft" onSelectScope={() => undefined} onSelectLens={() => undefined} />}
       navigator={<ChapterDraftBinderPane workspace={workspace} onSelectScene={() => undefined} onOpenScene={() => undefined} />}

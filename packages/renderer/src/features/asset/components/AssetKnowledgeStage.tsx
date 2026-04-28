@@ -1,4 +1,5 @@
 import { getAssetKnowledgeViewLabel, useI18n } from '@/app/i18n'
+import { PaneHeader } from '@/components/ui/PaneHeader'
 import type {
   AssetKnowledgeView,
   ChapterLens,
@@ -52,29 +53,29 @@ export function AssetKnowledgeStage({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b border-line-soft px-4 py-4">
-        <div className="space-y-1">
-          <h2 className="text-xl leading-tight text-text-main">{assetTitle}</h2>
-          <p className="text-sm leading-6 text-text-muted">{assetSummary}</p>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {availableViews.map((view) => (
-            <button
-              key={view}
-              type="button"
-              aria-pressed={activeView === view}
-              onClick={() => onViewChange(view)}
-              className={`rounded-md border px-3 py-2 text-sm ${
-                activeView === view
-                  ? 'border-line-strong bg-surface-1 text-text-main'
-                  : 'border-line-soft text-text-muted hover:bg-surface-2'
-              }`}
-            >
-              {getAssetKnowledgeViewLabel(locale, view)}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PaneHeader
+        title={assetTitle}
+        description={assetSummary}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            {availableViews.map((view) => (
+              <button
+                key={view}
+                type="button"
+                aria-pressed={activeView === view}
+                onClick={() => onViewChange(view)}
+                className={`rounded-md border px-3 py-2 text-sm ${
+                  activeView === view
+                    ? 'border-line-strong bg-surface-1 text-text-main'
+                    : 'border-line-soft text-text-muted hover:bg-surface-2'
+                }`}
+              >
+                {getAssetKnowledgeViewLabel(locale, view)}
+              </button>
+            ))}
+          </div>
+        }
+      />
       <div className="min-h-0 flex-1 overflow-auto">
         {activeView === 'profile' ? (
           <AssetProfileView

@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react'
 
-import { useI18n } from '@/app/i18n'
-import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
+import { getWorkbenchLensLabel, useI18n } from '@/app/i18n'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
+import { WorkbenchStatusTopBar } from '@/features/workbench/components/WorkbenchStatusTopBar'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import type { BookStructureView } from '@/features/workbench/types/workbench-route'
 
@@ -51,10 +51,28 @@ export function getBookStorySearch(options?: {
 }
 
 function BookStoryTopBar() {
+  const { locale } = useI18n()
+  const { route } = useWorkbenchRouteState()
+
+  const view = route.scope === 'book' ? route.view : 'sequence'
+  const viewLabel =
+    locale === 'zh-CN'
+      ? view === 'sequence'
+        ? '顺序'
+        : view === 'outliner'
+          ? '大纲'
+          : '信号'
+      : view === 'sequence'
+        ? 'Sequence'
+        : view === 'outliner'
+          ? 'Outliner'
+          : 'Signals'
+
   return (
-    <div className="flex h-full flex-wrap items-center justify-end gap-2">
-      <LocaleToggle />
-    </div>
+    <WorkbenchStatusTopBar
+      title={locale === 'zh-CN' ? '书籍工作台' : 'Book workbench'}
+      subtitle={`${locale === 'zh-CN' ? '书籍' : 'Book'} / ${getWorkbenchLensLabel(locale, 'structure')} / ${viewLabel}`}
+    />
   )
 }
 
