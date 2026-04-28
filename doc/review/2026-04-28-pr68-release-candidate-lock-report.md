@@ -34,7 +34,10 @@ Date: `2026-04-28`
 
 ## Dogfood Environment
 
-Pending.
+- `pnpm dev:desktop`
+  - FAIL
+  - Error: `Electron failed to install correctly, please delete node_modules/electron and try installing again`
+  - Impact: desktop-local dogfood cannot start, so `Create/open real project -> ... -> continue writing` is currently blocked by local Electron runtime availability rather than app logic.
 
 ## Reproduced Blockers
 
@@ -57,6 +60,11 @@ Pending.
       - `packages/renderer/src/features/chapter/hooks/useChapterStructureWorkspaceQuery.test.tsx`
   - Resolution evidence:
     - `pnpm test` -> PASS after restoring cleanup in all identified locale-mutating test files
+- `RC-B002` Desktop dogfood launch is blocked by local Electron runtime availability.
+  - Command: `pnpm dev:desktop`
+  - Observed result: Electron CLI exits before the app launches with `Electron failed to install correctly...`
+  - Expected result: Electron launches the desktop-local shell so real-project dogfood can begin.
+  - Affected subsystem: local dependency/runtime environment for `apps/desktop`, not yet a confirmed product-code defect.
 
 ## Rejected Non-Blockers
 
@@ -82,7 +90,10 @@ None yet.
 
 ## Storybook / MCP Evidence
 
-Pending.
+- Storybook build is available, but live MCP verification is currently blocked:
+  - `mcp__playwright__*` -> `Transport closed`
+  - `mcp__storybook_mcp__*` -> `Transport closed`
+  - `mcp__node_repl__*` browser runtime bootstrap -> `Transport closed`
 
 ## Gate E Verdict
 
