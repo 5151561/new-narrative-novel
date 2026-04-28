@@ -235,7 +235,9 @@ describe('sceneRunArtifactDetails', () => {
       index: 1,
       role: 'planner',
       provenance: {
-        provider: 'openai',
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
+        providerLabel: 'DeepSeek',
         modelId: 'gpt-5.4',
       },
     })
@@ -249,7 +251,7 @@ describe('sceneRunArtifactDetails', () => {
       kind: 'agent-invocation',
       agentRole: 'scene-planner',
       contextPacketId: 'ctx-scene-midnight-platform-run-002',
-      modelLabel: text('OpenAI planner profile (gpt-5.4)', 'OpenAI 规划模型 (gpt-5.4)'),
+      modelLabel: text('DeepSeek planner profile (gpt-5.4)', 'DeepSeek 规划模型 (gpt-5.4)'),
       inputSummary: text(
         'Consumes the packed scene context and editorial note for Midnight Platform.',
         '消费 Midnight Platform 的上下文包和编辑备注。',
@@ -304,6 +306,43 @@ describe('sceneRunArtifactDetails', () => {
     )
     expect(JSON.stringify(detail)).not.toContain('Return scene-planning proposals only.')
     expect(JSON.stringify(detail)).not.toContain('raw planner transcript')
+  })
+
+  it('reads failed openai-compatible provenance only when provider attribution is present', () => {
+    const artifact = createAgentInvocationArtifact({
+      runId,
+      sceneId,
+      sequence: 2,
+      index: 1,
+      role: 'planner',
+      provenance: {
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
+        providerLabel: 'DeepSeek',
+        modelId: 'gpt-5.4',
+      },
+      failureDetail: {
+        failureClass: 'provider_error',
+        message: 'OpenAI-compatible provider request failed.',
+        modelId: 'gpt-5.4',
+        provider: 'openai-compatible',
+        retryable: true,
+        sourceEventIds: ['run-event-scene-midnight-platform-002-005'],
+      },
+    })
+
+    const detail = buildAgentInvocationDetail({
+      artifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-005'],
+    })
+
+    expect(detail.modelLabel).toEqual(
+      text('DeepSeek planner profile (gpt-5.4)', 'DeepSeek 规划模型 (gpt-5.4)'),
+    )
+    expect(detail.failureDetail).toMatchObject({
+      provider: 'openai-compatible',
+      modelId: 'gpt-5.4',
+    })
   })
 
   it('builds proposal set detail with deterministic proposals and review options', () => {
@@ -824,7 +863,9 @@ describe('sceneRunArtifactDetails', () => {
       index: 1,
       role: 'planner',
       provenance: {
-        provider: 'openai',
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
+        providerLabel: 'DeepSeek',
         modelId: 'gpt-5.4',
       },
     })
@@ -835,13 +876,13 @@ describe('sceneRunArtifactDetails', () => {
         inputTokens: 1420,
         outputTokens: 318,
         estimatedCostUsd: 0.0218,
-        provider: 'openai',
+        provider: 'openai-compatible',
         modelId: 'gpt-5.4',
       },
       failureDetail: {
         failureClass: 'provider_error',
         message: 'Provider returned 502 while planner output was being finalized.',
-        provider: 'openai',
+        provider: 'openai-compatible',
         modelId: 'gpt-5.4',
         retryable: true,
         sourceEventIds: ['run-event-scene-midnight-platform-002-006'],
@@ -857,13 +898,13 @@ describe('sceneRunArtifactDetails', () => {
       inputTokens: 1420,
       outputTokens: 318,
       estimatedCostUsd: 0.0218,
-      provider: 'openai',
+      provider: 'openai-compatible',
       modelId: 'gpt-5.4',
     })
     expect(failedInvocationDetail.failureDetail).toEqual({
       failureClass: 'provider_error',
       message: 'Provider returned 502 while planner output was being finalized.',
-      provider: 'openai',
+      provider: 'openai-compatible',
       modelId: 'gpt-5.4',
       retryable: true,
       sourceEventIds: ['run-event-scene-midnight-platform-002-006'],
@@ -882,13 +923,13 @@ describe('sceneRunArtifactDetails', () => {
         outputTokens: 318,
         estimatedCostUsd: 0.0218,
         actualCostUsd: 0.0241,
-        provider: 'openai',
+        provider: 'openai-compatible',
         modelId: 'gpt-5.4',
       },
       failureDetail: {
         failureClass: 'invalid_output',
         message: 'Proposal normalization failed because no safe variant survived validation.',
-        provider: 'openai',
+        provider: 'openai-compatible',
         modelId: 'gpt-5.4',
         retryable: false,
         sourceEventIds: ['run-event-scene-midnight-platform-002-007', 'run-event-scene-midnight-platform-002-008'],
@@ -905,13 +946,13 @@ describe('sceneRunArtifactDetails', () => {
       outputTokens: 318,
       estimatedCostUsd: 0.0218,
       actualCostUsd: 0.0241,
-      provider: 'openai',
+      provider: 'openai-compatible',
       modelId: 'gpt-5.4',
     })
     expect(failedProposalDetail.failureDetail).toEqual({
       failureClass: 'invalid_output',
       message: 'Proposal normalization failed because no safe variant survived validation.',
-      provider: 'openai',
+      provider: 'openai-compatible',
       modelId: 'gpt-5.4',
       retryable: false,
       sourceEventIds: ['run-event-scene-midnight-platform-002-007', 'run-event-scene-midnight-platform-002-008'],

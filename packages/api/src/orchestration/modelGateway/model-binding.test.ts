@@ -28,7 +28,7 @@ describe('model bindings', () => {
     })
   })
 
-  it('creates openai legacy fallback bindings for all supported roles when a global openai config is present', () => {
+  it('creates an openai-compatible legacy fallback for all supported roles when a global openai config is present', () => {
     expect(createModelBindingsFromLegacyConfig({
       modelProvider: 'openai',
       openAiApiKey: 'sk-secret-value',
@@ -36,54 +36,75 @@ describe('model bindings', () => {
     })).toEqual({
       continuityReviewer: {
         apiKey: 'sk-secret-value',
+        baseUrl: 'https://api.openai.com/v1',
         modelId: 'gpt-5.4',
-        provider: 'openai',
+        provider: 'openai-compatible',
+        providerId: 'openai-default',
+        providerLabel: 'OpenAI',
       },
       planner: {
         apiKey: 'sk-secret-value',
+        baseUrl: 'https://api.openai.com/v1',
         modelId: 'gpt-5.4',
-        provider: 'openai',
+        provider: 'openai-compatible',
+        providerId: 'openai-default',
+        providerLabel: 'OpenAI',
       },
       sceneProseWriter: {
         apiKey: 'sk-secret-value',
+        baseUrl: 'https://api.openai.com/v1',
         modelId: 'gpt-5.4',
-        provider: 'openai',
+        provider: 'openai-compatible',
+        providerId: 'openai-default',
+        providerLabel: 'OpenAI',
       },
       sceneRevision: {
         apiKey: 'sk-secret-value',
+        baseUrl: 'https://api.openai.com/v1',
         modelId: 'gpt-5.4',
-        provider: 'openai',
+        provider: 'openai-compatible',
+        providerId: 'openai-default',
+        providerLabel: 'OpenAI',
       },
       summary: {
         apiKey: 'sk-secret-value',
+        baseUrl: 'https://api.openai.com/v1',
         modelId: 'gpt-5.4',
-        provider: 'openai',
+        provider: 'openai-compatible',
+        providerId: 'openai-default',
+        providerLabel: 'OpenAI',
       },
     })
   })
 
-  it('serializes configured bindings with redacted credential status only', () => {
+  it('serializes configured bindings with provider metadata and redacted credential status only', () => {
     const serialized = serializeModelBindings({
       ...DEFAULT_MODEL_BINDINGS,
       planner: {
         apiKey: 'sk-secret-value',
-        modelId: 'gpt-5.4',
-        provider: 'openai',
+        baseUrl: 'https://api.deepseek.com/v1',
+        modelId: 'deepseek-chat',
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
+        providerLabel: 'DeepSeek',
       },
     })
 
     expect(serialized.planner).toEqual({
+      baseUrl: 'https://api.deepseek.com/v1',
       credentialStatus: {
         configured: true,
         redactedValue: 'sk-...alue',
       },
-      modelId: 'gpt-5.4',
-      provider: 'openai',
+      modelId: 'deepseek-chat',
+      provider: 'openai-compatible',
+      providerId: 'deepseek',
+      providerLabel: 'DeepSeek',
     })
     expect(JSON.stringify(serialized)).not.toContain('sk-secret-value')
   })
 
-  it('resolves role-specific bindings ahead of the legacy global openai fallback', () => {
+  it('resolves normalized role-specific bindings ahead of the legacy global fallback', () => {
     expect(resolveModelBindingForRole({
       modelBindings: {
         ...createModelBindingsFromLegacyConfig({
@@ -93,8 +114,11 @@ describe('model bindings', () => {
         }),
         sceneRevision: {
           apiKey: 'sk-revision-value',
-          modelId: 'gpt-5.4-mini',
-          provider: 'openai',
+          baseUrl: 'https://api.deepseek.com/v1',
+          modelId: 'deepseek-reasoner',
+          provider: 'openai-compatible',
+          providerId: 'deepseek',
+          providerLabel: 'DeepSeek',
         },
       },
       modelProvider: 'openai',
@@ -102,8 +126,11 @@ describe('model bindings', () => {
       openAiModel: 'gpt-5.4',
     }, 'sceneRevision')).toEqual({
       apiKey: 'sk-revision-value',
-      modelId: 'gpt-5.4-mini',
-      provider: 'openai',
+      baseUrl: 'https://api.deepseek.com/v1',
+      modelId: 'deepseek-reasoner',
+      provider: 'openai-compatible',
+      providerId: 'deepseek',
+      providerLabel: 'DeepSeek',
     })
   })
 })

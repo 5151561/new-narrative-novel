@@ -348,9 +348,15 @@ function readGatewayProvenance(artifact: SceneRunArtifactRecord) {
   }
 
   const provider = provenance.provider
+  const providerId = provenance.providerId
+  const providerLabel = provenance.providerLabel
   const modelId = provenance.modelId
   const fallbackReason = provenance.fallbackReason
-  if ((provider !== 'fixture' && provider !== 'openai') || typeof modelId !== 'string') {
+  if ((provider !== 'fixture' && provider !== 'openai-compatible') || typeof modelId !== 'string') {
+    return undefined
+  }
+
+  if (provider === 'openai-compatible' && (typeof providerId !== 'string' || typeof providerLabel !== 'string')) {
     return undefined
   }
 
@@ -365,6 +371,7 @@ function readGatewayProvenance(artifact: SceneRunArtifactRecord) {
 
   return {
     provider,
+    ...(provider === 'openai-compatible' ? { providerId, providerLabel } : {}),
     modelId,
     ...(fallbackReason ? { fallbackReason } : {}),
   }
@@ -1114,15 +1121,21 @@ export function buildAgentInvocationDetail(
     kind: 'agent-invocation',
     agentRole,
     modelLabel: isPlanner
-      ? gatewayProvenance?.provider === 'openai'
-        ? localize(`OpenAI planner profile (${gatewayProvenance.modelId})`, `OpenAI 规划模型 (${gatewayProvenance.modelId})`)
+      ? gatewayProvenance?.provider === 'openai-compatible'
+        ? localize(
+          `${gatewayProvenance.providerLabel} planner profile (${gatewayProvenance.modelId})`,
+          `${gatewayProvenance.providerLabel} 规划模型 (${gatewayProvenance.modelId})`,
+        )
         : gatewayProvenance?.fallbackReason
           ? localize(`Fixture planner fallback (${gatewayProvenance.modelId})`, `Fixture 回退规划模型 (${gatewayProvenance.modelId})`)
           : gatewayProvenance
             ? localize(`Fixture planner profile (${gatewayProvenance.modelId})`, `Fixture 规划模型 (${gatewayProvenance.modelId})`)
             : localize('Fixture planner profile', 'Fixture 规划模型')
-      : gatewayProvenance?.provider === 'openai'
-        ? localize(`OpenAI writer profile (${gatewayProvenance.modelId})`, `OpenAI 写作模型 (${gatewayProvenance.modelId})`)
+      : gatewayProvenance?.provider === 'openai-compatible'
+        ? localize(
+          `${gatewayProvenance.providerLabel} writer profile (${gatewayProvenance.modelId})`,
+          `${gatewayProvenance.providerLabel} 写作模型 (${gatewayProvenance.modelId})`,
+        )
         : gatewayProvenance?.fallbackReason
           ? localize(`Fixture writer fallback (${gatewayProvenance.modelId})`, `Fixture 回退写作模型 (${gatewayProvenance.modelId})`)
           : gatewayProvenance
@@ -1265,7 +1278,7 @@ function buildProseDraftSummary(
   sceneName: string,
   provenance?: ReturnType<typeof readGatewayProvenance>,
 ) {
-  if (provenance?.provider === 'openai') {
+  if (provenance?.provider === 'openai-compatible') {
     return localize(
       `Accepted prose draft was rendered for ${sceneName}.`,
       `已为 ${sceneName} 渲染获批正文草稿。`,

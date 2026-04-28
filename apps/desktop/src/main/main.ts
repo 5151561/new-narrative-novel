@@ -20,10 +20,11 @@ import {
   type DesktopModelSettingsSnapshot,
   type DesktopModelBindingRole,
   type DesktopPlatform,
-  type ProviderCredentialProvider,
+  type DesktopRuntimeMode,
+  type OpenAiCompatibleProviderProfile,
+  type ProviderCredentialReference,
   type SaveProviderCredentialInput,
   type UpdateModelBindingInput,
-  type DesktopRuntimeMode,
 } from '../shared/desktop-bridge-types.js'
 
 export function getDesktopPlatform(platform: NodeJS.Platform = process.platform): DesktopPlatform {
@@ -35,22 +36,20 @@ export function getDesktopPlatform(platform: NodeJS.Platform = process.platform)
 }
 
 let projectStore: ProjectStore | null = null
-const localApiSupervisor = createLocalApiSupervisor({
-  getCurrentProject: () => projectStore?.getCurrentProject() ?? null,
-  getModelBindings: async (projectRoot) => modelBindingStore.readBindings(projectRoot),
-  getProviderCredential: async (provider) => credentialStore.getRawCredential(provider),
-})
-const workerSupervisor = createWorkerSupervisor()
 const credentialStore = new CredentialStore()
 const modelBindingStore = new ModelBindingStore()
-
-function assertProviderCredentialProvider(value: unknown): ProviderCredentialProvider {
-  if (value === 'openai') {
-    return value
-  }
-
-  throw new Error('Unsupported credential provider.')
-}
+const localApiSupervisor = createLocalApiSupervisor({
+  getCurrentProject: () => projectStore?.getCurrentProject() ?? null,
+  getModelSettings: async (projectRoot) => {
+    const record = await modelBindingStore.readModelSettingsRecord(projectRoot)
+    return {
+      bindings: record.bindings,
+      providers: record.providers,
+    }
+  },
+  getProviderCredential: async (providerId) => credentialStore.getRawCredential(providerId),
+})
+const workerSupervisor = createWorkerSupervisor()
 
 function assertNonEmptyString(value: unknown, fieldName: string): string {
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -58,6 +57,22 @@ function assertNonEmptyString(value: unknown, fieldName: string): string {
   }
 
   return value.trim()
+}
+
+function assertProviderCredentialReference(value: unknown): ProviderCredentialReference {
+  if (!value || typeof value !== 'object') {
+    throw new Error('Provider credential reference is required.')
+  }
+
+  const candidate = value as Partial<ProviderCredentialReference>
+  if (candidate.provider !== 'openai-compatible') {
+    throw new Error('Unsupported credential provider.')
+  }
+
+  return {
+    provider: 'openai-compatible',
+    providerId: assertNonEmptyString(candidate.providerId, 'providerId'),
+  }
 }
 
 function assertSaveProviderCredentialInput(value: unknown): SaveProviderCredentialInput {
@@ -68,8 +83,21 @@ function assertSaveProviderCredentialInput(value: unknown): SaveProviderCredenti
   const candidate = value as Partial<SaveProviderCredentialInput>
 
   return {
-    provider: assertProviderCredentialProvider(candidate.provider),
+    ...assertProviderCredentialReference(candidate),
     secret: assertNonEmptyString(candidate.secret, 'secret'),
+  }
+}
+
+function assertOpenAiCompatibleProviderProfile(value: unknown): OpenAiCompatibleProviderProfile {
+  if (!value || typeof value !== 'object') {
+    throw new Error('Provider profile input is required.')
+  }
+
+  const candidate = value as Partial<OpenAiCompatibleProviderProfile>
+  return {
+    baseUrl: assertNonEmptyString(candidate.baseUrl, 'baseUrl'),
+    id: assertNonEmptyString(candidate.id, 'id'),
+    label: assertNonEmptyString(candidate.label, 'label'),
   }
 }
 
@@ -99,10 +127,11 @@ function assertDesktopModelBinding(value: unknown): DesktopModelBinding {
     }
   }
 
-  if (candidate.provider === 'openai') {
+  if (candidate.provider === 'openai-compatible') {
     return {
       modelId: assertNonEmptyString(candidate.modelId, 'modelId'),
-      provider: 'openai',
+      provider: 'openai-compatible',
+      providerId: assertNonEmptyString(candidate.providerId, 'providerId'),
     }
   }
 
@@ -153,12 +182,15 @@ async function resetStoredConnectionTestIfPossible() {
 
 async function readModelSettingsSnapshot(projectRoot: string): Promise<DesktopModelSettingsSnapshot> {
   const record = await modelBindingStore.readModelSettingsRecord(projectRoot)
-  const credentialStatus = await credentialStore.getCredentialStatus('openai')
+  const credentialStatuses = await Promise.all(record.providers.map((provider) => (
+    credentialStore.getCredentialStatus(provider.id)
+  )))
 
   return {
     bindings: record.bindings,
     connectionTest: record.connectionTest,
-    credentialStatus,
+    credentialStatuses,
+    providers: record.providers,
   }
 }
 
@@ -244,19 +276,35 @@ export function registerDesktopBridgeHandlers(
   ipcMain.handle(DESKTOP_API_CHANNELS.getLocalApiLogs, () => supervisor.getLogs())
   ipcMain.handle(DESKTOP_API_CHANNELS.getWorkerStatus, () => processWorkerSupervisor.getSnapshot())
   ipcMain.handle(DESKTOP_API_CHANNELS.restartWorker, () => processWorkerSupervisor.restart())
-  ipcMain.handle(DESKTOP_API_CHANNELS.getProviderCredentialStatus, (_event, provider: unknown) => (
-    credentialStore.getCredentialStatus(assertProviderCredentialProvider(provider))
+  ipcMain.handle(DESKTOP_API_CHANNELS.getProviderProfiles, () => (
+    modelBindingStore.readProviderProfiles(requireCurrentProjectRoot())
+  ))
+  ipcMain.handle(DESKTOP_API_CHANNELS.saveProviderProfile, (_event, input: unknown) => (
+    modelBindingStore.saveProviderProfile(requireCurrentProjectRoot(), assertOpenAiCompatibleProviderProfile(input)).then(async (profiles) => {
+      await restartLocalApiForModelConfigChange(supervisor)
+      return profiles
+    })
+  ))
+  ipcMain.handle(DESKTOP_API_CHANNELS.deleteProviderProfile, (_event, providerId: unknown) => (
+    modelBindingStore.deleteProviderProfile(requireCurrentProjectRoot(), assertNonEmptyString(providerId, 'providerId')).then(async (profiles) => {
+      await credentialStore.deleteCredential(assertNonEmptyString(providerId, 'providerId'))
+      await restartLocalApiForModelConfigChange(supervisor)
+      return profiles
+    })
+  ))
+  ipcMain.handle(DESKTOP_API_CHANNELS.getProviderCredentialStatus, (_event, input: unknown) => (
+    credentialStore.getCredentialStatus(assertProviderCredentialReference(input).providerId)
   ))
   ipcMain.handle(DESKTOP_API_CHANNELS.saveProviderCredential, (_event, input: unknown) => {
     const normalized = assertSaveProviderCredentialInput(input)
-    return credentialStore.saveCredential(normalized.provider, normalized.secret).then(async (status) => {
+    return credentialStore.saveCredential(normalized.providerId, normalized.secret).then(async (status) => {
       await resetStoredConnectionTestIfPossible()
       await restartLocalApiForModelConfigChange(supervisor)
       return status
     })
   })
-  ipcMain.handle(DESKTOP_API_CHANNELS.deleteProviderCredential, (_event, provider: unknown) => (
-    credentialStore.deleteCredential(assertProviderCredentialProvider(provider)).then(async (status) => {
+  ipcMain.handle(DESKTOP_API_CHANNELS.deleteProviderCredential, (_event, input: unknown) => (
+    credentialStore.deleteCredential(assertProviderCredentialReference(input).providerId).then(async (status) => {
       await resetStoredConnectionTestIfPossible()
       await restartLocalApiForModelConfigChange(supervisor)
       return status
@@ -358,10 +406,7 @@ function refreshApplicationMenu(): void {
     try {
       await action()
     } catch (error) {
-      await recoverFromProjectMenuFailure({
-        error,
-        invalidProjectRoot,
-      })
+      await recoverFromProjectMenuFailure({ error, invalidProjectRoot })
     } finally {
       refreshApplicationMenu()
     }
@@ -370,16 +415,18 @@ function refreshApplicationMenu(): void {
   setApplicationMenu({
     isDev,
     onCreateProject: () => runProjectMenuAction(async () => {
-      const selectedProject = await activeProjectStore.createProject()
-      if (!selectedProject) {
-        return
-      }
-
+      await activeProjectStore.createProject()
       await restartLocalApiForProjectSelection()
     }),
+    onCreateProjectBackup: () => runProjectMenuAction(async () => {
+      await createManualProjectBackup(activeProjectStore)
+    }),
+    onExportProjectArchive: () => runProjectMenuAction(async () => {
+      await exportManualProjectArchive(activeProjectStore)
+    }),
     onOpenProject: () => runProjectMenuAction(async () => {
-      const selectedProject = await activeProjectStore.openProject()
-      if (!selectedProject) {
+      const openedProject = await activeProjectStore.openProject()
+      if (!openedProject) {
         return
       }
 
@@ -388,12 +435,8 @@ function refreshApplicationMenu(): void {
     onOpenRecentProject: (project) => runProjectMenuAction(async () => {
       await activeProjectStore.openRecentProject(project)
       await restartLocalApiForProjectSelection()
-    }, { invalidProjectRoot: project.projectRoot }),
-    onCreateProjectBackup: () => runProjectMenuAction(async () => {
-      await createManualProjectBackup(activeProjectStore)
-    }),
-    onExportProjectArchive: () => runProjectMenuAction(async () => {
-      await exportManualProjectArchive(activeProjectStore)
+    }, {
+      invalidProjectRoot: project.projectMode === 'real-project' ? project.projectRoot : undefined,
     }),
     onRestartLocalApi: () => runProjectMenuAction(async () => {
       await localApiSupervisor.restart()
@@ -408,23 +451,19 @@ function refreshApplicationMenu(): void {
 app.whenReady().then(async () => {
   const activeProjectStore = ensureProjectStore()
   await activeProjectStore.restoreLastProject()
-
+  createMainWindow()
   refreshApplicationMenu()
-  if (activeProjectStore.getCurrentProject()) {
-    await localApiSupervisor.start()
-  }
-  await createMainWindow()
+})
 
-  app.on('activate', async () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      await createMainWindow()
-    }
-  })
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createMainWindow()
+  }
 })
 
 app.on('before-quit', () => {
-  localApiSupervisor.stop()
   workerSupervisor.stop()
+  localApiSupervisor.stop()
 })
 
 app.on('window-all-closed', () => {

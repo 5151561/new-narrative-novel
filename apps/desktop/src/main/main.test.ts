@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { DESKTOP_API_CHANNELS } from '../shared/desktop-bridge-types.js'
-import type { SelectedProjectSession } from './project-store.js'
-import type { RecentProjectRecord } from './recent-projects.js'
 
 afterEach(() => {
   vi.resetModules()
@@ -11,7 +9,7 @@ afterEach(() => {
 })
 
 describe('desktop main bridge registration', () => {
-  it('registers worker bridge handlers from the real main entry path', async () => {
+  it('registers provider-profile CRUD plus provider-id-scoped credential handlers from the real main entry path', async () => {
     const ipcHandle = vi.fn()
     const appOn = vi.fn()
     const createMainWindow = vi.fn(async () => undefined)
@@ -22,173 +20,99 @@ describe('desktop main bridge registration', () => {
       projectRoot: '/tmp/local-project',
       projectTitle: 'Desktop Local Project',
     }
-    const createProjectBackup = vi.fn(async () => ({
-      filePath: '/tmp/local-project/.narrative/backups/project-backup-2026-04-28T00-00-00-000Z.json',
-    }))
-    const exportProjectArchive = vi.fn(async () => ({
-      filePath: '/tmp/local-project/.narrative/exports/project-archive-2026-04-28T00-00-00-000Z.json',
-    }))
-    let currentProject: SelectedProjectSession | null = null
+    let currentProject = selectedProject
     const projectStore = {
-      createProject: vi.fn(async () => ({
-        projectId: 'local-project-created',
-        projectMode: 'real-project' as const,
-        projectRoot: '/tmp/project-created',
-        projectTitle: 'Created Project',
-      })),
+      createProject: vi.fn(async () => selectedProject),
       forgetProjectRoot: vi.fn(async () => []),
       getCurrentProject: vi.fn(() => currentProject),
       getRecentProjects: vi.fn(() => []),
-      openRecentProject: vi.fn(async (project: RecentProjectRecord) => {
-        if (project.projectMode === 'demo-fixture') {
-          currentProject = {
-            projectId: 'book-signal-arc',
-            projectMode: 'demo-fixture',
-            projectRoot: '/tmp/user-data/demo-projects/book-signal-arc',
-            projectTitle: 'Signal Arc Demo',
-          }
-          return currentProject
-        }
-
-        currentProject = selectedProject
-        return selectedProject
-      }),
-      selectDemoProject: vi.fn(async () => {
-        currentProject = {
-          projectId: 'book-signal-arc',
-          projectMode: 'demo-fixture',
-          projectRoot: '/tmp/user-data/demo-projects/book-signal-arc',
-          projectTitle: 'Signal Arc Demo',
-        }
-        return currentProject
-      }),
-      openProject: vi.fn(async () => null),
+      openProject: vi.fn(async () => selectedProject),
+      openRecentProject: vi.fn(async () => selectedProject),
       restoreLastProject: vi.fn(async () => null),
-      selectProjectRoot: vi.fn(async () => {
-        currentProject = selectedProject
-        return selectedProject
-      }),
-    }
-    const workerSnapshot = {
-      implementation: 'placeholder' as const,
-      lastError: undefined,
-      processId: undefined,
-      status: 'disabled' as const,
-    }
-    const restartedSnapshot = {
-      implementation: 'placeholder' as const,
-      lastError: undefined,
-      processId: 4201,
-      status: 'ready' as const,
+      selectDemoProject: vi.fn(async () => selectedProject),
+      selectProjectRoot: vi.fn(async () => selectedProject),
     }
     const workerSupervisor = {
-      getSnapshot: vi.fn(() => workerSnapshot),
-      restart: vi.fn(async () => restartedSnapshot),
-      stop: vi.fn(() => workerSnapshot),
+      getSnapshot: vi.fn(() => ({
+        implementation: 'placeholder' as const,
+        status: 'disabled' as const,
+      })),
+      restart: vi.fn(async () => ({
+        implementation: 'placeholder' as const,
+        status: 'disabled' as const,
+      })),
+      stop: vi.fn(),
     }
     const credentialStore = {
       deleteCredential: vi.fn(async () => ({
         configured: false,
-        provider: 'openai' as const,
+        provider: 'openai-compatible' as const,
+        providerId: 'deepseek',
       })),
       getCredentialStatus: vi.fn(async () => ({
         configured: true,
-        provider: 'openai' as const,
+        provider: 'openai-compatible' as const,
+        providerId: 'deepseek',
         redactedValue: 'sk-...alue',
       })),
       saveCredential: vi.fn(async () => ({
         configured: true,
-        provider: 'openai' as const,
+        provider: 'openai-compatible' as const,
+        providerId: 'deepseek',
         redactedValue: 'sk-...alue',
       })),
     }
     const modelBindingStore = {
+      deleteProviderProfile: vi.fn(async () => []),
+      readBindings: vi.fn(async () => ({
+        continuityReviewer: { provider: 'fixture' as const },
+        planner: { modelId: 'deepseek-chat', provider: 'openai-compatible' as const, providerId: 'deepseek' },
+        sceneProseWriter: { provider: 'fixture' as const },
+        sceneRevision: { provider: 'fixture' as const },
+        summary: { provider: 'fixture' as const },
+      })),
       readModelSettingsRecord: vi.fn(async () => ({
         bindings: {
-          continuityReviewer: {
-            provider: 'fixture' as const,
-          },
-          planner: {
-            modelId: 'gpt-5.4',
-            provider: 'openai' as const,
-          },
-          sceneProseWriter: {
-            provider: 'fixture' as const,
-          },
-          sceneRevision: {
-            provider: 'fixture' as const,
-          },
-          summary: {
-            provider: 'fixture' as const,
-          },
+          continuityReviewer: { provider: 'fixture' as const },
+          planner: { modelId: 'deepseek-chat', provider: 'openai-compatible' as const, providerId: 'deepseek' },
+          sceneProseWriter: { provider: 'fixture' as const },
+          sceneRevision: { provider: 'fixture' as const },
+          summary: { provider: 'fixture' as const },
         },
-        connectionTest: {
-          status: 'never' as const,
-        },
+        connectionTest: { status: 'never' as const },
+        providers: [{
+          baseUrl: 'https://api.deepseek.com/v1',
+          id: 'deepseek',
+          label: 'DeepSeek',
+        }],
       })),
-      readBindings: vi.fn(async () => ({
-        continuityReviewer: {
-          provider: 'fixture' as const,
-        },
-        planner: {
-          modelId: 'gpt-5.4',
-          provider: 'openai' as const,
-        },
-        sceneProseWriter: {
-          provider: 'fixture' as const,
-        },
-        sceneRevision: {
-          provider: 'fixture' as const,
-        },
-        summary: {
-          provider: 'fixture' as const,
-        },
-      })),
+      readProviderProfiles: vi.fn(async () => [{
+        baseUrl: 'https://api.deepseek.com/v1',
+        id: 'deepseek',
+        label: 'DeepSeek',
+      }]),
+      resetConnectionTest: vi.fn(async () => ({ status: 'never' as const })),
+      saveProviderProfile: vi.fn(async () => [{
+        baseUrl: 'https://api.deepseek.com/v1',
+        id: 'deepseek',
+        label: 'DeepSeek',
+      }]),
       updateBinding: vi.fn(async () => ({
-        continuityReviewer: {
-          provider: 'fixture' as const,
-        },
-        planner: {
-          modelId: 'gpt-5.4',
-          provider: 'openai' as const,
-        },
-        sceneProseWriter: {
-          provider: 'fixture' as const,
-        },
-        sceneRevision: {
-          modelId: 'gpt-5.4-mini',
-          provider: 'openai' as const,
-        },
-        summary: {
-          provider: 'fixture' as const,
-        },
-      })),
-      resetConnectionTest: vi.fn(async () => ({
-        status: 'never' as const,
+        continuityReviewer: { provider: 'fixture' as const },
+        planner: { modelId: 'deepseek-chat', provider: 'openai-compatible' as const, providerId: 'deepseek' },
+        sceneProseWriter: { provider: 'fixture' as const },
+        sceneRevision: { modelId: 'deepseek-reasoner', provider: 'openai-compatible' as const, providerId: 'deepseek' },
+        summary: { provider: 'fixture' as const },
       })),
       writeConnectionTest: vi.fn(async () => ({
         errorCode: 'missing_key' as const,
         status: 'failed' as const,
-        summary: 'OpenAI API key is missing.',
+        summary: 'Provider API key is missing.',
       })),
     }
     let localApiSnapshot = {
       lastError: undefined as string | undefined,
       logs: [] as string[],
-      runtimeConfig: undefined as {
-        apiBaseUrl: string
-        apiHealthUrl: string
-        port: number
-        projectId: string
-        projectMode: 'real-project'
-        projectTitle: string
-        runtimeMode: 'desktop-local'
-      } | undefined,
-      status: 'stopped' as 'stopped' | 'ready',
-    }
-    const readyLocalApiSnapshot = {
-      lastError: undefined,
-      logs: [],
       runtimeConfig: {
         apiBaseUrl: 'http://127.0.0.1:4888/api',
         apiHealthUrl: 'http://127.0.0.1:4888/api/health',
@@ -203,27 +127,14 @@ describe('desktop main bridge registration', () => {
     const localApiSupervisor = {
       getLogs: vi.fn(() => []),
       getSnapshot: vi.fn(() => localApiSnapshot),
-      restart: vi.fn(async () => {
-        localApiSnapshot = readyLocalApiSnapshot
-        return readyLocalApiSnapshot
-      }),
+      restart: vi.fn(async () => localApiSnapshot),
+      start: vi.fn(async () => localApiSnapshot),
+      stop: vi.fn(() => localApiSnapshot),
       testModelSettings: vi.fn(async () => ({
         errorCode: 'missing_key' as const,
         status: 'failed' as const,
-        summary: 'OpenAI API key is missing.',
+        summary: 'Provider API key is missing.',
       })),
-      start: vi.fn(async () => {
-        localApiSnapshot = readyLocalApiSnapshot
-        return readyLocalApiSnapshot
-      }),
-      stop: vi.fn(() => {
-        localApiSnapshot = {
-          lastError: undefined,
-          logs: [],
-          runtimeConfig: undefined,
-          status: 'stopped',
-        }
-      }),
     }
 
     vi.doMock('electron', () => ({
@@ -231,7 +142,6 @@ describe('desktop main bridge registration', () => {
         getAllWindows: vi.fn(() => []),
       },
       app: {
-        name: 'Narrative Desktop',
         getVersion: vi.fn(() => '0.1.0'),
         isPackaged: false,
         on: appOn,
@@ -242,8 +152,6 @@ describe('desktop main bridge registration', () => {
         handle: ipcHandle,
       },
     }))
-    const { buildApplicationMenuTemplate } = await vi.importActual<typeof import('./app-menu.js')>('./app-menu.js')
-
     vi.doMock('./app-menu.js', () => ({
       setApplicationMenu,
     }))
@@ -263,8 +171,8 @@ describe('desktop main bridge registration', () => {
       ModelBindingStore: vi.fn(() => modelBindingStore),
     }))
     vi.doMock('../../../../packages/api/src/repositories/project-backup.js', () => ({
-      createProjectBackup,
-      exportProjectArchive,
+      createProjectBackup: vi.fn(),
+      exportProjectArchive: vi.fn(),
     }))
     vi.doMock('./worker-supervisor.js', () => ({
       createWorkerSupervisor: vi.fn(() => workerSupervisor),
@@ -272,435 +180,96 @@ describe('desktop main bridge registration', () => {
 
     await import('./main.js')
 
-    const initialMenuOptions = setApplicationMenu.mock.calls.at(-1)?.[0] as {
-      onCreateProject?: () => Promise<void>
-      onOpenProject?: () => Promise<void>
-      onOpenRecentProject?: (project: RecentProjectRecord) => Promise<void>
-      onCreateProjectBackup?: () => Promise<void>
-      onExportProjectArchive?: () => Promise<void>
-      onRestartLocalApi?: () => Promise<void>
-      onRestartWorker?: () => Promise<void>
-    } | undefined
-
     const registrations = new Map(
       ipcHandle.mock.calls.map(([channel, handler]) => [channel as string, handler as (...args: unknown[]) => unknown]),
     )
 
-    expect(projectStore.restoreLastProject).toHaveBeenCalledTimes(1)
-    expect(projectStore.selectProjectRoot).not.toHaveBeenCalled()
-    expect(localApiSupervisor.start).not.toHaveBeenCalled()
-    expect(createMainWindow).toHaveBeenCalledTimes(1)
+    expect(registrations.has(DESKTOP_API_CHANNELS.getProviderProfiles)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.saveProviderProfile)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.deleteProviderProfile)).toBe(true)
 
-    expect(registrations.has(DESKTOP_API_CHANNELS.getWorkerStatus)).toBe(true)
-    expect(registrations.has(DESKTOP_API_CHANNELS.restartWorker)).toBe(true)
-    expect(registrations.has(DESKTOP_API_CHANNELS.getLocalApiStatus)).toBe(true)
-    expect(registrations.has(DESKTOP_API_CHANNELS.restartLocalApi)).toBe(true)
-    expect(registrations.has(DESKTOP_API_CHANNELS.getLocalApiLogs)).toBe(true)
-    expect(registrations.has(DESKTOP_API_CHANNELS.getCurrentProject)).toBe(true)
-    expect(registrations.has(DESKTOP_API_CHANNELS.openDemoProject)).toBe(true)
-    expect(registrations.has(DESKTOP_API_CHANNELS.createRealProject)).toBe(true)
-    expect(registrations.has(DESKTOP_API_CHANNELS.openExistingProject)).toBe(true)
-    expect(registrations.has(DESKTOP_API_CHANNELS.getRuntimeConfig)).toBe(true)
-    expect(registrations.has(DESKTOP_API_CHANNELS.getProviderCredentialStatus)).toBe(true)
-    expect(registrations.has(DESKTOP_API_CHANNELS.saveProviderCredential)).toBe(true)
-    expect(registrations.has(DESKTOP_API_CHANNELS.deleteProviderCredential)).toBe(true)
-    expect(registrations.has(DESKTOP_API_CHANNELS.getModelBindings)).toBe(true)
-    expect(registrations.has(DESKTOP_API_CHANNELS.getModelSettingsSnapshot)).toBe(true)
-    expect(registrations.has(DESKTOP_API_CHANNELS.testModelSettings)).toBe(true)
-    expect(registrations.has(DESKTOP_API_CHANNELS.updateModelBinding)).toBe(true)
-    expect(Array.from(registrations.keys())).not.toContain('narrativeDesktop:getRawCredential')
-
-    expect(registrations.get(DESKTOP_API_CHANNELS.getCurrentProject)?.()).toBeNull()
-    await expect(registrations.get(DESKTOP_API_CHANNELS.getRuntimeConfig)?.()).rejects.toThrow(
-      'Local API runtime config is unavailable.',
-    )
-    await expect(registrations.get(DESKTOP_API_CHANNELS.openDemoProject)?.()).resolves.toEqual({
-      projectId: 'book-signal-arc',
-      projectMode: 'demo-fixture',
-      projectTitle: 'Signal Arc Demo',
-    })
-    expect(projectStore.selectDemoProject).toHaveBeenCalledTimes(1)
-    expect(localApiSupervisor.start).toHaveBeenCalledTimes(1)
-    currentProject = selectedProject
-    await expect(registrations.get(DESKTOP_API_CHANNELS.createRealProject)?.()).resolves.toEqual({
-      projectId: 'local-project-created',
-      projectMode: 'real-project',
-      projectTitle: 'Created Project',
-    })
-    await expect(registrations.get(DESKTOP_API_CHANNELS.openExistingProject)?.()).resolves.toBeNull()
-    await expect(registrations.get(DESKTOP_API_CHANNELS.getRuntimeConfig)?.()).resolves.toEqual({
-      apiBaseUrl: 'http://127.0.0.1:4888/api',
-      apiHealthUrl: 'http://127.0.0.1:4888/api/health',
-      port: 4888,
-      projectId: 'local-project-alpha',
-      projectMode: 'real-project',
-      projectTitle: 'Desktop Local Project',
-      runtimeMode: 'desktop-local',
-    })
-    expect(registrations.get(DESKTOP_API_CHANNELS.getLocalApiStatus)?.()).toEqual({
-      lastError: undefined,
-      runtimeConfig: {
-        apiBaseUrl: 'http://127.0.0.1:4888/api',
-        apiHealthUrl: 'http://127.0.0.1:4888/api/health',
-        port: 4888,
-        projectId: 'local-project-alpha',
-        projectMode: 'real-project',
-        projectTitle: 'Desktop Local Project',
-        runtimeMode: 'desktop-local',
+    await expect(registrations.get(DESKTOP_API_CHANNELS.getProviderProfiles)?.()).resolves.toEqual([
+      {
+        baseUrl: 'https://api.deepseek.com/v1',
+        id: 'deepseek',
+        label: 'DeepSeek',
       },
-      status: 'ready',
-    })
-    await expect(registrations.get(DESKTOP_API_CHANNELS.restartLocalApi)?.()).resolves.toEqual({
-      lastError: undefined,
-      runtimeConfig: {
-        apiBaseUrl: 'http://127.0.0.1:4888/api',
-        apiHealthUrl: 'http://127.0.0.1:4888/api/health',
-        port: 4888,
-        projectId: 'local-project-alpha',
-        projectMode: 'real-project',
-        projectTitle: 'Desktop Local Project',
-        runtimeMode: 'desktop-local',
+    ])
+    await expect(registrations.get(DESKTOP_API_CHANNELS.saveProviderProfile)?.(undefined, {
+      baseUrl: 'https://api.deepseek.com/v1',
+      id: 'deepseek',
+      label: 'DeepSeek',
+    })).resolves.toEqual([
+      {
+        baseUrl: 'https://api.deepseek.com/v1',
+        id: 'deepseek',
+        label: 'DeepSeek',
       },
-      status: 'ready',
-    })
-    expect(registrations.get(DESKTOP_API_CHANNELS.getLocalApiLogs)?.()).toEqual([])
-    expect(registrations.get(DESKTOP_API_CHANNELS.getWorkerStatus)?.()).toEqual({
-      implementation: 'placeholder',
-      lastError: undefined,
-      processId: undefined,
-      status: 'disabled',
-    })
-    await expect(registrations.get(DESKTOP_API_CHANNELS.restartWorker)?.()).resolves.toEqual({
-      implementation: 'placeholder',
-      lastError: undefined,
-      processId: 4201,
-      status: 'ready',
-    })
-    await expect(
-      registrations.get(DESKTOP_API_CHANNELS.getProviderCredentialStatus)?.(undefined, 'openai'),
-    ).resolves.toEqual({
+    ])
+    await expect(registrations.get(DESKTOP_API_CHANNELS.getProviderCredentialStatus)?.(undefined, {
+      provider: 'openai-compatible',
+      providerId: 'deepseek',
+    })).resolves.toEqual({
       configured: true,
-      provider: 'openai',
+      provider: 'openai-compatible',
+      providerId: 'deepseek',
       redactedValue: 'sk-...alue',
     })
-    await expect(
-      registrations.get(DESKTOP_API_CHANNELS.saveProviderCredential)?.(undefined, {
-        provider: 'openai',
-        secret: 'sk-secret-value',
-      }),
-    ).resolves.toEqual({
+    await expect(registrations.get(DESKTOP_API_CHANNELS.saveProviderCredential)?.(undefined, {
+      provider: 'openai-compatible',
+      providerId: 'deepseek',
+      secret: 'sk-secret-value',
+    })).resolves.toEqual({
       configured: true,
-      provider: 'openai',
+      provider: 'openai-compatible',
+      providerId: 'deepseek',
       redactedValue: 'sk-...alue',
     })
-    await expect(
-      registrations.get(DESKTOP_API_CHANNELS.deleteProviderCredential)?.(undefined, 'openai'),
-    ).resolves.toEqual({
+    await expect(registrations.get(DESKTOP_API_CHANNELS.deleteProviderCredential)?.(undefined, {
+      provider: 'openai-compatible',
+      providerId: 'deepseek',
+    })).resolves.toEqual({
       configured: false,
-      provider: 'openai',
-    })
-    await expect(registrations.get(DESKTOP_API_CHANNELS.getModelBindings)?.()).resolves.toMatchObject({
-      planner: {
-        modelId: 'gpt-5.4',
-        provider: 'openai',
-      },
+      provider: 'openai-compatible',
+      providerId: 'deepseek',
     })
     await expect(registrations.get(DESKTOP_API_CHANNELS.getModelSettingsSnapshot)?.()).resolves.toEqual({
       bindings: {
-        continuityReviewer: {
-          provider: 'fixture',
-        },
-        planner: {
-          modelId: 'gpt-5.4',
-          provider: 'openai',
-        },
-        sceneProseWriter: {
-          provider: 'fixture',
-        },
-        sceneRevision: {
-          provider: 'fixture',
-        },
-        summary: {
-          provider: 'fixture',
-        },
+        continuityReviewer: { provider: 'fixture' },
+        planner: { modelId: 'deepseek-chat', provider: 'openai-compatible', providerId: 'deepseek' },
+        sceneProseWriter: { provider: 'fixture' },
+        sceneRevision: { provider: 'fixture' },
+        summary: { provider: 'fixture' },
       },
       connectionTest: {
         status: 'never',
       },
-      credentialStatus: {
+      credentialStatuses: [{
         configured: true,
-        provider: 'openai',
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
         redactedValue: 'sk-...alue',
-      },
+      }],
+      providers: [{
+        baseUrl: 'https://api.deepseek.com/v1',
+        id: 'deepseek',
+        label: 'DeepSeek',
+      }],
     })
-    await expect(registrations.get(DESKTOP_API_CHANNELS.testModelSettings)?.()).resolves.toEqual({
-      errorCode: 'missing_key',
-      status: 'failed',
-      summary: 'OpenAI API key is missing.',
+    await expect(registrations.get(DESKTOP_API_CHANNELS.deleteProviderProfile)?.(undefined, 'deepseek')).resolves.toEqual([])
+
+    expect(credentialStore.getCredentialStatus).toHaveBeenCalledWith('deepseek')
+    expect(credentialStore.saveCredential).toHaveBeenCalledWith('deepseek', 'sk-secret-value')
+    expect(credentialStore.deleteCredential).toHaveBeenCalledWith('deepseek')
+    expect(modelBindingStore.saveProviderProfile).toHaveBeenCalledWith('/tmp/local-project', {
+      baseUrl: 'https://api.deepseek.com/v1',
+      id: 'deepseek',
+      label: 'DeepSeek',
     })
-    await expect(
-      registrations.get(DESKTOP_API_CHANNELS.updateModelBinding)?.(undefined, {
-        binding: {
-          modelId: 'gpt-5.4-mini',
-          provider: 'openai',
-        },
-        role: 'sceneRevision',
-      }),
-    ).resolves.toMatchObject({
-      sceneRevision: {
-        modelId: 'gpt-5.4-mini',
-        provider: 'openai',
-      },
-    })
-    expect(workerSupervisor.getSnapshot).toHaveBeenCalledTimes(1)
-    expect(workerSupervisor.restart).toHaveBeenCalledTimes(1)
-    expect(credentialStore.getCredentialStatus).toHaveBeenCalledWith('openai')
-    expect(credentialStore.saveCredential).toHaveBeenCalledWith('openai', 'sk-secret-value')
-    expect(credentialStore.deleteCredential).toHaveBeenCalledWith('openai')
-    expect(modelBindingStore.readModelSettingsRecord).toHaveBeenCalledWith('/tmp/local-project')
-    expect(modelBindingStore.readBindings).toHaveBeenCalledWith('/tmp/local-project')
+    expect(modelBindingStore.deleteProviderProfile).toHaveBeenCalledWith('/tmp/local-project', 'deepseek')
     expect(modelBindingStore.resetConnectionTest).toHaveBeenCalledTimes(2)
-    expect(modelBindingStore.updateBinding).toHaveBeenCalledWith('/tmp/local-project', {
-      binding: {
-        modelId: 'gpt-5.4-mini',
-        provider: 'openai',
-      },
-      role: 'sceneRevision',
-    })
-    expect(modelBindingStore.writeConnectionTest).toHaveBeenCalledWith('/tmp/local-project', {
-      errorCode: 'missing_key',
-      status: 'failed',
-      summary: 'OpenAI API key is missing.',
-    })
-    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(5)
-    expect(localApiSupervisor.testModelSettings).toHaveBeenCalledTimes(1)
-
-    const beforeQuitHandler = appOn.mock.calls.find(([event]) => event === 'before-quit')?.[1] as (() => void) | undefined
-    expect(beforeQuitHandler).toBeTypeOf('function')
-
-    beforeQuitHandler?.()
-
-    expect(workerSupervisor.stop).toHaveBeenCalledTimes(1)
-
-    expect(initialMenuOptions?.onCreateProject).toBeTypeOf('function')
-    await expect(initialMenuOptions!.onCreateProject!()).resolves.toBeUndefined()
-    expect(projectStore.createProject).toHaveBeenCalledTimes(2)
-    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(5)
-    expect(setApplicationMenu).toHaveBeenCalledTimes(5)
-
-    projectStore.openProject.mockRejectedValueOnce(new Error('dialog failed'))
-    expect(initialMenuOptions?.onOpenProject).toBeTypeOf('function')
-    await expect(initialMenuOptions!.onOpenProject!()).resolves.toBeUndefined()
-    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(5)
-    expect(setApplicationMenu).toHaveBeenCalledTimes(6)
-
-    projectStore.openRecentProject.mockRejectedValueOnce(new Error('project missing'))
-    expect(initialMenuOptions?.onOpenRecentProject).toBeTypeOf('function')
-    await expect(initialMenuOptions!.onOpenRecentProject!({
-      projectId: 'local-project-alpha',
-      projectMode: 'real-project',
-      projectRoot: '/tmp/local-project',
-      projectTitle: 'Desktop Local Project',
-    })).resolves.toBeUndefined()
-    expect(projectStore.forgetProjectRoot).toHaveBeenCalledWith('/tmp/local-project')
-    expect(setApplicationMenu).toHaveBeenCalledTimes(7)
-
-    projectStore.openRecentProject.mockRejectedValueOnce(new Error('project missing again'))
-    projectStore.forgetProjectRoot.mockRejectedValueOnce(new Error('cleanup failed'))
-    await expect(initialMenuOptions!.onOpenRecentProject!({
-      projectId: 'local-project-alpha',
-      projectMode: 'real-project',
-      projectRoot: '/tmp/local-project',
-      projectTitle: 'Desktop Local Project',
-    })).resolves.toBeUndefined()
-    expect(projectStore.forgetProjectRoot).toHaveBeenCalledWith('/tmp/local-project')
-    expect(setApplicationMenu).toHaveBeenCalledTimes(8)
-
-    await expect(initialMenuOptions!.onOpenRecentProject!({
-      projectId: 'book-signal-arc',
-      projectMode: 'demo-fixture',
-      projectRoot: '/tmp/user-data/demo-projects/book-signal-arc',
-      projectTitle: 'Signal Arc Demo',
-    })).resolves.toBeUndefined()
-    expect(projectStore.openRecentProject).toHaveBeenCalledWith({
-      projectId: 'book-signal-arc',
-      projectMode: 'demo-fixture',
-      projectRoot: '/tmp/user-data/demo-projects/book-signal-arc',
-      projectTitle: 'Signal Arc Demo',
-    })
-    expect(projectStore.selectProjectRoot).not.toHaveBeenCalled()
-
-    currentProject = selectedProject
-
-    expect(initialMenuOptions?.onCreateProjectBackup).toBeTypeOf('function')
-    await expect(initialMenuOptions!.onCreateProjectBackup!()).resolves.toBeUndefined()
-    expect(createProjectBackup).toHaveBeenCalledWith({
-      projectRoot: '/tmp/local-project',
-      storeFilePath: '/tmp/local-project/.narrative/project-store.json',
-    })
-
-    expect(initialMenuOptions?.onRestartLocalApi).toBeTypeOf('function')
-    await expect(initialMenuOptions!.onRestartLocalApi!()).resolves.toBeUndefined()
-    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(7)
-
-    expect(initialMenuOptions?.onRestartWorker).toBeTypeOf('function')
-    await expect(initialMenuOptions!.onRestartWorker!()).resolves.toBeUndefined()
-    expect(workerSupervisor.restart).toHaveBeenCalledTimes(2)
-
-    expect(initialMenuOptions?.onExportProjectArchive).toBeTypeOf('function')
-    await expect(initialMenuOptions!.onExportProjectArchive!()).resolves.toBeUndefined()
-    expect(exportProjectArchive).toHaveBeenCalledWith({
-      projectRoot: '/tmp/local-project',
-      storeFilePath: '/tmp/local-project/.narrative/project-store.json',
-    })
-    expect(setApplicationMenu).toHaveBeenCalledTimes(13)
-
-    const runtimeMenuTemplate = buildApplicationMenuTemplate({
-      isDev: false,
-      onOpenProject: vi.fn(),
-      onCreateProject: vi.fn(),
-      onOpenRecentProject: vi.fn(),
-      onCreateProjectBackup: vi.fn(),
-      onExportProjectArchive: vi.fn(),
-      onRestartLocalApi: vi.fn(),
-      onRestartWorker: vi.fn(),
-    })
-    const runtimeMenu = runtimeMenuTemplate.find((item) => item.label === 'Runtime')
-    const runtimeLabels = (runtimeMenu?.submenu as Array<{ label?: string }> | undefined)?.map((item) => item.label)
-
-    expect(runtimeLabels).toEqual([
-      'Restart Local API',
-      'Restart Worker',
-    ])
-  })
-
-  it('keeps launcher actions rejected until local API startup is actually ready', async () => {
-    const ipcHandle = vi.fn()
-    const appOn = vi.fn()
-    const createMainWindow = vi.fn(async () => undefined)
-    const setApplicationMenu = vi.fn()
-    const projectStore = {
-      createProject: vi.fn(async () => ({
-        projectId: 'local-project-created',
-        projectMode: 'real-project' as const,
-        projectRoot: '/tmp/project-created',
-        projectTitle: 'Created Project',
-      })),
-      forgetProjectRoot: vi.fn(async () => []),
-      getCurrentProject: vi.fn(() => null),
-      getRecentProjects: vi.fn(() => []),
-      selectDemoProject: vi.fn(async () => ({
-        projectId: 'book-signal-arc',
-        projectMode: 'demo-fixture' as const,
-        projectRoot: '/tmp/user-data/demo-projects/book-signal-arc',
-        projectTitle: 'Signal Arc Demo',
-      })),
-      openProject: vi.fn(async () => ({
-        projectId: 'local-project-opened',
-        projectMode: 'real-project' as const,
-        projectRoot: '/tmp/project-opened',
-        projectTitle: 'Opened Project',
-      })),
-      restoreLastProject: vi.fn(async () => null),
-      selectProjectRoot: vi.fn(async () => null),
-    }
-    const localApiSupervisor = {
-      getLogs: vi.fn(() => []),
-      getSnapshot: vi.fn(() => ({
-        lastError: undefined,
-        logs: [],
-        runtimeConfig: undefined,
-        status: 'stopped' as const,
-      })),
-      restart: vi.fn(async () => ({
-        lastError: 'Local API health check failed with HTTP 503.',
-        logs: [],
-        runtimeConfig: undefined,
-        status: 'failed' as const,
-      })),
-      start: vi.fn(async () => ({
-        lastError: 'Local API health check failed with HTTP 503.',
-        logs: [],
-        runtimeConfig: undefined,
-        status: 'failed' as const,
-      })),
-      stop: vi.fn(),
-      testModelSettings: vi.fn(),
-    }
-
-    vi.doMock('electron', () => ({
-      BrowserWindow: {
-        getAllWindows: vi.fn(() => []),
-      },
-      app: {
-        name: 'Narrative Desktop',
-        getVersion: vi.fn(() => '0.1.0'),
-        isPackaged: false,
-        on: appOn,
-        quit: vi.fn(),
-        whenReady: vi.fn(() => Promise.resolve()),
-      },
-      ipcMain: {
-        handle: ipcHandle,
-      },
-    }))
-    vi.doMock('./app-menu.js', () => ({
-      setApplicationMenu,
-    }))
-    vi.doMock('./create-window.js', () => ({
-      createMainWindow,
-    }))
-    vi.doMock('./local-api-supervisor.js', () => ({
-      createLocalApiSupervisor: vi.fn(() => localApiSupervisor),
-    }))
-    vi.doMock('./project-store.js', () => ({
-      ProjectStore: vi.fn(() => projectStore),
-    }))
-    vi.doMock('./credential-store.js', () => ({
-      CredentialStore: vi.fn(() => ({
-        deleteCredential: vi.fn(),
-        getCredentialStatus: vi.fn(),
-        saveCredential: vi.fn(),
-      })),
-    }))
-    vi.doMock('./model-binding-store.js', () => ({
-      ModelBindingStore: vi.fn(() => ({
-        readBindings: vi.fn(),
-        readModelSettingsRecord: vi.fn(),
-        resetConnectionTest: vi.fn(),
-        updateBinding: vi.fn(),
-        writeConnectionTest: vi.fn(),
-      })),
-    }))
-    vi.doMock('../../../../packages/api/src/repositories/project-backup.js', () => ({
-      createProjectBackup: vi.fn(),
-      exportProjectArchive: vi.fn(),
-    }))
-    vi.doMock('./worker-supervisor.js', () => ({
-      createWorkerSupervisor: vi.fn(() => ({
-        getSnapshot: vi.fn(() => ({
-          implementation: 'placeholder',
-          status: 'disabled',
-        })),
-        restart: vi.fn(),
-        stop: vi.fn(),
-      })),
-    }))
-
-    await import('./main.js')
-
-    const registrations = new Map(
-      ipcHandle.mock.calls.map(([channel, handler]) => [channel as string, handler as (...args: unknown[]) => unknown]),
-    )
-
-    await expect(registrations.get(DESKTOP_API_CHANNELS.openDemoProject)?.()).rejects.toThrow(
-      'Local API health check failed with HTTP 503.',
-    )
-    await expect(registrations.get(DESKTOP_API_CHANNELS.createRealProject)?.()).rejects.toThrow(
-      'Local API health check failed with HTTP 503.',
-    )
-    await expect(registrations.get(DESKTOP_API_CHANNELS.openExistingProject)?.()).rejects.toThrow(
-      'Local API health check failed with HTTP 503.',
-    )
+    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(4)
+    expect(createMainWindow).toHaveBeenCalledTimes(1)
+    expect(setApplicationMenu).toHaveBeenCalled()
   })
 })

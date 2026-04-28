@@ -1,6 +1,8 @@
-import OpenAI from 'openai'
-
 import type { ApiServerConfig } from '../../config.js'
+import {
+  requestOpenAiCompatibleJsonText,
+  type OpenAiCompatibleChatCompletionClientLike,
+} from './openai-compatible-json-client.js'
 import { MODEL_BINDING_ROLES, resolveModelBindingForRole, type ModelBindings } from './model-binding.js'
 
 export type ModelConnectionTestStatus = 'never' | 'passed' | 'failed'
@@ -17,38 +19,8 @@ export interface ModelConnectionTestRecord {
   summary?: string
 }
 
-export interface ModelConnectionTestClientLike {
-  responses: {
-    create(request: {
-      model: string
-      instructions: string
-      input: string
-      text: {
-        format: {
-          name: string
-          type: 'json_schema'
-          strict: boolean
-          schema: {
-            type: 'object'
-            additionalProperties: false
-            required: ['ok']
-            properties: {
-              ok: {
-                type: 'string'
-                enum: ['yes']
-              }
-            }
-          }
-        }
-      }
-    }): Promise<{
-      output_text: string
-    }>
-  }
-}
-
 export interface RunModelConnectionTestOptions extends Pick<ApiServerConfig, 'modelBindings'> {
-  client?: ModelConnectionTestClientLike
+  client?: OpenAiCompatibleChatCompletionClientLike
 }
 
 type ConnectionTestSchema = {
@@ -78,20 +50,21 @@ const connectionTestSchema: ConnectionTestSchema = {
 export async function runModelConnectionTest(
   options: RunModelConnectionTestOptions,
 ): Promise<ModelConnectionTestRecord> {
-  const openAiBindings = getOpenAiBindings(options.modelBindings)
-  if (openAiBindings.length === 0) {
+  const providerBindings = getOpenAiCompatibleBindings(options.modelBindings)
+  if (providerBindings.length === 0) {
     return {
       status: 'passed',
       summary: 'All model roles are explicitly configured to use fixture providers.',
     }
   }
 
-  for (const binding of openAiBindings) {
+  const testedBindings = new Set<string>()
+  for (const binding of providerBindings) {
     if (!binding.apiKey) {
       return {
         errorCode: 'missing_key',
         status: 'failed',
-        summary: 'OpenAI API key is missing for one or more configured model roles.',
+        summary: 'One or more configured provider credentials are missing.',
       }
     }
 
@@ -99,12 +72,19 @@ export async function runModelConnectionTest(
       return {
         errorCode: 'model_not_found',
         status: 'failed',
-        summary: 'One or more configured OpenAI models were not found.',
+        summary: 'One or more configured provider models were not found.',
       }
     }
 
+    const dedupeKey = `${binding.providerId}::${binding.modelId}`
+    if (testedBindings.has(dedupeKey)) {
+      continue
+    }
+    testedBindings.add(dedupeKey)
+
     const result = await runSingleBindingConnectionTest({
       apiKey: binding.apiKey,
+      baseUrl: binding.baseUrl,
       client: options.client,
       modelId: binding.modelId,
     })
@@ -115,50 +95,39 @@ export async function runModelConnectionTest(
 
   return {
     status: 'passed',
-    summary: 'OpenAI connection test passed for the configured model roles.',
+    summary: 'OpenAI-compatible connection test passed for the configured provider bindings.',
   }
 }
 
-function getOpenAiBindings(modelBindings?: ModelBindings) {
+function getOpenAiCompatibleBindings(modelBindings?: ModelBindings) {
   return MODEL_BINDING_ROLES.map((role) => resolveModelBindingForRole({ modelBindings }, role)).filter((binding) => {
-    return binding.provider === 'openai'
+    return binding.provider === 'openai-compatible'
   })
 }
 
 async function runSingleBindingConnectionTest({
   apiKey,
+  baseUrl,
   client,
   modelId,
 }: {
   apiKey: string
-  client?: ModelConnectionTestClientLike
+  baseUrl: string
+  client?: OpenAiCompatibleChatCompletionClientLike
   modelId: string
 }): Promise<ModelConnectionTestRecord> {
-  const resolvedClient = client ?? new OpenAI({
-    apiKey,
-  })
-
-  let outputText: string
   try {
-    const response = await resolvedClient.responses.create({
-      model: modelId,
+    const outputText = await requestOpenAiCompatibleJsonText({
+      apiKey,
+      baseUrl,
+      client,
+      input: 'Connectivity check.',
       instructions: 'Return {"ok":"yes"} and nothing else.',
-      input: 'Connectivity check only.',
-      text: {
-        format: {
-          name: 'model_connection_test',
-          type: 'json_schema',
-          strict: true,
-          schema: connectionTestSchema,
-        },
-      },
+      modelId,
+      schema: connectionTestSchema,
+      schemaName: 'model_connection_test',
     })
-    outputText = response.output_text.trim()
-  } catch (error) {
-    return sanitizeOpenAiConnectionError(error)
-  }
 
-  try {
     const parsed = JSON.parse(outputText) as unknown
     if (
       !parsed
@@ -171,16 +140,29 @@ async function runSingleBindingConnectionTest({
     return {
       status: 'passed',
     }
-  } catch {
-    return {
-      errorCode: 'invalid_output',
-      status: 'failed',
-      summary: 'OpenAI returned an invalid connection-test response.',
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      return {
+        errorCode: 'invalid_output',
+        status: 'failed',
+        summary: 'The configured provider returned an invalid connection-test response.',
+      }
     }
+
+    const message = error instanceof Error ? error.message : ''
+    if (message === 'invalid output') {
+      return {
+        errorCode: 'invalid_output',
+        status: 'failed',
+        summary: 'The configured provider returned an invalid connection-test response.',
+      }
+    }
+
+    return sanitizeOpenAiCompatibleConnectionError(error)
   }
 }
 
-function sanitizeOpenAiConnectionError(error: unknown): ModelConnectionTestRecord {
+function sanitizeOpenAiCompatibleConnectionError(error: unknown): ModelConnectionTestRecord {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase()
   const status = typeof error === 'object' && error && 'status' in error ? (error as { status?: number }).status : undefined
 
@@ -188,7 +170,7 @@ function sanitizeOpenAiConnectionError(error: unknown): ModelConnectionTestRecor
     return {
       errorCode: 'invalid_key',
       status: 'failed',
-      summary: 'OpenAI rejected the configured API key.',
+      summary: 'The configured provider rejected its credential.',
     }
   }
 
@@ -196,13 +178,21 @@ function sanitizeOpenAiConnectionError(error: unknown): ModelConnectionTestRecor
     return {
       errorCode: 'model_not_found',
       status: 'failed',
-      summary: 'One or more configured OpenAI models were not found.',
+      summary: 'One or more configured provider models were not found.',
+    }
+  }
+
+  if (message.includes('no assistant json content')) {
+    return {
+      errorCode: 'invalid_output',
+      status: 'failed',
+      summary: 'The configured provider returned an invalid connection-test response.',
     }
   }
 
   return {
     errorCode: 'network_error',
     status: 'failed',
-    summary: 'OpenAI connection test failed before the response could be validated.',
+    summary: 'The OpenAI-compatible connection test failed before the response could be validated.',
   }
 }

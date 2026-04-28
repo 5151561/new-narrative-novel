@@ -89,22 +89,34 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
     }
 
     const requiredRoles = ['planner', 'sceneProseWriter'] as const
-    const hasMissingOpenAiModelBinding = requiredRoles.some((role) => {
-      const binding = snapshot.bindings[role]
-      return binding.provider === 'openai' && !binding.modelId?.trim()
+    const providerBindings = requiredRoles.map((role) => snapshot.bindings[role])
+    const hasMissingProviderModelBinding = providerBindings.some((binding) => {
+      return binding.provider === 'openai-compatible' && !binding.modelId?.trim()
     })
-    const hasMissingOpenAiCredential = requiredRoles.some((role) => snapshot.bindings[role].provider === 'openai')
-      && !snapshot.credentialStatus.configured
+    const configuredProviderIds = new Set(
+      snapshot.credentialStatuses.filter((status) => status.configured).map((status) => status.providerId),
+    )
+    const hasMissingProviderCredential = providerBindings.some((binding) => {
+      return binding.provider === 'openai-compatible' && !configuredProviderIds.has(binding.providerId)
+    })
+    const hasUnknownProviderBinding = providerBindings.some((binding) => {
+      return binding.provider === 'openai-compatible' && !snapshot.providers.some((provider) => provider.id === binding.providerId)
+    })
 
-    if (!hasMissingOpenAiModelBinding && !hasMissingOpenAiCredential) {
+    if (!hasMissingProviderModelBinding && !hasMissingProviderCredential && !hasUnknownProviderBinding) {
       return undefined
     }
+
+    const missingProviderLabels = providerBindings
+      .filter((binding) => binding.provider === 'openai-compatible')
+      .map((binding) => snapshot.providers.find((provider) => provider.id === binding.providerId)?.label ?? binding.providerId)
+    const providerSummary = missingProviderLabels.length > 0 ? missingProviderLabels.join(', ') : dictionary.shell.modelProviderLabel
 
     return {
       ctaLabel: dictionary.shell.openModelSettings,
       message: locale === 'zh-CN'
-        ? '当前真实项目的规划或正文模型设置不完整。请先修复模型配置，再从现有场景主舞台启动运行。'
-        : 'Planner or prose writer settings are incomplete for this real project.',
+        ? `当前真实项目的规划或正文提供方配置不完整：${providerSummary}。请先修复模型配置，再从现有场景主舞台启动运行。`
+        : `Planner or prose writer provider settings are incomplete for this real project: ${providerSummary}.`,
       onRepair: () => {
         if (modelSettings?.supported) {
           modelSettings.setOpen(true)

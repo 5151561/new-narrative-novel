@@ -805,7 +805,7 @@ describe('fixture API server run flow', () => {
     })
   })
 
-  it('blocks real-project run start over HTTP when the selected openai planner binding is missing config', async () => {
+  it('blocks real-project run start over HTTP when the selected provider planner binding is missing config', async () => {
     await withTestServer(async ({ app }) => {
       const startResponse = await app.inject({
         method: 'POST',
@@ -829,17 +829,17 @@ describe('fixture API server run flow', () => {
         },
         modelBindings: {
           continuityReviewer: { provider: 'fixture' },
-          planner: { provider: 'openai' },
-          sceneProseWriter: { provider: 'openai' },
-          sceneRevision: { provider: 'openai' },
+          planner: { provider: 'openai-compatible', providerId: 'deepseek', providerLabel: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
+          sceneProseWriter: { provider: 'openai-compatible', providerId: 'deepseek', providerLabel: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
+          sceneRevision: { provider: 'openai-compatible', providerId: 'deepseek', providerLabel: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
           summary: { provider: 'fixture' },
         },
-        modelProvider: 'openai',
+        modelProvider: 'openai-compatible',
       },
     })
   })
 
-  it('returns a failed run over HTTP when the real planner provider errors after an openai attempt', async () => {
+  it('returns a failed run over HTTP when the real planner provider errors after an openai-compatible attempt', async () => {
     await withTestServer(async ({ app }) => {
       const startResponse = await app.inject({
         method: 'POST',
@@ -850,17 +850,36 @@ describe('fixture API server run flow', () => {
       })
 
       expect(startResponse.statusCode).toBe(200)
-      expect(startResponse.json()).toMatchObject({
+      const startedRun = startResponse.json()
+      expect(startedRun).toMatchObject({
         id: 'run-scene-midnight-platform-001',
         status: 'failed',
         failureClass: 'provider_error',
         usage: {
-          provider: 'openai',
+          provider: 'openai-compatible',
           modelId: 'gpt-5.4',
         },
         runtimeSummary: {
           health: 'failed',
           failureClassLabel: 'Provider error',
+        },
+      })
+
+      const plannerArtifactResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/local-project-alpha/runs/${startedRun.id}/artifacts/agent-invocation-scene-midnight-platform-run-001-001`,
+      })
+      expect(plannerArtifactResponse.statusCode).toBe(200)
+      expect(plannerArtifactResponse.json()).toMatchObject({
+        artifact: {
+          modelLabel: {
+            en: 'DeepSeek planner profile (gpt-5.4)',
+            'zh-CN': 'DeepSeek 规划模型 (gpt-5.4)',
+          },
+          failureDetail: {
+            provider: 'openai-compatible',
+            modelId: 'gpt-5.4',
+          },
         },
       })
     }, {
@@ -875,14 +894,17 @@ describe('fixture API server run flow', () => {
           continuityReviewer: { provider: 'fixture' },
           planner: {
             apiKey: 'sk-test',
+            baseUrl: 'https://api.deepseek.com/v1',
             modelId: 'gpt-5.4',
-            provider: 'openai',
+            provider: 'openai-compatible',
+            providerId: 'deepseek',
+            providerLabel: 'DeepSeek',
           },
           sceneProseWriter: { provider: 'fixture' },
           sceneRevision: { provider: 'fixture' },
           summary: { provider: 'fixture' },
         },
-        modelProvider: 'openai',
+        modelProvider: 'openai-compatible',
       },
       scenePlannerGatewayDependencies: {
         openAiProvider: {
@@ -894,7 +916,7 @@ describe('fixture API server run flow', () => {
     })
   })
 
-  it('returns a failed run over HTTP when accepted prose generation fails after a real openai attempt', async () => {
+  it('returns a failed run over HTTP when accepted prose generation fails after a real openai-compatible attempt', async () => {
     await withTestServer(async ({ app }) => {
       const startResponse = await app.inject({
         method: 'POST',
@@ -916,7 +938,8 @@ describe('fixture API server run flow', () => {
       })
 
       expect(reviewResponse.statusCode).toBe(200)
-      expect(reviewResponse.json()).toMatchObject({
+      const reviewedRun = reviewResponse.json()
+      expect(reviewedRun).toMatchObject({
         id: startedRun.id,
         status: 'failed',
         failureClass: 'provider_error',
@@ -925,8 +948,26 @@ describe('fixture API server run flow', () => {
           failureClassLabel: 'Provider error',
         },
         usage: {
-          provider: 'openai',
+          provider: 'openai-compatible',
           modelId: 'gpt-5.4',
+        },
+      })
+
+      const writerArtifactResponse = await app.inject({
+        method: 'GET',
+        url: `/api/projects/local-project-alpha/runs/${reviewedRun.id}/artifacts/agent-invocation-scene-midnight-platform-run-001-003`,
+      })
+      expect(writerArtifactResponse.statusCode).toBe(200)
+      expect(writerArtifactResponse.json()).toMatchObject({
+        artifact: {
+          modelLabel: {
+            en: 'DeepSeek writer profile (gpt-5.4)',
+            'zh-CN': 'DeepSeek 写作模型 (gpt-5.4)',
+          },
+          failureDetail: {
+            provider: 'openai-compatible',
+            modelId: 'gpt-5.4',
+          },
         },
       })
     }, {
@@ -942,13 +983,16 @@ describe('fixture API server run flow', () => {
           planner: { provider: 'fixture' },
           sceneProseWriter: {
             apiKey: 'sk-test',
+            baseUrl: 'https://api.deepseek.com/v1',
             modelId: 'gpt-5.4',
-            provider: 'openai',
+            provider: 'openai-compatible',
+            providerId: 'deepseek',
+            providerLabel: 'DeepSeek',
           },
           sceneRevision: { provider: 'fixture' },
           summary: { provider: 'fixture' },
         },
-        modelProvider: 'openai',
+        modelProvider: 'openai-compatible',
       },
       sceneProseWriterGatewayDependencies: {
         openAiProvider: {

@@ -40,11 +40,19 @@ export type SceneProseWriterGatewayFallbackReason =
   | 'provider-error'
   | 'invalid-output'
 
-export interface SceneProseWriterGatewayProvenance {
-  provider: 'fixture' | 'openai'
-  modelId: string
-  fallbackReason?: SceneProseWriterGatewayFallbackReason
-}
+export type SceneProseWriterGatewayProvenance =
+  | {
+      provider: 'fixture'
+      modelId: string
+      fallbackReason?: SceneProseWriterGatewayFallbackReason
+    }
+  | {
+      provider: 'openai-compatible'
+      providerId: string
+      providerLabel: string
+      modelId: string
+      fallbackReason?: SceneProseWriterGatewayFallbackReason
+    }
 
 export interface SceneProseWriterGatewayResult {
   output: SceneProseWriterOutput
@@ -90,13 +98,13 @@ export function createSceneProseWriterGateway(
         request.task === 'revision' ? 'sceneRevision' : 'sceneProseWriter',
       )
 
-      if (binding.provider !== 'openai') {
+      if (binding.provider !== 'openai-compatible') {
         return renderFixtureResult(request)
       }
 
       if (!binding.modelId || !binding.apiKey) {
         throw new ModelGatewayMissingConfigError({
-          provider: 'openai',
+          provider: 'openai-compatible',
           role: request.task === 'revision' ? 'sceneRevision' : 'sceneProseWriter',
         })
       }
@@ -104,6 +112,7 @@ export function createSceneProseWriterGateway(
       const openAiProvider = dependencies.openAiProvider ?? openAiProviderFactory({
         modelId: binding.modelId,
         apiKey: binding.apiKey,
+        baseUrl: binding.baseUrl,
       })
 
       let payload: unknown
@@ -112,9 +121,11 @@ export function createSceneProseWriterGateway(
       } catch {
         throw new ModelGatewayExecutionError({
           failureClass: 'provider_error',
-          message: 'OpenAI provider request failed.',
+          message: 'OpenAI-compatible provider request failed.',
           modelId: binding.modelId,
-          provider: 'openai',
+          provider: 'openai-compatible',
+          providerId: binding.providerId,
+          providerLabel: binding.providerLabel,
           retryable: true,
           role: request.task === 'revision' ? 'sceneRevision' : 'sceneProseWriter',
         })
@@ -124,16 +135,20 @@ export function createSceneProseWriterGateway(
         return {
           output: parseSceneProseWriterOutput(payload),
           provenance: {
-            provider: 'openai',
+            provider: 'openai-compatible',
+            providerId: binding.providerId,
+            providerLabel: binding.providerLabel,
             modelId: binding.modelId,
           },
         }
       } catch {
         throw new ModelGatewayExecutionError({
           failureClass: 'invalid_output',
-          message: 'OpenAI provider returned invalid structured prose output.',
+          message: 'OpenAI-compatible provider returned invalid structured prose output.',
           modelId: binding.modelId,
-          provider: 'openai',
+          provider: 'openai-compatible',
+          providerId: binding.providerId,
+          providerLabel: binding.providerLabel,
           retryable: true,
           role: request.task === 'revision' ? 'sceneRevision' : 'sceneProseWriter',
         })

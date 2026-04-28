@@ -446,7 +446,7 @@ describe('fixture API server local project-state persistence', () => {
     const firstServer = createTestServer({
       projectStateFilePath,
       configOverrides: {
-        modelProvider: 'openai',
+        modelProvider: 'openai-compatible',
         openAiModel: 'gpt-5.4',
         openAiApiKey: 'sk-test',
       },

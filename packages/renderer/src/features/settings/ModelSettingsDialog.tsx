@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
-import { getModelBindingProviderLabel, getModelBindingRoleLabel, useI18n } from '@/app/i18n'
+import { getModelBindingRoleLabel, useI18n } from '@/app/i18n'
 
 import {
   useOptionalModelSettingsController,
   type DesktopModelBindingRole,
   type DesktopModelBindings,
+  type OpenAiCompatibleProviderProfile,
+  type ProviderCredentialStatus,
 } from './ModelSettingsProvider'
 
 interface ModelSettingsDialogProps {
@@ -23,26 +25,66 @@ const roleOrder: DesktopModelBindingRole[] = [
 
 function createBindingsDraft(bindings?: DesktopModelBindings | null) {
   return {
-    continuityReviewer: { modelId: bindings?.continuityReviewer.modelId ?? '', provider: bindings?.continuityReviewer.provider ?? 'fixture' },
-    planner: { modelId: bindings?.planner.modelId ?? '', provider: bindings?.planner.provider ?? 'fixture' },
-    sceneProseWriter: { modelId: bindings?.sceneProseWriter.modelId ?? '', provider: bindings?.sceneProseWriter.provider ?? 'fixture' },
-    sceneRevision: { modelId: bindings?.sceneRevision.modelId ?? '', provider: bindings?.sceneRevision.provider ?? 'fixture' },
-    summary: { modelId: bindings?.summary.modelId ?? '', provider: bindings?.summary.provider ?? 'fixture' },
+    continuityReviewer: {
+      modelId: bindings?.continuityReviewer.provider === 'openai-compatible' ? bindings.continuityReviewer.modelId : '',
+      providerId: bindings?.continuityReviewer.provider === 'openai-compatible' ? bindings.continuityReviewer.providerId : 'fixture',
+    },
+    planner: {
+      modelId: bindings?.planner.provider === 'openai-compatible' ? bindings.planner.modelId : '',
+      providerId: bindings?.planner.provider === 'openai-compatible' ? bindings.planner.providerId : 'fixture',
+    },
+    sceneProseWriter: {
+      modelId: bindings?.sceneProseWriter.provider === 'openai-compatible' ? bindings.sceneProseWriter.modelId : '',
+      providerId: bindings?.sceneProseWriter.provider === 'openai-compatible' ? bindings.sceneProseWriter.providerId : 'fixture',
+    },
+    sceneRevision: {
+      modelId: bindings?.sceneRevision.provider === 'openai-compatible' ? bindings.sceneRevision.modelId : '',
+      providerId: bindings?.sceneRevision.provider === 'openai-compatible' ? bindings.sceneRevision.providerId : 'fixture',
+    },
+    summary: {
+      modelId: bindings?.summary.provider === 'openai-compatible' ? bindings.summary.modelId : '',
+      providerId: bindings?.summary.provider === 'openai-compatible' ? bindings.summary.providerId : 'fixture',
+    },
   }
+}
+
+function createProviderDraft(profile?: OpenAiCompatibleProviderProfile) {
+  return {
+    id: profile?.id ?? '',
+    label: profile?.label ?? '',
+    baseUrl: profile?.baseUrl ?? '',
+  }
+}
+
+function getCredentialStatus(credentialStatuses: ProviderCredentialStatus[], providerId: string) {
+  return credentialStatuses.find((status) => status.providerId === providerId)
 }
 
 export function ModelSettingsDialog({ open, onOpenChange }: ModelSettingsDialogProps) {
   const controller = useOptionalModelSettingsController()
   const { dictionary, locale } = useI18n()
-  const [apiKeyDraft, setApiKeyDraft] = useState('')
+  const [newProviderDraft, setNewProviderDraft] = useState(() => createProviderDraft())
+  const [providerDrafts, setProviderDrafts] = useState<Record<string, OpenAiCompatibleProviderProfile>>({})
+  const [credentialDrafts, setCredentialDrafts] = useState<Record<string, string>>({})
   const [bindingsDraft, setBindingsDraft] = useState(() => createBindingsDraft())
 
   useEffect(() => {
     if (controller?.snapshot) {
       setBindingsDraft(createBindingsDraft(controller.snapshot.bindings))
-      setApiKeyDraft('')
+      setProviderDrafts(Object.fromEntries(
+        controller.snapshot.providers.map((provider) => [provider.id, { ...provider }]),
+      ))
+      setCredentialDrafts({})
+      setNewProviderDraft(createProviderDraft())
     }
   }, [controller?.snapshot])
+
+  const providers = controller?.snapshot?.providers ?? []
+  const credentialStatuses = controller?.snapshot?.credentialStatuses ?? []
+  const providerOptions = useMemo(() => [
+    { id: 'fixture', label: dictionary.shell.modelFixtureOptionLabel },
+    ...providers.map((provider) => ({ id: provider.id, label: provider.label })),
+  ], [dictionary.shell.modelFixtureOptionLabel, providers])
 
   if (!open || !controller?.supported) {
     return null
@@ -56,7 +98,7 @@ export function ModelSettingsDialog({ open, onOpenChange }: ModelSettingsDialogP
         role="dialog"
         aria-modal="true"
         aria-label={dictionary.shell.modelSettingsTitle}
-        className="w-full max-w-3xl rounded-md border border-line-soft bg-surface-1 shadow-ringwarm"
+        className="w-full max-w-5xl rounded-md border border-line-soft bg-surface-1 shadow-ringwarm"
       >
         <div className="flex items-start justify-between gap-3 border-b border-line-soft px-4 py-4">
           <div className="space-y-1">
@@ -76,47 +118,178 @@ export function ModelSettingsDialog({ open, onOpenChange }: ModelSettingsDialogP
             <p className="text-sm text-text-muted">{dictionary.common.loading}</p>
           ) : (
             <>
-              <section className="rounded-md border border-line-soft bg-surface-2 px-4 py-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <h4 className="text-sm font-semibold text-text-main">{dictionary.shell.openAiApiKeyTitle}</h4>
-                    <p className="text-sm text-text-muted">
-                      {snapshot.credentialStatus.configured
-                        ? snapshot.credentialStatus.redactedValue ?? dictionary.shell.keyConfigured
-                        : dictionary.shell.keyMissing}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void controller.deleteOpenAiCredential()}
-                    disabled={!snapshot.credentialStatus.configured || controller.saving}
-                    className="rounded-md border border-line-soft px-3 py-2 text-sm text-text-main disabled:opacity-60"
-                  >
-                    {dictionary.shell.clearOpenAiApiKey}
-                  </button>
+              <section className="space-y-3">
+                <div>
+                  <h4 className="text-sm font-semibold text-text-main">{dictionary.shell.providerProfilesTitle}</h4>
+                  <p className="text-sm text-text-muted">{dictionary.shell.providerProfilesDescription}</p>
                 </div>
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <label className="min-w-0 flex-1 space-y-2">
-                    <span className="text-sm text-text-main">{dictionary.shell.openAiApiKeyInput}</span>
+
+                <div className="grid gap-3 rounded-md border border-dashed border-line-soft bg-surface-2 px-4 py-4 md:grid-cols-[1fr_1fr_1.4fr_auto]">
+                  <label className="space-y-2">
+                    <span className="text-sm text-text-main">{dictionary.shell.providerProfileIdLabel}</span>
                     <input
-                      aria-label={dictionary.shell.openAiApiKeyInput}
-                      type="password"
-                      value={apiKeyDraft}
-                      onChange={(event) => setApiKeyDraft(event.target.value)}
+                      aria-label={dictionary.shell.providerProfileIdInput}
+                      value={newProviderDraft.id}
+                      onChange={(event) => setNewProviderDraft((current) => ({ ...current, id: event.target.value }))}
+                      className="w-full rounded-md border border-line-soft bg-app px-3 py-2 text-sm text-text-main"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm text-text-main">{dictionary.shell.providerProfileLabelLabel}</span>
+                    <input
+                      aria-label={dictionary.shell.providerProfileLabelInput}
+                      value={newProviderDraft.label}
+                      onChange={(event) => setNewProviderDraft((current) => ({ ...current, label: event.target.value }))}
+                      className="w-full rounded-md border border-line-soft bg-app px-3 py-2 text-sm text-text-main"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm text-text-main">{dictionary.shell.providerProfileBaseUrlLabel}</span>
+                    <input
+                      aria-label={dictionary.shell.providerProfileBaseUrlInput}
+                      value={newProviderDraft.baseUrl}
+                      onChange={(event) => setNewProviderDraft((current) => ({ ...current, baseUrl: event.target.value }))}
                       className="w-full rounded-md border border-line-soft bg-app px-3 py-2 text-sm text-text-main"
                     />
                   </label>
                   <div className="flex items-end">
                     <button
                       type="button"
-                      onClick={() => void controller.saveOpenAiCredential(apiKeyDraft)}
-                      disabled={!apiKeyDraft.trim() || controller.saving}
+                      onClick={() => void controller.saveProviderProfile(newProviderDraft)}
+                      disabled={!newProviderDraft.id.trim() || !newProviderDraft.label.trim() || !newProviderDraft.baseUrl.trim() || controller.saving}
                       className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
                     >
-                      {dictionary.shell.saveOpenAiApiKey}
+                      {dictionary.shell.createProviderProfile}
                     </button>
                   </div>
                 </div>
+
+                {providers.map((provider) => {
+                  const draft = providerDrafts[provider.id] ?? provider
+                  const credentialStatus = getCredentialStatus(credentialStatuses, provider.id)
+                  const credentialSummary = credentialStatus?.configured
+                    ? credentialStatus.redactedValue ?? dictionary.shell.keyConfigured
+                    : dictionary.shell.keyMissing
+
+                  return (
+                    <div key={provider.id} className="space-y-4 rounded-md border border-line-soft bg-surface-2 px-4 py-4">
+                      <div className="grid gap-3 md:grid-cols-[1fr_1fr_1.4fr_auto_auto]">
+                        <label className="space-y-2">
+                          <span className="text-sm text-text-main">{dictionary.shell.providerProfileIdLabel}</span>
+                          <input
+                            aria-label={dictionary.shell.providerProfileEditorIdInput(provider.id)}
+                            value={draft.id}
+                            disabled
+                            className="w-full rounded-md border border-line-soft bg-app px-3 py-2 text-sm text-text-main"
+                          />
+                        </label>
+                        <label className="space-y-2">
+                          <span className="text-sm text-text-main">{dictionary.shell.providerProfileLabelLabel}</span>
+                          <input
+                            aria-label={dictionary.shell.providerProfileEditorLabelInput(provider.id)}
+                            value={draft.label}
+                            onChange={(event) => {
+                              const nextValue = event.target.value
+                              setProviderDrafts((current) => ({
+                                ...current,
+                                [provider.id]: {
+                                  ...draft,
+                                  label: nextValue,
+                                },
+                              }))
+                            }}
+                            className="w-full rounded-md border border-line-soft bg-app px-3 py-2 text-sm text-text-main"
+                          />
+                        </label>
+                        <label className="space-y-2">
+                          <span className="text-sm text-text-main">{dictionary.shell.providerProfileBaseUrlLabel}</span>
+                          <input
+                            aria-label={dictionary.shell.providerProfileEditorBaseUrlInput(provider.id)}
+                            value={draft.baseUrl}
+                            onChange={(event) => {
+                              const nextValue = event.target.value
+                              setProviderDrafts((current) => ({
+                                ...current,
+                                [provider.id]: {
+                                  ...draft,
+                                  baseUrl: nextValue,
+                                },
+                              }))
+                            }}
+                            className="w-full rounded-md border border-line-soft bg-app px-3 py-2 text-sm text-text-main"
+                          />
+                        </label>
+                        <div className="flex items-end">
+                          <button
+                            type="button"
+                            onClick={() => void controller.saveProviderProfile(draft)}
+                            disabled={!draft.id.trim() || !draft.label.trim() || !draft.baseUrl.trim() || controller.saving}
+                            className="rounded-md border border-line-soft px-3 py-2 text-sm text-text-main disabled:opacity-60"
+                          >
+                            {dictionary.shell.saveProviderProfile(provider.label)}
+                          </button>
+                        </div>
+                        <div className="flex items-end">
+                          <button
+                            type="button"
+                            onClick={() => void controller.deleteProviderProfile(provider.id)}
+                            disabled={controller.saving}
+                            className="rounded-md border border-line-soft px-3 py-2 text-sm text-text-main disabled:opacity-60"
+                          >
+                            {dictionary.shell.deleteProviderProfile(provider.label)}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
+                        <label className="space-y-2">
+                          <span className="text-sm text-text-main">
+                            {dictionary.shell.providerCredentialInputLabel(provider.label)}
+                          </span>
+                          <input
+                            aria-label={dictionary.shell.providerCredentialInput(provider.label)}
+                            type="password"
+                            value={credentialDrafts[provider.id] ?? ''}
+                            onChange={(event) => {
+                              const nextValue = event.target.value
+                              setCredentialDrafts((current) => ({
+                                ...current,
+                                [provider.id]: nextValue,
+                              }))
+                            }}
+                            className="w-full rounded-md border border-line-soft bg-app px-3 py-2 text-sm text-text-main"
+                          />
+                        </label>
+                        <div className="flex items-end">
+                          <button
+                            type="button"
+                            onClick={() => void controller.saveProviderCredential(provider.id, credentialDrafts[provider.id] ?? '')}
+                            disabled={!credentialDrafts[provider.id]?.trim() || controller.saving}
+                            className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+                          >
+                            {dictionary.shell.saveProviderCredential(provider.label)}
+                          </button>
+                        </div>
+                        <div className="flex items-end">
+                          <button
+                            type="button"
+                            onClick={() => void controller.deleteProviderCredential(provider.id)}
+                            disabled={!credentialStatus?.configured || controller.saving}
+                            className="rounded-md border border-line-soft px-3 py-2 text-sm text-text-main disabled:opacity-60"
+                          >
+                            {dictionary.shell.clearProviderCredential(provider.label)}
+                          </button>
+                        </div>
+                      </div>
+
+                      <p className="text-sm text-text-muted">
+                        {locale === 'zh-CN'
+                          ? `${provider.label}：${credentialSummary}`
+                          : `${provider.label}: ${credentialSummary}`}
+                      </p>
+                    </div>
+                  )
+                })}
               </section>
 
               <section className="space-y-3">
@@ -137,27 +310,33 @@ export function ModelSettingsDialog({ open, onOpenChange }: ModelSettingsDialogP
                 {roleOrder.map((role) => {
                   const draft = bindingsDraft[role]
                   const roleLabel = getModelBindingRoleLabel(locale, role)
+                  const usesFixture = draft.providerId === 'fixture'
+
                   return (
                     <div key={role} className="grid gap-3 rounded-md border border-line-soft bg-surface-2 px-4 py-4 md:grid-cols-[1.2fr_1fr_auto]">
                       <label className="space-y-2">
                         <span className="text-sm font-medium text-text-main">{roleLabel}</span>
                         <select
                           aria-label={dictionary.shell.modelSettingsRoleProviderLabel(roleLabel)}
-                          value={draft.provider}
+                          value={draft.providerId}
                           onChange={(event) => {
-                            const provider = event.target.value as 'fixture' | 'openai'
+                            const providerId = event.target.value
                             setBindingsDraft((currentDraft) => ({
                               ...currentDraft,
                               [role]: {
                                 ...currentDraft[role],
-                                provider,
+                                modelId: providerId === 'fixture' ? '' : currentDraft[role].modelId,
+                                providerId,
                               },
                             }))
                           }}
                           className="w-full rounded-md border border-line-soft bg-app px-3 py-2 text-sm text-text-main"
                         >
-                          <option value="fixture">{getModelBindingProviderLabel(locale, 'fixture')}</option>
-                          <option value="openai">{getModelBindingProviderLabel(locale, 'openai')}</option>
+                          {providerOptions.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          ))}
                         </select>
                       </label>
                       <label className="space-y-2">
@@ -165,7 +344,7 @@ export function ModelSettingsDialog({ open, onOpenChange }: ModelSettingsDialogP
                         <input
                           aria-label={dictionary.shell.modelSettingsRoleModelLabel(roleLabel)}
                           value={draft.modelId}
-                          disabled={draft.provider !== 'openai'}
+                          disabled={usesFixture}
                           onChange={(event) => {
                             const modelId = event.target.value
                             setBindingsDraft((currentDraft) => ({
@@ -182,10 +361,17 @@ export function ModelSettingsDialog({ open, onOpenChange }: ModelSettingsDialogP
                       <div className="flex items-end">
                         <button
                           type="button"
-                          onClick={() => void controller.updateBinding(role, draft.provider === 'openai'
-                            ? { provider: 'openai', modelId: draft.modelId }
-                            : { provider: 'fixture' })}
-                          disabled={controller.saving || (draft.provider === 'openai' && !draft.modelId.trim())}
+                          onClick={() => void controller.updateBinding(
+                            role,
+                            usesFixture
+                              ? { provider: 'fixture' }
+                              : {
+                                  provider: 'openai-compatible',
+                                  providerId: draft.providerId,
+                                  modelId: draft.modelId,
+                                },
+                          )}
+                          disabled={controller.saving || (!usesFixture && (!draft.providerId.trim() || !draft.modelId.trim()))}
                           className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
                         >
                           {dictionary.shell.saveBindingLabel(roleLabel)}

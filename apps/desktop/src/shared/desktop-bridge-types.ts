@@ -4,8 +4,8 @@ export type DesktopLocalRuntimeMode = 'desktop-local'
 export type DesktopProjectMode = 'demo-fixture' | 'real-project'
 export type LocalApiStatus = 'stopped' | 'starting' | 'ready' | 'failed'
 export type WorkerStatus = 'disabled' | 'starting' | 'ready' | 'failed' | 'stopped'
-export type ProviderCredentialProvider = 'openai'
-export type DesktopModelBindingProvider = 'fixture' | 'openai'
+export type ProviderCredentialProvider = 'openai-compatible'
+export type DesktopModelBindingProvider = 'fixture' | 'openai-compatible'
 export const DESKTOP_MODEL_BINDING_ROLES = [
   'planner',
   'sceneProseWriter',
@@ -44,14 +44,23 @@ export interface WorkerStatusSnapshot {
   lastError?: string
 }
 
-export interface ProviderCredentialStatus {
+export interface OpenAiCompatibleProviderProfile {
+  id: string
+  label: string
+  baseUrl: string
+}
+
+export interface ProviderCredentialReference {
   provider: ProviderCredentialProvider
+  providerId: string
+}
+
+export interface ProviderCredentialStatus extends ProviderCredentialReference {
   configured: boolean
   redactedValue?: string
 }
 
-export interface SaveProviderCredentialInput {
-  provider: ProviderCredentialProvider
+export interface SaveProviderCredentialInput extends ProviderCredentialReference {
   secret: string
 }
 
@@ -69,10 +78,15 @@ export interface DesktopModelConnectionTestRecord {
   summary?: string
 }
 
-export interface DesktopModelBinding {
-  provider: DesktopModelBindingProvider
-  modelId?: string
-}
+export type DesktopModelBinding =
+  | {
+      provider: 'fixture'
+    }
+  | {
+      provider: 'openai-compatible'
+      providerId: string
+      modelId: string
+    }
 
 export type DesktopModelBindings = Record<DesktopModelBindingRole, DesktopModelBinding>
 
@@ -82,8 +96,9 @@ export interface UpdateModelBindingInput {
 }
 
 export interface DesktopModelSettingsSnapshot {
+  providers: OpenAiCompatibleProviderProfile[]
   bindings: DesktopModelBindings
-  credentialStatus: ProviderCredentialStatus
+  credentialStatuses: ProviderCredentialStatus[]
   connectionTest: DesktopModelConnectionTestRecord
 }
 
@@ -101,9 +116,12 @@ export interface NarrativeDesktopApi {
   getLocalApiLogs(): Promise<string[]>
   getWorkerStatus(): Promise<WorkerStatusSnapshot>
   restartWorker(): Promise<WorkerStatusSnapshot>
-  getProviderCredentialStatus(provider: ProviderCredentialProvider): Promise<ProviderCredentialStatus>
+  getProviderProfiles(): Promise<OpenAiCompatibleProviderProfile[]>
+  saveProviderProfile(profile: OpenAiCompatibleProviderProfile): Promise<OpenAiCompatibleProviderProfile[]>
+  deleteProviderProfile(providerId: string): Promise<OpenAiCompatibleProviderProfile[]>
+  getProviderCredentialStatus(input: ProviderCredentialReference): Promise<ProviderCredentialStatus>
   saveProviderCredential(input: SaveProviderCredentialInput): Promise<ProviderCredentialStatus>
-  deleteProviderCredential(provider: ProviderCredentialProvider): Promise<ProviderCredentialStatus>
+  deleteProviderCredential(input: ProviderCredentialReference): Promise<ProviderCredentialStatus>
   getModelBindings(): Promise<DesktopModelBindings>
   getModelSettingsSnapshot(): Promise<DesktopModelSettingsSnapshot>
   testModelSettings(): Promise<DesktopModelConnectionTestRecord>
@@ -124,6 +142,9 @@ export const DESKTOP_API_CHANNELS = {
   getLocalApiLogs: 'narrativeDesktop:getLocalApiLogs',
   getWorkerStatus: 'narrativeDesktop:getWorkerStatus',
   restartWorker: 'narrativeDesktop:restartWorker',
+  getProviderProfiles: 'narrativeDesktop:getProviderProfiles',
+  saveProviderProfile: 'narrativeDesktop:saveProviderProfile',
+  deleteProviderProfile: 'narrativeDesktop:deleteProviderProfile',
   getProviderCredentialStatus: 'narrativeDesktop:getProviderCredentialStatus',
   saveProviderCredential: 'narrativeDesktop:saveProviderCredential',
   deleteProviderCredential: 'narrativeDesktop:deleteProviderCredential',

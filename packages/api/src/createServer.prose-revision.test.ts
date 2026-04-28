@@ -97,14 +97,17 @@ describe('fixture API server scene prose revision', () => {
           continuityReviewer: { provider: 'fixture' },
           planner: { provider: 'fixture' },
           sceneProseWriter: {
-            provider: 'openai',
+            provider: 'openai-compatible',
+            providerId: 'openai-default',
+            providerLabel: 'OpenAI',
+            baseUrl: 'https://api.openai.com/v1',
             modelId: 'gpt-5.4',
             apiKey: 'sk-test',
           },
           sceneRevision: { provider: 'fixture' },
           summary: { provider: 'fixture' },
         },
-        modelProvider: 'openai',
+        modelProvider: 'openai-compatible',
       },
       sceneProseWriterGatewayDependencies: {
         openAiProvider: {
@@ -164,13 +167,16 @@ describe('fixture API server scene prose revision', () => {
           planner: { provider: 'fixture' },
           sceneProseWriter: {
             apiKey: 'sk-test',
+            baseUrl: 'https://api.openai.com/v1',
             modelId: 'gpt-5.4',
-            provider: 'openai',
+            provider: 'openai-compatible',
+            providerId: 'openai-default',
+            providerLabel: 'OpenAI',
           },
           sceneRevision: { provider: 'fixture' },
           summary: { provider: 'fixture' },
         },
-        modelProvider: 'openai',
+        modelProvider: 'openai-compatible',
       },
       sceneProseWriterGatewayDependencies: {
         openAiProvider: {

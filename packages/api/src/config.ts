@@ -3,13 +3,19 @@ import path from 'node:path'
 import { resolveDefaultProjectStoreFilePath } from './repositories/project-state-persistence.js'
 import {
   createModelBindingsFromLegacyConfig,
+  DEFAULT_MODEL_BINDINGS,
   MODEL_BINDING_ROLES,
+  resolveModelBindingsFromRuntimeSettings,
+  type ApiRuntimeModelSettingsPayload,
+  type ApiRuntimeOpenAiCompatibleProviderProfile,
+  type ModelBindingInput,
   type ModelBindings,
   type ModelBindingRole,
+  type ModelBindingProvider,
   type ResolvedModelBinding,
 } from './orchestration/modelGateway/model-binding.js'
 
-export type ModelProvider = 'fixture' | 'openai'
+export type ModelProvider = ModelBindingProvider
 
 export interface ApiServerConfig {
   host: string
@@ -33,6 +39,7 @@ export interface ApiServerConfig {
 }
 
 type CurrentProjectConfig = NonNullable<ApiServerConfig['currentProject']>
+type LegacyEnvModelProvider = ModelProvider | 'openai'
 
 function readPort(name: string, fallback: number) {
   const value = process.env[name]
@@ -52,17 +59,21 @@ function readPort(name: string, fallback: number) {
   return parsed
 }
 
-function readModelProvider(name = 'NARRATIVE_MODEL_PROVIDER', fallback?: ModelProvider): ModelProvider {
+function readModelProvider(name = 'NARRATIVE_MODEL_PROVIDER', fallback?: LegacyEnvModelProvider): LegacyEnvModelProvider {
   const value = process.env[name]
   if (value === undefined) {
     return fallback ?? 'fixture'
   }
 
-  if (value === 'fixture' || value === 'openai') {
+  if (value === 'fixture' || value === 'openai' || value === 'openai-compatible') {
     return value
   }
 
-  throw new Error(`${name} must be one of: fixture, openai`)
+  throw new Error(`${name} must be one of: fixture, openai, openai-compatible`)
+}
+
+function normalizeModelProvider(provider: LegacyEnvModelProvider): ModelProvider {
+  return provider === 'openai' ? 'openai-compatible' : provider
 }
 
 function readOptionalTrimmedEnv(name: string) {
@@ -104,9 +115,18 @@ const ROLE_ENV_PREFIXES: Record<ModelBindingRole, string> = {
 
 function readRoleModelBinding(role: ModelBindingRole, legacyBinding: ResolvedModelBinding): ResolvedModelBinding {
   const prefix = ROLE_ENV_PREFIXES[role]
-  const provider = readModelProvider(`${prefix}_MODEL_PROVIDER`, legacyBinding.provider)
+  const provider = normalizeModelProvider(readModelProvider(
+    `${prefix}_MODEL_PROVIDER`,
+    legacyBinding.provider === 'fixture' ? 'fixture' : 'openai-compatible',
+  ))
 
-  if (provider !== 'openai') {
+  if (provider !== 'openai-compatible') {
+    return {
+      provider: 'fixture',
+    }
+  }
+
+  if (legacyBinding.provider !== 'openai-compatible') {
     return {
       provider: 'fixture',
     }
@@ -114,22 +134,128 @@ function readRoleModelBinding(role: ModelBindingRole, legacyBinding: ResolvedMod
 
   return {
     apiKey: readOptionalTrimmedEnv(`${prefix}_OPENAI_API_KEY`) ?? legacyBinding.apiKey,
+    baseUrl: legacyBinding.baseUrl,
     modelId: readOptionalTrimmedEnv(`${prefix}_OPENAI_MODEL`) ?? legacyBinding.modelId,
-    provider: 'openai',
+    provider: 'openai-compatible',
+    providerId: legacyBinding.providerId,
+    providerLabel: legacyBinding.providerLabel,
   }
 }
 
 function readModelBindings(modelProvider: ModelProvider, openAiModel?: string, openAiApiKey?: string): ModelBindings {
   const legacyBindings = createModelBindingsFromLegacyConfig({
-    modelProvider,
+    modelProvider: modelProvider === 'openai-compatible' ? 'openai' : modelProvider,
     openAiApiKey,
     openAiModel,
   })
+
+  if (modelProvider !== 'openai-compatible') {
+    return { ...DEFAULT_MODEL_BINDINGS }
+  }
 
   return MODEL_BINDING_ROLES.reduce<ModelBindings>((result, role) => {
     result[role] = readRoleModelBinding(role, legacyBindings[role])
     return result
   }, { ...legacyBindings })
+}
+
+function parseProviderProfile(value: unknown): ApiRuntimeOpenAiCompatibleProviderProfile {
+  if (!value || typeof value !== 'object') {
+    throw new Error('NARRATIVE_MODEL_SETTINGS_JSON providers must be objects.')
+  }
+
+  const candidate = value as Partial<ApiRuntimeOpenAiCompatibleProviderProfile>
+  const id = candidate.id?.trim()
+  const label = candidate.label?.trim()
+  const baseUrl = candidate.baseUrl?.trim()
+  if (!id || !label || !baseUrl) {
+    throw new Error('NARRATIVE_MODEL_SETTINGS_JSON providers require id, label, and baseUrl.')
+  }
+
+  return {
+    ...(candidate.apiKey?.trim() ? { apiKey: candidate.apiKey.trim() } : {}),
+    baseUrl,
+    id,
+    label,
+  }
+}
+
+function parseModelBindingInput(value: unknown): ModelBindingInput {
+  if (!value || typeof value !== 'object') {
+    return { provider: 'fixture' }
+  }
+
+  const candidate = value as Partial<ModelBindingInput>
+  if (candidate.provider === 'fixture') {
+    return { provider: 'fixture' }
+  }
+
+  if (candidate.provider === 'openai-compatible') {
+    const providerId = candidate.providerId?.trim()
+    const modelId = candidate.modelId?.trim()
+    if (!providerId || !modelId) {
+      throw new Error('NARRATIVE_MODEL_SETTINGS_JSON openai-compatible bindings require providerId and modelId.')
+    }
+
+    return {
+      modelId,
+      provider: 'openai-compatible',
+      providerId,
+    }
+  }
+
+  throw new Error('NARRATIVE_MODEL_SETTINGS_JSON bindings must use fixture or openai-compatible providers.')
+}
+
+function readModelSettingsFromJson(): ModelBindings | undefined {
+  const raw = readOptionalTrimmedEnv('NARRATIVE_MODEL_SETTINGS_JSON')
+  if (!raw) {
+    return undefined
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error('NARRATIVE_MODEL_SETTINGS_JSON must be valid JSON.')
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('NARRATIVE_MODEL_SETTINGS_JSON must be a JSON object.')
+  }
+
+  const candidate = parsed as Partial<ApiRuntimeModelSettingsPayload>
+  if (!Array.isArray(candidate.providers)) {
+    throw new Error('NARRATIVE_MODEL_SETTINGS_JSON providers must be an array.')
+  }
+
+  const providers = candidate.providers.map(parseProviderProfile)
+  const bindingsSource = candidate.bindings
+  if (!bindingsSource || typeof bindingsSource !== 'object') {
+    throw new Error('NARRATIVE_MODEL_SETTINGS_JSON bindings must be an object.')
+  }
+
+  const bindings = MODEL_BINDING_ROLES.reduce<Record<ModelBindingRole, ModelBindingInput>>((result, role) => {
+    result[role] = parseModelBindingInput((bindingsSource as Partial<Record<ModelBindingRole, unknown>>)[role])
+    return result
+  }, {
+    continuityReviewer: { provider: 'fixture' },
+    planner: { provider: 'fixture' },
+    sceneProseWriter: { provider: 'fixture' },
+    sceneRevision: { provider: 'fixture' },
+    summary: { provider: 'fixture' },
+  })
+
+  return resolveModelBindingsFromRuntimeSettings({
+    bindings,
+    providers,
+  })
+}
+
+function deriveModelProvider(modelBindings: ModelBindings): ModelProvider {
+  return MODEL_BINDING_ROLES.some((role) => modelBindings[role].provider === 'openai-compatible')
+    ? 'openai-compatible'
+    : 'fixture'
 }
 
 export function getApiServerConfig(): ApiServerConfig {
@@ -141,21 +267,38 @@ export function getApiServerConfig(): ApiServerConfig {
     ? true
     : process.env.CORS_ORIGIN
   const currentProject = readCurrentProject()
-  const defaultModelProvider = currentProject?.projectMode === 'real-project' ? 'openai' : 'fixture'
+  const defaultModelProvider: LegacyEnvModelProvider = currentProject?.projectMode === 'real-project' ? 'openai' : 'fixture'
   const projectStoreFilePath = process.env.NARRATIVE_PROJECT_STORE_FILE
     ?? process.env.NARRATIVE_PROJECT_STATE_FILE
     ?? resolveDefaultProjectStoreFilePath()
   const projectArtifactDirPath = process.env.NARRATIVE_PROJECT_ARTIFACT_DIR
     ?? path.join(path.dirname(projectStoreFilePath), 'artifacts')
-  const requestedModelProvider = readModelProvider('NARRATIVE_MODEL_PROVIDER', defaultModelProvider)
+
+  const modelBindingsFromJson = readModelSettingsFromJson()
+  if (modelBindingsFromJson) {
+    return {
+      apiBasePath,
+      apiBaseUrl,
+      corsOrigin,
+      currentProject,
+      host,
+      modelBindings: modelBindingsFromJson,
+      modelProvider: deriveModelProvider(modelBindingsFromJson),
+      port,
+      projectArtifactDirPath,
+      projectStoreFilePath,
+    }
+  }
+
+  const requestedModelProvider = normalizeModelProvider(readModelProvider('NARRATIVE_MODEL_PROVIDER', defaultModelProvider))
   const modelProvider =
     currentProject?.projectMode === 'real-project' && requestedModelProvider === 'fixture'
-      ? 'openai'
+      ? 'openai-compatible'
       : requestedModelProvider
-  const openAiModel = modelProvider === 'openai'
+  const openAiModel = modelProvider === 'openai-compatible'
     ? readOptionalTrimmedEnv('NARRATIVE_OPENAI_MODEL')
     : undefined
-  const openAiApiKey = modelProvider === 'openai'
+  const openAiApiKey = modelProvider === 'openai-compatible'
     ? readOptionalTrimmedEnv('OPENAI_API_KEY')
     : undefined
   const modelBindings = readModelBindings(modelProvider, openAiModel, openAiApiKey)

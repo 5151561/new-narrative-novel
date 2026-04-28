@@ -1,68 +1,41 @@
-import OpenAI from 'openai'
-
 import type { SceneProseWriterGatewayRequest, SceneProseWriterProvider } from './sceneProseWriterGateway.js'
+import {
+  requestOpenAiCompatibleJsonText,
+  type OpenAiCompatibleChatCompletionClientLike,
+} from './openai-compatible-json-client.js'
 import {
   parseSceneProseWriterOutput,
   sceneProseWriterOpenAiOutputSchema,
 } from './sceneProseWriterOutputSchema.js'
 
-export interface SceneProseWriterOpenAiClientLike {
-  responses: {
-    create(request: {
-      model: string
-      instructions: string
-      input: string
-      text: {
-        format: {
-          name: string
-          type: 'json_schema'
-          strict: boolean
-          description: string
-          schema: typeof sceneProseWriterOpenAiOutputSchema
-        }
-      }
-    }): Promise<{
-      output_text: string
-    }>
-  }
-}
-
 export interface SceneProseWriterOpenAiResponsesProviderOptions {
+  baseUrl: string
   modelId: string
   apiKey: string
-  client?: SceneProseWriterOpenAiClientLike
+  client?: OpenAiCompatibleChatCompletionClientLike
 }
 
 export function createSceneProseWriterOpenAiResponsesProvider(
   options: SceneProseWriterOpenAiResponsesProviderOptions,
 ): SceneProseWriterProvider {
-  const client = options.client ?? new OpenAI({
-    apiKey: options.apiKey,
-  })
-
   return {
     async generate(request: SceneProseWriterGatewayRequest) {
-      let response: { output_text: string }
+      let outputText: string
       try {
-        response = await client.responses.create({
-          model: options.modelId,
-          instructions: request.instructions,
+        outputText = await requestOpenAiCompatibleJsonText({
+          apiKey: options.apiKey,
+          baseUrl: options.baseUrl,
+          client: options.client,
           input: request.input,
-          text: {
-            format: {
-              name: 'scene_prose_writer_output',
-              type: 'json_schema',
-              strict: true,
-              description: 'Structured accepted scene prose draft output.',
-              schema: sceneProseWriterOpenAiOutputSchema,
-            },
-          },
+          instructions: request.instructions,
+          modelId: options.modelId,
+          schema: sceneProseWriterOpenAiOutputSchema,
+          schemaName: 'scene_prose_writer_output',
         })
       } catch {
-        throw new Error(`OpenAI Responses request failed for prose model ${options.modelId}.`)
+        throw new Error(`OpenAI-compatible request failed for prose model ${options.modelId}.`)
       }
 
-      const outputText = response.output_text.trim()
       if (!outputText) {
         return outputText
       }

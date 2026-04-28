@@ -128,12 +128,17 @@ function installStoryDesktopModelSettingsBridge() {
     value: {
       deleteProviderCredential: async () => ({
         configured: false,
-        provider: 'openai',
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
       }),
+      deleteProviderProfile: async () => [],
       getModelSettingsSnapshot: async () => ({
+        providers: [
+          { id: 'deepseek', label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
+        ],
         bindings: {
           continuityReviewer: { provider: 'fixture' },
-          planner: { modelId: 'gpt-5.4', provider: 'openai' },
+          planner: { modelId: 'deepseek-chat', provider: 'openai-compatible', providerId: 'deepseek' },
           sceneProseWriter: { provider: 'fixture' },
           sceneRevision: { provider: 'fixture' },
           summary: { provider: 'fixture' },
@@ -141,24 +146,27 @@ function installStoryDesktopModelSettingsBridge() {
         connectionTest: {
           status: 'never',
         },
-        credentialStatus: {
+        credentialStatuses: [{
           configured: true,
-          provider: 'openai',
+          provider: 'openai-compatible',
+          providerId: 'deepseek',
           redactedValue: 'sk-...1234',
-        },
+        }],
       }),
       saveProviderCredential: async () => ({
         configured: true,
-        provider: 'openai',
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
         redactedValue: 'sk-...1234',
       }),
+      saveProviderProfile: async () => [],
       testModelSettings: async () => ({
         status: 'passed',
-        summary: 'OpenAI connection test passed for the configured model roles.',
+        summary: 'OpenAI-compatible connection test passed for the configured provider bindings.',
       }),
       updateModelBinding: async () => ({
         continuityReviewer: { provider: 'fixture' },
-        planner: { modelId: 'gpt-5.4', provider: 'openai' },
+        planner: { modelId: 'deepseek-chat', provider: 'openai-compatible', providerId: 'deepseek' },
         sceneProseWriter: { provider: 'fixture' },
         sceneRevision: { provider: 'fixture' },
         summary: { provider: 'fixture' },

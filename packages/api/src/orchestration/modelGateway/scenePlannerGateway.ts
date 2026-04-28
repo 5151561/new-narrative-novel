@@ -25,11 +25,19 @@ export type ScenePlannerGatewayFallbackReason =
   | 'provider-error'
   | 'invalid-output'
 
-export interface ScenePlannerGatewayProvenance {
-  provider: 'fixture' | 'openai'
-  modelId: string
-  fallbackReason?: ScenePlannerGatewayFallbackReason
-}
+export type ScenePlannerGatewayProvenance =
+  | {
+      provider: 'fixture'
+      modelId: string
+      fallbackReason?: ScenePlannerGatewayFallbackReason
+    }
+  | {
+      provider: 'openai-compatible'
+      providerId: string
+      providerLabel: string
+      modelId: string
+      fallbackReason?: ScenePlannerGatewayFallbackReason
+    }
 
 export interface ScenePlannerGatewayResult {
   output: ScenePlannerOutput
@@ -72,13 +80,13 @@ export function createScenePlannerGateway(
     async generate(request: ScenePlannerGatewayRequest): Promise<ScenePlannerGatewayResult> {
       const binding = resolveModelBindingForRole(config, 'planner')
 
-      if (binding.provider !== 'openai') {
+      if (binding.provider !== 'openai-compatible') {
         return renderFixtureResult(request)
       }
 
       if (!binding.modelId || !binding.apiKey) {
         throw new ModelGatewayMissingConfigError({
-          provider: 'openai',
+          provider: 'openai-compatible',
           role: 'planner',
         })
       }
@@ -86,6 +94,7 @@ export function createScenePlannerGateway(
       const openAiProvider = dependencies.openAiProvider ?? openAiProviderFactory({
         modelId: binding.modelId,
         apiKey: binding.apiKey,
+        baseUrl: binding.baseUrl,
       })
 
       let payload: unknown
@@ -94,9 +103,11 @@ export function createScenePlannerGateway(
       } catch {
         throw new ModelGatewayExecutionError({
           failureClass: 'provider_error',
-          message: 'OpenAI provider request failed.',
+          message: 'OpenAI-compatible provider request failed.',
           modelId: binding.modelId,
-          provider: 'openai',
+          provider: 'openai-compatible',
+          providerId: binding.providerId,
+          providerLabel: binding.providerLabel,
           retryable: true,
           role: 'planner',
         })
@@ -106,16 +117,20 @@ export function createScenePlannerGateway(
         return {
           output: parseScenePlannerOutput(payload),
           provenance: {
-            provider: 'openai',
+            provider: 'openai-compatible',
+            providerId: binding.providerId,
+            providerLabel: binding.providerLabel,
             modelId: binding.modelId,
           },
         }
       } catch {
         throw new ModelGatewayExecutionError({
           failureClass: 'invalid_output',
-          message: 'OpenAI provider returned invalid structured planner output.',
+          message: 'OpenAI-compatible provider returned invalid structured planner output.',
           modelId: binding.modelId,
-          provider: 'openai',
+          provider: 'openai-compatible',
+          providerId: binding.providerId,
+          providerLabel: binding.providerLabel,
           retryable: true,
           role: 'planner',
         })

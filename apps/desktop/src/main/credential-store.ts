@@ -2,10 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-import type {
-  ProviderCredentialProvider,
-  ProviderCredentialStatus,
-} from '../shared/desktop-bridge-types.js'
+import type { ProviderCredentialStatus } from '../shared/desktop-bridge-types.js'
 
 interface PersistedCredentialRecord {
   encoding: 'plain' | 'safeStorage'
@@ -13,7 +10,7 @@ interface PersistedCredentialRecord {
 }
 
 interface PersistedCredentialStoreRecord {
-  credentials: Partial<Record<ProviderCredentialProvider, PersistedCredentialRecord>>
+  credentials: Record<string, PersistedCredentialRecord>
 }
 
 export interface CredentialStoreEncryption {
@@ -23,6 +20,8 @@ export interface CredentialStoreEncryption {
 }
 
 const PROVIDER_CREDENTIALS_FILE = 'provider-credentials.json'
+const LEGACY_OPENAI_PROVIDER_KEY = 'openai'
+const DEFAULT_PROVIDER_ID = 'openai-default'
 const require = createRequire(import.meta.url)
 
 function loadElectronModule() {
@@ -57,6 +56,20 @@ function redactSecret(secret: string): string {
   return `${secret.slice(0, 3)}...${secret.slice(-4)}`
 }
 
+function normalizeProviderId(providerId: string): string {
+  const normalized = providerId.trim()
+  return normalized === LEGACY_OPENAI_PROVIDER_KEY ? DEFAULT_PROVIDER_ID : normalized
+}
+
+function createCredentialStatus(providerId: string, secret?: string | null): ProviderCredentialStatus {
+  return {
+    configured: Boolean(secret),
+    provider: 'openai-compatible',
+    providerId,
+    ...(secret ? { redactedValue: redactSecret(secret) } : {}),
+  }
+}
+
 function isPersistedCredentialRecord(value: unknown): value is PersistedCredentialRecord {
   if (!value || typeof value !== 'object') {
     return false
@@ -80,10 +93,14 @@ function normalizePersistedCredentialStoreRecord(value: unknown): PersistedCrede
     return createEmptyRecord()
   }
 
-  const normalizedEntries = Object.entries(credentials).filter((entry): entry is [
-    ProviderCredentialProvider,
-    PersistedCredentialRecord,
-  ] => entry[0] === 'openai' && entry[1]?.encoding === 'safeStorage' && isPersistedCredentialRecord(entry[1]))
+  const normalizedEntries = Object.entries(credentials).flatMap((entry) => {
+    if (!isPersistedCredentialRecord(entry[1])) {
+      return []
+    }
+
+    const key = normalizeProviderId(entry[0])
+    return [[key, entry[1]] as const]
+  })
 
   return {
     credentials: Object.fromEntries(normalizedEntries),
@@ -93,7 +110,7 @@ function normalizePersistedCredentialStoreRecord(value: unknown): PersistedCrede
 export class CredentialStore {
   private readonly filePath: string
   private readonly encryption: CredentialStoreEncryption
-  private readonly sessionCredentials = new Map<ProviderCredentialProvider, string>()
+  private readonly sessionCredentials = new Map<string, string>()
 
   constructor({
     encryption = createDefaultEncryption(),
@@ -106,30 +123,21 @@ export class CredentialStore {
     this.filePath = path.join(userDataPath, PROVIDER_CREDENTIALS_FILE)
   }
 
-  async getCredentialStatus(provider: ProviderCredentialProvider): Promise<ProviderCredentialStatus> {
-    const secret = await this.getRawCredential(provider)
-    if (!secret) {
-      return {
-        configured: false,
-        provider,
-      }
-    }
-
-    return {
-      configured: true,
-      provider,
-      redactedValue: redactSecret(secret),
-    }
+  async getCredentialStatus(providerId: string): Promise<ProviderCredentialStatus> {
+    const normalizedProviderId = normalizeProviderId(providerId)
+    const secret = await this.getRawCredential(normalizedProviderId)
+    return createCredentialStatus(normalizedProviderId, secret)
   }
 
-  async getRawCredential(provider: ProviderCredentialProvider): Promise<string | null> {
-    const sessionCredential = this.sessionCredentials.get(provider)
+  async getRawCredential(providerId: string): Promise<string | null> {
+    const normalizedProviderId = normalizeProviderId(providerId)
+    const sessionCredential = this.sessionCredentials.get(normalizedProviderId)
     if (sessionCredential) {
       return sessionCredential
     }
 
     const record = await this.readRecord()
-    const persisted = record.credentials[provider]
+    const persisted = record.credentials[normalizedProviderId]
     if (!persisted) {
       return null
     }
@@ -141,13 +149,14 @@ export class CredentialStore {
     return this.encryption.decryptString(persisted.value)
   }
 
-  async saveCredential(provider: ProviderCredentialProvider, secret: string): Promise<ProviderCredentialStatus> {
+  async saveCredential(providerId: string, secret: string): Promise<ProviderCredentialStatus> {
+    const normalizedProviderId = normalizeProviderId(providerId)
     const normalizedSecret = secret.trim()
-    this.sessionCredentials.set(provider, normalizedSecret)
+    this.sessionCredentials.set(normalizedProviderId, normalizedSecret)
 
     if (this.encryption.isEncryptionAvailable()) {
       const record = await this.readRecord()
-      record.credentials[provider] = {
+      record.credentials[normalizedProviderId] = {
         encoding: 'safeStorage',
         value: this.encryption.encryptString(normalizedSecret),
       }
@@ -155,21 +164,19 @@ export class CredentialStore {
       await this.writeRecord(record)
     }
 
-    return this.getCredentialStatus(provider)
+    return createCredentialStatus(normalizedProviderId, normalizedSecret)
   }
 
-  async deleteCredential(provider: ProviderCredentialProvider): Promise<ProviderCredentialStatus> {
-    this.sessionCredentials.delete(provider)
+  async deleteCredential(providerId: string): Promise<ProviderCredentialStatus> {
+    const normalizedProviderId = normalizeProviderId(providerId)
+    this.sessionCredentials.delete(normalizedProviderId)
     const record = await this.readRecord()
-    delete record.credentials[provider]
+    delete record.credentials[normalizedProviderId]
     if (this.encryption.isEncryptionAvailable() || Object.keys(record.credentials).length > 0) {
       await this.writeRecord(record)
     }
 
-    return {
-      configured: false,
-      provider,
-    }
+    return createCredentialStatus(normalizedProviderId)
   }
 
   private async readRecord(): Promise<PersistedCredentialStoreRecord> {

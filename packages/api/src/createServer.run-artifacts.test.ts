@@ -829,7 +829,7 @@ describe('fixture API server run artifact read surfaces', () => {
       })
     }, {
       configOverrides: {
-        modelProvider: 'openai',
+        modelProvider: 'openai-compatible',
       },
     })
   })
@@ -864,12 +864,15 @@ describe('fixture API server run artifact read surfaces', () => {
           continuityReviewer: { provider: 'fixture' },
           planner: { provider: 'fixture' },
           sceneProseWriter: {
-            provider: 'openai',
+            provider: 'openai-compatible',
+            providerId: 'openai-default',
+            providerLabel: 'OpenAI',
+            baseUrl: 'https://api.openai.com/v1',
           },
           sceneRevision: { provider: 'fixture' },
           summary: { provider: 'fixture' },
         },
-        modelProvider: 'openai',
+        modelProvider: 'openai-compatible',
       },
     })
   })
@@ -922,7 +925,7 @@ describe('fixture API server run artifact read surfaces', () => {
           kind: 'agent-invocation',
           failureDetail: {
             failureClass: 'provider_error',
-            provider: 'openai',
+            provider: 'openai-compatible',
             modelId: 'gpt-5.4',
             retryable: true,
           },
@@ -942,12 +945,15 @@ describe('fixture API server run artifact read surfaces', () => {
           sceneProseWriter: {
             apiKey: 'sk-test',
             modelId: 'gpt-5.4',
-            provider: 'openai',
+            provider: 'openai-compatible',
+            providerId: 'openai-default',
+            providerLabel: 'OpenAI',
+            baseUrl: 'https://api.openai.com/v1',
           },
           sceneRevision: { provider: 'fixture' },
           summary: { provider: 'fixture' },
         },
-        modelProvider: 'openai',
+        modelProvider: 'openai-compatible',
       },
       sceneProseWriterGatewayDependencies: {
         openAiProvider: {

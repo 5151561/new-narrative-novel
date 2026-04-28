@@ -106,7 +106,7 @@ describe('runFixtureStore', () => {
   }
 
   function createPlannerResult(overrides?: Partial<{
-    provider: 'fixture' | 'openai'
+    provider: 'fixture' | 'openai-compatible'
     modelId: string
     fallbackReason: 'missing-config' | 'provider-error' | 'invalid-output'
     proposals: Array<{
@@ -148,8 +148,14 @@ describe('runFixtureStore', () => {
         ],
       },
       provenance: {
-        provider: overrides?.provider ?? 'openai',
+        provider: overrides?.provider ?? 'openai-compatible',
         modelId: overrides?.modelId ?? 'gpt-5.4',
+        ...((overrides?.provider ?? 'openai-compatible') === 'openai-compatible'
+          ? {
+              providerId: 'openai-default',
+              providerLabel: 'OpenAI',
+            }
+          : {}),
         ...(overrides?.fallbackReason ? { fallbackReason: overrides.fallbackReason } : {}),
       },
     }
@@ -253,7 +259,7 @@ describe('runFixtureStore', () => {
     const store = createRunFixtureStore({
       scenePlannerGateway: {
         generate: vi.fn().mockRejectedValue(new ModelGatewayMissingConfigError({
-          provider: 'openai',
+          provider: 'openai-compatible',
           role: 'planner',
         })),
       },
@@ -275,14 +281,14 @@ describe('runFixtureStore', () => {
     })
   })
 
-  it('records a failed run with honest openai provenance when planner execution fails after a real-model attempt', async () => {
+  it('records a failed run with honest openai-compatible provenance when planner execution fails after a real-model attempt', async () => {
     const store = createRunFixtureStore({
       scenePlannerGateway: {
         generate: vi.fn().mockRejectedValue(new ModelGatewayExecutionError({
           failureClass: 'provider_error',
           message: 'OpenAI provider request failed.',
           modelId: 'gpt-5.4',
-          provider: 'openai',
+          provider: 'openai-compatible',
           retryable: true,
           role: 'planner',
         })),
@@ -300,7 +306,7 @@ describe('runFixtureStore', () => {
       failureClass: 'provider_error',
       summary: 'Scene run failed before review because the planner model request failed.',
       usage: {
-        provider: 'openai',
+        provider: 'openai-compatible',
         modelId: 'gpt-5.4',
       },
       runtimeSummary: {
@@ -675,7 +681,7 @@ describe('runFixtureStore', () => {
         failureDetail: {
           failureClass: 'model_timeout',
           message: 'Provider timed out after the planner invocation.',
-          provider: 'openai',
+          provider: 'openai-compatible',
           modelId: 'gpt-5.4',
           retryable: true,
           sourceEventIds: [failureEventId],
@@ -755,7 +761,7 @@ describe('runFixtureStore', () => {
         role: 'planner',
         index: 1,
         provenance: {
-          provider: 'openai',
+          provider: 'openai-compatible',
           modelId: 'gpt-5.4',
         },
       },
@@ -1017,7 +1023,7 @@ describe('runFixtureStore', () => {
     const savedOverlays = new Map<string, unknown>()
     const server = createTestServer({
       configOverrides: {
-        modelProvider: 'openai',
+        modelProvider: 'openai-compatible',
         modelBindings: {
           continuityReviewer: { provider: 'fixture' },
           planner: { provider: 'fixture' },
@@ -1550,7 +1556,7 @@ describe('runFixtureStore', () => {
           failureClass: 'provider_error',
           message: 'OpenAI provider request failed.',
           modelId: 'gpt-5.4',
-          provider: 'openai',
+          provider: 'openai-compatible',
           retryable: true,
           role: 'sceneProseWriter',
         })),
@@ -1579,7 +1585,7 @@ describe('runFixtureStore', () => {
         nextActionLabel: 'Repair model settings or retry the run after the runtime issue is resolved.',
       },
       usage: {
-        provider: 'openai',
+        provider: 'openai-compatible',
         modelId: 'gpt-5.4',
       },
     })
@@ -1600,7 +1606,7 @@ describe('runFixtureStore', () => {
           failureClass: 'provider_error',
           message: 'OpenAI provider request failed.',
           modelId: 'gpt-5.4',
-          provider: 'openai',
+          provider: 'openai-compatible',
           retryable: true,
           role: 'sceneProseWriter',
         })),

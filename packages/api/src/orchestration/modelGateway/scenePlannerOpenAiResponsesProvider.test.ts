@@ -12,26 +12,35 @@ function createRequest() {
 }
 
 describe('createScenePlannerOpenAiResponsesProvider', () => {
-  it('calls the Responses API with top-level instructions, input, and an OpenAI strict-compatible text.format schema', async () => {
+  it('calls chat completions with baseURL, structured messages, and a strict json_schema response format', async () => {
     const create = vi.fn().mockResolvedValue({
-      output_text: JSON.stringify({
-        proposals: [
-          {
-            title: 'Anchor the arrival beat',
-            summary: 'Open on Midnight Platform before introducing any new reveal.',
-            changeKind: 'action',
-            riskLabel: 'Low continuity risk',
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              proposals: [
+                {
+                  title: 'Anchor the arrival beat',
+                  summary: 'Open on Midnight Platform before introducing any new reveal.',
+                  changeKind: 'action',
+                  riskLabel: 'Low continuity risk',
+                },
+              ],
+            }),
           },
-        ],
-      }),
+        },
+      ],
     })
 
     const provider = createScenePlannerOpenAiResponsesProvider({
-      modelId: 'gpt-5.4',
+      baseUrl: 'https://api.deepseek.com/v1',
+      modelId: 'deepseek-chat',
       apiKey: 'sk-test',
       client: {
-        responses: {
-          create,
+        chat: {
+          completions: {
+            create,
+          },
         },
       },
     })
@@ -40,15 +49,16 @@ describe('createScenePlannerOpenAiResponsesProvider', () => {
 
     expect(create).toHaveBeenCalledTimes(1)
     expect(create).toHaveBeenCalledWith({
-      model: 'gpt-5.4',
-      instructions: 'Return scene-planning proposals only.',
-      input: 'Context packet for Midnight Platform.',
-      text: {
-        format: {
+      model: 'deepseek-chat',
+      messages: [
+        { role: 'system', content: 'Return scene-planning proposals only.' },
+        { role: 'user', content: 'Context packet for Midnight Platform.' },
+      ],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
           name: 'scene_planner_output',
-          type: 'json_schema',
           strict: true,
-          description: 'Structured scene planner proposal candidates.',
           schema: scenePlannerOpenAiOutputSchema,
         },
       },
@@ -57,24 +67,33 @@ describe('createScenePlannerOpenAiResponsesProvider', () => {
 
   it('normalizes nullable strict-schema output back to the planner contract without exposing raw response envelopes', async () => {
     const provider = createScenePlannerOpenAiResponsesProvider({
+      baseUrl: 'https://api.deepseek.com/v1',
       modelId: 'gpt-5.4',
       apiKey: 'sk-test',
       client: {
-        responses: {
-          create: vi.fn().mockResolvedValue({
-            id: 'resp_123',
-            output_text: JSON.stringify({
-              proposals: [
+        chat: {
+          completions: {
+            create: vi.fn().mockResolvedValue({
+              id: 'resp_123',
+              choices: [
                 {
-                  title: 'Anchor the arrival beat',
-                  summary: 'Open on Midnight Platform before introducing any new reveal.',
-                  changeKind: 'action',
-                  riskLabel: 'Low continuity risk',
-                  variants: null,
+                  message: {
+                    content: JSON.stringify({
+                      proposals: [
+                        {
+                          title: 'Anchor the arrival beat',
+                          summary: 'Open on Midnight Platform before introducing any new reveal.',
+                          changeKind: 'action',
+                          riskLabel: 'Low continuity risk',
+                          variants: null,
+                        },
+                      ],
+                    }),
+                  },
                 },
               ],
             }),
-          }),
+          },
         },
       },
     })
@@ -93,13 +112,16 @@ describe('createScenePlannerOpenAiResponsesProvider', () => {
 
   it('returns the raw output text when the provider response is not valid json so the gateway can classify invalid output', async () => {
     const provider = createScenePlannerOpenAiResponsesProvider({
+      baseUrl: 'https://api.deepseek.com/v1',
       modelId: 'gpt-5.4',
       apiKey: 'sk-test',
       client: {
-        responses: {
-          create: vi.fn().mockResolvedValue({
-            output_text: 'not-json',
-          }),
+        chat: {
+          completions: {
+            create: vi.fn().mockResolvedValue({
+              choices: [{ message: { content: 'not-json' } }],
+            }),
+          },
         },
       },
     })
@@ -109,31 +131,40 @@ describe('createScenePlannerOpenAiResponsesProvider', () => {
 
   it('normalizes nullable variant fields back to omitted optionals for downstream parsing', async () => {
     const provider = createScenePlannerOpenAiResponsesProvider({
+      baseUrl: 'https://api.deepseek.com/v1',
       modelId: 'gpt-5.4',
       apiKey: 'sk-test',
       client: {
-        responses: {
-          create: vi.fn().mockResolvedValue({
-            output_text: JSON.stringify({
-              proposals: [
+        chat: {
+          completions: {
+            create: vi.fn().mockResolvedValue({
+              choices: [
                 {
-                  title: 'Anchor the arrival beat',
-                  summary: 'Open on Midnight Platform before introducing any new reveal.',
-                  changeKind: 'action',
-                  riskLabel: 'Low continuity risk',
-                  variants: [
-                    {
-                      label: 'Arrival-first',
-                      summary: 'Keep Midnight Platform grounded before the reveal escalates.',
-                      rationale: 'Preserves continuity while still moving the scene forward.',
-                      tradeoffLabel: null,
-                      riskLabel: null,
-                    },
-                  ],
+                  message: {
+                    content: JSON.stringify({
+                      proposals: [
+                        {
+                          title: 'Anchor the arrival beat',
+                          summary: 'Open on Midnight Platform before introducing any new reveal.',
+                          changeKind: 'action',
+                          riskLabel: 'Low continuity risk',
+                          variants: [
+                            {
+                              label: 'Arrival-first',
+                              summary: 'Keep Midnight Platform grounded before the reveal escalates.',
+                              rationale: 'Preserves continuity while still moving the scene forward.',
+                              tradeoffLabel: null,
+                              riskLabel: null,
+                            },
+                          ],
+                        },
+                      ],
+                    }),
+                  },
                 },
               ],
             }),
-          }),
+          },
         },
       },
     })
@@ -159,17 +190,20 @@ describe('createScenePlannerOpenAiResponsesProvider', () => {
 
   it('sanitizes upstream errors so provider failures never echo raw api keys', async () => {
     const provider = createScenePlannerOpenAiResponsesProvider({
+      baseUrl: 'https://api.deepseek.com/v1',
       modelId: 'gpt-5.4',
       apiKey: 'sk-secret-value',
       client: {
-        responses: {
-          create: vi.fn().mockRejectedValue(new Error('401 invalid key sk-secret-value')),
+        chat: {
+          completions: {
+            create: vi.fn().mockRejectedValue(new Error('401 invalid key sk-secret-value')),
+          },
         },
       },
     })
 
     await expect(provider.generate(createRequest())).rejects.toThrowError(
-      'OpenAI Responses request failed for planner model gpt-5.4.',
+      'OpenAI-compatible request failed for planner model gpt-5.4.',
     )
 
     try {

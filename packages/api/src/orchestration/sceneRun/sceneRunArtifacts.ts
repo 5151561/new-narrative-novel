@@ -194,6 +194,8 @@ export function createAgentInvocationArtifact(input: AgentInvocationArtifactInpu
     ? {
         provenance: {
           provider: input.provenance.provider,
+          ...('providerId' in input.provenance ? { providerId: input.provenance.providerId } : {}),
+          ...('providerLabel' in input.provenance ? { providerLabel: input.provenance.providerLabel } : {}),
           modelId: input.provenance.modelId,
           ...(input.provenance.fallbackReason ? { fallbackReason: input.provenance.fallbackReason } : {}),
         },
@@ -260,6 +262,8 @@ export function createProseDraftArtifact(input: ProseDraftArtifactInput): SceneR
     ? {
         provenance: {
           provider: input.writerProvenance.provider,
+          ...('providerId' in input.writerProvenance ? { providerId: input.writerProvenance.providerId } : {}),
+          ...('providerLabel' in input.writerProvenance ? { providerLabel: input.writerProvenance.providerLabel } : {}),
           modelId: input.writerProvenance.modelId,
           ...(input.writerProvenance.fallbackReason ? { fallbackReason: input.writerProvenance.fallbackReason } : {}),
         },

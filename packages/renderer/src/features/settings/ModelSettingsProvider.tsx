@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react'
 
-export type DesktopModelBindingProvider = 'fixture' | 'openai'
+export type ProviderCredentialProvider = 'openai-compatible'
+export type DesktopModelBindingProvider = 'fixture' | 'openai-compatible'
 export type DesktopModelBindingRole =
   | 'planner'
   | 'sceneProseWriter'
@@ -8,10 +9,21 @@ export type DesktopModelBindingRole =
   | 'continuityReviewer'
   | 'summary'
 
-export interface DesktopModelBinding {
-  provider: DesktopModelBindingProvider
-  modelId?: string
+export interface OpenAiCompatibleProviderProfile {
+  id: string
+  label: string
+  baseUrl: string
 }
+
+export type DesktopModelBinding =
+  | {
+      provider: 'fixture'
+    }
+  | {
+      provider: 'openai-compatible'
+      providerId: string
+      modelId: string
+    }
 
 export type DesktopModelBindings = Record<DesktopModelBindingRole, DesktopModelBinding>
 
@@ -22,21 +34,37 @@ export interface DesktopModelConnectionTestRecord {
 }
 
 export interface ProviderCredentialStatus {
-  provider: 'openai'
+  provider: ProviderCredentialProvider
+  providerId: string
   configured: boolean
   redactedValue?: string
 }
 
 export interface DesktopModelSettingsSnapshot {
+  providers: OpenAiCompatibleProviderProfile[]
   bindings: DesktopModelBindings
-  credentialStatus: ProviderCredentialStatus
+  credentialStatuses: ProviderCredentialStatus[]
   connectionTest: DesktopModelConnectionTestRecord
 }
 
 interface NarrativeDesktopModelSettingsBridge {
+  getProviderProfiles?: () => Promise<OpenAiCompatibleProviderProfile[]>
+  saveProviderProfile?: (profile: OpenAiCompatibleProviderProfile) => Promise<OpenAiCompatibleProviderProfile[]>
+  deleteProviderProfile?: (providerId: string) => Promise<OpenAiCompatibleProviderProfile[]>
+  getProviderCredentialStatus?: (input: {
+    provider: ProviderCredentialProvider
+    providerId: string
+  }) => Promise<ProviderCredentialStatus>
   getModelSettingsSnapshot?: () => Promise<DesktopModelSettingsSnapshot>
-  saveProviderCredential?: (input: { provider: 'openai'; secret: string }) => Promise<ProviderCredentialStatus>
-  deleteProviderCredential?: (provider: 'openai') => Promise<ProviderCredentialStatus>
+  saveProviderCredential?: (input: {
+    provider: ProviderCredentialProvider
+    providerId: string
+    secret: string
+  }) => Promise<ProviderCredentialStatus>
+  deleteProviderCredential?: (input: {
+    provider: ProviderCredentialProvider
+    providerId: string
+  }) => Promise<ProviderCredentialStatus>
   updateModelBinding?: (input: {
     role: DesktopModelBindingRole
     binding: DesktopModelBinding
@@ -60,8 +88,10 @@ export interface ModelSettingsController {
   testing: boolean
   error: string | null
   refreshSnapshot: () => Promise<void>
-  saveOpenAiCredential: (secret: string) => Promise<void>
-  deleteOpenAiCredential: () => Promise<void>
+  saveProviderProfile: (profile: OpenAiCompatibleProviderProfile) => Promise<void>
+  deleteProviderProfile: (providerId: string) => Promise<void>
+  saveProviderCredential: (providerId: string, secret: string) => Promise<void>
+  deleteProviderCredential: (providerId: string) => Promise<void>
   updateBinding: (role: DesktopModelBindingRole, binding: DesktopModelBinding) => Promise<void>
   testConnection: () => Promise<DesktopModelConnectionTestRecord | null>
 }
@@ -75,6 +105,8 @@ function getDesktopBridge() {
 function isModelSettingsBridgeAvailable(bridge: NarrativeDesktopModelSettingsBridge | undefined) {
   return Boolean(
     bridge?.getModelSettingsSnapshot
+      && bridge.saveProviderProfile
+      && bridge.deleteProviderProfile
       && bridge.saveProviderCredential
       && bridge.deleteProviderCredential
       && bridge.updateModelBinding
@@ -84,6 +116,7 @@ function isModelSettingsBridgeAvailable(bridge: NarrativeDesktopModelSettingsBri
 
 function createFixtureSnapshot(): DesktopModelSettingsSnapshot {
   return {
+    providers: [],
     bindings: {
       continuityReviewer: { provider: 'fixture' },
       planner: { provider: 'fixture' },
@@ -94,10 +127,7 @@ function createFixtureSnapshot(): DesktopModelSettingsSnapshot {
     connectionTest: {
       status: 'never',
     },
-    credentialStatus: {
-      configured: false,
-      provider: 'openai',
-    },
+    credentialStatuses: [],
   }
 }
 
@@ -129,7 +159,41 @@ function useModelSettingsControllerState(): ModelSettingsController {
     }
   }
 
-  async function saveOpenAiCredential(secret: string) {
+  async function saveProviderProfile(profile: OpenAiCompatibleProviderProfile) {
+    if (!supported || !bridge?.saveProviderProfile) {
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    try {
+      await bridge.saveProviderProfile(profile)
+      await refreshSnapshot()
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : String(saveError))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function deleteProviderProfile(providerId: string) {
+    if (!supported || !bridge?.deleteProviderProfile) {
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    try {
+      await bridge.deleteProviderProfile(providerId)
+      await refreshSnapshot()
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : String(deleteError))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveProviderCredential(providerId: string, secret: string) {
     if (!supported || !bridge?.saveProviderCredential) {
       return
     }
@@ -138,7 +202,8 @@ function useModelSettingsControllerState(): ModelSettingsController {
     setError(null)
     try {
       await bridge.saveProviderCredential({
-        provider: 'openai',
+        provider: 'openai-compatible',
+        providerId,
         secret,
       })
       await refreshSnapshot()
@@ -149,7 +214,7 @@ function useModelSettingsControllerState(): ModelSettingsController {
     }
   }
 
-  async function deleteOpenAiCredential() {
+  async function deleteProviderCredential(providerId: string) {
     if (!supported || !bridge?.deleteProviderCredential) {
       return
     }
@@ -157,7 +222,10 @@ function useModelSettingsControllerState(): ModelSettingsController {
     setSaving(true)
     setError(null)
     try {
-      await bridge.deleteProviderCredential('openai')
+      await bridge.deleteProviderCredential({
+        provider: 'openai-compatible',
+        providerId,
+      })
       await refreshSnapshot()
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : String(deleteError))
@@ -227,8 +295,10 @@ function useModelSettingsControllerState(): ModelSettingsController {
     testing,
     error,
     refreshSnapshot,
-    saveOpenAiCredential,
-    deleteOpenAiCredential,
+    saveProviderProfile,
+    deleteProviderProfile,
+    saveProviderCredential,
+    deleteProviderCredential,
     updateBinding,
     testConnection,
   }
@@ -259,11 +329,13 @@ export function useDesktopModelSettingsSnapshot() {
     }
 
     let cancelled = false
-    void bridge.getModelSettingsSnapshot().then((snapshot) => {
-      if (!cancelled) {
-        setFallbackSnapshot(snapshot)
-      }
-    }).catch(() => {})
+    void bridge.getModelSettingsSnapshot()
+      .then((snapshot) => {
+        if (!cancelled) {
+          setFallbackSnapshot(snapshot)
+        }
+      })
+      .catch(() => {})
 
     return () => {
       cancelled = true

@@ -49,13 +49,14 @@ export function ProjectRuntimeStatusBadge({
   const capabilityLimitations = showCapabilityLimitations ? getCapabilityLimitations(info, dictionary) : []
   const projectIdentityLabel = info.projectTitle.trim() || info.projectId
   const projectBadgeLabel = getProjectBadgeLabel(info.runtimeKind, dictionary)
-  const hasOpenAiBinding = Object.values(modelSettingsSnapshot?.bindings ?? {}).some((binding) => binding.provider === 'openai')
-  const modelBadgeLabel = hasOpenAiBinding
-    ? dictionary.shell.modelOpenAiLabel
+  const boundProviders = getBoundProviders(modelSettingsSnapshot)
+  const primaryProviderLabel = boundProviders[0]
+  const modelBadgeLabel = primaryProviderLabel
+    ? `${dictionary.shell.modelProviderLabel} ${primaryProviderLabel}`
     : dictionary.shell.modelFixtureLabel
   const showModelSettingsRepair = info.runtimeKind === 'real-local-project'
     && Boolean(modelSettingsController?.supported)
-    && hasUnusableOpenAiBindings(modelSettingsSnapshot)
+    && hasUnusableProviderBindings(modelSettingsSnapshot)
 
   return (
     <div
@@ -73,12 +74,12 @@ export function ProjectRuntimeStatusBadge({
             {projectBadgeLabel}
           </Badge>
         ) : null}
-        <Badge tone={hasOpenAiBinding ? 'accent' : 'neutral'}>
+        <Badge tone={primaryProviderLabel ? 'accent' : 'neutral'}>
           {modelBadgeLabel}
         </Badge>
-        {modelSettingsSnapshot?.credentialStatus ? (
-          <Badge tone={modelSettingsSnapshot.credentialStatus.configured ? 'success' : 'warn'}>
-            {modelSettingsSnapshot.credentialStatus.configured
+        {modelSettingsSnapshot?.credentialStatuses[0] ? (
+          <Badge tone={modelSettingsSnapshot.credentialStatuses.every((status) => status.configured) ? 'success' : 'warn'}>
+            {modelSettingsSnapshot.credentialStatuses.every((status) => status.configured)
               ? dictionary.shell.keyConfigured
               : dictionary.shell.keyMissing}
           </Badge>
@@ -161,16 +162,36 @@ function getProjectBadgeLabel(
   return undefined
 }
 
-function hasUnusableOpenAiBindings(snapshot: ReturnType<typeof useDesktopModelSettingsSnapshot>) {
+function getBoundProviders(snapshot: ReturnType<typeof useDesktopModelSettingsSnapshot>) {
+  if (!snapshot) {
+    return []
+  }
+
+  const labels = new Map(snapshot.providers.map((provider) => [provider.id, provider.label]))
+  const providerIds = new Set(
+    Object.values(snapshot.bindings)
+      .filter((binding) => binding.provider === 'openai-compatible')
+      .map((binding) => binding.providerId),
+  )
+
+  return Array.from(providerIds).map((providerId) => labels.get(providerId) ?? providerId)
+}
+
+function hasUnusableProviderBindings(snapshot: ReturnType<typeof useDesktopModelSettingsSnapshot>) {
   if (!snapshot) {
     return false
   }
 
-  const hasOpenAiBinding = Object.values(snapshot.bindings).some((binding) => binding.provider === 'openai')
-  if (!hasOpenAiBinding) {
+  const providerBindings = Object.values(snapshot.bindings).filter((binding) => binding.provider === 'openai-compatible')
+  if (providerBindings.length === 0) {
     return false
   }
 
-  const hasMissingModelId = Object.values(snapshot.bindings).some((binding) => binding.provider === 'openai' && !binding.modelId?.trim())
-  return hasMissingModelId || !snapshot.credentialStatus.configured || snapshot.connectionTest.status === 'failed'
+  const configuredProviderIds = new Set(
+    snapshot.credentialStatuses.filter((status) => status.configured).map((status) => status.providerId),
+  )
+  const hasMissingModelId = providerBindings.some((binding) => !binding.modelId?.trim())
+  const hasMissingCredential = providerBindings.some((binding) => !configuredProviderIds.has(binding.providerId))
+
+  return hasMissingModelId || hasMissingCredential || snapshot.connectionTest.status === 'failed'
 }

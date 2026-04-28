@@ -5,8 +5,7 @@ import type { SelectedProjectSession } from './project-picker.js'
 import {
   DESKTOP_MODEL_BINDING_ROLES,
   type DesktopModelBindings,
-  type DesktopModelBindingRole,
-  type ProviderCredentialProvider,
+  type OpenAiCompatibleProviderProfile,
 } from '../shared/desktop-bridge-types.js'
 
 export type DesktopLocalRuntimeMode = 'desktop-local'
@@ -28,18 +27,33 @@ export interface LocalApiProcessConfig {
   env: NodeJS.ProcessEnv
 }
 
-const ROLE_ENV_PREFIXES: Record<DesktopModelBindingRole, string> = {
-  continuityReviewer: 'NARRATIVE_CONTINUITY_REVIEWER',
-  planner: 'NARRATIVE_PLANNER',
-  sceneProseWriter: 'NARRATIVE_SCENE_PROSE_WRITER',
-  sceneRevision: 'NARRATIVE_SCENE_REVISION',
-  summary: 'NARRATIVE_SUMMARY',
+export interface ApiRuntimeProviderProfile extends OpenAiCompatibleProviderProfile {
+  apiKey?: string
+}
+
+export interface ApiRuntimeModelSettingsPayload {
+  providers: ApiRuntimeProviderProfile[]
+  bindings: DesktopModelBindings
 }
 
 export interface CreateDesktopRuntimeConfigOptions {
   host?: string
   apiBasePath?: string
   currentProject: Pick<SelectedProjectSession, 'projectId' | 'projectMode' | 'projectTitle'>
+}
+
+const DEFAULT_MODEL_SETTINGS: ApiRuntimeModelSettingsPayload = {
+  bindings: DESKTOP_MODEL_BINDING_ROLES.reduce<DesktopModelBindings>((result, role) => {
+    result[role] = { provider: 'fixture' }
+    return result
+  }, {
+    continuityReviewer: { provider: 'fixture' },
+    planner: { provider: 'fixture' },
+    sceneProseWriter: { provider: 'fixture' },
+    sceneRevision: { provider: 'fixture' },
+    summary: { provider: 'fixture' },
+  }),
+  providers: [],
 }
 
 export function createDesktopRuntimeConfig(
@@ -83,16 +97,14 @@ export function resolveWorkspaceRoot(startDir = process.cwd()): string {
 
 export function createLocalApiProcessConfig({
   currentProject,
-  modelBindings,
+  modelSettings = DEFAULT_MODEL_SETTINGS,
   port,
-  providerCredentials,
   workspaceRoot = resolveWorkspaceRoot(),
   env = process.env,
 }: {
   currentProject: SelectedProjectSession
-  modelBindings?: DesktopModelBindings
+  modelSettings?: ApiRuntimeModelSettingsPayload
   port: number
-  providerCredentials?: Partial<Record<ProviderCredentialProvider, string>>
   workspaceRoot?: string
   env?: NodeJS.ProcessEnv
 }): LocalApiProcessConfig {
@@ -105,6 +117,7 @@ export function createLocalApiProcessConfig({
     NARRATIVE_CONTINUITY_REVIEWER_OPENAI_API_KEY: _continuityApiKey,
     NARRATIVE_CONTINUITY_REVIEWER_OPENAI_MODEL: _continuityModel,
     NARRATIVE_MODEL_PROVIDER: _legacyModelProvider,
+    NARRATIVE_MODEL_SETTINGS_JSON: _legacyModelSettingsJson,
     NARRATIVE_OPENAI_MODEL: _legacyOpenAiModel,
     NARRATIVE_PLANNER_MODEL_PROVIDER: _plannerProvider,
     NARRATIVE_PLANNER_OPENAI_API_KEY: _plannerApiKey,
@@ -122,7 +135,6 @@ export function createLocalApiProcessConfig({
     OPENAI_API_KEY: _legacyOpenAiApiKey,
     ...inheritedEnv
   } = env
-  const bindingEnv = buildModelBindingEnv(modelBindings, providerCredentials)
 
   return {
     args: ['src/server.ts'],
@@ -131,7 +143,7 @@ export function createLocalApiProcessConfig({
     env: {
       ...inheritedEnv,
       HOST: '127.0.0.1',
-      ...bindingEnv,
+      NARRATIVE_MODEL_SETTINGS_JSON: JSON.stringify(modelSettings),
       NARRATIVE_PROJECT_ARTIFACT_DIR: projectArtifactDirPath,
       NARRATIVE_PROJECT_ID: currentProject.projectId,
       NARRATIVE_PROJECT_MODE: currentProject.projectMode,
@@ -142,31 +154,4 @@ export function createLocalApiProcessConfig({
       PORT: String(port),
     },
   }
-}
-
-function buildModelBindingEnv(
-  modelBindings?: DesktopModelBindings,
-  providerCredentials?: Partial<Record<ProviderCredentialProvider, string>>,
-): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {
-    NARRATIVE_MODEL_PROVIDER: 'fixture',
-  }
-
-  for (const role of DESKTOP_MODEL_BINDING_ROLES) {
-    const prefix = ROLE_ENV_PREFIXES[role]
-    const binding = modelBindings?.[role]
-
-    env[`${prefix}_MODEL_PROVIDER`] = binding?.provider ?? 'fixture'
-
-    if (binding?.provider === 'openai' && binding.modelId) {
-      env[`${prefix}_OPENAI_MODEL`] = binding.modelId
-      const apiKey = providerCredentials?.openai?.trim()
-
-      if (apiKey) {
-        env[`${prefix}_OPENAI_API_KEY`] = apiKey
-      }
-    }
-  }
-
-  return env
 }

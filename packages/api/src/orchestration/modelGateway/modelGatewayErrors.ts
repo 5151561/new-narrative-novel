@@ -1,5 +1,5 @@
 export type ModelGatewayRole = 'planner' | 'sceneProseWriter' | 'sceneRevision'
-export type ModelGatewayProvider = 'openai'
+export type ModelGatewayProvider = 'openai-compatible'
 export type ModelGatewayFailureClass = 'provider_error' | 'invalid_output'
 
 interface ModelGatewayMissingConfigInput {
@@ -12,6 +12,8 @@ interface ModelGatewayExecutionInput {
   message: string
   modelId: string
   provider: ModelGatewayProvider
+  providerId?: string
+  providerLabel?: string
   retryable: boolean
   role: ModelGatewayRole
 }
@@ -33,6 +35,8 @@ export class ModelGatewayExecutionError extends Error {
   readonly failureClass: ModelGatewayFailureClass
   readonly modelId: string
   readonly provider: ModelGatewayProvider
+  readonly providerId?: string
+  readonly providerLabel?: string
   readonly retryable: boolean
   readonly role: ModelGatewayRole
 
@@ -42,6 +46,8 @@ export class ModelGatewayExecutionError extends Error {
     this.failureClass = input.failureClass
     this.modelId = input.modelId
     this.provider = input.provider
+    this.providerId = input.providerId
+    this.providerLabel = input.providerLabel
     this.retryable = input.retryable
     this.role = input.role
   }

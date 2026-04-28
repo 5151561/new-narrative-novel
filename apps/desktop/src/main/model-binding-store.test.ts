@@ -20,16 +20,35 @@ afterEach(async () => {
 })
 
 describe('ModelBindingStore', () => {
-  it('persists role-specific model bindings under the selected project narrative directory', async () => {
+  it('persists provider profiles and role-specific model bindings under the selected project narrative directory', async () => {
     const projectRoot = createProjectRoot()
     const store = new ModelBindingStore()
 
-    await expect(store.readBindings(projectRoot)).resolves.toEqual(DEFAULT_DESKTOP_MODEL_BINDINGS)
+    await expect(store.readModelSettingsRecord(projectRoot)).resolves.toEqual({
+      bindings: DEFAULT_DESKTOP_MODEL_BINDINGS,
+      connectionTest: {
+        status: 'never',
+      },
+      providers: [],
+    })
+
+    await expect(store.saveProviderProfile(projectRoot, {
+      baseUrl: 'https://api.deepseek.com/v1',
+      id: 'deepseek',
+      label: 'DeepSeek',
+    })).resolves.toEqual([
+      {
+        baseUrl: 'https://api.deepseek.com/v1',
+        id: 'deepseek',
+        label: 'DeepSeek',
+      },
+    ])
 
     await expect(store.updateBinding(projectRoot, {
       binding: {
-        modelId: 'gpt-5.4',
-        provider: 'openai',
+        modelId: 'deepseek-chat',
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
       },
       role: 'planner',
     })).resolves.toEqual({
@@ -37,8 +56,9 @@ describe('ModelBindingStore', () => {
         provider: 'fixture',
       },
       planner: {
-        modelId: 'gpt-5.4',
-        provider: 'openai',
+        modelId: 'deepseek-chat',
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
       },
       sceneProseWriter: {
         provider: 'fixture',
@@ -53,34 +73,52 @@ describe('ModelBindingStore', () => {
 
     const restored = new ModelBindingStore()
 
-    await expect(restored.readBindings(projectRoot)).resolves.toEqual({
-      continuityReviewer: {
-        provider: 'fixture',
+    await expect(restored.readModelSettingsRecord(projectRoot)).resolves.toEqual({
+      bindings: {
+        continuityReviewer: {
+          provider: 'fixture',
+        },
+        planner: {
+          modelId: 'deepseek-chat',
+          provider: 'openai-compatible',
+          providerId: 'deepseek',
+        },
+        sceneProseWriter: {
+          provider: 'fixture',
+        },
+        sceneRevision: {
+          provider: 'fixture',
+        },
+        summary: {
+          provider: 'fixture',
+        },
       },
-      planner: {
-        modelId: 'gpt-5.4',
-        provider: 'openai',
+      connectionTest: {
+        status: 'never',
       },
-      sceneProseWriter: {
-        provider: 'fixture',
-      },
-      sceneRevision: {
-        provider: 'fixture',
-      },
-      summary: {
-        provider: 'fixture',
-      },
+      providers: [
+        {
+          baseUrl: 'https://api.deepseek.com/v1',
+          id: 'deepseek',
+          label: 'DeepSeek',
+        },
+      ],
     })
 
     await expect(
       readFile(path.join(projectRoot, '.narrative', 'model-bindings.json'), 'utf8'),
-    ).resolves.toContain('"planner"')
+    ).resolves.toContain('"providers"')
   })
 
-  it('persists the last sanitized connection test result and resets it when bindings change', async () => {
+  it('persists the last sanitized connection test result and resets it when providers or bindings change', async () => {
     const projectRoot = createProjectRoot()
     const store = new ModelBindingStore()
 
+    await store.saveProviderProfile(projectRoot, {
+      baseUrl: 'https://api.deepseek.com/v1',
+      id: 'deepseek',
+      label: 'DeepSeek',
+    })
     await expect(store.writeConnectionTest(projectRoot, {
       errorCode: 'invalid_key',
       status: 'failed',
@@ -91,19 +129,11 @@ describe('ModelBindingStore', () => {
       summary: 'OpenAI rejected the configured API key.',
     })
 
-    await expect(store.readModelSettingsRecord(projectRoot)).resolves.toEqual({
-      bindings: DEFAULT_DESKTOP_MODEL_BINDINGS,
-      connectionTest: {
-        errorCode: 'invalid_key',
-        status: 'failed',
-        summary: 'OpenAI rejected the configured API key.',
-      },
-    })
-
     await expect(store.updateBinding(projectRoot, {
       binding: {
         modelId: 'gpt-5.4',
-        provider: 'openai',
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
       },
       role: 'planner',
     })).resolves.toEqual({
@@ -112,7 +142,8 @@ describe('ModelBindingStore', () => {
       },
       planner: {
         modelId: 'gpt-5.4',
-        provider: 'openai',
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
       },
       sceneProseWriter: {
         provider: 'fixture',
@@ -132,7 +163,8 @@ describe('ModelBindingStore', () => {
         },
         planner: {
           modelId: 'gpt-5.4',
-          provider: 'openai',
+          provider: 'openai-compatible',
+          providerId: 'deepseek',
         },
         sceneProseWriter: {
           provider: 'fixture',
@@ -147,6 +179,49 @@ describe('ModelBindingStore', () => {
       connectionTest: {
         status: 'never',
       },
+      providers: [
+        {
+          baseUrl: 'https://api.deepseek.com/v1',
+          id: 'deepseek',
+          label: 'DeepSeek',
+        },
+      ],
     })
+
+    await expect(store.writeConnectionTest(projectRoot, {
+      errorCode: 'invalid_key',
+      status: 'failed',
+      summary: 'OpenAI rejected the configured API key.',
+    })).resolves.toEqual({
+      errorCode: 'invalid_key',
+      status: 'failed',
+      summary: 'OpenAI rejected the configured API key.',
+    })
+
+    await expect(store.deleteProviderProfile(projectRoot, 'deepseek')).resolves.toEqual([])
+    await expect(store.readModelSettingsRecord(projectRoot)).resolves.toEqual({
+      bindings: DEFAULT_DESKTOP_MODEL_BINDINGS,
+      connectionTest: {
+        status: 'never',
+      },
+      providers: [],
+    })
+  })
+
+  it('rejects reserved provider profile ids that are owned by legacy migration slots', async () => {
+    const projectRoot = createProjectRoot()
+    const store = new ModelBindingStore()
+
+    await expect(store.saveProviderProfile(projectRoot, {
+      baseUrl: 'https://api.openai.com/v1',
+      id: 'openai',
+      label: 'OpenAI Legacy',
+    })).rejects.toThrow('Provider profile id openai is reserved.')
+
+    await expect(store.saveProviderProfile(projectRoot, {
+      baseUrl: 'https://api.openai.com/v1',
+      id: 'openai-default',
+      label: 'OpenAI Default',
+    })).rejects.toThrow('Provider profile id openai-default is reserved.')
   })
 })

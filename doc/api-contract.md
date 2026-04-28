@@ -98,16 +98,71 @@ PR54 明确不包含以下能力：
 - arbitrary object CRUD surface beyond the existing API/workbench slices
 - external artifact blob storage
 
-## 1.4 PR48 planner gateway persistence boundary
+## 1.4 OpenAI-Compatible model gateway persistence boundary
 
-PR48 在现有 run / artifact 合同之上补齐了 planner proposal generation 的 API 侧网关与持久化边界：
+当前 model gateway 在现有 run / artifact 合同之上已经收敛到 named provider-profile + role binding 方案：
 
-- scene planner proposal generation 先经过 API 侧 gateway，再落到 run artifact read surface；route shape、请求 schema 与主读写合同本身继续保持 provider-agnostic，不把 OpenAI 或 fixture 细节写进 URL 或命令输入合同。
-- `NARRATIVE_MODEL_PROVIDER`、`NARRATIVE_OPENAI_MODEL`、`OPENAI_API_KEY` 只允许停留在 API config 与 gateway seam 后面；renderer 与 route contract 不感知这些环境变量。
-- 当 gateway 命中 `missing-config`、`provider-error` 或 `invalid-output` 任一失败分支时，API 会回退到 fixture proposal generation，并把 compact provenance 保留在 artifact detail 字段里（例如 `artifact.modelLabel`）；这类 provenance 是刻意暴露的产品读面，但不会扩张成 provider-specific route contract，也不会把原始 provider payload 暴露给事件流。
-- validated planner output 会作为 run state 的一部分进入 PR47 的 project-state file，因此 export / hydrate / fresh-server restart 之后，`proposal-set` detail 仍优先读取持久化后的 planner output，而不是重新拼装一份 fixture 默认文案。
-- run events 继续只保留 lightweight product records 与 refs；prompt text、proposal copy、transcript payload 不进入 event payload。
-- `GET /api/projects/{projectId}/runs/{runId}/events/stream` 已在 PR49 接入 SSE transport；planner provenance 继续只停留在 artifact detail，不扩张为 provider-specific stream payload。
+- scene planner / prose writer generation 先经过 API 侧 gateway，再落到 run artifact read surface；route shape、请求 schema 与主读写合同本身继续保持 provider-agnostic，不把 provider id、base URL、secret 或 prompt 文本写进 URL 或命令输入合同。
+- API runtime 现在优先读取 `NARRATIVE_MODEL_SETTINGS_JSON`，而不是依赖 renderer 直接感知 `NARRATIVE_MODEL_PROVIDER`、`NARRATIVE_OPENAI_MODEL`、`OPENAI_API_KEY`。
+- 兼容旧配置时，legacy OpenAI 环境变量会被归一化为：
+  - provider kind = `openai-compatible`
+  - provider id = `openai-default`
+  - provider label = `OpenAI`
+  - base URL = `https://api.openai.com/v1`
+- 对真实项目（`projectMode = real-project`），当 gateway 命中 `missing-config`、`provider-error` 或 `invalid-output` 任一失败分支时，run 必须诚实失败；不允许静默回退到 fixture provider。
+- validated planner output 会作为 run state 的一部分进入本地 project store，因此 export / hydrate / fresh-server restart 之后，`proposal-set` detail 仍优先读取持久化后的 planner output，而不是重新拼装一份 fixture 默认文案。
+- run events 继续只保留 lightweight product records 与 refs；prompt text、provider transcript、raw response payload、headers、secret、base URL 都不进入 event payload。
+- compact provider provenance 允许进入 artifact detail/read model，但只允许暴露：
+  - `provider = openai-compatible`
+  - `providerId`
+  - `providerLabel`
+  - `modelId`
+  - optional `fallbackReason`
+- `GET /api/projects/{projectId}/runs/{runId}/events/stream` 已在 PR49 接入 SSE transport；provider provenance 继续只停留在 artifact detail，不扩张为 provider-specific stream payload。
+
+### 1.4.1 `NARRATIVE_MODEL_SETTINGS_JSON` 归一化结构
+
+当前 API child process 接收的 normalized runtime payload 约定如下：
+
+```json
+{
+  "providers": [
+    {
+      "id": "deepseek",
+      "label": "DeepSeek",
+      "baseUrl": "https://api.deepseek.com/v1",
+      "apiKey": "sk-live-only"
+    }
+  ],
+  "bindings": {
+    "planner": {
+      "provider": "openai-compatible",
+      "providerId": "deepseek",
+      "modelId": "deepseek-chat"
+    },
+    "sceneProseWriter": {
+      "provider": "openai-compatible",
+      "providerId": "deepseek",
+      "modelId": "deepseek-chat"
+    },
+    "sceneRevision": {
+      "provider": "fixture"
+    },
+    "continuityReviewer": {
+      "provider": "fixture"
+    },
+    "summary": {
+      "provider": "fixture"
+    }
+  }
+}
+```
+
+额外约束：
+
+- `providers[].apiKey` 只允许存在于 API runtime 注入 payload；它不能进入 renderer route、localStorage、git-tracked project state、run artifacts 或 run events。
+- `bindings` 只能引用 `fixture` 或某个 named `providerId`；不允许混入匿名 provider、raw headers、组织级设置或 prompt 模板。
+- `baseUrl` 只允许停留在 desktop main / API runtime config / model binding resolution 边界；它不属于产品 run artifact read model。
 
 ## 2. 当前 API 边界矩阵
 

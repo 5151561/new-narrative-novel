@@ -261,9 +261,12 @@ describe('ProjectRuntimeStatusBadge', () => {
       configurable: true,
       value: {
         getModelSettingsSnapshot: async () => ({
+          providers: [
+            { id: 'deepseek', label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
+          ],
           bindings: {
             continuityReviewer: { provider: 'fixture' },
-            planner: { modelId: 'gpt-5.4', provider: 'openai' },
+            planner: { modelId: 'deepseek-chat', provider: 'openai-compatible', providerId: 'deepseek' },
             sceneProseWriter: { provider: 'fixture' },
             sceneRevision: { provider: 'fixture' },
             summary: { provider: 'fixture' },
@@ -271,12 +274,13 @@ describe('ProjectRuntimeStatusBadge', () => {
           connectionTest: {
             errorCode: 'missing_key',
             status: 'failed',
-            summary: 'OpenAI API key is missing.',
+            summary: 'One or more configured provider credentials are missing.',
           },
-          credentialStatus: {
+          credentialStatuses: [{
             configured: false,
-            provider: 'openai',
-          },
+            provider: 'openai-compatible',
+            providerId: 'deepseek',
+          }],
         }),
       },
     })
@@ -298,7 +302,7 @@ describe('ProjectRuntimeStatusBadge', () => {
 
     const status = screen.getByRole('status', { name: 'Project runtime status' })
     expect(status).toHaveTextContent('Real Project')
-    await screen.findByText('Model OpenAI')
+    await screen.findByText('Model Provider DeepSeek')
     expect(status).toHaveTextContent('Key Missing')
     expect(status).toHaveTextContent('Test Failed')
   })
@@ -319,43 +323,51 @@ describe('ProjectRuntimeStatusBadge', () => {
       name: 'Project runtime status',
     })
 
-    await screen.findByText('Model OpenAI')
-    expect(failingStatus).toHaveTextContent('Model OpenAI')
+    await screen.findByText('Model Provider DeepSeek')
+    expect(failingStatus).toHaveTextContent('Model Provider DeepSeek')
     expect(failingStatus).toHaveTextContent('Key Missing')
     expect(failingStatus).toHaveTextContent('Test Failed')
   })
 
-  it('offers a model-settings repair CTA for real-project openai bindings that are not runnable yet', async () => {
+  it('offers a model-settings repair CTA for real-project provider bindings that are not runnable yet', async () => {
     const user = userEvent.setup()
     const wrapper = createProjectRuntimeTestWrapper()
     const updateModelBinding = vi.fn()
     const deleteProviderCredential = vi.fn()
+    const deleteProviderProfile = vi.fn()
     const saveProviderCredential = vi.fn()
+    const saveProviderProfile = vi.fn()
     const testModelSettings = vi.fn()
 
     Object.defineProperty(window, 'narrativeDesktop', {
       configurable: true,
       value: {
         getModelSettingsSnapshot: async () => ({
+          providers: [
+            { id: 'deepseek', label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
+          ],
           bindings: {
             continuityReviewer: { provider: 'fixture' },
-            planner: { provider: 'openai' },
-            sceneProseWriter: { provider: 'openai', modelId: 'gpt-5.4' },
+            planner: { provider: 'openai-compatible', providerId: 'deepseek', modelId: '' },
+            sceneProseWriter: { provider: 'openai-compatible', providerId: 'deepseek', modelId: 'deepseek-chat' },
             sceneRevision: { provider: 'fixture' },
             summary: { provider: 'fixture' },
           },
           connectionTest: {
             status: 'failed',
             errorCode: 'missing_key',
-            summary: 'OpenAI API key is missing.',
+            summary: 'One or more configured provider credentials are missing.',
           },
-          credentialStatus: {
+          credentialStatuses: [{
             configured: false,
-            provider: 'openai',
-          },
+            provider: 'openai-compatible',
+            providerId: 'deepseek',
+          }],
         }),
         updateModelBinding,
+        deleteProviderProfile,
         deleteProviderCredential,
+        saveProviderProfile,
         saveProviderCredential,
         testModelSettings,
       },

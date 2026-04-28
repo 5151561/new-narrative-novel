@@ -8,26 +8,29 @@ import { createStoryProjectRuntimeEnvironment } from './project-runtime-test-uti
 import { ProjectRuntimeStatusBadge } from './ProjectRuntimeStatusBadge'
 
 interface DesktopModelSettingsStorySnapshot {
+  providers: Array<{ id: string; label: string; baseUrl: string }>
   bindings: {
-    continuityReviewer: { provider: 'fixture' | 'openai'; modelId?: string }
-    planner: { provider: 'fixture' | 'openai'; modelId?: string }
-    sceneProseWriter: { provider: 'fixture' | 'openai'; modelId?: string }
-    sceneRevision: { provider: 'fixture' | 'openai'; modelId?: string }
-    summary: { provider: 'fixture' | 'openai'; modelId?: string }
+    continuityReviewer: { provider: 'fixture' } | { provider: 'openai-compatible'; providerId: string; modelId: string }
+    planner: { provider: 'fixture' } | { provider: 'openai-compatible'; providerId: string; modelId: string }
+    sceneProseWriter: { provider: 'fixture' } | { provider: 'openai-compatible'; providerId: string; modelId: string }
+    sceneRevision: { provider: 'fixture' } | { provider: 'openai-compatible'; providerId: string; modelId: string }
+    summary: { provider: 'fixture' } | { provider: 'openai-compatible'; providerId: string; modelId: string }
   }
   connectionTest: {
     status: 'never' | 'passed' | 'failed'
     errorCode?: 'missing_key' | 'invalid_key' | 'model_not_found' | 'network_error' | 'invalid_output'
     summary?: string
   }
-  credentialStatus: {
+  credentialStatuses: Array<{
     configured: boolean
-    provider: 'openai'
+    provider: 'openai-compatible'
+    providerId: string
     redactedValue?: string
-  }
+  }>
 }
 
 const defaultDesktopModelSettingsSnapshot: DesktopModelSettingsStorySnapshot = {
+  providers: [],
   bindings: {
     continuityReviewer: { provider: 'fixture' },
     planner: { provider: 'fixture' },
@@ -38,10 +41,7 @@ const defaultDesktopModelSettingsSnapshot: DesktopModelSettingsStorySnapshot = {
   connectionTest: {
     status: 'never',
   },
-  credentialStatus: {
-    configured: false,
-    provider: 'openai',
-  },
+  credentialStatuses: [],
 }
 
 function installProjectRuntimeStatusBadgeBridge(snapshot: DesktopModelSettingsStorySnapshot) {
@@ -248,9 +248,12 @@ export const RealLocalProjectOpenAiKeyMissing: Story = {
   },
   parameters: {
     desktopModelSettingsSnapshot: {
+      providers: [
+        { id: 'deepseek', label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
+      ],
       bindings: {
         continuityReviewer: { provider: 'fixture' },
-        planner: { provider: 'openai', modelId: 'gpt-5.4' },
+        planner: { provider: 'openai-compatible', providerId: 'deepseek', modelId: 'deepseek-chat' },
         sceneProseWriter: { provider: 'fixture' },
         sceneRevision: { provider: 'fixture' },
         summary: { provider: 'fixture' },
@@ -258,10 +261,11 @@ export const RealLocalProjectOpenAiKeyMissing: Story = {
       connectionTest: {
         status: 'never',
       },
-      credentialStatus: {
+      credentialStatuses: [{
         configured: false,
-        provider: 'openai',
-      },
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
+      }],
     } satisfies DesktopModelSettingsStorySnapshot,
   },
 }
@@ -283,9 +287,12 @@ export const RealLocalProjectTestFailed: Story = {
   },
   parameters: {
     desktopModelSettingsSnapshot: {
+      providers: [
+        { id: 'deepseek', label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
+      ],
       bindings: {
         continuityReviewer: { provider: 'fixture' },
-        planner: { provider: 'openai', modelId: 'gpt-5.4' },
+        planner: { provider: 'openai-compatible', providerId: 'deepseek', modelId: 'deepseek-chat' },
         sceneProseWriter: { provider: 'fixture' },
         sceneRevision: { provider: 'fixture' },
         summary: { provider: 'fixture' },
@@ -293,12 +300,13 @@ export const RealLocalProjectTestFailed: Story = {
       connectionTest: {
         status: 'failed',
         errorCode: 'missing_key',
-        summary: 'OpenAI API key is missing.',
+        summary: 'One or more configured provider credentials are missing.',
       },
-      credentialStatus: {
+      credentialStatuses: [{
         configured: false,
-        provider: 'openai',
-      },
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
+      }],
     } satisfies DesktopModelSettingsStorySnapshot,
   },
 }

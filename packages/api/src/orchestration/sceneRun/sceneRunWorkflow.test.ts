@@ -41,7 +41,9 @@ describe('startSceneRunWorkflow', () => {
         ],
       },
       plannerProvenance: {
-        provider: 'openai',
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
+        providerLabel: 'DeepSeek',
         modelId: 'gpt-5.4',
       },
     }, {
@@ -55,7 +57,9 @@ describe('startSceneRunWorkflow', () => {
         role: 'planner',
         index: 1,
         provenance: {
-          provider: 'openai',
+          provider: 'openai-compatible',
+          providerId: 'deepseek',
+          providerLabel: 'DeepSeek',
           modelId: 'gpt-5.4',
         },
       },

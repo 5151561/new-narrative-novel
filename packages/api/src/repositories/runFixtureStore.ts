@@ -453,7 +453,7 @@ function createFailedRunUsage(modelId: string) {
     inputTokens: 0,
     outputTokens: 0,
     estimatedCostUsd: 0,
-    provider: 'openai' as const,
+    provider: 'openai-compatible' as const,
     modelId,
   }
 }
@@ -470,11 +470,34 @@ function createFailedRunRuntimeSummary(failureClass: 'provider_error' | 'invalid
   }
 }
 
+function createFailedGatewayProvenance(input: {
+  modelId: string
+  providerId?: string
+  providerLabel?: string
+}): ScenePlannerGatewayResult['provenance'] | SceneProseWriterGatewayResult['provenance'] {
+  if (input.providerId && input.providerLabel) {
+    return {
+      provider: 'openai-compatible',
+      providerId: input.providerId,
+      providerLabel: input.providerLabel,
+      modelId: input.modelId,
+    }
+  }
+
+  return {
+    provider: 'fixture',
+    modelId: input.modelId,
+    fallbackReason: 'provider-error',
+  }
+}
+
 function createFailedStartRunState(input: {
   contextPacket: SceneContextPacketRecord
   failureClass: 'provider_error' | 'invalid_output'
   failureMessage: string
   modelId: string
+  providerId?: string
+  providerLabel?: string
   retryOfRunId?: string
   resumableFromEventId?: string
   sceneId: string
@@ -549,16 +572,13 @@ function createFailedStartRunState(input: {
       sequence: input.sequence,
       index: 1,
       role: 'planner',
-      provenance: {
-        provider: 'openai',
-        modelId: input.modelId,
-      },
+      provenance: createFailedGatewayProvenance(input),
       usage,
       failureDetail: {
         failureClass: input.failureClass,
         message: input.failureMessage,
         modelId: input.modelId,
-        provider: 'openai',
+        provider: 'openai-compatible',
         retryable: true,
         sourceEventIds: [events[4]!.id],
       },
@@ -609,6 +629,8 @@ function applyAcceptedProseGenerationFailure(state: RunState, input: {
   failureClass: 'provider_error' | 'invalid_output'
   failureMessage: string
   modelId: string
+  providerId?: string
+  providerLabel?: string
   reviewId: string
   selectedVariants?: RunSelectedProposalVariantRecord[]
 }) {
@@ -618,16 +640,13 @@ function applyAcceptedProseGenerationFailure(state: RunState, input: {
     sequence: state.sequence,
     index: 3,
     role: 'writer',
-    provenance: {
-      provider: 'openai',
-      modelId: input.modelId,
-    },
+    provenance: createFailedGatewayProvenance(input),
     usage: createFailedRunUsage(input.modelId),
     failureDetail: {
       failureClass: input.failureClass,
       message: input.failureMessage,
       modelId: input.modelId,
-      provider: 'openai',
+      provider: 'openai-compatible',
       retryable: true,
       sourceEventIds: [],
     },
@@ -1170,6 +1189,8 @@ export function createRunFixtureStore(options: {
             failureClass: error.failureClass,
             failureMessage: error.message,
             modelId: error.modelId,
+            providerId: error.providerId,
+            providerLabel: error.providerLabel,
             sceneId: input.sceneId,
             sequence: nextSequence,
           })
@@ -1249,6 +1270,8 @@ export function createRunFixtureStore(options: {
             failureClass: error.failureClass,
             failureMessage: error.message,
             modelId: error.modelId,
+            providerId: error.providerId,
+            providerLabel: error.providerLabel,
             retryOfRunId: state.run.id,
             sceneId: state.run.scopeId,
             sequence: nextSequence,
@@ -1404,6 +1427,8 @@ export function createRunFixtureStore(options: {
             failureClass: error.failureClass,
             failureMessage: error.message,
             modelId: error.modelId,
+            providerId: error.providerId,
+            providerLabel: error.providerLabel,
             retryOfRunId: state.run.id,
             resumableFromEventId: state.run.resumableFromEventId,
             sceneId: state.run.scopeId,
@@ -1590,6 +1615,8 @@ export function createRunFixtureStore(options: {
               failureClass: error.failureClass,
               failureMessage: error.message,
               modelId: error.modelId,
+              providerId: error.providerId,
+              providerLabel: error.providerLabel,
               reviewId: input.reviewId,
               selectedVariants: input.selectedVariants,
             })

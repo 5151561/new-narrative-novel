@@ -7,6 +7,7 @@ import type { SelectedProjectSession } from './project-picker.js'
 import {
   createDesktopRuntimeConfig,
   createLocalApiProcessConfig,
+  type ApiRuntimeModelSettingsPayload,
   resolveWorkspaceRoot,
   type DesktopRuntimeConfig,
   type LocalApiProcessConfig,
@@ -14,7 +15,7 @@ import {
 import type {
   DesktopModelConnectionTestRecord,
   DesktopModelBindings,
-  ProviderCredentialProvider,
+  OpenAiCompatibleProviderProfile,
 } from '../shared/desktop-bridge-types.js'
 
 export type LocalApiStatus = 'stopped' | 'starting' | 'ready' | 'failed'
@@ -40,8 +41,11 @@ export interface LocalApiChildProcess {
 export interface LocalApiSupervisorOptions {
   findAvailablePort?: () => Promise<number>
   getCurrentProject?: () => SelectedProjectSession | null
-  getModelBindings?: (projectRoot: string) => Promise<DesktopModelBindings | undefined>
-  getProviderCredential?: (provider: ProviderCredentialProvider) => Promise<string | null>
+  getModelSettings?: (projectRoot: string) => Promise<{
+    providers: OpenAiCompatibleProviderProfile[]
+    bindings: DesktopModelBindings
+  } | undefined>
+  getProviderCredential?: (providerId: string) => Promise<string | null>
   spawnLocalApi?: (config: LocalApiSpawnConfig) => LocalApiChildProcess
   fetch?: typeof fetch
   sleep?: (ms: number) => Promise<void>
@@ -78,8 +82,11 @@ export class LocalApiSupervisor {
   private stopping = false
   private readonly findPort: () => Promise<number>
   private readonly getCurrentProject: () => SelectedProjectSession | null
-  private readonly getModelBindings: (projectRoot: string) => Promise<DesktopModelBindings | undefined>
-  private readonly getProviderCredential: (provider: ProviderCredentialProvider) => Promise<string | null>
+  private readonly getModelSettings: (projectRoot: string) => Promise<{
+    providers: OpenAiCompatibleProviderProfile[]
+    bindings: DesktopModelBindings
+  } | undefined>
+  private readonly getProviderCredential: (providerId: string) => Promise<string | null>
   private readonly spawnLocalApi: (config: LocalApiSpawnConfig) => LocalApiChildProcess
   private readonly fetchImpl: typeof fetch
   private readonly sleep: (ms: number) => Promise<void>
@@ -90,7 +97,7 @@ export class LocalApiSupervisor {
   constructor({
     findAvailablePort: findPort = () => findAvailablePort(),
     getCurrentProject = () => null,
-    getModelBindings = async () => undefined,
+    getModelSettings = async () => undefined,
     getProviderCredential = async () => null,
     spawnLocalApi = spawnLocalApiProcess,
     fetch: fetchImpl = globalThis.fetch.bind(globalThis),
@@ -101,7 +108,7 @@ export class LocalApiSupervisor {
   }: LocalApiSupervisorOptions = {}) {
     this.findPort = findPort
     this.getCurrentProject = getCurrentProject
-    this.getModelBindings = getModelBindings
+    this.getModelSettings = getModelSettings
     this.getProviderCredential = getProviderCredential
     this.spawnLocalApi = spawnLocalApi
     this.fetchImpl = fetchImpl
@@ -155,13 +162,12 @@ export class LocalApiSupervisor {
       this.runtimeConfig = createDesktopRuntimeConfig(port, {
         currentProject,
       })
-      const modelBindings = await this.getModelBindings(currentProject.projectRoot)
-      const openAiCredential = await this.getProviderCredential('openai')
+      const persistedModelSettings = await this.getModelSettings(currentProject.projectRoot)
+      const modelSettings = await this.resolveRuntimeModelSettings(persistedModelSettings)
       const spawnConfig = createLocalApiProcessConfig({
         currentProject,
-        modelBindings,
+        modelSettings,
         port,
-        providerCredentials: openAiCredential ? { openai: openAiCredential } : undefined,
       })
       const child = this.spawnLocalApi(spawnConfig)
       this.child = child
@@ -215,6 +221,35 @@ export class LocalApiSupervisor {
     this.startupPromise = null
     this.stopChild()
     return this.getSnapshot()
+  }
+
+  private async resolveRuntimeModelSettings(
+    persistedModelSettings?: {
+      providers: OpenAiCompatibleProviderProfile[]
+      bindings: DesktopModelBindings
+    },
+  ): Promise<ApiRuntimeModelSettingsPayload> {
+    const providers = persistedModelSettings?.providers ?? []
+    const runtimeProviders = await Promise.all(providers.map(async (provider) => {
+      const apiKey = await this.getProviderCredential(provider.id)
+      return {
+        ...(apiKey ? { apiKey } : {}),
+        baseUrl: provider.baseUrl,
+        id: provider.id,
+        label: provider.label,
+      }
+    }))
+
+    return {
+      bindings: persistedModelSettings?.bindings ?? {
+        continuityReviewer: { provider: 'fixture' },
+        planner: { provider: 'fixture' },
+        sceneProseWriter: { provider: 'fixture' },
+        sceneRevision: { provider: 'fixture' },
+        summary: { provider: 'fixture' },
+      },
+      providers: runtimeProviders,
+    }
   }
 
   private attachChildHandlers(child: LocalApiChildProcess): void {

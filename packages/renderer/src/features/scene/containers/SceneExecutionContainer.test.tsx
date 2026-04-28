@@ -487,7 +487,7 @@ describe('SceneExecutionContainer', () => {
     expect(startRun).not.toHaveBeenCalled()
   })
 
-  it('opens model settings instead of exposing Run Scene when the real-project openai bindings are incomplete', async () => {
+  it('opens model settings instead of exposing Run Scene when the real-project provider bindings are incomplete', async () => {
     const user = userEvent.setup()
     const setOpen = vi.fn()
 
@@ -512,17 +512,21 @@ describe('SceneExecutionContainer', () => {
           supported: true,
           setOpen,
           snapshot: {
+            providers: [
+              { id: 'deepseek', label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
+            ],
             bindings: {
               continuityReviewer: { provider: 'fixture' },
-              planner: { provider: 'openai' },
-              sceneProseWriter: { modelId: 'gpt-5.4', provider: 'openai' },
+              planner: { provider: 'openai-compatible', providerId: 'deepseek', modelId: '' },
+              sceneProseWriter: { modelId: 'deepseek-chat', provider: 'openai-compatible', providerId: 'deepseek' },
               sceneRevision: { provider: 'fixture' },
               summary: { provider: 'fixture' },
             },
-            credentialStatus: {
+            credentialStatuses: [{
               configured: false,
-              provider: 'openai',
-            },
+              provider: 'openai-compatible',
+              providerId: 'deepseek',
+            }],
             connectionTest: {
               status: 'never',
             },

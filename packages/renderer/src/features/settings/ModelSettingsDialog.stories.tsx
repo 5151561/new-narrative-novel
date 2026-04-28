@@ -15,12 +15,17 @@ function installStoryBridge() {
     value: {
       deleteProviderCredential: async () => ({
         configured: false,
-        provider: 'openai',
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
       }),
+      deleteProviderProfile: async () => [],
       getModelSettingsSnapshot: async () => ({
+        providers: [
+          { id: 'deepseek', label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
+        ],
         bindings: {
           continuityReviewer: { provider: 'fixture' },
-          planner: { modelId: 'gpt-5.4', provider: 'openai' },
+          planner: { modelId: 'deepseek-chat', provider: 'openai-compatible', providerId: 'deepseek' },
           sceneProseWriter: { provider: 'fixture' },
           sceneRevision: { provider: 'fixture' },
           summary: { provider: 'fixture' },
@@ -28,26 +33,29 @@ function installStoryBridge() {
         connectionTest: {
           status: 'failed',
           errorCode: 'missing_key',
-          summary: 'OpenAI API key is missing.',
+          summary: 'One or more configured provider credentials are missing.',
         },
-        credentialStatus: {
+        credentialStatuses: [{
           configured: false,
-          provider: 'openai',
-        },
+          provider: 'openai-compatible',
+          providerId: 'deepseek',
+        }],
       }),
       saveProviderCredential: async () => ({
         configured: true,
-        provider: 'openai',
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
         redactedValue: 'sk-...1234',
       }),
+      saveProviderProfile: async () => [],
       testModelSettings: async () => ({
         status: 'failed',
         errorCode: 'missing_key',
-        summary: 'OpenAI API key is missing.',
+        summary: 'One or more configured provider credentials are missing.',
       }),
       updateModelBinding: async () => ({
         continuityReviewer: { provider: 'fixture' },
-        planner: { modelId: 'gpt-5.4', provider: 'openai' },
+        planner: { modelId: 'deepseek-chat', provider: 'openai-compatible', providerId: 'deepseek' },
         sceneProseWriter: { provider: 'fixture' },
         sceneRevision: { provider: 'fixture' },
         summary: { provider: 'fixture' },

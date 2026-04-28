@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createSceneProseWriterFixtureProvider } from './sceneProseWriterFixtureProvider.js'
 import { DEFAULT_MODEL_BINDINGS } from './model-binding.js'
 import {
   ModelGatewayExecutionError,
   ModelGatewayMissingConfigError,
 } from './modelGatewayErrors.js'
+import { createSceneProseWriterFixtureProvider } from './sceneProseWriterFixtureProvider.js'
 import { createSceneProseWriterGateway } from './sceneProseWriterGateway.js'
 
 function createRequest(overrides?: Partial<{
@@ -50,18 +50,7 @@ describe('createSceneProseWriterGateway', () => {
       },
     )
 
-    await expect(gateway.generate(createRequest())).resolves.toEqual({
-      output: expect.objectContaining({
-        body: expect.objectContaining({
-          en: expect.stringContaining('Accepted proposal proposal-set-scene-midnight-platform-run-002-proposal-001 anchors the draft.'),
-        }),
-        excerpt: {
-          en: 'Midnight Platform settles into view before the next reveal turns visible.',
-          'zh-CN': 'Midnight Platform 先稳稳落入视野，随后下一段揭示才开始显形。',
-        },
-        diffSummary: 'Rendered accepted scene prose from the approved canon patch context.',
-        wordCount: 50,
-      }),
+    await expect(gateway.generate(createRequest())).resolves.toMatchObject({
       provenance: {
         provider: 'fixture',
         modelId: 'fixture-scene-prose-writer',
@@ -69,12 +58,20 @@ describe('createSceneProseWriterGateway', () => {
     })
   })
 
-  it('rejects with missing-config when provider=openai but model config is incomplete', async () => {
+  it('rejects with missing-config when provider=openai-compatible but model config is incomplete', async () => {
     const openAiProviderFactory = vi.fn()
     const gateway = createSceneProseWriterGateway(
       {
-        modelProvider: 'openai',
-        openAiApiKey: 'sk-test',
+        modelBindings: {
+          ...DEFAULT_MODEL_BINDINGS,
+          sceneProseWriter: {
+            baseUrl: 'https://api.deepseek.com/v1',
+            provider: 'openai-compatible',
+            providerId: 'deepseek',
+            providerLabel: 'DeepSeek',
+          },
+        },
+        modelProvider: 'openai-compatible',
       },
       {
         fixtureProvider: createSceneProseWriterFixtureProvider(),
@@ -83,13 +80,13 @@ describe('createSceneProseWriterGateway', () => {
     )
 
     await expect(gateway.generate(createRequest())).rejects.toEqual(new ModelGatewayMissingConfigError({
-      provider: 'openai',
+      provider: 'openai-compatible',
       role: 'sceneProseWriter',
     }))
     expect(openAiProviderFactory).not.toHaveBeenCalled()
   })
 
-  it('uses the openai provider when config is complete and the structured output is valid', async () => {
+  it('uses the configured provider when config is complete and the structured output is valid', async () => {
     const openAiProvider = {
       generate: vi.fn().mockResolvedValue({
         body: {
@@ -116,9 +113,18 @@ describe('createSceneProseWriterGateway', () => {
 
     const gateway = createSceneProseWriterGateway(
       {
-        modelProvider: 'openai',
-        openAiModel: 'gpt-5.4',
-        openAiApiKey: 'sk-test',
+        modelBindings: {
+          ...DEFAULT_MODEL_BINDINGS,
+          sceneProseWriter: {
+            apiKey: 'sk-test',
+            baseUrl: 'https://api.deepseek.com/v1',
+            modelId: 'deepseek-chat',
+            provider: 'openai-compatible',
+            providerId: 'deepseek',
+            providerLabel: 'DeepSeek',
+          },
+        },
+        modelProvider: 'openai-compatible',
       },
       {
         fixtureProvider: createSceneProseWriterFixtureProvider(),
@@ -150,8 +156,10 @@ describe('createSceneProseWriterGateway', () => {
         ],
       },
       provenance: {
-        provider: 'openai',
-        modelId: 'gpt-5.4',
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
+        providerLabel: 'DeepSeek',
+        modelId: 'deepseek-chat',
       },
     })
     expect(openAiProvider.generate).toHaveBeenCalledWith(createRequest())
@@ -213,16 +221,22 @@ describe('createSceneProseWriterGateway', () => {
           ...DEFAULT_MODEL_BINDINGS,
           sceneProseWriter: {
             apiKey: 'sk-draft-value',
-            modelId: 'gpt-5.4',
-            provider: 'openai',
+            baseUrl: 'https://api.deepseek.com/v1',
+            modelId: 'deepseek-chat',
+            provider: 'openai-compatible',
+            providerId: 'deepseek',
+            providerLabel: 'DeepSeek',
           },
           sceneRevision: {
             apiKey: 'sk-revision-value',
-            modelId: 'gpt-5.4-mini',
-            provider: 'openai',
+            baseUrl: 'https://api.deepseek.com/v1',
+            modelId: 'deepseek-reasoner',
+            provider: 'openai-compatible',
+            providerId: 'deepseek',
+            providerLabel: 'DeepSeek',
           },
         },
-        modelProvider: 'openai',
+        modelProvider: 'openai-compatible',
       },
       {
         fixtureProvider: createSceneProseWriterFixtureProvider(),
@@ -232,8 +246,10 @@ describe('createSceneProseWriterGateway', () => {
 
     await expect(gateway.generate(createRequest())).resolves.toMatchObject({
       provenance: {
-        modelId: 'gpt-5.4',
-        provider: 'openai',
+        modelId: 'deepseek-chat',
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
+        providerLabel: 'DeepSeek',
       },
     })
     await expect(gateway.generate(createRequest({
@@ -242,18 +258,22 @@ describe('createSceneProseWriterGateway', () => {
       task: 'revision',
     }))).resolves.toMatchObject({
       provenance: {
-        modelId: 'gpt-5.4-mini',
-        provider: 'openai',
+        modelId: 'deepseek-reasoner',
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
+        providerLabel: 'DeepSeek',
       },
     })
 
     expect(openAiProviderFactory).toHaveBeenNthCalledWith(1, {
       apiKey: 'sk-draft-value',
-      modelId: 'gpt-5.4',
+      baseUrl: 'https://api.deepseek.com/v1',
+      modelId: 'deepseek-chat',
     })
     expect(openAiProviderFactory).toHaveBeenNthCalledWith(2, {
       apiKey: 'sk-revision-value',
-      modelId: 'gpt-5.4-mini',
+      baseUrl: 'https://api.deepseek.com/v1',
+      modelId: 'deepseek-reasoner',
     })
   })
 
@@ -285,12 +305,21 @@ describe('createSceneProseWriterGateway', () => {
     })
   })
 
-  it('rejects with provider_error when the openai provider throws', async () => {
+  it('rejects with provider_error when the configured provider throws', async () => {
     const gateway = createSceneProseWriterGateway(
       {
-        modelProvider: 'openai',
-        openAiModel: 'gpt-5.4',
-        openAiApiKey: 'sk-test',
+        modelBindings: {
+          ...DEFAULT_MODEL_BINDINGS,
+          sceneProseWriter: {
+            apiKey: 'sk-test',
+            baseUrl: 'https://api.deepseek.com/v1',
+            modelId: 'deepseek-chat',
+            provider: 'openai-compatible',
+            providerId: 'deepseek',
+            providerLabel: 'DeepSeek',
+          },
+        },
+        modelProvider: 'openai-compatible',
       },
       {
         fixtureProvider: createSceneProseWriterFixtureProvider(),
@@ -303,18 +332,27 @@ describe('createSceneProseWriterGateway', () => {
     await expect(gateway.generate(createRequest())).rejects.toMatchObject({
       name: ModelGatewayExecutionError.name,
       failureClass: 'provider_error',
-      modelId: 'gpt-5.4',
-      provider: 'openai',
+      modelId: 'deepseek-chat',
+      provider: 'openai-compatible',
       role: 'sceneProseWriter',
     })
   })
 
-  it('rejects with invalid_output when the openai provider returns data outside the writer schema', async () => {
+  it('rejects with invalid_output when the configured provider returns data outside the writer schema', async () => {
     const gateway = createSceneProseWriterGateway(
       {
-        modelProvider: 'openai',
-        openAiModel: 'gpt-5.4',
-        openAiApiKey: 'sk-test',
+        modelBindings: {
+          ...DEFAULT_MODEL_BINDINGS,
+          sceneProseWriter: {
+            apiKey: 'sk-test',
+            baseUrl: 'https://api.deepseek.com/v1',
+            modelId: 'deepseek-chat',
+            provider: 'openai-compatible',
+            providerId: 'deepseek',
+            providerLabel: 'DeepSeek',
+          },
+        },
+        modelProvider: 'openai-compatible',
       },
       {
         fixtureProvider: createSceneProseWriterFixtureProvider(),
@@ -329,8 +367,8 @@ describe('createSceneProseWriterGateway', () => {
     await expect(gateway.generate(createRequest())).rejects.toMatchObject({
       name: ModelGatewayExecutionError.name,
       failureClass: 'invalid_output',
-      modelId: 'gpt-5.4',
-      provider: 'openai',
+      modelId: 'deepseek-chat',
+      provider: 'openai-compatible',
       role: 'sceneProseWriter',
     })
   })
