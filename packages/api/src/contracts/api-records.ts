@@ -398,6 +398,95 @@ export interface StartNextChapterSceneRunRecord {
   selectedScene: ChapterRunNextSceneRecord
 }
 
+export interface ChapterDraftAssemblyTraceRollupRecord {
+  acceptedFactCount: number
+  relatedAssetCount: number
+  sourceProposalCount: number
+  missingLinks: string[]
+}
+
+export interface ChapterDraftAssemblyArtifactRefRecord {
+  kind: 'prose-draft'
+  id: string
+}
+
+export interface ChapterDraftAssemblySceneSectionRecordBase {
+  sceneId: string
+  order: number
+  title: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  backlogStatus: ChapterSceneBacklogStatus
+  proseStatusLabel: LocalizedTextRecord
+  latestDiffSummary?: string
+  warningsCount: number
+  revisionQueueCount?: number
+  draftWordCount?: number
+  traceReady: boolean
+  traceRollup: ChapterDraftAssemblyTraceRollupRecord
+}
+
+export interface ChapterDraftAssemblySceneDraftSectionRecord extends ChapterDraftAssemblySceneSectionRecordBase {
+  kind: 'scene-draft'
+  proseDraft: string
+  sourcePatchId?: string
+  sourceProposals: SceneTraceProposalRefModel[]
+  acceptedFactIds: string[]
+  relatedAssets: SceneTraceAssetRefModel[]
+}
+
+export interface ChapterDraftAssemblySceneGapSectionRecord extends ChapterDraftAssemblySceneSectionRecordBase {
+  kind: 'scene-gap'
+  gapReason: LocalizedTextRecord
+}
+
+export type ChapterDraftAssemblySceneSectionRecord =
+  | ChapterDraftAssemblySceneDraftSectionRecord
+  | ChapterDraftAssemblySceneGapSectionRecord
+
+export interface ChapterDraftAssemblyTransitionSectionRecordBase {
+  fromSceneId: string
+  toSceneId: string
+  fromSceneTitle: LocalizedTextRecord
+  toSceneTitle: LocalizedTextRecord
+}
+
+export interface ChapterDraftAssemblyTransitionDraftSectionRecord extends ChapterDraftAssemblyTransitionSectionRecordBase {
+  kind: 'transition-draft'
+  transitionProse: string
+  artifactRef: ChapterDraftAssemblyArtifactRefRecord
+}
+
+export interface ChapterDraftAssemblyTransitionGapSectionRecord extends ChapterDraftAssemblyTransitionSectionRecordBase {
+  kind: 'transition-gap'
+  gapReason: LocalizedTextRecord
+}
+
+export type ChapterDraftAssemblyTransitionSectionRecord =
+  | ChapterDraftAssemblyTransitionDraftSectionRecord
+  | ChapterDraftAssemblyTransitionGapSectionRecord
+
+export type ChapterDraftAssemblySectionRecord =
+  | ChapterDraftAssemblySceneSectionRecord
+  | ChapterDraftAssemblyTransitionSectionRecord
+
+export type ChapterDraftAssemblySceneRecord = ChapterDraftAssemblySceneSectionRecord
+
+export interface ChapterDraftAssemblyRecord {
+  chapterId: string
+  title: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  sceneCount: number
+  draftedSceneCount: number
+  missingDraftCount: number
+  assembledWordCount: number
+  warningsCount: number
+  queuedRevisionCount: number
+  tracedSceneCount: number
+  missingTraceSceneCount: number
+  scenes: ChapterDraftAssemblySceneRecord[]
+  sections: ChapterDraftAssemblySectionRecord[]
+}
+
 export type StoredReviewDecisionStatus = 'reviewed' | 'deferred' | 'dismissed'
 
 export interface ReviewIssueDecisionRecord {

@@ -219,6 +219,38 @@ describe('createFakeApiRuntime override matching', () => {
     })
   })
 
+  it('exposes chapter draft assembly through the fake API runtime with canonical scene ids and seam sections', async () => {
+    const { requests, runtime } = createFakeApiRuntime({
+      projectId: 'project-1',
+      mockRuntimeOptions: {
+        projectId: 'book-signal-arc',
+      },
+    })
+
+    const assembly = await runtime.chapterClient.getChapterDraftAssembly?.({ chapterId: 'chapter-signals-in-rain' })
+
+    expect(assembly?.chapterId).toBe('chapter-signals-in-rain')
+    expect(assembly?.scenes.map((scene) => scene.sceneId)).toEqual([
+      'scene-midnight-platform',
+      'scene-concourse-delay',
+      'scene-ticket-window',
+      'scene-departure-bell',
+    ])
+    expect(assembly?.sections.map((section) => section.kind)).toEqual([
+      'scene-draft',
+      'transition-gap',
+      'scene-draft',
+      'transition-gap',
+      'scene-draft',
+      'transition-gap',
+      'scene-draft',
+    ])
+    expectRecordedRequest(requests, {
+      method: 'GET',
+      path: '/api/projects/project-1/chapters/chapter-signals-in-rain/draft-assembly',
+    })
+  })
+
   it('supports runtime-info overrides for auth, availability, and malformed-json style failures', async () => {
     const unauthorizedRuntime = createFakeApiRuntime({
       projectId: 'project-unauthorized',

@@ -32,6 +32,35 @@ async function renderFreshApp(search = '') {
       )
     },
   }))
+  vi.doMock('@/features/chapter/hooks/useChapterDraftWorkspaceQuery', async () => {
+    const { buildChapterDraftStoryWorkspace } = await vi.importActual<typeof import('./features/chapter/components/chapter-story-fixture')>(
+      './features/chapter/components/chapter-story-fixture',
+    )
+
+    return {
+      useChapterDraftWorkspaceQuery: () => {
+        const selectedSceneId = new URLSearchParams(window.location.search).get('sceneId') ?? 'scene-concourse-delay'
+
+        return {
+          workspace: buildChapterDraftStoryWorkspace(selectedSceneId),
+          sceneProseStateBySceneId: {},
+          isLoading: false,
+          error: null,
+          refetch: vi.fn(),
+        }
+      },
+    }
+  })
+  vi.doMock('@/features/traceability/hooks/useChapterDraftTraceabilityQuery', () => ({
+    useChapterDraftTraceabilityQuery: () => ({
+      traceability: null,
+      selectedSceneTraceLoading: false,
+      chapterCoverageLoading: false,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    }),
+  }))
   window.history.replaceState({}, '', `/workbench${search}`)
 
   const { default: App } = await import('./App')
@@ -82,7 +111,7 @@ describe('App chapter draft lens smoke', () => {
     })
 
     const concourseSections = await screen.findAllByRole('button', {
-      name: /Scene 2 Concourse Delay Draft handoff ready/i,
+      name: /Scene 2 Concourse Delay/i,
     })
     expect(concourseSections.some((button) => button.getAttribute('aria-current') === 'true')).toBe(true)
 
@@ -110,7 +139,7 @@ describe('App chapter draft lens smoke', () => {
     })
 
     const restoredConcourseSections = await screen.findAllByRole('button', {
-      name: /Scene 2 Concourse Delay Draft handoff ready/i,
+      name: /Scene 2 Concourse Delay/i,
     })
     expect(restoredConcourseSections.some((button) => button.getAttribute('aria-current') === 'true')).toBe(true)
 

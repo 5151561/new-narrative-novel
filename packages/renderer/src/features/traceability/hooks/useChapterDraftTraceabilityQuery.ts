@@ -12,7 +12,7 @@ interface UseChapterDraftTraceabilityQueryInput {
 }
 
 interface ChapterDraftTraceabilityQueryDeps {
-  chapterClient?: Pick<ChapterClient, 'getChapterStructureWorkspace'>
+  chapterClient?: Pick<ChapterClient, 'getChapterStructureWorkspace' | 'getChapterDraftAssembly'>
   sceneClient?: TraceabilitySceneClient
 }
 

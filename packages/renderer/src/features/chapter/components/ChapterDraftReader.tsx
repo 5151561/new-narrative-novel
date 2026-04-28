@@ -48,9 +48,39 @@ function getTraceAssetCountLabel(locale: 'en' | 'zh-CN', count: number) {
   return locale === 'zh-CN' ? `${count} 个资产` : `${count} assets`
 }
 
+function getTransitionStatusLabel(locale: 'en' | 'zh-CN', status: 'ready' | 'gap' | 'weak') {
+  if (status === 'ready') {
+    return locale === 'zh-CN' ? 'Transition ready' : 'Transition ready'
+  }
+
+  if (status === 'weak') {
+    return locale === 'zh-CN' ? 'Transition weak' : 'Transition weak'
+  }
+
+  return locale === 'zh-CN' ? 'Transition gap' : 'Transition gap'
+}
+
+function getTransitionTitle(locale: 'en' | 'zh-CN', fromSceneTitle: string, toSceneTitle: string) {
+  return locale === 'zh-CN'
+    ? `${fromSceneTitle} -> ${toSceneTitle}`
+    : `${fromSceneTitle} -> ${toSceneTitle}`
+}
+
+function buildRenderableSections(workspace: ChapterDraftWorkspaceViewModel) {
+  if (workspace.sections && workspace.sections.length > 0) {
+    return workspace.sections
+  }
+
+  return workspace.scenes.map((scene) => ({
+    kind: 'scene' as const,
+    ...scene,
+  }))
+}
+
 export function ChapterDraftReader({ workspace, runOrchestrationPanel, onSelectScene, onOpenScene }: ChapterDraftReaderProps) {
   const { locale, dictionary } = useI18n()
   const missingDraftCopy = getMissingDraftCopy(locale)
+  const sections = buildRenderableSections(workspace)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -61,7 +91,44 @@ export function ChapterDraftReader({ workspace, runOrchestrationPanel, onSelectS
       {runOrchestrationPanel ? <div className="px-6 pb-2">{runOrchestrationPanel}</div> : null}
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-          {workspace.scenes.map((scene) => {
+          {sections.map((section) => {
+            if (section.kind === 'transition') {
+              return (
+                <section
+                  key={section.id}
+                  className={`rounded-md border px-5 py-4 ${
+                    section.status === 'ready'
+                      ? 'border-line-strong bg-surface-2'
+                      : section.status === 'weak'
+                        ? 'border-line-soft bg-surface-2'
+                        : 'border-dashed border-line-strong bg-surface-2'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
+                        {getTransitionStatusLabel(locale, section.status)}
+                      </p>
+                      <h3 className="mt-1 text-base leading-tight text-text-main">
+                        {getTransitionTitle(locale, section.fromSceneTitle, section.toSceneTitle)}
+                      </h3>
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Badge tone={section.status === 'ready' ? 'success' : section.status === 'weak' ? 'accent' : 'warn'}>
+                        {getTransitionStatusLabel(locale, section.status)}
+                      </Badge>
+                      {section.artifactId ? <Badge tone="neutral">{section.artifactId}</Badge> : null}
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-text-muted">{section.detail}</p>
+                  {section.proseDraft ? (
+                    <p className="mt-3 whitespace-pre-wrap text-[15px] leading-7 text-text-main">{section.proseDraft}</p>
+                  ) : null}
+                </section>
+              )
+            }
+
+            const scene = section
             const active = scene.sceneId === workspace.selectedSceneId
 
             return (

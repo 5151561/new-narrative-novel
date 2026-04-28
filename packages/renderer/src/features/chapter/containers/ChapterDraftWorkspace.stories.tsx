@@ -154,10 +154,17 @@ type Story = StoryObj<typeof meta>
 
 export const Default: Story = {}
 
-export const TraceReady: Story = {
+export const TransitionReady: Story = {
   args: {
     selectedSceneId: 'scene-concourse-delay',
-    variant: 'default',
+    variant: 'transition-ready',
+  },
+}
+
+export const TransitionGap: Story = {
+  args: {
+    selectedSceneId: 'scene-concourse-delay',
+    variant: 'transition-gap',
   },
 }
 
@@ -198,7 +205,7 @@ export const RunningGate: Story = {
 export const LongDraftKeepsDockVisible: Story = {
   args: {
     selectedSceneId: 'scene-concourse-delay',
-    variant: 'missing',
+    variant: 'long-draft',
   },
   render: (args) => (
     <ChapterStoryShell frameClassName="h-screen min-h-[720px] overflow-hidden">

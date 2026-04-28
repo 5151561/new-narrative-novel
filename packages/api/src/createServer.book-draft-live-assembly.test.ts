@@ -128,6 +128,10 @@ describe('fixture API server book draft live assembly', () => {
         kind: 'gap',
         sceneId: 'scene-concourse-delay',
         order: 2,
+        proseStatusLabel: {
+          en: 'Queued for draft',
+          'zh-CN': '待起草',
+        },
         traceReady: false,
         traceRollup: {
           acceptedFactCount: 0,

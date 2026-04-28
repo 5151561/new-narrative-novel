@@ -103,6 +103,9 @@ export const apiRouteContract = {
   chapterStructure({ projectId, chapterId }: { projectId: string; chapterId: string }) {
     return `${chapterBase(projectId, chapterId)}/structure`
   },
+  chapterDraftAssembly({ projectId, chapterId }: { projectId: string; chapterId: string }) {
+    return `${chapterBase(projectId, chapterId)}/draft-assembly`
+  },
   chapterPlanningInput({ projectId, chapterId }: { projectId: string; chapterId: string }) {
     return `${chapterBase(projectId, chapterId)}/planning-input`
   },

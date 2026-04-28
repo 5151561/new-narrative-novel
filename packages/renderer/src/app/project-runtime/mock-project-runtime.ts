@@ -301,6 +301,14 @@ export function createMockProjectRuntime({
       },
     },
     chapterClient: {
+      ...(baseChapterClient.getChapterDraftAssembly
+        ? {
+            async getChapterDraftAssembly(input: Parameters<NonNullable<ChapterClient['getChapterDraftAssembly']>>[0]) {
+              await ensureHydrated()
+              return baseChapterClient.getChapterDraftAssembly!(input)
+            },
+          }
+        : {}),
       async getChapterStructureWorkspace(input) {
         await ensureHydrated()
         return baseChapterClient.getChapterStructureWorkspace(input)

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { BuildBookExportArtifactInput } from '@/features/book/api/book-export-artifact-records'
 import type { BookDraftAssemblyRecord } from '@/features/book/api/book-draft-assembly-records'
+import type { ChapterDraftAssemblyRecord } from '@/features/chapter/api/chapter-draft-assembly-records'
 import type { ChapterStructureWorkspaceRecord } from '@/features/chapter/api/chapter-records'
 import type { ReviewIssueDecisionRecord } from '@/features/review/api/review-decision-records'
 import type { ReviewIssueFixActionRecord } from '@/features/review/api/review-fix-action-records'
@@ -104,6 +105,116 @@ function createTransportMock() {
 
     if (method === 'POST' && path === '/api/projects/project-1/chapters/chapter-1/scenes/scene-2/reorder') {
       return { chapterId: 'chapter-1', scenes: [] }
+    }
+
+    if (method === 'GET' && path === '/api/projects/project-1/chapters/chapter-1/draft-assembly') {
+      return {
+        chapterId: 'chapter-1',
+        title: { en: 'Opening Signals', 'zh-CN': '开场信号' },
+        summary: { en: 'Live chapter assembly', 'zh-CN': '实时章节装配' },
+        sceneCount: 2,
+        draftedSceneCount: 1,
+        missingDraftCount: 1,
+        assembledWordCount: 3,
+        warningsCount: 1,
+        queuedRevisionCount: 0,
+        tracedSceneCount: 1,
+        missingTraceSceneCount: 1,
+        scenes: [
+          {
+            kind: 'scene-draft',
+            sceneId: 'scene-1',
+            order: 1,
+            title: { en: 'Platform', 'zh-CN': '站台' },
+            summary: { en: 'Drafted scene', 'zh-CN': '已成稿场景' },
+            backlogStatus: 'drafted',
+            proseStatusLabel: { en: 'Ready', 'zh-CN': '已就绪' },
+            proseDraft: 'Current manuscript prose.',
+            warningsCount: 0,
+            revisionQueueCount: 0,
+            draftWordCount: 3,
+            traceReady: true,
+            traceRollup: {
+              acceptedFactCount: 2,
+              relatedAssetCount: 1,
+              sourceProposalCount: 1,
+              missingLinks: [],
+            },
+            sourceProposals: [],
+            acceptedFactIds: ['fact-1'],
+            relatedAssets: [],
+          },
+          {
+            kind: 'scene-gap',
+            sceneId: 'scene-2',
+            order: 2,
+            title: { en: 'Concourse', 'zh-CN': '大厅' },
+            summary: { en: 'Gap scene', 'zh-CN': '缺稿场景' },
+            backlogStatus: 'planned',
+            proseStatusLabel: { en: 'Waiting for prose artifact', 'zh-CN': '等待正文产物' },
+            warningsCount: 1,
+            traceReady: false,
+            traceRollup: {
+              acceptedFactCount: 0,
+              relatedAssetCount: 0,
+              sourceProposalCount: 0,
+              missingLinks: ['trace'],
+            },
+            gapReason: { en: 'Gap stays explicit.', 'zh-CN': '缺口保持显式。' },
+          },
+        ],
+        sections: [
+          {
+            kind: 'scene-draft',
+            sceneId: 'scene-1',
+            order: 1,
+            title: { en: 'Platform', 'zh-CN': '站台' },
+            summary: { en: 'Drafted scene', 'zh-CN': '已成稿场景' },
+            backlogStatus: 'drafted',
+            proseStatusLabel: { en: 'Ready', 'zh-CN': '已就绪' },
+            proseDraft: 'Current manuscript prose.',
+            warningsCount: 0,
+            revisionQueueCount: 0,
+            draftWordCount: 3,
+            traceReady: true,
+            traceRollup: {
+              acceptedFactCount: 2,
+              relatedAssetCount: 1,
+              sourceProposalCount: 1,
+              missingLinks: [],
+            },
+            sourceProposals: [],
+            acceptedFactIds: ['fact-1'],
+            relatedAssets: [],
+          },
+          {
+            kind: 'transition-gap',
+            fromSceneId: 'scene-1',
+            toSceneId: 'scene-2',
+            fromSceneTitle: { en: 'Platform', 'zh-CN': '站台' },
+            toSceneTitle: { en: 'Concourse', 'zh-CN': '大厅' },
+            gapReason: { en: 'No artifact-backed transition draft.', 'zh-CN': '没有带产物引用的过渡草稿。' },
+          },
+          {
+            kind: 'scene-gap',
+            sceneId: 'scene-2',
+            order: 2,
+            title: { en: 'Concourse', 'zh-CN': '大厅' },
+            summary: { en: 'Gap scene', 'zh-CN': '缺稿场景' },
+            backlogStatus: 'planned',
+            proseStatusLabel: { en: 'Waiting for prose artifact', 'zh-CN': '等待正文产物' },
+            warningsCount: 1,
+            traceReady: false,
+            traceRollup: {
+              acceptedFactCount: 0,
+              relatedAssetCount: 0,
+              sourceProposalCount: 0,
+              missingLinks: ['trace'],
+            },
+            gapReason: { en: 'Gap stays explicit.', 'zh-CN': '缺口保持显式。' },
+          },
+        ],
+      } satisfies ChapterDraftAssemblyRecord
     }
 
     if (method === 'PATCH' && path === '/api/projects/project-1/chapters/chapter-1/scenes/scene-2/structure') {
@@ -554,6 +665,22 @@ describe('api project runtime', () => {
       method: 'POST',
       path: '/api/projects/project-1/chapters/chapter-1/scenes/scene-2/reorder',
       body: { targetIndex: 3 },
+    })
+  })
+
+  it('uses the live chapter draft assembly endpoint', async () => {
+    const transport = createTransportMock()
+    const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })
+
+    await expect(runtime.chapterClient.getChapterDraftAssembly?.({
+      chapterId: 'chapter-1',
+    })).resolves.toMatchObject({
+      chapterId: 'chapter-1',
+      assembledWordCount: 3,
+    })
+    expect(transport).toHaveBeenCalledWith({
+      method: 'GET',
+      path: '/api/projects/project-1/chapters/chapter-1/draft-assembly',
     })
   })
 

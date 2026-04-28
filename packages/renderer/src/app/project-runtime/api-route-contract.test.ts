@@ -29,6 +29,15 @@ describe('api route contract', () => {
     ).toBe('/api/projects/project-1/chapters/chapter-1/scenes/scene-2/structure')
   })
 
+  it('builds the chapter draft assembly route', () => {
+    expect(
+      apiRouteContract.chapterDraftAssembly({
+        projectId: 'project-1',
+        chapterId: 'chapter-1',
+      }),
+    ).toBe('/api/projects/project-1/chapters/chapter-1/draft-assembly')
+  })
+
   it('builds chapter backlog planning and proposal routes', () => {
     expect(
       apiRouteContract.chapterPlanningInput({

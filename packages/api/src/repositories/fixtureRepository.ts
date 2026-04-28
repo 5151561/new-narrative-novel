@@ -7,6 +7,13 @@ import type {
   BookDraftAssemblySceneGapRecord,
   BookDraftAssemblySceneRecord,
   BookDraftAssemblyTraceRollupRecord,
+  ChapterDraftAssemblyRecord,
+  ChapterDraftAssemblySceneGapSectionRecord,
+  ChapterDraftAssemblySceneRecord,
+  ChapterDraftAssemblySectionRecord,
+  ChapterDraftAssemblyTraceRollupRecord,
+  ChapterDraftAssemblyTransitionDraftSectionRecord,
+  ChapterDraftAssemblyTransitionGapSectionRecord,
   ChapterBacklogPlanningRecord,
   ChapterBacklogProposalSceneRecord,
   BookExperimentBranchRecord,
@@ -117,6 +124,8 @@ function localizeCurrentSceneProseStatusLabel(statusLabel: string) {
       return localizedText(statusLabel, '修订候选已就绪')
     case 'Ready for revision pass':
       return localizedText(statusLabel, '可进入修订轮')
+    case 'Draft handoff ready':
+      return localizedText(statusLabel, '草稿交接已就绪')
     case 'Waiting for prose artifact':
       return localizedText(statusLabel, '等待正文产物')
     case 'Missing draft':
@@ -557,6 +566,7 @@ export interface FixtureRepository {
   getProjectRuntimeInfo(projectId: string): ProjectRuntimeInfoRecord
   getBookStructure(projectId: string, bookId: string): BookStructureRecord | null
   getBookDraftAssembly(projectId: string, bookId: string): BookDraftAssemblyRecord | null
+  getChapterDraftAssembly(projectId: string, chapterId: string): ChapterDraftAssemblyRecord | null
   getBookManuscriptCheckpoints(projectId: string, bookId: string): BookManuscriptCheckpointRecord[]
   getBookManuscriptCheckpoint(projectId: string, bookId: string, checkpointId: string): BookManuscriptCheckpointRecord | null
   getBookExportProfiles(projectId: string, bookId: string): BookExportProfileRecord[]
@@ -1254,6 +1264,163 @@ export function createFixtureRepository(options: {
     }
   }
 
+  function buildChapterDraftAssemblyTraceRollup(sceneId: string, project: FixtureProjectData): ChapterDraftAssemblyTraceRollupRecord {
+    return buildDraftAssemblyTraceRollup(sceneId, project)
+  }
+
+  function buildChapterDraftAssemblyGapReason(input: {
+    hasSceneRecord: boolean
+    hasConcreteDraft: boolean
+  }) {
+    return buildDraftAssemblyGapReason(input)
+  }
+
+  function buildChapterDraftAssemblyTransitionGapReason() {
+    return localizedText(
+      'No artifact-backed transition draft has been materialized for this seam yet.',
+      '这条接缝还没有生成带产物引用的过渡草稿。',
+    )
+  }
+
+  function buildChapterDraftAssemblySceneRecord(input: {
+    scene: ChapterStructureWorkspaceRecord['scenes'][number]
+    project: FixtureProjectData
+  }): ChapterDraftAssemblySceneRecord {
+    const sceneFixture = input.project.scenes[input.scene.id]
+    const prose = sceneFixture?.prose
+    const proseDraft = prose?.proseDraft
+    const traceRollup = buildChapterDraftAssemblyTraceRollup(input.scene.id, input.project)
+    const draftWordCount = deriveDraftWordCount(proseDraft, prose?.draftWordCount)
+    const hasConcreteDraft = hasConcreteProseDraft(proseDraft)
+    const proseStatusLabel = prose?.statusLabel
+      ? localizeCurrentSceneProseStatusLabel(prose.statusLabel)
+      : input.scene.proseStatusLabel
+    const common = {
+      sceneId: input.scene.id,
+      order: input.scene.order,
+      title: clone(input.scene.title),
+      summary: clone(input.scene.summary),
+      backlogStatus: input.scene.backlogStatus,
+      proseStatusLabel: clone(proseStatusLabel),
+      latestDiffSummary: prose?.latestDiffSummary,
+      warningsCount: prose?.warningsCount ?? 0,
+      revisionQueueCount: prose?.revisionQueueCount,
+      draftWordCount,
+      traceReady: !traceRollup.missingLinks.includes('trace'),
+      traceRollup,
+    }
+
+    if (!sceneFixture || !hasConcreteDraft) {
+      const gapRecord: ChapterDraftAssemblySceneGapSectionRecord = {
+        ...common,
+        kind: 'scene-gap',
+        gapReason: buildChapterDraftAssemblyGapReason({
+          hasSceneRecord: Boolean(sceneFixture),
+          hasConcreteDraft,
+        }),
+      }
+      return gapRecord
+    }
+
+    return {
+      ...common,
+      kind: 'scene-draft',
+      proseDraft: proseDraft!.trim(),
+      sourcePatchId: prose?.traceSummary?.sourcePatchId,
+      sourceProposals: clone(prose?.traceSummary?.sourceProposals ?? []),
+      acceptedFactIds: clone(prose?.traceSummary?.acceptedFactIds ?? []),
+      relatedAssets: clone(prose?.traceSummary?.relatedAssets ?? []),
+    }
+  }
+
+  function buildChapterDraftAssemblyTransitionSection(input: {
+    fromScene: ChapterDraftAssemblySceneRecord
+    toScene: ChapterDraftAssemblySceneRecord
+    transitionDraft?: {
+      transitionProse?: string
+      artifactId?: string
+    }
+  }): ChapterDraftAssemblyTransitionDraftSectionRecord | ChapterDraftAssemblyTransitionGapSectionRecord {
+    const transitionProse = input.transitionDraft?.transitionProse?.trim()
+    const artifactId = input.transitionDraft?.artifactId?.trim()
+
+    if (transitionProse && artifactId) {
+      return {
+        kind: 'transition-draft',
+        fromSceneId: input.fromScene.sceneId,
+        toSceneId: input.toScene.sceneId,
+        fromSceneTitle: clone(input.fromScene.title),
+        toSceneTitle: clone(input.toScene.title),
+        transitionProse,
+        artifactRef: {
+          kind: 'prose-draft',
+          id: artifactId,
+        },
+      }
+    }
+
+    return {
+      kind: 'transition-gap',
+      fromSceneId: input.fromScene.sceneId,
+      toSceneId: input.toScene.sceneId,
+      fromSceneTitle: clone(input.fromScene.title),
+      toSceneTitle: clone(input.toScene.title),
+      gapReason: buildChapterDraftAssemblyTransitionGapReason(),
+    }
+  }
+
+  function buildChapterDraftAssemblyRecord(input: {
+    chapterId: string
+    project: FixtureProjectData
+  }): ChapterDraftAssemblyRecord | null {
+    const chapter = input.project.chapters[input.chapterId]
+    if (!chapter) {
+      return null
+    }
+
+    const scenes = [...chapter.scenes]
+      .sort((left, right) => left.order - right.order)
+      .map((scene) => buildChapterDraftAssemblySceneRecord({
+        scene,
+        project: input.project,
+      }))
+    const sections: ChapterDraftAssemblySectionRecord[] = []
+    for (const [index, scene] of scenes.entries()) {
+      sections.push(scene)
+      const nextScene = scenes[index + 1]
+      if (!nextScene) {
+        continue
+      }
+
+      sections.push(buildChapterDraftAssemblyTransitionSection({
+        fromScene: scene,
+        toScene: nextScene,
+      }))
+    }
+
+    const draftedSceneCount = scenes.filter((scene) => scene.kind === 'scene-draft').length
+    const warningsCount = scenes.reduce((total, scene) => total + scene.warningsCount, 0)
+    const queuedRevisionCount = scenes.reduce((total, scene) => total + (scene.revisionQueueCount ?? 0), 0)
+    const tracedSceneCount = scenes.filter((scene) => scene.traceReady).length
+    const assembledWordCount = scenes.reduce((total, scene) => total + (scene.draftWordCount ?? 0), 0)
+
+    return {
+      chapterId: chapter.chapterId,
+      title: clone(chapter.title),
+      summary: clone(chapter.summary),
+      sceneCount: scenes.length,
+      draftedSceneCount,
+      missingDraftCount: scenes.length - draftedSceneCount,
+      assembledWordCount,
+      warningsCount,
+      queuedRevisionCount,
+      tracedSceneCount,
+      missingTraceSceneCount: scenes.length - tracedSceneCount,
+      scenes,
+      sections,
+    }
+  }
+
   function buildBookDraftAssemblyChapterRecord(input: {
     chapterId: string
     order: number
@@ -1338,6 +1505,12 @@ export function createFixtureRepository(options: {
         assembledWordCount,
         chapters,
       })
+    },
+    getChapterDraftAssembly(projectId, chapterId) {
+      return clone(buildChapterDraftAssemblyRecord({
+        chapterId,
+        project: getProject(projectId),
+      }))
     },
     getBookManuscriptCheckpoints(projectId, bookId) {
       return clone(getProject(projectId).manuscriptCheckpoints[bookId] ?? [])

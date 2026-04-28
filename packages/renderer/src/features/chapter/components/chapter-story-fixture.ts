@@ -5,7 +5,12 @@ import type {
   ChapterDraftTraceCoverageViewModel,
 } from '@/features/traceability/types/traceability-view-models'
 
-import type { ChapterDraftWorkspaceViewModel } from '../types/chapter-draft-view-models'
+import type {
+  ChapterDraftSectionViewModel,
+  ChapterDraftTransitionSectionViewModel,
+  ChapterDraftTransitionStatus,
+  ChapterDraftWorkspaceViewModel,
+} from '../types/chapter-draft-view-models'
 import type { ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
 
 type LocalizedText = Record<Locale, string>
@@ -403,10 +408,114 @@ function buildDraftScenes(locale: Locale) {
   }))
 }
 
+function buildTransitionDetail(
+  locale: Locale,
+  status: ChapterDraftTransitionStatus,
+  fallbackDetail?: string,
+) {
+  if (fallbackDetail) {
+    return fallbackDetail
+  }
+
+  if (status === 'ready') {
+    return pick(
+      locale,
+      text(
+        'Artifact-backed bridge between adjacent drafted scenes.',
+        '带产物引用的过渡正文已经把相邻草稿场景接起来了。',
+      ),
+    )
+  }
+
+  if (status === 'weak') {
+    return pick(
+      locale,
+      text(
+        'Adjacent scene drafts exist, but the seam still lacks artifact-backed transition prose.',
+        '相邻场景都已有草稿，但这条接缝还缺少带产物引用的过渡正文。',
+      ),
+    )
+  }
+
+  return pick(
+    locale,
+    text(
+      'Keep the seam explicit until the adjacent scene drafts are ready.',
+      '保持这条接缝显式可见，直到相邻场景草稿准备就绪。',
+    ),
+  )
+}
+
+function buildDraftSections(
+  locale: Locale,
+  scenes: ChapterDraftWorkspaceViewModel['scenes'],
+  transitionOverrides: Record<string, {
+    status: ChapterDraftTransitionStatus
+    detail?: string
+    proseDraft?: string
+    artifactId?: string
+  }> = {},
+) {
+  const sections: ChapterDraftSectionViewModel[] = []
+
+  for (const [index, scene] of scenes.entries()) {
+    sections.push({
+      kind: 'scene',
+      ...scene,
+    })
+
+    const nextScene = scenes[index + 1]
+    if (!nextScene) {
+      continue
+    }
+
+    const id = `${scene.sceneId}::${nextScene.sceneId}`
+    const override = transitionOverrides[id]
+    const status = override?.status ?? (!scene.isMissingDraft && !nextScene.isMissingDraft ? 'weak' : 'gap')
+
+    sections.push({
+      kind: 'transition',
+      id,
+      fromSceneId: scene.sceneId,
+      toSceneId: nextScene.sceneId,
+      fromSceneTitle: scene.title,
+      toSceneTitle: nextScene.title,
+      status,
+      detail: buildTransitionDetail(locale, status, override?.detail),
+      proseDraft: status === 'ready' ? override?.proseDraft : undefined,
+      artifactId: status === 'ready' ? override?.artifactId : undefined,
+    })
+  }
+
+  return sections
+}
+
 function buildDraftWorkspace(
   selectedSceneId: string,
   locale: Locale,
   scenes = buildDraftScenes(locale),
+  transitionOverrides: Record<string, {
+    status: ChapterDraftTransitionStatus
+    detail?: string
+    proseDraft?: string
+    artifactId?: string
+  }> = {
+    'scene-midnight-platform::scene-concourse-delay': {
+      status: 'weak',
+    },
+    'scene-concourse-delay::scene-ticket-window': {
+      status: 'ready',
+      detail: pick(
+        locale,
+        text(
+          'Artifact-backed bridge between the crowd bottleneck and the ticket decision.',
+          '带产物引用的过渡正文已经把人群瓶颈与售票决断接起来了。',
+        ),
+      ),
+      proseDraft: pick(locale, text('Artifact-backed handoff.', '带产物引用的交接段。')),
+      artifactId: 'transition-artifact-1',
+    },
+  },
   overrides?: Partial<ChapterDraftWorkspaceViewModel>,
 ): ChapterDraftWorkspaceViewModel {
   const selectedScene = scenes.find((scene) => scene.sceneId === selectedSceneId) ?? scenes[0]!
@@ -564,6 +673,23 @@ function buildDraftWorkspace(
       .map((scene) => scene.sceneId),
   }
   const selectedSceneTraceability = selectedSceneTraceabilityBySceneId[selectedScene.sceneId] ?? null
+  const sections = buildDraftSections(locale, scenes, transitionOverrides)
+  const transitionSections = sections.filter((section): section is ChapterDraftTransitionSectionViewModel => section.kind === 'transition')
+  const transitionSupport = {
+    readyCount: transitionSections.filter((section) => section.status === 'ready').length,
+    weakCount: transitionSections.filter((section) => section.status === 'weak').length,
+    gapCount: transitionSections.filter((section) => section.status === 'gap').length,
+    seams: transitionSections
+      .filter((section) => section.fromSceneId === selectedScene.sceneId || section.toSceneId === selectedScene.sceneId)
+      .map((section) => ({
+        id: section.id,
+        direction: section.toSceneId === selectedScene.sceneId ? 'incoming' as const : 'outgoing' as const,
+        status: section.status,
+        counterpartTitle: section.toSceneId === selectedScene.sceneId ? section.fromSceneTitle : section.toSceneTitle,
+        detail: section.detail,
+        artifactId: section.artifactId,
+      })),
+  }
 
   return {
     chapterId: 'chapter-signals-in-rain',
@@ -574,6 +700,7 @@ function buildDraftWorkspace(
       ...scene,
       traceSummary: traceSummaryBySceneId[scene.sceneId],
     })),
+    sections,
     assembledWordCount,
     draftedSceneCount,
     missingDraftCount,
@@ -596,6 +723,7 @@ function buildDraftWorkspace(
         warningsCount,
         queuedRevisionCount,
       },
+      transitionSupport,
       selectedSceneTraceability,
       chapterTraceCoverage,
     },
@@ -604,6 +732,9 @@ function buildDraftWorkspace(
       warningsCount,
       queuedRevisionCount,
       waitingReviewCount: scenes.filter((scene) => scene.backlogStatus === 'needs_review').length,
+      transitionGapCount: transitionSections.filter((section) => section.status === 'gap').length,
+      transitionReadyCount: transitionSections.filter((section) => section.status === 'ready').length,
+      transitionWeakCount: transitionSections.filter((section) => section.status === 'weak').length,
       runnableScene: (() => {
         const runnableScene = scenes.find((scene) => scene.backlogStatus === 'planned')
         return runnableScene
@@ -620,6 +751,12 @@ function buildDraftWorkspace(
       waitingReviewScenes: scenes
         .filter((scene) => scene.backlogStatus === 'needs_review')
         .map((scene) => ({ sceneId: scene.sceneId, title: scene.title, detail: scene.runStatusLabel })),
+      transitionGapSections: transitionSections
+        .filter((section) => section.status === 'gap')
+        .map((section) => ({ sceneId: section.id, title: `${section.fromSceneTitle} -> ${section.toSceneTitle}`, detail: section.detail })),
+      transitionWeakSections: transitionSections
+        .filter((section) => section.status === 'weak')
+        .map((section) => ({ sceneId: section.id, title: `${section.fromSceneTitle} -> ${section.toSceneTitle}`, detail: section.detail })),
     },
     ...overrides,
   }
@@ -653,11 +790,21 @@ export function buildChapterDraftMissingStoryWorkspace(
   )
 
   return buildDraftWorkspace(selectedSceneId, locale, scenes, {
+    'scene-midnight-platform::scene-concourse-delay': {
+      status: 'gap',
+    },
+    'scene-concourse-delay::scene-ticket-window': {
+      status: 'weak',
+    },
+  }, {
     dockSummary: {
       missingDraftCount: scenes.filter((scene) => scene.isMissingDraft).length,
       warningsCount: scenes.reduce((total, scene) => total + scene.warningsCount, 0),
       queuedRevisionCount: scenes.reduce((total, scene) => total + (scene.revisionQueueCount ?? 0), 0),
       waitingReviewCount: scenes.filter((scene) => scene.backlogStatus === 'needs_review').length,
+      transitionGapCount: 1,
+      transitionReadyCount: 0,
+      transitionWeakCount: 1,
       runnableScene: (() => {
         const runnableScene = scenes.find((scene) => scene.backlogStatus === 'planned')
         return runnableScene
@@ -680,11 +827,39 @@ export function buildChapterDraftMissingStoryWorkspace(
       waitingReviewScenes: scenes
         .filter((scene) => scene.backlogStatus === 'needs_review')
         .map((scene) => ({ sceneId: scene.sceneId, title: scene.title, detail: scene.runStatusLabel })),
+      transitionGapSections: [
+        {
+          sceneId: 'scene-midnight-platform::scene-concourse-delay',
+          title: `${pick(locale, text('Midnight Platform', '午夜站台'))} -> ${pick(locale, text('Concourse Delay', '候车厅延误'))}`,
+          detail: buildTransitionDetail(locale, 'gap'),
+        },
+      ],
+      transitionWeakSections: [
+        {
+          sceneId: 'scene-concourse-delay::scene-ticket-window',
+          title: `${pick(locale, text('Concourse Delay', '候车厅延误'))} -> ${pick(locale, text('Ticket Window', '售票窗'))}`,
+          detail: buildTransitionDetail(locale, 'weak'),
+        },
+      ],
     },
   })
 }
 
 export function buildChapterDraftWaitingReviewStoryWorkspace(
+  selectedSceneId: string,
+  locale: Locale = 'en',
+): ChapterDraftWorkspaceViewModel {
+  return buildDraftWorkspace(selectedSceneId, locale)
+}
+
+export function buildChapterDraftTransitionGapStoryWorkspace(
+  selectedSceneId: string,
+  locale: Locale = 'en',
+): ChapterDraftWorkspaceViewModel {
+  return buildChapterDraftMissingStoryWorkspace(selectedSceneId, locale)
+}
+
+export function buildChapterDraftTransitionReadyStoryWorkspace(
   selectedSceneId: string,
   locale: Locale = 'en',
 ): ChapterDraftWorkspaceViewModel {
@@ -768,9 +943,23 @@ export function buildQuietChapterDraftStoryWorkspace(
     },
   ]
 
-  return buildDraftWorkspace(selectedSceneId, locale, scenes, {
+  return buildDraftWorkspace(selectedSceneId, locale, scenes, {}, {
     chapterId: 'chapter-open-water-signals',
     title: pick(locale, text('Open Water Signals', '开阔水域信号')),
     summary: pick(locale, text('A quieter chapter draft with one stable handoff scene.', '一个更安静的章节草稿，只保留一个稳定的交接场景。')),
   })
+}
+
+export function buildLongChapterDraftStoryWorkspace(
+  selectedSceneId: string,
+  locale: Locale = 'en',
+): ChapterDraftWorkspaceViewModel {
+  const workspace = buildDraftWorkspace(selectedSceneId, locale)
+  const scenes = workspace.scenes.map((scene) => ({
+    ...scene,
+    proseDraft: scene.proseDraft ? `${scene.proseDraft}\n\n${scene.proseDraft}\n\n${scene.proseDraft}` : scene.proseDraft,
+    draftWordCount: scene.proseDraft ? (scene.draftWordCount ?? 0) * 3 : scene.draftWordCount,
+  }))
+
+  return buildDraftWorkspace(selectedSceneId, locale, scenes)
 }

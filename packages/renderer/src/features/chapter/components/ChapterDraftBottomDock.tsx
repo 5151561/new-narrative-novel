@@ -50,7 +50,12 @@ function SupportList({
 export function ChapterDraftBottomDock({ summary, activity }: ChapterDraftBottomDockProps) {
   const { locale } = useI18n()
   const [activeTab, setActiveTab] = useState<ChapterDraftBottomDockTab>('problems')
-  const issueCount = summary.missingDraftCount + summary.warningsCount + summary.queuedRevisionCount + summary.waitingReviewCount
+  const issueCount = summary.missingDraftCount
+    + summary.warningsCount
+    + summary.queuedRevisionCount
+    + summary.waitingReviewCount
+    + summary.transitionGapCount
+    + summary.transitionWeakCount
 
   return (
     <WorkbenchBottomDockFrame
@@ -97,6 +102,16 @@ export function ChapterDraftBottomDock({ summary, activity }: ChapterDraftBottom
                     label: locale === 'zh-CN' ? '等待 Review' : 'Waiting review',
                     value: `${summary.waitingReviewCount}`,
                   },
+                  {
+                    id: 'transition-gap-count',
+                    label: locale === 'zh-CN' ? '接缝缺口' : 'Transition gaps',
+                    value: `${summary.transitionGapCount}`,
+                  },
+                  {
+                    id: 'transition-weak-count',
+                    label: locale === 'zh-CN' ? '脆弱接缝' : 'Weak seams',
+                    value: `${summary.transitionWeakCount}`,
+                  },
                 ]}
               />
               {summary.runnableScene ? (
@@ -131,6 +146,18 @@ export function ChapterDraftBottomDock({ summary, activity }: ChapterDraftBottom
                 items={summary.waitingReviewScenes}
                 emptyTitle={locale === 'zh-CN' ? '没有等待 Review 的场景' : 'No review gates waiting'}
                 emptyMessage={locale === 'zh-CN' ? '当前章节没有停在 review 的场景。' : 'No chapter scenes are currently stopped at review.'}
+              />
+              <SupportList
+                title={locale === 'zh-CN' ? '接缝缺口' : 'Transition gaps'}
+                items={summary.transitionGapSections}
+                emptyTitle={locale === 'zh-CN' ? '没有显式接缝缺口' : 'No explicit transition gaps'}
+                emptyMessage={locale === 'zh-CN' ? '当前章节里没有因为缺稿而暴露出来的接缝缺口。' : 'No transition seams are currently exposed as explicit gaps.'}
+              />
+              <SupportList
+                title={locale === 'zh-CN' ? '脆弱接缝' : 'Weak seams'}
+                items={summary.transitionWeakSections}
+                emptyTitle={locale === 'zh-CN' ? '没有脆弱接缝' : 'No weak seams'}
+                emptyMessage={locale === 'zh-CN' ? '当前章节里没有缺少过渡产物的脆弱接缝。' : 'No drafted seams are currently missing artifact-backed transition prose.'}
               />
             </div>
           </SectionCard>

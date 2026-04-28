@@ -25,6 +25,11 @@ export function registerChapterRoutes({ app, apiBasePath, repository }: ApiRoute
     return repository.getChapterStructure(projectId, chapterId)
   })
 
+  app.get(`${projectBase}/chapters/:chapterId/draft-assembly`, async (request) => {
+    const { projectId, chapterId } = request.params as { projectId: string; chapterId: string }
+    return repository.getChapterDraftAssembly(projectId, chapterId)
+  })
+
   app.patch(`${projectBase}/chapters/:chapterId/planning-input`, async (request) => {
     const { projectId, chapterId } = request.params as { projectId: string; chapterId: string }
     const body = request.body as { locale?: unknown; goal?: unknown; constraints?: unknown }

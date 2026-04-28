@@ -1,3 +1,4 @@
+import type { ChapterDraftAssemblyRecord } from './chapter-draft-assembly-records'
 import type { ChapterStructureWorkspaceRecord } from './chapter-records'
 import type {
   StartNextChapterSceneRunInput,
@@ -20,6 +21,7 @@ export interface GetChapterStructureWorkspaceInput {
 }
 
 export interface ChapterClient {
+  getChapterDraftAssembly?(input: GetChapterStructureWorkspaceInput): Promise<ChapterDraftAssemblyRecord | null>
   getChapterStructureWorkspace(input: GetChapterStructureWorkspaceInput): Promise<ChapterStructureWorkspaceRecord | null>
   updateChapterBacklogInput(input: UpdateChapterBacklogInput): Promise<ChapterStructureWorkspaceRecord | null>
   generateChapterBacklogProposal(input: GenerateChapterBacklogProposalInput): Promise<ChapterStructureWorkspaceRecord | null>
@@ -32,6 +34,7 @@ export interface ChapterClient {
 
 interface CreateChapterClientOptions {
   projectId?: string
+  getChapterDraftAssembly?: (chapterId: string) => ChapterDraftAssemblyRecord | null
   getChapterById?: (chapterId: string) => ChapterStructureWorkspaceRecord | null
   updateChapterBacklogInput?: (input: UpdateChapterBacklogInput) => ChapterStructureWorkspaceRecord | null
   generateChapterBacklogProposal?: (input: GenerateChapterBacklogProposalInput) => ChapterStructureWorkspaceRecord | null
@@ -89,6 +92,7 @@ function clone<T>(value: T): T {
 
 export function createChapterClient({
   projectId,
+  getChapterDraftAssembly,
   getChapterById = getMockChapterRecordById,
   updateChapterBacklogInput = updateMockChapterBacklogInput,
   generateChapterBacklogProposal = generateMockChapterBacklogProposal,
@@ -98,7 +102,7 @@ export function createChapterClient({
   reorderChapterScene = reorderMockChapterScene,
   updateChapterSceneStructure = updateMockChapterSceneStructure,
 }: CreateChapterClientOptions = {}): ChapterClient {
-  return {
+  const client: ChapterClient = {
     async getChapterStructureWorkspace({ chapterId }) {
       const chapterRecord = getChapterById(chapterId)
       return chapterRecord ? clone(chapterRecord) : null
@@ -132,6 +136,15 @@ export function createChapterClient({
       return chapterRecord ? clone(chapterRecord) : null
     },
   }
+
+  if (getChapterDraftAssembly) {
+    client.getChapterDraftAssembly = async ({ chapterId }) => {
+      const record = getChapterDraftAssembly(chapterId)
+      return record ? clone(record) : null
+    }
+  }
+
+  return client
 }
 
 export const chapterClient = createChapterClient()

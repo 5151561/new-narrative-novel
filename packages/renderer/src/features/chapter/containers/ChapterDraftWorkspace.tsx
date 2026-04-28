@@ -84,10 +84,22 @@ function mergeTraceabilityIntoWorkspace(
       },
     }
   })
+  const sceneById = new Map(scenes.map((scene) => [scene.sceneId, scene]))
+  const sections = workspace.sections?.map((section) => {
+    if (section.kind !== 'scene') {
+      return section
+    }
+
+    return {
+      kind: 'scene' as const,
+      ...(sceneById.get(section.sceneId) ?? section),
+    }
+  })
 
   return {
     ...workspace,
     scenes,
+    sections,
     selectedScene: scenes.find((scene) => scene.sceneId === workspace.selectedSceneId) ?? workspace.selectedScene,
     inspector: {
       ...workspace.inspector,

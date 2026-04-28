@@ -39,6 +39,10 @@ interface UseChapterStructureWorkspaceQueryInput extends GetChapterStructureWork
   selectedSceneId?: string | null
 }
 
+interface UseChapterStructureWorkspaceQueryOptions {
+  enabled?: boolean
+}
+
 function localize(value: ChapterLocalizedText, locale: 'en' | 'zh-CN') {
   return readLocalizedChapterText(value, locale)
 }
@@ -196,6 +200,7 @@ function buildChapterStructureWorkspaceModel(
 export function useChapterStructureWorkspaceQuery(
   { chapterId, selectedSceneId }: UseChapterStructureWorkspaceQueryInput,
   client?: Pick<ChapterClient, 'getChapterStructureWorkspace'>,
+  { enabled = true }: UseChapterStructureWorkspaceQueryOptions = {},
 ) {
   const runtime = useOptionalProjectRuntime()
   const { locale } = useI18n()
@@ -207,6 +212,7 @@ export function useChapterStructureWorkspaceQuery(
   )
   const query = useQuery({
     queryKey: chapterQueryKeys.workspace(chapterId),
+    enabled,
     queryFn: () => effectiveClient.getChapterStructureWorkspace({ chapterId }),
   })
 

@@ -6,9 +6,12 @@ import { createStoryProjectRuntimeEnvironment } from '@/app/project-runtime'
 
 import {
   buildChapterDraftMissingStoryWorkspace,
+  buildChapterDraftTransitionGapStoryWorkspace,
+  buildChapterDraftTransitionReadyStoryWorkspace,
   buildChapterDraftRunningGateStoryWorkspace,
   buildChapterDraftStoryWorkspace,
   buildChapterDraftWaitingReviewStoryWorkspace,
+  buildLongChapterDraftStoryWorkspace,
   buildChapterProblemsHeavyStoryWorkspace,
   buildChapterStoryWorkspace,
   buildQuietChapterDraftStoryWorkspace,
@@ -19,7 +22,15 @@ import type { ChapterDraftWorkspaceViewModel } from '../types/chapter-draft-view
 import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
 
 export type ChapterStructureStoryVariant = 'default' | 'problems-heavy'
-export type ChapterDraftStoryVariant = 'default' | 'missing' | 'quiet' | 'waiting-review' | 'running-gate'
+export type ChapterDraftStoryVariant =
+  | 'default'
+  | 'transition-gap'
+  | 'transition-ready'
+  | 'missing'
+  | 'long-draft'
+  | 'quiet'
+  | 'waiting-review'
+  | 'running-gate'
 
 export function ChapterStoryShell({
   children,
@@ -56,8 +67,20 @@ export function useLocalizedChapterDraftWorkspace(
   const { locale } = useI18n()
 
   return useMemo<ChapterDraftWorkspaceViewModel>(() => {
+    if (variant === 'transition-gap') {
+      return buildChapterDraftTransitionGapStoryWorkspace(selectedSceneId, locale)
+    }
+
+    if (variant === 'transition-ready') {
+      return buildChapterDraftTransitionReadyStoryWorkspace(selectedSceneId, locale)
+    }
+
     if (variant === 'missing') {
       return buildChapterDraftMissingStoryWorkspace(selectedSceneId, locale)
+    }
+
+    if (variant === 'long-draft') {
+      return buildLongChapterDraftStoryWorkspace(selectedSceneId, locale)
     }
 
     if (variant === 'quiet') {

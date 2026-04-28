@@ -6,6 +6,7 @@ import type { BookExperimentBranchRecord } from '@/features/book/api/book-experi
 import type { BookExportProfileRecord } from '@/features/book/api/book-export-profiles'
 import type { BookManuscriptCheckpointRecord } from '@/features/book/api/book-manuscript-checkpoints'
 import type { BookStructureRecord } from '@/features/book/api/book-records'
+import type { ChapterDraftAssemblyRecord } from '@/features/chapter/api/chapter-draft-assembly-records'
 import type {
   AcceptChapterBacklogProposalInput,
   ChapterClient,
@@ -127,6 +128,12 @@ function createBookClient(projectId: string, transport: ApiTransport): BookClien
 
 function createChapterClient(projectId: string, transport: ApiTransport): ChapterClient {
   return {
+    async getChapterDraftAssembly({ chapterId }) {
+      return transport.requestJson<ChapterDraftAssemblyRecord | null>({
+        method: 'GET',
+        path: apiRouteContract.chapterDraftAssembly({ projectId, chapterId }),
+      })
+    },
     async getChapterStructureWorkspace({ chapterId }) {
       return transport.requestJson<ChapterStructureWorkspaceRecord | null>({
         method: 'GET',
