@@ -15,7 +15,14 @@ export type ChapterWorkbenchActivityKind = 'view' | 'scene' | 'mutation'
 export interface ChapterWorkbenchMutationEvent {
   id: string
   chapterId: string
-  action: 'moved-scene' | 'updated-structure'
+  action:
+    | 'moved-scene'
+    | 'updated-structure'
+    | 'saved-backlog-input'
+    | 'generated-backlog-proposal'
+    | 'updated-backlog-proposal-scene'
+    | 'accepted-backlog-proposal'
+    | 'started-next-scene-run'
   sceneTitle: string
   direction?: 'up' | 'down'
 }
@@ -24,7 +31,17 @@ interface ChapterWorkbenchActivityEntry {
   id: string
   kind: ChapterWorkbenchActivityKind
   tone: 'accent' | 'neutral'
-  action: 'entered-view' | 'switched-view' | 'focused-scene' | 'moved-scene' | 'updated-structure'
+  action:
+    | 'entered-view'
+    | 'switched-view'
+    | 'focused-scene'
+    | 'moved-scene'
+    | 'updated-structure'
+    | 'saved-backlog-input'
+    | 'generated-backlog-proposal'
+    | 'updated-backlog-proposal-scene'
+    | 'accepted-backlog-proposal'
+    | 'started-next-scene-run'
   view?: ChapterStructureView
   sceneTitle?: string
   sceneSummary?: string
@@ -83,6 +100,71 @@ function localizeActivityEntry(
           locale === 'zh-CN'
             ? '章节顺序已更新，当前选中场景保持不变。'
             : 'Chapter order changed without changing the selected scene.',
+      }
+    }
+
+    if (entry.action === 'saved-backlog-input') {
+      return {
+        id: entry.id,
+        kind: entry.kind,
+        tone: entry.tone,
+        title: locale === 'zh-CN' ? '已保存 backlog 输入' : 'Saved backlog input',
+        detail:
+          locale === 'zh-CN'
+            ? '章节目标和约束已写回共享 chapter workspace。'
+            : 'The chapter goal and constraints were written back to the shared chapter workspace.',
+      }
+    }
+
+    if (entry.action === 'generated-backlog-proposal') {
+      return {
+        id: entry.id,
+        kind: entry.kind,
+        tone: entry.tone,
+        title: locale === 'zh-CN' ? '已生成 backlog 提案' : 'Generated backlog proposal',
+        detail:
+          locale === 'zh-CN'
+            ? '主舞台现在可以审阅并编辑 scene backlog。'
+            : 'The main stage can now review and edit the scene backlog.',
+      }
+    }
+
+    if (entry.action === 'updated-backlog-proposal-scene') {
+      return {
+        id: entry.id,
+        kind: entry.kind,
+        tone: entry.tone,
+        title: locale === 'zh-CN' ? `已更新${entry.sceneTitle ?? ''}的 backlog 场景计划` : `Updated backlog scene plan for ${entry.sceneTitle ?? ''}`,
+        detail:
+          locale === 'zh-CN'
+            ? '提案场景卡片已更新，但 canonical scene 顺序仍要等接受后才会生效。'
+            : 'The proposal scene card was updated, but canonical scene order waits for acceptance.',
+      }
+    }
+
+    if (entry.action === 'accepted-backlog-proposal') {
+      return {
+        id: entry.id,
+        kind: entry.kind,
+        tone: entry.tone,
+        title: locale === 'zh-CN' ? '已接受 backlog 提案' : 'Accepted backlog proposal',
+        detail:
+          locale === 'zh-CN'
+            ? 'canonical scene 顺序和 backlog 状态已经稳定下来。'
+            : 'Canonical scene order and backlog status are now stable.',
+      }
+    }
+
+    if (entry.action === 'started-next-scene-run') {
+      return {
+        id: entry.id,
+        kind: entry.kind,
+        tone: entry.tone,
+        title: locale === 'zh-CN' ? '已启动下一场运行' : 'Started next scene run',
+        detail:
+          locale === 'zh-CN'
+            ? '章节编排已启动 accepted backlog 中的下一场，并停在 review。'
+            : 'Chapter orchestration launched the next accepted backlog scene and stopped at review.',
       }
     }
 

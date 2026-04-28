@@ -1,5 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
+import {
+  exportMockRunSnapshot,
+  importMockRunSnapshot,
+  resetMockRunDb,
+} from '@/features/run/api/mock-run-db'
+
 import { SceneDockContainer } from './SceneDockContainer'
 import { withSceneStoryShell } from './scene-storybook'
 
@@ -139,4 +145,51 @@ export const Trace: Story = {
       },
     },
   },
+}
+
+export const FailureRecoveryCost: Story = {
+  args: {
+    sceneId: 'scene-midnight-platform',
+    initialSelectedArtifactId: 'proposal-set-scene-midnight-platform-run-001',
+    initialInspectorMode: 'artifact',
+  },
+  render: (args) => {
+    resetMockRunDb()
+    const snapshot = exportMockRunSnapshot()
+    const state = snapshot.runStatesByProjectId['book-signal-arc']?.find((entry) => entry.run.id === 'run-scene-midnight-platform-001')
+    if (state) {
+      state.run.status = 'waiting_review'
+      state.run.summary = 'Planner packaging stalled after a provider retry; review can inspect the partial output.'
+      state.run.failureClass = 'provider_error'
+      state.run.failureMessage = 'Provider returned 502 while proposal packaging was being finalized.'
+      state.run.usage = {
+        inputTokens: 8200,
+        outputTokens: 1100,
+        estimatedCostUsd: 0.19,
+        provider: 'openai',
+        modelId: 'gpt-5.4',
+      }
+      state.run.runtimeSummary = {
+        health: 'attention',
+        tokenLabel: '8.2k tokens',
+        costLabel: '$0.19 est.',
+        failureClassLabel: 'Watching provider retries',
+        nextActionLabel: 'Review proposals before retrying the writer path.',
+      }
+    }
+    importMockRunSnapshot(snapshot)
+    return <SceneDockContainer {...args} />
+  },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution',
+      uiState: {
+        dockTab: 'events',
+      },
+    },
+  },
+}
+
+export const GateDFailureRecoveryCost: Story = {
+  ...FailureRecoveryCost,
 }

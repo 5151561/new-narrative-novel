@@ -1,4 +1,5 @@
 export type RuntimeMode = 'web' | 'desktop-local'
+export type RuntimeKind = 'fixture-demo' | 'mock-storybook' | 'real-local-project'
 
 export interface WebRuntimeConfig {
   runtimeMode: 'web'
@@ -77,4 +78,8 @@ export async function resolveRuntimeConfig({
   }
 
   return createWebRuntimeConfig(env)
+}
+
+export function getRuntimeKindFromRuntimeConfig(runtimeConfig: RuntimeConfig): Exclude<RuntimeKind, 'mock-storybook'> {
+  return runtimeConfig.runtimeMode === 'desktop-local' ? 'real-local-project' : 'fixture-demo'
 }

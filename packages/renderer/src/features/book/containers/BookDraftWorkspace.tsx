@@ -585,9 +585,12 @@ export function BookDraftWorkspace() {
     (input: {
       issueId: string
       issueSignature: string
-      status: 'checked' | 'blocked'
+      status: 'checked' | 'blocked' | 'rewrite_requested'
       handoff: ReviewSourceHandoffViewModel
       note?: string
+      rewriteRequestNote?: string
+      rewriteTargetSceneId?: string
+      rewriteRequestId?: string
     }) => {
       const issue = reviewInbox?.issues.find((item) => item.id === input.issueId)
 
@@ -600,6 +603,9 @@ export function BookDraftWorkspace() {
           targetScope: input.handoff.target.scope,
           status: input.status,
           note: input.note,
+          rewriteRequestNote: input.rewriteRequestNote,
+          rewriteTargetSceneId: input.rewriteTargetSceneId,
+          rewriteRequestId: input.rewriteRequestId,
         })
         .then(() => {
           if (!issue?.title) {
@@ -882,6 +888,7 @@ export function BookDraftWorkspace() {
         <BookDraftInspectorPane
           bookTitle={workspace.title}
           inspector={workspace.inspector}
+          readableManuscript={workspace.readableManuscript}
           activeDraftView={activeDraftView}
           compare={compareWorkspace ?? null}
           branch={branchWorkspace ?? null}

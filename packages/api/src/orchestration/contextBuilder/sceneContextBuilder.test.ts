@@ -46,8 +46,8 @@ describe('sceneContextBuilder', () => {
         en: 'Target budget 1700 tokens',
       },
       activationSummary: {
-        includedAssetCount: 3,
-        excludedAssetCount: 1,
+        includedAssetCount: 6,
+        excludedAssetCount: 0,
         redactedAssetCount: 1,
         targetAgentCount: 4,
         warningCount: 1,
@@ -71,6 +71,20 @@ describe('sceneContextBuilder', () => {
           en: expect.stringContaining('Open platform where every hesitation'),
         }),
       }),
+      expect.objectContaining({
+        assetId: 'asset-closed-ledger',
+        kind: 'object',
+        reason: expect.objectContaining({
+          en: expect.stringContaining('Outer shell'),
+        }),
+      }),
+      expect.objectContaining({
+        assetId: 'asset-public-witness-rule',
+        kind: 'lore',
+        reason: expect.objectContaining({
+          en: expect.stringContaining('Surface rule'),
+        }),
+      }),
     ]))
   })
 
@@ -84,10 +98,16 @@ describe('sceneContextBuilder', () => {
 
     expect(packet.assetActivations).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        assetId: 'asset-ledger-stays-shut',
-        decision: 'excluded',
-        visibility: 'spoiler',
-        policyRuleIds: ['ledger-rule-dependency'],
+        assetId: 'asset-closed-ledger',
+        decision: 'included',
+        visibility: 'character-known',
+        policyRuleIds: ['ledger-object-dependency'],
+      }),
+      expect.objectContaining({
+        assetId: 'asset-public-witness-rule',
+        decision: 'included',
+        visibility: 'public',
+        policyRuleIds: ['witness-rule-dependency'],
       }),
       expect.objectContaining({
         assetId: 'asset-departure-bell-timing',
@@ -106,7 +126,7 @@ describe('sceneContextBuilder', () => {
       }),
       expect.objectContaining({
         label: expect.objectContaining({
-          en: 'Full ledger proof',
+          en: 'Witness-proof payload',
         }),
       }),
       expect.objectContaining({

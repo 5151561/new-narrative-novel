@@ -1,4 +1,5 @@
 import type { RunArtifactGeneratedRefRecord } from '../../contracts/api-records.js'
+import type { RunFailureDetailRecord, RunUsageRecord } from '../../contracts/api-records.js'
 import type { SceneContextPacketRecord } from '../contextBuilder/sceneContextBuilder.js'
 import type { ScenePlannerGatewayProvenance } from '../modelGateway/scenePlannerGateway.js'
 import type { SceneProseWriterGatewayProvenance } from '../modelGateway/sceneProseWriterGateway.js'
@@ -32,15 +33,21 @@ interface AgentInvocationArtifactInput extends SceneRunArtifactBaseInput {
   role: 'planner' | 'writer'
   provenance?: ScenePlannerGatewayProvenance | SceneProseWriterGatewayProvenance
   generatedRefs?: RunArtifactGeneratedRefRecord[]
+  usage?: RunUsageRecord
+  failureDetail?: RunFailureDetailRecord
 }
 
 interface ProposalSetArtifactInput extends SceneRunArtifactBaseInput {
   plannerOutput?: ScenePlannerOutput
+  usage?: RunUsageRecord
+  failureDetail?: RunFailureDetailRecord
 }
 
 interface ProseDraftArtifactInput extends SceneRunArtifactBaseInput {
   writerOutput?: SceneProseWriterOutput
   writerProvenance?: SceneProseWriterGatewayProvenance
+  usage?: RunUsageRecord
+  failureDetail?: RunFailureDetailRecord
 }
 
 function formatSceneName(sceneId: string) {
@@ -55,6 +62,36 @@ function formatSceneName(sceneId: string) {
 function trimOptional(value?: string) {
   const trimmed = value?.trim()
   return trimmed ? trimmed : undefined
+}
+
+function buildFailureMeta(failureDetail?: RunFailureDetailRecord) {
+  return failureDetail
+    ? {
+        failureDetail: {
+          failureClass: failureDetail.failureClass,
+          message: failureDetail.message,
+          ...(failureDetail.provider ? { provider: failureDetail.provider } : {}),
+          ...(failureDetail.modelId ? { modelId: failureDetail.modelId } : {}),
+          retryable: failureDetail.retryable,
+          sourceEventIds: [...failureDetail.sourceEventIds],
+        },
+      }
+    : {}
+}
+
+function buildUsageMeta(usage?: RunUsageRecord) {
+  return usage
+    ? {
+        usage: {
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          estimatedCostUsd: usage.estimatedCostUsd,
+          ...(typeof usage.actualCostUsd === 'number' ? { actualCostUsd: usage.actualCostUsd } : {}),
+          provider: usage.provider,
+          modelId: usage.modelId,
+        },
+      }
+    : {}
 }
 
 export function buildDefaultPlannerOutput(sceneId: string): ScenePlannerOutput {
@@ -181,6 +218,8 @@ export function createAgentInvocationArtifact(input: AgentInvocationArtifactInpu
       index: input.index,
       ...provenanceMeta,
       ...generatedRefsMeta,
+      ...buildUsageMeta(input.usage),
+      ...buildFailureMeta(input.failureDetail),
     },
   }
 }
@@ -198,6 +237,8 @@ export function createProposalSetArtifact(input: ProposalSetArtifactInput): Scen
     status: 'ready',
     meta: {
       proposals: canonicalizePlannerProposals(proposalSetId, input.plannerOutput, input.sceneId),
+      ...buildUsageMeta(input.usage),
+      ...buildFailureMeta(input.failureDetail),
     },
   }
 }
@@ -234,6 +275,14 @@ export function createProseDraftArtifact(input: ProseDraftArtifactInput): SceneR
     title: 'Prose draft',
     summary: 'Generated prose draft for the scene run.',
     status: 'generated',
-    ...(meta ? { meta } : {}),
+    ...((meta || input.usage || input.failureDetail)
+      ? {
+          meta: {
+            ...(meta ?? {}),
+            ...buildUsageMeta(input.usage),
+            ...buildFailureMeta(input.failureDetail),
+          },
+        }
+      : {}),
   }
 }

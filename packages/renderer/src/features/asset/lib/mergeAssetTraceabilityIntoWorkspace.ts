@@ -71,12 +71,34 @@ export function mergeAssetTraceabilityIntoWorkspace({
                     ? '正在加载来源细节'
                     : 'Loading trace detail',
               message:
-                traceabilityStatus!.state === 'unavailable'
+        traceabilityStatus!.state === 'unavailable'
                   ? traceabilityStatus!.message
                   : locale === 'zh-CN'
                     ? '场景来源链完成后，这里才会显示 accepted facts、source proposals 和 patch。'
                     : 'Accepted facts, source proposals, and patch provenance will appear once scene sources finish loading.',
             },
+      }
+    }),
+    relations: workspace.relations.map((relation) => {
+      const hasNarrativeBacking = traceability.summary
+        ? traceability.summary.relationTargetAssetIdsWithNarrativeBacking.includes(relation.targetAssetId)
+        : undefined
+
+      return {
+        ...relation,
+        hasNarrativeBacking,
+        narrativeBackingStatusLabel:
+          hasNarrativeBacking === undefined
+            ? locale === 'zh-CN'
+              ? '来源链待加载'
+              : 'Traceability pending'
+            : hasNarrativeBacking
+              ? locale === 'zh-CN'
+                ? '已有叙事支撑'
+                : 'Narrative-backed'
+              : locale === 'zh-CN'
+                ? '缺少叙事支撑'
+                : 'Missing narrative backing',
       }
     }),
     inspector: {

@@ -13,6 +13,7 @@ import type {
   RunArtifactRelatedAssetRecord,
 } from './run-artifact-records'
 import type {
+  CancelRunInput,
   RunEventKind,
   RunEventRecord,
   RunEventRefRecord,
@@ -20,6 +21,8 @@ import type {
   RunRecord,
   RunReviewDecisionKind,
   RunSelectedProposalVariantRecord,
+  ResumeRunInput,
+  RetryRunInput,
   StartSceneRunInput,
   SubmitRunReviewDecisionInput,
 } from './run-records'
@@ -440,7 +443,7 @@ function buildContextPacketDetail(state: MockRunState, entry: MockArtifactEntry)
       id: `${entry.id}-activation-ledger-stays-shut`,
       assetId: 'asset-ledger-stays-shut',
       assetTitle: text('Ledger Stays Shut'),
-      assetKind: 'rule',
+      assetKind: 'lore',
       decision: 'excluded',
       reasonKind: 'rule-dependency',
       reasonLabel: text('Rule dependency'),
@@ -454,7 +457,7 @@ function buildContextPacketDetail(state: MockRunState, entry: MockArtifactEntry)
       id: `${entry.id}-activation-departure-bell-timing`,
       assetId: 'asset-departure-bell-timing',
       assetTitle: text('Departure Bell Timing'),
-      assetKind: 'rule',
+      assetKind: 'lore',
       decision: 'redacted',
       reasonKind: 'review-issue',
       reasonLabel: text('Editor timing guardrail'),
@@ -889,6 +892,10 @@ function buildTraceResponse(state: MockRunState): RunTraceResponse {
     runId: state.run.id,
     links: traceState.links,
     nodes,
+    ...(state.run.status === 'failed' && nodes.length > 0
+      && nodes.every((node) => node.kind !== 'canon-patch' && node.kind !== 'prose-draft')
+      ? { isPartialFailure: true }
+      : {}),
     summary: {
       proposalSetCount: nodes.filter((node) => node.kind === 'proposal-set').length,
       canonPatchCount: nodes.filter((node) => node.kind === 'canon-patch').length,
@@ -1311,6 +1318,92 @@ export function submitMockRunReviewDecision(
     state.reviewDecisionsByReviewId,
     state.selectedVariantsByReviewId,
   )
+}
+
+export function retryMockRun(input: RetryRunInput, projectId = DEFAULT_PROJECT_ID): RunRecord {
+  const previousRun = requireRunState(input.runId, projectId)
+  appendRunEvent(
+    previousRun,
+    'run_retry_scheduled',
+    'Retry scheduled',
+    `Retry scheduled in ${input.mode ?? 'continue'} mode.`,
+    undefined,
+    {
+      mode: input.mode ?? 'continue',
+    },
+  )
+  updateProjectRunState(
+    projectId,
+    previousRun.run,
+    previousRun.events,
+    previousRun.reviewDecisionsByReviewId,
+    previousRun.selectedVariantsByReviewId,
+  )
+
+  const nextRun = startMockSceneRun({
+    sceneId: previousRun.run.scopeId,
+    mode: input.mode,
+  }, projectId)
+  nextRun.retryOfRunId = previousRun.run.id
+  setRunState(
+    projectId,
+    nextRun,
+    requireRunState(nextRun.id, projectId).events,
+  )
+  return clone(nextRun)
+}
+
+export function cancelMockRun(input: CancelRunInput, projectId = DEFAULT_PROJECT_ID): RunRecord {
+  const state = requireRunState(input.runId, projectId)
+  appendRunEvent(
+    state,
+    'run_cancel_requested',
+    'Run cancellation requested',
+    input.reason?.trim() ? `Run cancellation was requested. Reason: ${input.reason.trim()}` : 'Run cancellation was requested.',
+  )
+  const cancelledEvent = appendRunEvent(
+    state,
+    'run_cancelled',
+    'Run cancelled',
+    input.reason?.trim() ? `Run cancelled before canon or prose changed. Reason: ${input.reason.trim()}` : 'Run cancelled before canon or prose changed.',
+  )
+  state.run.status = 'cancelled'
+  state.run.summary = 'Run cancelled before canon or prose changed.'
+  state.run.pendingReviewId = undefined
+  state.run.failureClass = 'cancelled'
+  state.run.failureMessage = input.reason?.trim() || undefined
+  state.run.cancelRequestedAtLabel = state.events.at(-2)?.createdAtLabel
+  state.run.completedAtLabel = cancelledEvent.createdAtLabel
+
+  return updateProjectRunState(
+    projectId,
+    state.run,
+    state.events,
+    state.reviewDecisionsByReviewId,
+    state.selectedVariantsByReviewId,
+  )
+}
+
+export function resumeMockRun(input: ResumeRunInput, projectId = DEFAULT_PROJECT_ID): RunRecord {
+  const previousRun = requireRunState(input.runId, projectId)
+  const nextRun = startMockSceneRun({
+    sceneId: previousRun.run.scopeId,
+    mode: 'continue',
+    note: previousRun.run.resumableFromEventId ? `Resume from ${previousRun.run.resumableFromEventId}` : undefined,
+  }, projectId)
+  nextRun.retryOfRunId = previousRun.run.id
+  nextRun.resumableFromEventId = previousRun.run.resumableFromEventId
+  const nextState = requireRunState(nextRun.id, projectId)
+  appendRunEvent(
+    nextState,
+    'run_resumed',
+    'Run resumed',
+    `Run resumed from ${previousRun.run.id} at event ${previousRun.run.resumableFromEventId ?? previousRun.run.latestEventId}.`,
+  )
+  nextRun.latestEventId = nextState.run.latestEventId
+  nextRun.eventCount = nextState.run.eventCount
+  setRunState(projectId, nextRun, nextState.events)
+  return clone(nextRun)
 }
 
 export function exportMockRunSnapshot(): MockRunSnapshot {

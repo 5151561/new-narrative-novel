@@ -20,6 +20,10 @@ function chapterSceneBase(projectId: string, chapterId: string, sceneId: string)
   return `${chapterBase(projectId, chapterId)}/scenes/${segment(sceneId)}`
 }
 
+function chapterBacklogProposalBase(projectId: string, chapterId: string, proposalId: string) {
+  return `${chapterBase(projectId, chapterId)}/backlog-proposals/${segment(proposalId)}`
+}
+
 function assetBase(projectId: string, assetId: string) {
   return `${projectBase(projectId)}/assets/${segment(assetId)}`
 }
@@ -96,8 +100,55 @@ export const apiRouteContract = {
   }) {
     return `${bookExperimentBranchesPath(projectId, bookId)}/${segment(branchId)}`
   },
+  bookExperimentBranchArchive({
+    projectId,
+    bookId,
+    branchId,
+  }: {
+    projectId: string
+    bookId: string
+    branchId: string
+  }) {
+    return `${bookExperimentBranchesPath(projectId, bookId)}/${segment(branchId)}/archive`
+  },
   chapterStructure({ projectId, chapterId }: { projectId: string; chapterId: string }) {
     return `${chapterBase(projectId, chapterId)}/structure`
+  },
+  chapterDraftAssembly({ projectId, chapterId }: { projectId: string; chapterId: string }) {
+    return `${chapterBase(projectId, chapterId)}/draft-assembly`
+  },
+  chapterPlanningInput({ projectId, chapterId }: { projectId: string; chapterId: string }) {
+    return `${chapterBase(projectId, chapterId)}/planning-input`
+  },
+  chapterBacklogProposals({ projectId, chapterId }: { projectId: string; chapterId: string }) {
+    return `${chapterBase(projectId, chapterId)}/backlog-proposals`
+  },
+  chapterBacklogProposalScene({
+    projectId,
+    chapterId,
+    proposalId,
+    proposalSceneId,
+  }: {
+    projectId: string
+    chapterId: string
+    proposalId: string
+    proposalSceneId: string
+  }) {
+    return `${chapterBacklogProposalBase(projectId, chapterId, proposalId)}/scenes/${segment(proposalSceneId)}`
+  },
+  chapterBacklogProposalAccept({
+    projectId,
+    chapterId,
+    proposalId,
+  }: {
+    projectId: string
+    chapterId: string
+    proposalId: string
+  }) {
+    return `${chapterBacklogProposalBase(projectId, chapterId, proposalId)}/accept`
+  },
+  chapterRunNextScene({ projectId, chapterId }: { projectId: string; chapterId: string }) {
+    return `${chapterBase(projectId, chapterId)}/run-next-scene`
   },
   chapterSceneReorder({
     projectId,
@@ -232,5 +283,14 @@ export const apiRouteContract = {
   },
   runReviewDecisions({ projectId, runId }: { projectId: string; runId: string }) {
     return `${runBase(projectId, runId)}/review-decisions`
+  },
+  runRetry({ projectId, runId }: { projectId: string; runId: string }) {
+    return `${runBase(projectId, runId)}/retry`
+  },
+  runCancel({ projectId, runId }: { projectId: string; runId: string }) {
+    return `${runBase(projectId, runId)}/cancel`
+  },
+  runResume({ projectId, runId }: { projectId: string; runId: string }) {
+    return `${runBase(projectId, runId)}/resume`
   },
 }

@@ -12,6 +12,10 @@ import {
   type DesktopRuntimeConfig,
   type LocalApiProcessConfig,
 } from './runtime-config.js'
+import type {
+  DesktopModelBindings,
+  ProviderCredentialProvider,
+} from '../shared/desktop-bridge-types.js'
 
 export type LocalApiStatus = 'stopped' | 'starting' | 'ready' | 'failed'
 
@@ -36,6 +40,8 @@ export interface LocalApiChildProcess {
 export interface LocalApiSupervisorOptions {
   findAvailablePort?: () => Promise<number>
   getCurrentProject?: () => SelectedProjectSession | null
+  getModelBindings?: (projectRoot: string) => Promise<DesktopModelBindings | undefined>
+  getProviderCredential?: (provider: ProviderCredentialProvider) => Promise<string | null>
   spawnLocalApi?: (config: LocalApiSpawnConfig) => LocalApiChildProcess
   fetch?: typeof fetch
   sleep?: (ms: number) => Promise<void>
@@ -72,6 +78,8 @@ export class LocalApiSupervisor {
   private stopping = false
   private readonly findPort: () => Promise<number>
   private readonly getCurrentProject: () => SelectedProjectSession | null
+  private readonly getModelBindings: (projectRoot: string) => Promise<DesktopModelBindings | undefined>
+  private readonly getProviderCredential: (provider: ProviderCredentialProvider) => Promise<string | null>
   private readonly spawnLocalApi: (config: LocalApiSpawnConfig) => LocalApiChildProcess
   private readonly fetchImpl: typeof fetch
   private readonly sleep: (ms: number) => Promise<void>
@@ -91,6 +99,8 @@ export class LocalApiSupervisor {
         projectTitle,
       }
     },
+    getModelBindings = async () => undefined,
+    getProviderCredential = async () => null,
     spawnLocalApi = spawnLocalApiProcess,
     fetch: fetchImpl = globalThis.fetch.bind(globalThis),
     sleep = defaultSleep,
@@ -100,6 +110,8 @@ export class LocalApiSupervisor {
   }: LocalApiSupervisorOptions = {}) {
     this.findPort = findPort
     this.getCurrentProject = getCurrentProject
+    this.getModelBindings = getModelBindings
+    this.getProviderCredential = getProviderCredential
     this.spawnLocalApi = spawnLocalApi
     this.fetchImpl = fetchImpl
     this.sleep = sleep
@@ -152,9 +164,13 @@ export class LocalApiSupervisor {
       this.runtimeConfig = createDesktopRuntimeConfig(port, {
         currentProject,
       })
+      const modelBindings = await this.getModelBindings(currentProject.projectRoot)
+      const openAiCredential = await this.getProviderCredential('openai')
       const spawnConfig = createLocalApiProcessConfig({
         currentProject,
+        modelBindings,
         port,
+        providerCredentials: openAiCredential ? { openai: openAiCredential } : undefined,
       })
       const child = this.spawnLocalApi(spawnConfig)
       this.child = child

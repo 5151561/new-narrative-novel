@@ -37,6 +37,8 @@ interface BookDraftWorkspaceStoryProps {
   branchId?: string
   branchBaseline?: 'current' | 'checkpoint'
   exportProfileId?: string
+  reviewSeedBookId?: string
+  reviewIssueId?: string
   reviewFilter?: 'all' | 'blockers' | 'trace-gaps' | 'missing-drafts' | 'compare-deltas' | 'export-readiness' | 'branch-readiness' | 'scene-proposals'
   reviewStatusFilter?: 'open' | 'reviewed' | 'deferred' | 'dismissed' | 'all'
   decisionStates?: Array<{
@@ -126,6 +128,8 @@ function WorkspacePreview({
   branchId,
   branchBaseline = 'current',
   exportProfileId,
+  reviewSeedBookId,
+  reviewIssueId,
   reviewFilter = 'all',
   reviewStatusFilter = 'open',
   decisionStates = [],
@@ -150,8 +154,10 @@ function WorkspacePreview({
     exportProfileId,
     branchId,
     branchBaseline,
+    reviewSeedBookId,
     reviewFilter,
     reviewStatusFilter,
+    reviewIssueId,
     decisionStates,
     fixActionStates,
     includeReviewSeeds: !(draftView === 'review' && reviewFilter === 'scene-proposals' && variant === 'quiet-book'),
@@ -238,6 +244,7 @@ function WorkspacePreview({
         <BookDraftInspectorPane
           bookTitle={workspace.title}
           inspector={workspace.inspector}
+          readableManuscript={workspace.readableManuscript}
           activeDraftView={draftView}
           compare={draftView === 'compare' ? compareData.compare : null}
           branch={draftView === 'branch' ? branchData.branchWorkspace : null}
@@ -332,6 +339,22 @@ export const QuietBookDraft: Story = {
   },
 }
 
+export const ReadManuscriptReady: Story = {
+  args: {
+    draftView: 'read',
+    variant: 'manuscript-ready',
+    selectedChapterId: 'chapter-signals-in-rain',
+  },
+}
+
+export const ReadManuscriptGaps: Story = {
+  args: {
+    draftView: 'read',
+    variant: 'manuscript-gaps',
+    selectedChapterId: 'chapter-open-water-signals',
+  },
+}
+
 export const ExportReviewPacket: Story = {
   args: {
     draftView: 'export',
@@ -381,6 +404,15 @@ export const ExportReady: Story = {
   args: {
     draftView: 'export',
     variant: 'quiet-book',
+    checkpointId: 'checkpoint-book-signal-arc-quiet-pass',
+    exportProfileId: 'export-review-packet',
+  },
+}
+
+export const ExportReadableManuscript: Story = {
+  args: {
+    draftView: 'export',
+    variant: 'manuscript-ready',
     checkpointId: 'checkpoint-book-signal-arc-quiet-pass',
     exportProfileId: 'export-review-packet',
   },
@@ -527,5 +559,19 @@ export const ReviewDeferredDecision: Story = {
         note: 'Carry this into the next pass.',
       },
     ],
+  },
+}
+
+export const GateDReviewBranchReady: Story = {
+  args: {
+    draftView: 'review',
+    reviewFilter: 'all',
+    reviewStatusFilter: 'open',
+    reviewSeedBookId: 'book-signal-arc',
+    reviewIssueId: 'continuity-conflict-ledger-public-proof',
+    checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+    branchId: 'branch-book-signal-arc-high-pressure',
+    branchBaseline: 'checkpoint',
+    selectedChapterId: 'chapter-signals-in-rain',
   },
 }

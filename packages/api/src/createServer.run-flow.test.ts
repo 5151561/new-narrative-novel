@@ -63,6 +63,20 @@ describe('fixture API server run flow', () => {
         startedAtLabel: '2026-04-23 10:01',
         pendingReviewId: 'review-scene-midnight-platform-002',
         latestEventId: 'run-event-scene-midnight-platform-002-009',
+        usage: {
+          inputTokens: 1700,
+          outputTokens: 240,
+          estimatedCostUsd: 0.0246,
+          provider: 'fixture',
+          modelId: 'fixture-scene-planner',
+        },
+        runtimeSummary: {
+          health: 'attention',
+          tokenLabel: '1.9k tokens',
+          costLabel: '$0.0246 est.',
+          failureClassLabel: 'No runtime failure recorded',
+          nextActionLabel: 'Review proposals before any retry or prose continuation.',
+        },
         eventCount: 9,
       })
 
@@ -75,6 +89,20 @@ describe('fixture API server run flow', () => {
         id: startedRun.id,
         pendingReviewId: 'review-scene-midnight-platform-002',
         latestEventId: 'run-event-scene-midnight-platform-002-009',
+        usage: {
+          inputTokens: 1700,
+          outputTokens: 240,
+          estimatedCostUsd: 0.0246,
+          provider: 'fixture',
+          modelId: 'fixture-scene-planner',
+        },
+        runtimeSummary: {
+          health: 'attention',
+          tokenLabel: '1.9k tokens',
+          costLabel: '$0.0246 est.',
+          failureClassLabel: 'No runtime failure recorded',
+          nextActionLabel: 'Review proposals before any retry or prose continuation.',
+        },
         eventCount: 9,
       })
 

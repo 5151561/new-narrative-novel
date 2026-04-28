@@ -44,6 +44,7 @@ export interface RunTraceResponse {
   runId: string
   links: RunTraceLinkRecord[]
   nodes: RunTraceNodeRecord[]
+  isPartialFailure?: boolean
   summary: {
     proposalSetCount: number
     canonPatchCount: number

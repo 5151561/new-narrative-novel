@@ -22,12 +22,11 @@ import { useBookExperimentBranchQuery } from './useBookExperimentBranchQuery'
 
 const DEFAULT_BOOK_EXPERIMENT_BRANCH_ID = 'branch-book-signal-arc-quiet-ending'
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-    },
-  })
+function createWrapper(queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: false },
+  },
+})) {
 
   return function Wrapper({ children }: PropsWithChildren) {
     return (
@@ -247,6 +246,13 @@ function createDeferred<T>() {
 
 describe('useBookExperimentBranchQuery', () => {
   it('uses dedicated branch query keys', () => {
+    expect(bookQueryKeys.branchRecords('book-signal-arc')).toEqual(['book', 'branches', 'book-signal-arc'])
+    expect(bookQueryKeys.selectedBranchRecord('book-signal-arc', DEFAULT_BOOK_EXPERIMENT_BRANCH_ID)).toEqual([
+      'book',
+      'branch',
+      'book-signal-arc',
+      DEFAULT_BOOK_EXPERIMENT_BRANCH_ID,
+    ])
     expect(bookQueryKeys.branches('book-signal-arc', 'en')).toEqual(['book', 'branches', 'book-signal-arc', 'en'])
     expect(bookQueryKeys.branch('book-signal-arc', DEFAULT_BOOK_EXPERIMENT_BRANCH_ID, 'en')).toEqual([
       'book',
@@ -255,6 +261,7 @@ describe('useBookExperimentBranchQuery', () => {
       DEFAULT_BOOK_EXPERIMENT_BRANCH_ID,
       'en',
     ])
+    expect(bookQueryKeys.checkpoints('book-signal-arc', 'en')).toEqual(['book', 'checkpoints', 'book-signal-arc', 'en'])
   })
 
   it('reads the branch list, falls back to the default branch id, and keeps the selected chapter aligned with the current workspace', async () => {
@@ -374,6 +381,133 @@ describe('useBookExperimentBranchQuery', () => {
     expect(hook.result.current.selectedBranch).toBeNull()
     expect(hook.result.current.error).toBeInstanceOf(Error)
     expect(hook.result.current.error?.message).toContain('branch-missing')
+  })
+
+  it('refreshes branch and checkpoint-backed data after invalidation without changing the route identity', async () => {
+    const branches: BookExperimentBranchRecord[] = []
+    const checkpoints: BookManuscriptCheckpointRecord[] = []
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+      },
+    })
+    const branchId = 'branch-book-signal-arc-created'
+    const checkpointId = 'checkpoint-book-signal-arc-created'
+    const wrapper = createWrapper(queryClient)
+    const hook = renderHook(
+      () =>
+        useBookExperimentBranchQuery(
+          {
+            bookId: 'book-signal-arc',
+            currentDraftWorkspace: createWorkspace('chapter-open-water-signals'),
+            branchId,
+            branchBaseline: 'checkpoint',
+            checkpointId,
+          },
+          {
+            bookClient: createBookClient({ branches, checkpoints }),
+          },
+        ),
+      { wrapper },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(hook.result.current.selectedBranch).toBeNull()
+    expect(hook.result.current.branchWorkspace).toBeNull()
+    expect(hook.result.current.error?.message).toContain(branchId)
+
+    branches.push({
+      branchId,
+      bookId: 'book-signal-arc',
+      title: { en: 'Created branch', 'zh-CN': '新建分支' },
+      summary: { en: 'Created after invalidation.', 'zh-CN': '失效后新建。' },
+      rationale: { en: 'Keep the route identity stable.', 'zh-CN': '保持路由身份稳定。' },
+      createdAtLabel: { en: '2026-04-28 12:00', 'zh-CN': '2026-04-28 12:00' },
+      sourceSignature: `checkpoint:${checkpointId}`,
+      basedOnCheckpointId: checkpointId,
+      selectedChapterId: 'chapter-open-water-signals',
+      status: 'review',
+      chapterSnapshots: [
+        {
+          chapterId: 'chapter-open-water-signals',
+          title: { en: 'Open Water Signals', 'zh-CN': '开阔水域信号' },
+          summary: { en: 'Checkpoint-backed branch chapter', 'zh-CN': '基于 checkpoint 的分支章节' },
+          sceneSnapshots: [
+            {
+              sceneId: 'scene-dawn-slip',
+              title: { en: 'Dawn Slip', 'zh-CN': '拂晓撤离' },
+              summary: { en: 'Branch-only draft snapshot.', 'zh-CN': '分支快照。' },
+              proseDraft: { en: 'Branch prose', 'zh-CN': '分支正文' },
+              draftWordCount: 2,
+              traceReady: true,
+              warningsCount: 0,
+              sourceProposalCount: 0,
+            },
+          ],
+        },
+      ],
+    })
+    checkpoints.push({
+      checkpointId,
+      bookId: 'book-signal-arc',
+      title: { en: 'Created checkpoint', 'zh-CN': '新 checkpoint' },
+      createdAtLabel: { en: '2026-04-28 12:01', 'zh-CN': '2026-04-28 12:01' },
+      createdFromRunId: 'run-scene-002',
+      sourceSignature: `draft-assembly:book-signal-arc:selected:chapter-open-water-signals`,
+      summary: { en: 'Created after invalidation.', 'zh-CN': '失效后新建。' },
+      selectedChapterId: 'chapter-open-water-signals',
+      chapters: [
+        {
+          chapterId: 'chapter-open-water-signals',
+          order: 1,
+          title: { en: 'Open Water Signals', 'zh-CN': '开阔水域信号' },
+          summary: { en: 'Created checkpoint chapter', 'zh-CN': '新 checkpoint 章节' },
+          scenes: [
+            {
+              sceneId: 'scene-dawn-slip',
+              order: 1,
+              title: { en: 'Dawn Slip', 'zh-CN': '拂晓撤离' },
+              summary: { en: 'Checkpoint snapshot scene', 'zh-CN': 'checkpoint 场景' },
+              proseDraft: 'Checkpoint prose',
+              draftWordCount: 2,
+              warningsCount: 0,
+              traceReady: true,
+            },
+          ],
+        },
+      ],
+    })
+
+    await queryClient.invalidateQueries({
+      queryKey: bookQueryKeys.branchRecords('book-signal-arc'),
+    })
+    await queryClient.invalidateQueries({
+      queryKey: bookQueryKeys.selectedBranchRecord('book-signal-arc', branchId),
+    })
+    await queryClient.invalidateQueries({
+      queryKey: bookQueryKeys.checkpoint('book-signal-arc', checkpointId, 'en'),
+    })
+    await queryClient.invalidateQueries({
+      queryKey: bookQueryKeys.checkpoints('book-signal-arc', 'en'),
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.error).toBeNull()
+    })
+
+    expect(hook.result.current.selectedBranch?.branchId).toBe(branchId)
+    expect(hook.result.current.branches?.map((branch) => branch.branchId)).toContain(branchId)
+    expect(hook.result.current.branchWorkspace).toMatchObject({
+      branch: expect.objectContaining({ branchId }),
+      baseline: expect.objectContaining({
+        kind: 'checkpoint',
+        checkpointId,
+      }),
+      selectedChapterId: 'chapter-open-water-signals',
+    })
   })
 
   it('does not build a branch workspace when the branch list query fails, and surfaces the list error', async () => {

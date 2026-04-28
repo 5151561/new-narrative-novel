@@ -1,9 +1,24 @@
 export type RunMode = 'continue' | 'rewrite' | 'from-scratch'
+export type RunFailureClass = 'provider_error' | 'model_timeout' | 'invalid_output' | 'cancelled' | 'unknown'
 
 export interface StartSceneRunInput {
   sceneId: string
   mode?: RunMode
   note?: string
+}
+
+export interface RetryRunInput {
+  runId: string
+  mode?: RunMode
+}
+
+export interface CancelRunInput {
+  runId: string
+  reason?: string
+}
+
+export interface ResumeRunInput {
+  runId: string
 }
 
 export type RunScope = 'scene' | 'chapter' | 'book'
@@ -21,7 +36,31 @@ export interface RunRecord {
   completedAtLabel?: string
   pendingReviewId?: string
   latestEventId?: string
+  failureClass?: RunFailureClass
+  failureMessage?: string
+  retryOfRunId?: string
+  resumableFromEventId?: string
+  cancelRequestedAtLabel?: string
+  usage?: RunUsageRecord
+  runtimeSummary?: RunRuntimeSummaryRecord
   eventCount: number
+}
+
+export interface RunUsageRecord {
+  inputTokens: number
+  outputTokens: number
+  estimatedCostUsd: number
+  actualCostUsd?: number
+  provider: string
+  modelId: string
+}
+
+export interface RunRuntimeSummaryRecord {
+  health: 'stable' | 'attention' | 'failed' | 'cancelled'
+  costLabel: string
+  tokenLabel: string
+  failureClassLabel: string
+  nextActionLabel: string
 }
 
 export type RunEventKind =
@@ -37,6 +76,10 @@ export type RunEventKind =
   | 'prose_generated'
   | 'run_completed'
   | 'run_failed'
+  | 'run_retry_scheduled'
+  | 'run_cancel_requested'
+  | 'run_cancelled'
+  | 'run_resumed'
 
 export type RunEventRefKind =
   | 'context-packet'
@@ -63,6 +106,7 @@ export interface RunEventRecord {
   createdAtLabel: string
   severity?: 'info' | 'warning' | 'error'
   refs?: RunEventRefRecord[]
+  usage?: RunUsageRecord
   metadata?: Record<string, string | number | boolean | null>
 }
 

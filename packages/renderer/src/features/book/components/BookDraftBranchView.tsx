@@ -7,6 +7,7 @@ import { useI18n } from '@/app/i18n'
 import type { BookBranchBaseline } from '@/features/workbench/types/workbench-route'
 
 import type {
+  BookExperimentBranchAdoptionKind,
   BookBranchChapterDeltaViewModel,
   BookBranchSceneDeltaViewModel,
   BookExperimentBranchSummaryViewModel,
@@ -24,6 +25,14 @@ interface BookDraftBranchViewProps {
   onOpenChapter: (chapterId: string, lens: 'structure' | 'draft') => void
   onSelectBranch: (branchId: string) => void
   onSelectBranchBaseline: (baseline: BookBranchBaseline) => void
+  onAdoptScene?: (input: {
+    branchId: string
+    bookId: string
+    chapterId: string
+    sceneId: string
+    kind: BookExperimentBranchAdoptionKind
+  }) => void
+  onArchiveBranch?: (branchId: string) => void
 }
 
 function trimText(value?: string) {
@@ -89,6 +98,48 @@ function renderExcerpt(label: string, value: string | undefined) {
   )
 }
 
+function getAdoptionLabel(locale: 'en' | 'zh-CN', kind: BookExperimentBranchAdoptionKind) {
+  if (kind === 'canon_patch') {
+    return locale === 'zh-CN' ? '采用 canon patch' : 'Adopt canon patch'
+  }
+
+  return locale === 'zh-CN' ? '采用 prose draft' : 'Adopt prose draft'
+}
+
+function getAdoptionDisabledReasons(
+  locale: 'en' | 'zh-CN',
+  scene: BookBranchSceneDeltaViewModel,
+  branchStatus: BookExperimentBranchSummaryViewModel['status'] | undefined,
+  kind: BookExperimentBranchAdoptionKind,
+  hasHandler: boolean,
+) {
+  const reasons: string[] = []
+
+  if (branchStatus === 'archived') {
+    reasons.push(locale === 'zh-CN' ? '已归档实验稿不能采用进 Draft。' : 'Archived branches cannot adopt into the draft.')
+  }
+
+  if (kind === 'canon_patch' && !scene.branchScene?.traceReady) {
+    reasons.push(locale === 'zh-CN' ? '该场景的溯源尚未就绪。' : 'Trace is not ready for this scene.')
+  }
+
+  if (kind === 'canon_patch' && (scene.branchSourceProposalCount ?? 0) <= 0) {
+    reasons.push(
+      locale === 'zh-CN' ? '该场景没有来源提案，不能采用 canon patch。' : 'No source proposals are available for this scene.',
+    )
+  }
+
+  if (kind === 'prose_draft' && !trimText(scene.branchScene?.proseDraft)) {
+    reasons.push(locale === 'zh-CN' ? '该场景的实验稿正文为空。' : 'Branch prose draft is empty for this scene.')
+  }
+
+  if (!hasHandler) {
+    reasons.push(locale === 'zh-CN' ? '采用接线将在后续 bundle 中连通。' : 'Selective adopt wiring will connect in a later bundle.')
+  }
+
+  return Array.from(new Set(reasons))
+}
+
 function buildBranchPreviewChapters(branchWorkspace: BookExperimentBranchWorkspaceViewModel) {
   return branchWorkspace.chapters
     .map((chapter) => ({
@@ -118,6 +169,8 @@ export function BookDraftBranchView({
   onOpenChapter,
   onSelectBranch,
   onSelectBranchBaseline,
+  onAdoptScene,
+  onArchiveBranch,
 }: BookDraftBranchViewProps) {
   const { locale } = useI18n()
   const selectedBranch = branchWorkspace?.branch ?? branches.find((branch) => branch.branchId === selectedBranchId) ?? null
@@ -141,6 +194,7 @@ export function BookDraftBranchView({
             branchBaseline={branchBaseline}
             onSelectBranch={onSelectBranch}
             onSelectBranchBaseline={onSelectBranchBaseline}
+            onArchiveBranch={onArchiveBranch}
           />
           {!branchWorkspace ? (
             <section className="rounded-md border border-line-soft bg-surface-1 p-6">
@@ -361,6 +415,20 @@ export function BookDraftBranchView({
                       <div className="mt-4 space-y-3">
                         {branchWorkspace.selectedChapter.sceneDeltas.map((scene) => {
                           const delta = getDeltaBadge(locale, scene.delta)
+                          const canonPatchReasons = getAdoptionDisabledReasons(
+                            locale,
+                            scene,
+                            selectedBranch?.status,
+                            'canon_patch',
+                            Boolean(onAdoptScene),
+                          )
+                          const proseDraftReasons = getAdoptionDisabledReasons(
+                            locale,
+                            scene,
+                            selectedBranch?.status,
+                            'prose_draft',
+                            Boolean(onAdoptScene),
+                          )
 
                           return (
                             <article key={scene.sceneId} className="rounded-md border border-line-soft bg-surface-2 p-4">
@@ -391,6 +459,77 @@ export function BookDraftBranchView({
                                       : 'Current excerpt',
                                   scene.baselineExcerpt,
                                 )}
+                              </div>
+                              <div className="mt-3 border-t border-line-soft pt-3">
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    aria-label={`${locale === 'zh-CN' ? '在 Draft 中打开' : 'Open in Draft'}: ${scene.title}`}
+                                    onClick={() => onOpenChapter(branchWorkspace.selectedChapter!.chapterId, 'draft')}
+                                    className="rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-1 hover:text-text-main"
+                                  >
+                                    {locale === 'zh-CN' ? '在 Draft 中打开' : 'Open in Draft'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label={`${locale === 'zh-CN' ? '在 Structure 中打开' : 'Open in Structure'}: ${scene.title}`}
+                                    onClick={() => onOpenChapter(branchWorkspace.selectedChapter!.chapterId, 'structure')}
+                                    className="rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-1 hover:text-text-main"
+                                  >
+                                    {locale === 'zh-CN' ? '在 Structure 中打开' : 'Open in Structure'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label={`${getAdoptionLabel(locale, 'canon_patch')}: ${scene.title}`}
+                                    disabled={canonPatchReasons.length > 0}
+                                    onClick={() =>
+                                      onAdoptScene?.({
+                                        branchId: selectedBranchId,
+                                        bookId: branchWorkspace.bookId,
+                                        chapterId: branchWorkspace.selectedChapter!.chapterId,
+                                        sceneId: scene.sceneId,
+                                        kind: 'canon_patch',
+                                      })
+                                    }
+                                    className="rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-text-muted disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {getAdoptionLabel(locale, 'canon_patch')}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label={`${getAdoptionLabel(locale, 'prose_draft')}: ${scene.title}`}
+                                    disabled={proseDraftReasons.length > 0}
+                                    onClick={() =>
+                                      onAdoptScene?.({
+                                        branchId: selectedBranchId,
+                                        bookId: branchWorkspace.bookId,
+                                        chapterId: branchWorkspace.selectedChapter!.chapterId,
+                                        sceneId: scene.sceneId,
+                                        kind: 'prose_draft',
+                                      })
+                                    }
+                                    className="rounded-md border border-line-soft px-2 py-1 text-xs font-medium text-text-muted disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {getAdoptionLabel(locale, 'prose_draft')}
+                                  </button>
+                                </div>
+                                <div className="mt-2 space-y-1">
+                                  {Array.from(new Set([...canonPatchReasons, ...proseDraftReasons])).map((reason) => (
+                                    <p key={reason} className="text-xs leading-5 text-text-soft">{reason}</p>
+                                  ))}
+                                  {scene.adoptions.length > 0 ? (
+                                    <div className="flex flex-wrap gap-2">
+                                      {scene.adoptions.map((adoption) => (
+                                        <Badge
+                                          key={adoption.adoptionId}
+                                          tone={adoption.status === 'adopted' ? 'success' : adoption.status === 'blocked' ? 'warn' : 'neutral'}
+                                        >
+                                          {`${getAdoptionLabel(locale, adoption.kind)} · ${adoption.status}`}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                </div>
                               </div>
                             </article>
                           )

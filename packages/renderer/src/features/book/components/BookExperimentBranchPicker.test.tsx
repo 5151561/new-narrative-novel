@@ -60,4 +60,25 @@ describe('BookExperimentBranchPicker', () => {
     expect(screen.getAllByRole('button', { pressed: true })).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Checkpoint baseline' })).toHaveAttribute('aria-pressed', 'true')
   })
+
+  it('shows archive state and disables archive action for archived branches', () => {
+    render(
+      <AppProviders>
+        <BookExperimentBranchPicker
+          branches={branches.map((branch) =>
+            branch.branchId === 'branch-book-signal-arc-quiet-ending' ? { ...branch, status: 'archived' } : branch,
+          )}
+          selectedBranchId="branch-book-signal-arc-quiet-ending"
+          branchBaseline="current"
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
+          onArchiveBranch={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getAllByText('Archived').length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Archive branch' })).toBeDisabled()
+    expect(screen.getByText('Archived branches cannot be archived again.')).toBeInTheDocument()
+  })
 })

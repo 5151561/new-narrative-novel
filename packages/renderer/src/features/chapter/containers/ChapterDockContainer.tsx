@@ -62,6 +62,15 @@ export function ChapterDockContainer({ activeView, workspace, latestMutation = n
           : null,
         problemsSummary: workspace.inspector.problemsSummary,
         assemblyHints: workspace.inspector.assemblyHints,
+        status: {
+          acceptedProposalId: workspace.planning.acceptedProposalId,
+          selectedSceneBacklogStatusLabel: selectedScene?.backlogStatusLabel,
+          sceneStatuses: workspace.scenes.map((scene) => ({
+            id: scene.id,
+            title: scene.title,
+            backlogStatusLabel: scene.backlogStatusLabel,
+          })),
+        },
       }}
       activity={activity}
     />

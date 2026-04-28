@@ -205,6 +205,164 @@ const workspace: BookDraftWorkspaceViewModel = {
     warningsChapters: [],
     queuedRevisionChapters: [],
   },
+  readableManuscript: {
+    formatVersion: 'book-manuscript-assembly-v1',
+    markdown: [
+      '# Signal Arc',
+      '',
+      'Read the manuscript in book order without losing chapter boundaries.',
+      '',
+      '## Chapter 1: Signals in Rain',
+      '',
+      'Keep platform pressure audible through the departure bell.',
+      '',
+      '### Scene 1: Midnight Platform',
+      '',
+      'Rain held the platform in place while Ren refused to blink first.',
+      '',
+      '> Transition gap: Hold the bottleneck for one more beat.',
+      '',
+      '### Scene 2: Concourse Delay',
+      '',
+      '> Manuscript gap: First prose pass still missing.',
+      '',
+      '## Chapter 2: Open Water Signals',
+      '',
+      'Carry the courier handoff from warehouse pressure into open water.',
+      '',
+      '### Scene 1: Warehouse Bridge',
+      '',
+      'Warehouse pressure should stay visible while the courier handoff slips toward open water.',
+      '',
+      '### Scene 2: Open Water Ledger',
+      '',
+      'The canal release keeps the ledger exposed without settling the bargain.',
+    ].join('\n'),
+    plainText: 'Signal Arc',
+    sections: [
+      {
+        kind: 'chapter-heading',
+        chapterId: 'chapter-signals-in-rain',
+        chapterOrder: 1,
+        chapterTitle: 'Signals in Rain',
+        summary: 'Keep platform pressure audible through the departure bell.',
+        assembledWordCount: 21,
+        missingDraftCount: 1,
+      },
+      {
+        kind: 'scene-draft',
+        chapterId: 'chapter-signals-in-rain',
+        chapterOrder: 1,
+        chapterTitle: 'Signals in Rain',
+        sceneId: 'scene-midnight-platform',
+        sceneOrder: 1,
+        sceneTitle: 'Midnight Platform',
+        sceneSummary: 'Keep the bargain public and constrained.',
+        proseDraft: 'Rain held the platform in place while Ren refused to blink first.',
+        draftWordCount: 11,
+        traceReady: true,
+      },
+      {
+        kind: 'transition-gap',
+        chapterId: 'chapter-signals-in-rain',
+        chapterOrder: 1,
+        chapterTitle: 'Signals in Rain',
+        fromSceneId: 'scene-midnight-platform',
+        toSceneId: 'scene-concourse-delay',
+        fromSceneTitle: 'Midnight Platform',
+        toSceneTitle: 'Concourse Delay',
+        gapReason: 'Hold the bottleneck for one more beat.',
+      },
+      {
+        kind: 'scene-gap',
+        chapterId: 'chapter-signals-in-rain',
+        chapterOrder: 1,
+        chapterTitle: 'Signals in Rain',
+        sceneId: 'scene-concourse-delay',
+        sceneOrder: 2,
+        sceneTitle: 'Concourse Delay',
+        sceneSummary: 'Hold the crowd bottleneck long enough to keep platform pressure alive.',
+        gapReason: 'First prose pass still missing.',
+        traceReady: false,
+      },
+      {
+        kind: 'chapter-heading',
+        chapterId: 'chapter-open-water-signals',
+        chapterOrder: 2,
+        chapterTitle: 'Open Water Signals',
+        summary: 'Carry the courier handoff from warehouse pressure into open water.',
+        assembledWordCount: 23,
+        missingDraftCount: 0,
+      },
+      {
+        kind: 'scene-draft',
+        chapterId: 'chapter-open-water-signals',
+        chapterOrder: 2,
+        chapterTitle: 'Open Water Signals',
+        sceneId: 'scene-warehouse-bridge',
+        sceneOrder: 1,
+        sceneTitle: 'Warehouse Bridge',
+        sceneSummary: 'Keep the handoff unstable as the courier approaches the canal.',
+        proseDraft: 'Warehouse pressure should stay visible while the courier handoff slips toward open water.',
+        draftWordCount: 12,
+        traceReady: true,
+      },
+      {
+        kind: 'scene-draft',
+        chapterId: 'chapter-open-water-signals',
+        chapterOrder: 2,
+        chapterTitle: 'Open Water Signals',
+        sceneId: 'scene-open-water-ledger',
+        sceneOrder: 2,
+        sceneTitle: 'Open Water Ledger',
+        sceneSummary: 'Keep the ledger visible during the release.',
+        proseDraft: 'The canal release keeps the ledger exposed without settling the bargain.',
+        draftWordCount: 11,
+        traceReady: true,
+      },
+    ],
+    sourceManifest: [
+      {
+        kind: 'scene-draft',
+        chapterId: 'chapter-signals-in-rain',
+        chapterOrder: 1,
+        chapterTitle: 'Signals in Rain',
+        sceneId: 'scene-midnight-platform',
+        sceneOrder: 1,
+        sceneTitle: 'Midnight Platform',
+        sourcePatchId: 'canon-patch-001',
+        sourceProposalIds: ['proposal-001'],
+        acceptedFactIds: ['fact-001'],
+        traceReady: true,
+      },
+      {
+        kind: 'scene-gap',
+        chapterId: 'chapter-signals-in-rain',
+        chapterOrder: 1,
+        chapterTitle: 'Signals in Rain',
+        sceneId: 'scene-concourse-delay',
+        sceneOrder: 2,
+        sceneTitle: 'Concourse Delay',
+        sourceProposalIds: [],
+        acceptedFactIds: [],
+        traceReady: false,
+        gapReason: 'First prose pass still missing.',
+      },
+      {
+        kind: 'scene-draft',
+        chapterId: 'chapter-open-water-signals',
+        chapterOrder: 2,
+        chapterTitle: 'Open Water Signals',
+        sceneId: 'scene-warehouse-bridge',
+        sceneOrder: 1,
+        sceneTitle: 'Warehouse Bridge',
+        sourcePatchId: 'canon-patch-002',
+        sourceProposalIds: ['proposal-002'],
+        acceptedFactIds: ['fact-002'],
+        traceReady: true,
+      },
+    ],
+  },
 }
 
 describe('BookDraftReader', () => {
@@ -231,7 +389,7 @@ describe('BookDraftReader', () => {
     expect(firstChapter.compareDocumentPosition(secondChapter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(secondChapter).toHaveAttribute('aria-current', 'true')
     expect(initialDestination).toBeInTheDocument()
-    expect(initialDestination.querySelectorAll('p.whitespace-pre-wrap').length).toBeGreaterThan(0)
+    expect(within(initialDestination).getByText('Open Water Signals')).toBeInTheDocument()
     expect(screen.getByText('Manuscript gap')).toBeInTheDocument()
 
     await user.click(firstChapter)
@@ -243,7 +401,7 @@ describe('BookDraftReader', () => {
     )
     const partialDestination = screen.getByRole('region', { name: 'Selected manuscript destination' })
     expect(partialDestination).toBeInTheDocument()
-    expect(within(partialDestination).getByText('Concourse Delay')).toBeInTheDocument()
+    expect(within(partialDestination).getByText('Signals in Rain')).toBeInTheDocument()
     expect(partialDestination.querySelectorAll('p.whitespace-pre-wrap').length).toBe(0)
 
     await user.click(screen.getByRole('button', { name: 'Open in Draft: Open Water Signals' }))

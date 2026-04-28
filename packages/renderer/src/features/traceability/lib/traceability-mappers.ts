@@ -484,9 +484,10 @@ export function buildAssetTraceabilitySummaryViewModel<TMention extends AssetTra
     Object.values(sceneTraceBySceneId).flatMap((sceneTrace) => sceneTrace?.relatedAssets.map((asset) => asset.assetId) ?? []),
     (assetId) => assetId,
   )
-  const relationsWithoutNarrativeBackingCount = relationTargetAssetIds.filter(
+  const relationTargetAssetIdsWithoutNarrativeBacking = relationTargetAssetIds.filter(
     (assetId) => !narrativeBackedRelationAssetIds.includes(assetId),
-  ).length
+  )
+  const relationsWithoutNarrativeBackingCount = relationTargetAssetIdsWithoutNarrativeBacking.length
 
   return {
     assetId,
@@ -495,6 +496,8 @@ export function buildAssetTraceabilitySummaryViewModel<TMention extends AssetTra
     unlinkedMentions: mentionSummaries.filter((mention) => mention.backingKind === 'unlinked').length,
     mentionsWithMissingSceneTrace: mentionSummaries.filter((mention) => mention.sceneTraceMissing).length,
     relationsWithoutNarrativeBackingCount,
+    relationTargetAssetIdsWithNarrativeBacking: narrativeBackedRelationAssetIds,
+    relationTargetAssetIdsWithoutNarrativeBacking,
     mentionSummaries,
   }
 }

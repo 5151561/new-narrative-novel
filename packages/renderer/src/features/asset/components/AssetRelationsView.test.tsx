@@ -13,6 +13,12 @@ const relations: AssetRelationViewModel[] = [
     targetAssetId: 'asset-mei-arden',
     targetTitle: 'Mei Arden',
     targetKind: 'character',
+    targetKindLabel: 'Character',
+    relationshipScopeLabel: 'Same-kind relation',
+    reciprocalStatusLabel: 'Reciprocal',
+    narrativeBackingStatusLabel: 'Narrative-backed',
+    hasReciprocalRelation: true,
+    hasNarrativeBacking: true,
     relationLabel: 'Bargains against',
     summary: 'Ren needs Mei’s timing, but refuses the terms that would make the ledger public.',
   },
@@ -30,6 +36,8 @@ describe('AssetRelationsView', () => {
     )
 
     expect(screen.getByText('Bargains against')).toBeInTheDocument()
+    expect(screen.getByText('Reciprocal')).toBeInTheDocument()
+    expect(screen.getByText('Narrative-backed')).toBeInTheDocument()
     expect(screen.getByText('Ren needs Mei’s timing, but refuses the terms that would make the ledger public.')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /Relates to: Mei Arden/i }))

@@ -44,6 +44,7 @@ const summary: AssetDockSummaryViewModel = {
   missingFieldCount: 1,
   relationCount: 3,
   mentionCount: 3,
+  timelineEntryCount: 2,
   isOrphan: false,
   mentionsWithoutCanonBackingCount: 2,
   mentionsWithMissingSceneTraceCount: 1,
@@ -96,6 +97,7 @@ describe('AssetBottomDock', () => {
     expect(within(problemsSection!).getByText('Relations present but no narrative backing')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Private/spoiler policy requires caution')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Context policy')).toBeInTheDocument()
+    expect(within(problemsSection!).getByText('Timeline')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Policy rules')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Policy warnings')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Without canon backing')).toBeInTheDocument()

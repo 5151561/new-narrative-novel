@@ -309,4 +309,69 @@ describe('useSetReviewIssueFixActionMutation', () => {
       }),
     ])
   })
+
+  it('replaces a stale fix action with a fresh active record when the user starts again on the current signature', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    queryClient.setQueryData(reviewQueryKeys.fixActions('book-signal-arc'), [
+      {
+        id: 'fix-stale',
+        bookId: 'book-signal-arc',
+        issueId: 'issue-1',
+        issueSignature: 'stale-signature',
+        sourceHandoffId: 'handoff-stale',
+        sourceHandoffLabel: 'Open chapter draft',
+        targetScope: 'chapter',
+        status: 'started',
+        note: 'Old stale fix.',
+        startedAtLabel: '2026-04-19 17:00',
+        updatedAtLabel: '2026-04-19 17:00',
+        updatedByLabel: 'Editor',
+      },
+    ])
+
+    const hook = renderHook(
+      () =>
+        useSetReviewIssueFixActionMutation({
+          bookId: 'book-signal-arc',
+          client: {
+            setReviewIssueFixAction: vi.fn(async (input: any) => ({
+              id: 'fix-fresh',
+              startedAtLabel: '2026-04-19 18:00',
+              updatedAtLabel: '2026-04-19 18:00',
+              updatedByLabel: 'Editor',
+              ...input,
+            })),
+          } as any,
+        }),
+      { wrapper: createWrapper(queryClient) },
+    )
+
+    await act(async () => {
+      await hook.result.current.mutateAsync({
+        issueId: 'issue-1',
+        issueSignature: 'current-signature',
+        sourceHandoffId: 'handoff-fresh',
+        sourceHandoffLabel: 'Open scene draft',
+        targetScope: 'scene',
+        status: 'started',
+        note: 'Fresh fix.',
+      })
+    })
+
+    expect(queryClient.getQueryData(reviewQueryKeys.fixActions('book-signal-arc'))).toEqual([
+      expect.objectContaining({
+        issueId: 'issue-1',
+        issueSignature: 'current-signature',
+        sourceHandoffId: 'handoff-fresh',
+        targetScope: 'scene',
+        status: 'started',
+        note: 'Fresh fix.',
+      }),
+    ])
+  })
 })

@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest'
 
 import type { ChapterStructureWorkspaceRecord } from './chapter-records'
 import {
+  acceptChapterBacklogProposal,
+  appendGeneratedChapterBacklogProposal,
   mergeLocalizedChapterText,
   normalizeSceneOrders,
+  patchChapterBacklogPlanning,
+  patchChapterBacklogProposalScene,
   patchChapterRecordScene,
   reorderChapterRecordScenes,
 } from './chapter-record-mutations'
@@ -19,6 +23,14 @@ function createRecord(): ChapterStructureWorkspaceRecord {
       en: 'Chapter summary',
       'zh-CN': '章节摘要',
     },
+    planning: {
+      goal: {
+        en: 'Keep pressure visible.',
+        'zh-CN': '保持压力可见。',
+      },
+      constraints: [],
+      proposals: [],
+    },
     viewsMeta: {
       availableViews: ['sequence', 'outliner', 'assembly'],
     },
@@ -33,6 +45,7 @@ function createRecord(): ChapterStructureWorkspaceRecord {
         location: { en: 'A location', 'zh-CN': '甲地点' },
         conflict: { en: 'A conflict', 'zh-CN': '甲冲突' },
         reveal: { en: 'A reveal', 'zh-CN': '甲揭示' },
+        backlogStatus: 'planned',
         statusLabel: { en: 'Current', 'zh-CN': '当前' },
         proseStatusLabel: { en: 'Needs draft', 'zh-CN': '待起草' },
         runStatusLabel: { en: 'Idle', 'zh-CN': '未开始' },
@@ -49,6 +62,7 @@ function createRecord(): ChapterStructureWorkspaceRecord {
         location: { en: 'B location', 'zh-CN': '乙地点' },
         conflict: { en: 'B conflict', 'zh-CN': '乙冲突' },
         reveal: { en: 'B reveal', 'zh-CN': '乙揭示' },
+        backlogStatus: 'planned',
         statusLabel: { en: 'Queued', 'zh-CN': '排队中' },
         proseStatusLabel: { en: 'Queued', 'zh-CN': '排队中' },
         runStatusLabel: { en: 'Idle', 'zh-CN': '未开始' },
@@ -65,6 +79,7 @@ function createRecord(): ChapterStructureWorkspaceRecord {
         location: { en: 'C location', 'zh-CN': '丙地点' },
         conflict: { en: 'C conflict', 'zh-CN': '丙冲突' },
         reveal: { en: 'C reveal', 'zh-CN': '丙揭示' },
+        backlogStatus: 'planned',
         statusLabel: { en: 'Guarded', 'zh-CN': '受控' },
         proseStatusLabel: { en: 'Guarded', 'zh-CN': '受控' },
         runStatusLabel: { en: 'Paused', 'zh-CN': '已暂停' },
@@ -241,6 +256,144 @@ describe('chapter record mutations', () => {
     ).toEqual({
       en: 'Original',
       'zh-CN': '更新后',
+    })
+  })
+
+  it('patches chapter backlog planning input by locale while preserving existing proposal state', () => {
+    const record = createRecord()
+    const withProposal = appendGeneratedChapterBacklogProposal(record)
+
+    const patched = patchChapterBacklogPlanning(
+      withProposal,
+      {
+        goal: 'Updated visible pressure goal.',
+        constraints: ['Keep the ledger closed.', 'Keep the witness onstage.'],
+      },
+      'en',
+    )
+
+    expect(patched.planning).toMatchObject({
+      goal: {
+        en: 'Updated visible pressure goal.',
+        'zh-CN': '保持压力可见。',
+      },
+      constraints: [
+        {
+          label: {
+            en: 'Keep the ledger closed.',
+          },
+        },
+        {
+          label: {
+            en: 'Keep the witness onstage.',
+          },
+        },
+      ],
+    })
+    expect(patched.planning.proposals).toHaveLength(1)
+  })
+
+  it('appends a deterministic backlog proposal and lets a proposal scene reorder/status edit stay local until acceptance', () => {
+    const record = createRecord()
+
+    const withProposal = appendGeneratedChapterBacklogProposal(record)
+    const proposalId = withProposal.planning.proposals[0]!.proposalId
+    const proposalSceneId = withProposal.planning.proposals[0]!.scenes[0]!.proposalSceneId
+
+    const edited = patchChapterBacklogProposalScene(
+      withProposal,
+      proposalId,
+      proposalSceneId,
+      {
+        title: 'B opening',
+        summary: 'Open on the bottleneck first.',
+        purpose: 'Start the chapter inside crowd pressure.',
+        pov: 'B revised pov',
+        location: 'B revised location',
+        conflict: 'B revised conflict',
+        reveal: 'B revised reveal',
+        plannerNotes: 'Reframe chapter pressure before the first bell.',
+      },
+      'en',
+      1,
+      'needs_review',
+    )
+
+    expect(edited.planning.proposals[0]!.scenes.map((scene) => `${scene.order}:${scene.sceneId}:${scene.backlogStatus}`)).toEqual([
+      '1:scene-b:needs_review',
+      '2:scene-a:planned',
+      '3:scene-c:planned',
+    ])
+    expect(edited.planning.proposals[0]!.scenes[0]).toMatchObject({
+      title: { en: 'B opening' },
+      purpose: { en: 'Start the chapter inside crowd pressure.' },
+      pov: { en: 'B revised pov' },
+      location: { en: 'B revised location' },
+      conflict: { en: 'B revised conflict' },
+      reveal: { en: 'B revised reveal' },
+      plannerNotes: { en: 'Reframe chapter pressure before the first bell.' },
+    })
+    expect(edited.scenes.map((scene) => `${scene.order}:${scene.id}:${scene.backlogStatus}`)).toEqual([
+      '4:scene-a:planned',
+      '2:scene-b:planned',
+      '9:scene-c:planned',
+    ])
+  })
+
+  it('accepts a backlog proposal into canonical scene order, scene fields, and acceptedProposalId', () => {
+    const record = createRecord()
+    const withProposal = appendGeneratedChapterBacklogProposal(record)
+    const proposalId = withProposal.planning.proposals[0]!.proposalId
+    const proposalSceneId = withProposal.planning.proposals[0]!.scenes[0]!.proposalSceneId
+    const edited = patchChapterBacklogProposalScene(
+      withProposal,
+      proposalId,
+      proposalSceneId,
+      {
+        title: 'B opening',
+        summary: 'Open on the bottleneck first.',
+        purpose: 'Start the chapter inside crowd pressure.',
+        pov: 'B revised pov',
+        location: 'B revised location',
+        conflict: 'B revised conflict',
+        reveal: 'B revised reveal',
+      },
+      'en',
+      1,
+      'needs_review',
+    )
+
+    const accepted = acceptChapterBacklogProposal(edited, proposalId)
+
+    expect(accepted.planning.acceptedProposalId).toBe(proposalId)
+    expect(accepted.scenes.map((scene) => `${scene.order}:${scene.id}:${scene.backlogStatus}`)).toEqual([
+      '1:scene-b:needs_review',
+      '2:scene-a:planned',
+      '3:scene-c:planned',
+    ])
+    expect(accepted.scenes[0]).toMatchObject({
+      id: 'scene-b',
+      title: {
+        en: 'B opening',
+      },
+      summary: {
+        en: 'Open on the bottleneck first.',
+      },
+      purpose: {
+        en: 'Start the chapter inside crowd pressure.',
+      },
+      pov: {
+        en: 'B revised pov',
+      },
+      location: {
+        en: 'B revised location',
+      },
+      conflict: {
+        en: 'B revised conflict',
+      },
+      reveal: {
+        en: 'B revised reveal',
+      },
     })
   })
 })

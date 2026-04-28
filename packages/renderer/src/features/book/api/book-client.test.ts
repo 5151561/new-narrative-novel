@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
+import { resetMockBookExperimentBranchStore } from './book-experiment-branches'
+import { resetMockBookManuscriptCheckpointStore } from './book-manuscript-checkpoints'
 import {
   buildMockBookExportArtifact,
   exportMockBookExportArtifactSnapshot,
@@ -8,6 +10,7 @@ import {
   resetMockBookExportArtifactDb,
 } from './mock-book-export-artifact-db'
 import { createBookClient } from './book-client'
+import type { BookDraftAssemblyRecord } from './book-draft-assembly-records'
 
 function createBuildInput(format: 'markdown' | 'plain_text' = 'markdown') {
   return {
@@ -34,6 +37,65 @@ function createBuildInput(format: 'markdown' | 'plain_text' = 'markdown') {
       checkedFixCount: 0,
       blockedFixCount: 0,
       staleFixCount: 0,
+    },
+  }
+}
+
+function createDraftAssembly(): BookDraftAssemblyRecord {
+  return {
+    bookId: 'book-signal-arc',
+    title: { en: 'Signal Arc', 'zh-CN': '信号弧线' },
+    summary: { en: 'Current draft workspace', 'zh-CN': '当前正文工作区' },
+    chapterCount: 1,
+    sceneCount: 1,
+    draftedSceneCount: 1,
+    missingDraftSceneCount: 0,
+    assembledWordCount: 12,
+    chapters: [
+      {
+        chapterId: 'chapter-open-water-signals',
+        order: 1,
+        title: { en: 'Open Water Signals', 'zh-CN': '开阔水域信号' },
+        summary: { en: 'Draft chapter', 'zh-CN': '草稿章节' },
+        sceneCount: 1,
+        draftedSceneCount: 1,
+        missingDraftCount: 0,
+        assembledWordCount: 12,
+        warningsCount: 0,
+        queuedRevisionCount: 0,
+        tracedSceneCount: 1,
+        missingTraceSceneCount: 0,
+        scenes: [
+          {
+            kind: 'draft',
+            sceneId: 'scene-dawn-slip',
+            order: 1,
+            title: { en: 'Dawn Slip', 'zh-CN': '拂晓撤离' },
+            summary: { en: 'Current draft scene', 'zh-CN': '当前草稿场景' },
+            proseStatusLabel: { en: 'Draft ready', 'zh-CN': '草稿就绪' },
+            warningsCount: 0,
+            draftWordCount: 12,
+            traceReady: true,
+            traceRollup: {
+              acceptedFactCount: 0,
+              relatedAssetCount: 0,
+              sourceProposalCount: 1,
+              missingLinks: [],
+            },
+            proseDraft: 'Current draft prose',
+            sourceProposals: [],
+            acceptedFactIds: [],
+            relatedAssets: [],
+          },
+        ],
+      },
+    ],
+    readableManuscript: {
+      formatVersion: 'book-manuscript-assembly-v1',
+      markdown: '# Signal Arc',
+      plainText: 'Signal Arc',
+      sections: [],
+      sourceManifest: [],
     },
   }
 }
@@ -130,5 +192,151 @@ describe('book export artifact data layer', () => {
     ])
     expect(rebuilt.id).toBe('book-export-artifact-book-signal-arc-profile-editorial-md-markdown-3')
     expect(getMockBookExportArtifacts({ bookId: 'book-signal-arc' })[1]?.title).toBe('Signal Arc')
+  })
+
+  it('creates manuscript checkpoints through the client and clones the returned record', async () => {
+    const createBookManuscriptCheckpointRecord = vi.fn().mockReturnValue({
+      checkpointId: 'checkpoint-book-signal-arc-new',
+      bookId: 'book-signal-arc',
+      title: { en: 'New checkpoint', 'zh-CN': '新 checkpoint' },
+      createdAtLabel: { en: '2026-04-28 10:00', 'zh-CN': '2026-04-28 10:00' },
+      createdFromRunId: 'run-scene-001',
+      sourceSignature: 'draft-assembly:book-signal-arc:selected:chapter-open-water-signals',
+      summary: { en: 'Snapshot summary', 'zh-CN': '快照摘要' },
+      selectedChapterId: 'chapter-open-water-signals',
+      chapters: [],
+    })
+    const client = createBookClient({
+      createBookManuscriptCheckpointRecord,
+    })
+
+    const created = await client.createBookManuscriptCheckpoint({
+      bookId: 'book-signal-arc',
+      title: 'New checkpoint',
+      summary: 'Snapshot summary',
+      sourceSignature: 'draft-assembly:book-signal-arc:selected:chapter-open-water-signals',
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+    created.title.en = 'Mutated locally'
+
+    expect(createBookManuscriptCheckpointRecord).toHaveBeenCalledWith({
+      bookId: 'book-signal-arc',
+      title: 'New checkpoint',
+      summary: 'Snapshot summary',
+      sourceSignature: 'draft-assembly:book-signal-arc:selected:chapter-open-water-signals',
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+    await expect(
+      client.createBookManuscriptCheckpoint({
+        bookId: 'book-signal-arc',
+        title: 'Second checkpoint',
+        summary: 'Second snapshot summary',
+        sourceSignature: 'draft-assembly:book-signal-arc:selected:chapter-open-water-signals',
+        selectedChapterId: 'chapter-open-water-signals',
+      }),
+    ).resolves.toMatchObject({
+      title: { en: 'New checkpoint' },
+    })
+  })
+
+  it('creates and archives experiment branches through the client without exposing mutable store state', async () => {
+    const createBookExperimentBranchRecord = vi.fn().mockReturnValue({
+      branchId: 'branch-book-signal-arc-fresh',
+      bookId: 'book-signal-arc',
+      title: { en: 'Fresh branch', 'zh-CN': '新分支' },
+      summary: { en: 'Branch summary', 'zh-CN': '分支摘要' },
+      rationale: { en: 'Branch rationale', 'zh-CN': '分支原因' },
+      createdAtLabel: { en: '2026-04-28 10:10', 'zh-CN': '2026-04-28 10:10' },
+      sourceSignature: 'checkpoint:checkpoint-book-signal-arc-pr11-baseline',
+      basedOnCheckpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      selectedChapterId: 'chapter-signals-in-rain',
+      status: 'review' as const,
+      chapterSnapshots: [],
+    })
+    const archiveBookExperimentBranchRecord = vi.fn().mockResolvedValue({
+      branchId: 'branch-book-signal-arc-fresh',
+      bookId: 'book-signal-arc',
+      title: { en: 'Fresh branch', 'zh-CN': '新分支' },
+      summary: { en: 'Branch summary', 'zh-CN': '分支摘要' },
+      rationale: { en: 'Branch rationale', 'zh-CN': '分支原因' },
+      createdAtLabel: { en: '2026-04-28 10:10', 'zh-CN': '2026-04-28 10:10' },
+      sourceSignature: 'checkpoint:checkpoint-book-signal-arc-pr11-baseline',
+      basedOnCheckpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      selectedChapterId: 'chapter-signals-in-rain',
+      status: 'archived' as const,
+      archivedAtLabel: { en: '2026-04-28 10:12', 'zh-CN': '2026-04-28 10:12' },
+      archiveNote: { en: 'Merged into review plan', 'zh-CN': '已并入审阅计划' },
+      chapterSnapshots: [],
+    })
+    const client = createBookClient({
+      createBookExperimentBranchRecord,
+      archiveBookExperimentBranchRecord,
+    })
+
+    const created = await client.createBookExperimentBranch({
+      bookId: 'book-signal-arc',
+      title: 'Fresh branch',
+      summary: 'Branch summary',
+      rationale: 'Branch rationale',
+      basedOnCheckpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      selectedChapterId: 'chapter-signals-in-rain',
+    })
+    created.title.en = 'Mutated locally'
+    const archived = await client.archiveBookExperimentBranch({
+      bookId: 'book-signal-arc',
+      branchId: 'branch-book-signal-arc-fresh',
+      archiveNote: 'Merged into review plan',
+    })
+
+    expect(createBookExperimentBranchRecord).toHaveBeenCalledWith({
+      bookId: 'book-signal-arc',
+      title: 'Fresh branch',
+      summary: 'Branch summary',
+      rationale: 'Branch rationale',
+      basedOnCheckpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      selectedChapterId: 'chapter-signals-in-rain',
+    })
+    expect(archiveBookExperimentBranchRecord).toHaveBeenCalledWith({
+      bookId: 'book-signal-arc',
+      branchId: 'branch-book-signal-arc-fresh',
+      archiveNote: 'Merged into review plan',
+    })
+    expect(archived.status).toBe('archived')
+    expect(archived.archiveNote?.en).toBe('Merged into review plan')
+  })
+
+  it('provides functional default checkpoint and branch write methods when draft assembly data is available', async () => {
+    resetMockBookManuscriptCheckpointStore()
+    resetMockBookExperimentBranchStore()
+    const client = createBookClient({
+      getBookDraftAssemblyByBookId: () => createDraftAssembly(),
+    })
+
+    const checkpoint = await client.createBookManuscriptCheckpoint({
+      bookId: 'book-signal-arc',
+      title: 'Draft checkpoint',
+      summary: 'Checkpoint from current draft.',
+      sourceSignature: 'draft-assembly:book-signal-arc:selected:chapter-open-water-signals',
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+    const branch = await client.createBookExperimentBranch({
+      bookId: 'book-signal-arc',
+      title: 'Draft branch',
+      summary: 'Branch from current draft.',
+      rationale: 'Keep the current draft snapshot.',
+      selectedChapterId: 'chapter-open-water-signals',
+    })
+    const archived = await client.archiveBookExperimentBranch({
+      bookId: 'book-signal-arc',
+      branchId: branch.branchId,
+      archiveNote: 'Archived after review.',
+    })
+
+    expect(checkpoint.sourceSignature).toBe('draft-assembly:book-signal-arc:selected:chapter-open-water-signals')
+    expect(checkpoint.selectedChapterId).toBe('chapter-open-water-signals')
+    expect(branch.sourceSignature).toBe('draft-assembly:book-signal-arc:selected:chapter-open-water-signals')
+    expect(branch.selectedChapterId).toBe('chapter-open-water-signals')
+    expect(archived.status).toBe('archived')
+    expect(archived.archiveNote?.en).toBe('Archived after review.')
   })
 })

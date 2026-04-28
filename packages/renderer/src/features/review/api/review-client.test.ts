@@ -141,10 +141,13 @@ describe('review fix action data layer', () => {
       issueId: 'issue-1',
       issueSignature: 'signature-2',
       sourceHandoffId: 'handoff-2',
-      sourceHandoffLabel: 'Open compare review',
-      targetScope: 'book',
-      status: 'checked',
+      sourceHandoffLabel: 'Open scene draft',
+      targetScope: 'scene',
+      status: 'rewrite_requested' as any,
       note: '  ',
+      rewriteRequestNote: '  Needs rewrite  ' as any,
+      rewriteRequestId: 'rewrite-issue-1' as any,
+      rewriteTargetSceneId: 'scene-7' as any,
     })
 
     expect(initial.note).toBe('Started now')
@@ -153,10 +156,13 @@ describe('review fix action data layer', () => {
       issueId: 'issue-1',
       issueSignature: 'signature-2',
       sourceHandoffId: 'handoff-2',
-      sourceHandoffLabel: 'Open compare review',
-      targetScope: 'book',
-      status: 'checked',
+      sourceHandoffLabel: 'Open scene draft',
+      targetScope: 'scene',
+      status: 'rewrite_requested',
       note: undefined,
+      rewriteRequestNote: 'Needs rewrite',
+      rewriteRequestId: 'rewrite-issue-1',
+      rewriteTargetSceneId: 'scene-7',
       startedAtLabel: initial.startedAtLabel,
     })
     expect(getMockBookReviewFixActions('book-signal-arc')).toEqual([replaced])

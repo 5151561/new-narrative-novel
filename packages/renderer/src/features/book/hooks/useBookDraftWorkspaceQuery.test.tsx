@@ -65,9 +65,9 @@ function createDraftAssemblyRecord(): BookDraftAssemblyRecord {
               sourceProposalCount: 1,
               missingLinks: [],
             },
-            sourcePatchId: 'patch-1',
-            sourceProposals: [],
-            acceptedFactIds: ['fact-1'],
+            sourcePatchId: 'canon-patch-001',
+            sourceProposals: [{ proposalId: 'proposal-001', title: 'Selected witness timing' }],
+            acceptedFactIds: ['fact-001'],
             relatedAssets: [],
           },
           {
@@ -127,14 +127,84 @@ function createDraftAssemblyRecord(): BookDraftAssemblyRecord {
               sourceProposalCount: 1,
               missingLinks: [],
             },
-            sourceProposals: [],
-            acceptedFactIds: ['fact-2'],
+            sourceProposals: [{ proposalId: 'proposal-002', title: 'Revised harbor exit beat' }],
+            acceptedFactIds: ['fact-002'],
             relatedAssets: [],
           },
         ],
       },
     ],
-  }
+    readableManuscript: {
+      formatVersion: 'book-manuscript-assembly-v1',
+      markdown: [
+        '# Signal Arc',
+        '',
+        'Current live manuscript assembly',
+        '',
+        '## Chapter 1: Signals in Rain',
+        '',
+        'First chapter',
+        '',
+        '### Scene 1: Midnight Platform',
+        '',
+        'Accepted platform prose now reflects the selected review variant.',
+      ].join('\n'),
+      plainText: [
+        'Signal Arc',
+        '',
+        'Current live manuscript assembly',
+        '',
+        'Chapter 1: Signals in Rain',
+        'First chapter',
+        '',
+        'Scene 1: Midnight Platform',
+        'Accepted platform prose now reflects the selected review variant.',
+      ].join('\n'),
+      sections: [
+        {
+          kind: 'chapter-heading',
+          chapterId: 'chapter-signals-in-rain',
+          chapterOrder: 1,
+          chapterTitle: { en: 'Signals in Rain', 'zh-CN': '雨中信号' },
+          summary: { en: 'First chapter', 'zh-CN': '第一章' },
+          assembledWordCount: 9,
+          missingDraftCount: 1,
+        },
+        {
+          kind: 'scene-draft',
+          chapterId: 'chapter-signals-in-rain',
+          chapterOrder: 1,
+          chapterTitle: { en: 'Signals in Rain', 'zh-CN': '雨中信号' },
+          sceneId: 'scene-midnight-platform',
+          sceneOrder: 1,
+          sceneTitle: { en: 'Midnight Platform', 'zh-CN': '午夜站台' },
+          sceneSummary: { en: 'Accepted prose', 'zh-CN': '已采纳正文' },
+          proseDraft: 'Accepted platform prose now reflects the selected review variant.',
+          draftWordCount: 9,
+          traceReady: true,
+          sourcePatchId: 'canon-patch-001',
+          sourceProposalIds: ['proposal-001'],
+          acceptedFactIds: ['fact-001'],
+        },
+      ],
+      sourceManifest: [
+        {
+          kind: 'scene-draft',
+          chapterId: 'chapter-signals-in-rain',
+          chapterOrder: 1,
+          chapterTitle: { en: 'Signals in Rain', 'zh-CN': '雨中信号' },
+          sceneId: 'scene-midnight-platform',
+          sceneOrder: 1,
+          sceneTitle: { en: 'Midnight Platform', 'zh-CN': '午夜站台' },
+          sourcePatchId: 'canon-patch-001',
+          sourceProposalIds: ['proposal-001'],
+          acceptedFactIds: ['fact-001'],
+          traceReady: true,
+          draftWordCount: 9,
+        },
+      ],
+    },
+  } as BookDraftAssemblyRecord
 }
 
 function createWrapper(runtime = createMockProjectRuntime({
@@ -240,7 +310,13 @@ describe('useBookDraftWorkspaceQuery', () => {
       isMissingDraft: true,
       latestDiffSummary: 'No prose artifact has been materialized for this scene yet.',
     })
+    expect(hook.result.current.workspace?.readableManuscript.markdown).toContain('## Chapter 1:')
+    expect(hook.result.current.workspace?.readableManuscript.sourceManifest[0]).toMatchObject({
+      kind: 'scene-draft',
+      chapterId: 'chapter-signals-in-rain',
+    })
     expect(getBookDraftAssembly).toHaveBeenCalledWith({ bookId: 'book-signal-arc' })
+    expect(getBookDraftAssembly).toHaveBeenCalledTimes(1)
     expect(getBookStructureRecord).not.toHaveBeenCalled()
     expect(chapterClient.getChapterStructureWorkspace).not.toHaveBeenCalled()
     expect(sceneClient.getSceneProse).not.toHaveBeenCalled()

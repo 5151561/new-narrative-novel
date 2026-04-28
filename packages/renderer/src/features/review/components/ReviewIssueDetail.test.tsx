@@ -74,6 +74,37 @@ const issue: ReviewIssueViewModel = {
   },
 }
 
+const sceneRewriteIssue: ReviewIssueViewModel = {
+  ...issue,
+  id: 'scene-proposal-seed-scene-5',
+  source: 'scene-proposal',
+  kind: 'scene_proposal',
+  title: 'Scene proposal needs review',
+  issueSignature: 'scene-proposal-seed-scene-5::signature',
+  handoffs: [
+    {
+      id: 'scene-proposal-scene',
+      label: 'Open scene draft',
+      target: {
+        scope: 'scene',
+        sceneId: 'scene-5',
+        lens: 'draft',
+        tab: 'prose',
+      },
+    },
+  ],
+  primaryFixHandoff: {
+    id: 'scene-proposal-scene',
+    label: 'Open scene draft',
+    target: {
+      scope: 'scene',
+      sceneId: 'scene-5',
+      lens: 'draft',
+      tab: 'prose',
+    },
+  },
+}
+
 describe('ReviewIssueDetail', () => {
   it('renders detail, recommendation, and source excerpt', () => {
     render(
@@ -159,6 +190,49 @@ describe('ReviewIssueDetail', () => {
     expect(screen.getByText('Primary fix target')).toBeInTheDocument()
     expect(screen.getByText('Open compare review · book')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start source fix' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Create rewrite request' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open compare review' })).toBeInTheDocument()
+  })
+
+  it('renders rewrite-requested fix details without changing review decision statuses', () => {
+    render(
+      <AppProviders>
+        <ReviewIssueDetail
+          issue={{
+            ...sceneRewriteIssue,
+            decision: {
+              status: 'reviewed',
+              note: 'Reviewed but needs prose rewrite.',
+              updatedAtLabel: '2026-04-19 18:20',
+              updatedByLabel: 'Editor',
+              isStale: false,
+            },
+            fixAction: {
+              status: 'rewrite_requested' as any,
+              sourceHandoffId: 'scene-proposal-scene',
+              sourceHandoffLabel: 'Open scene draft',
+              targetScope: 'scene',
+              note: 'Rewrite the scene prose before the next review.',
+              rewriteRequestNote: 'Rewrite the scene prose before the next review.' as any,
+              rewriteRequestId: 'rewrite-request-1' as any,
+              rewriteTargetSceneId: 'scene-5' as any,
+              updatedAtLabel: '2026-04-19 18:21',
+              updatedByLabel: 'Editor',
+              isStale: false,
+            } as any,
+          }}
+          onOpenHandoff={vi.fn()}
+          onSetDecision={vi.fn()}
+          onClearDecision={vi.fn()}
+          onStartFix={vi.fn()}
+          onSetFixStatus={vi.fn()}
+          onClearFix={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByText('Reviewed')).toBeInTheDocument()
+    expect(screen.getByText('Rewrite requested')).toBeInTheDocument()
+    expect(screen.getByText('Rewrite request queued for Open scene draft.')).toBeInTheDocument()
   })
 })

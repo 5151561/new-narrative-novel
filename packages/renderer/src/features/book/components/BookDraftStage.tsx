@@ -80,9 +80,12 @@ interface BookDraftStageProps {
   onSetReviewFixStatus?: (input: {
     issueId: string
     issueSignature: string
-    status: 'checked' | 'blocked'
+    status: 'checked' | 'blocked' | 'rewrite_requested'
     handoff: ReviewSourceHandoffViewModel
     note?: string
+    rewriteRequestNote?: string
+    rewriteTargetSceneId?: string
+    rewriteRequestId?: string
   }) => void
   onClearReviewFix?: (issueId: string) => void
   isReviewFixActionSaving?: boolean

@@ -5,6 +5,7 @@ export interface ApiErrorResponse {
   detail?: unknown
 }
 
+export type ProjectRuntimeKind = 'fixture-demo' | 'mock-storybook' | 'real-local-project'
 export type ProjectRuntimeSource = 'mock' | 'api'
 
 export type ProjectRuntimeHealthStatus =
@@ -30,6 +31,7 @@ export interface ProjectRuntimeCapabilitiesRecord {
 export interface ProjectRuntimeInfoRecord {
   projectId: string
   projectTitle: string
+  runtimeKind: ProjectRuntimeKind
   source: ProjectRuntimeSource
   status: ProjectRuntimeHealthStatus
   summary: string
@@ -45,7 +47,7 @@ export interface LocalizedTextRecord {
 }
 
 export type BookStructureView = 'sequence' | 'outliner' | 'signals'
-export type ChapterStructureView = 'sequence' | 'outliner' | 'assembly'
+export type ChapterStructureView = 'sequence' | 'outliner' | 'assembly' | 'backlog'
 export type AssetKnowledgeView = 'profile' | 'mentions' | 'relations' | 'context'
 export type ChapterLens = 'structure' | 'draft'
 export type SceneLens = 'structure' | 'orchestrate' | 'draft'
@@ -84,8 +86,19 @@ export interface BookManuscriptCheckpointRecord {
   bookId: string
   title: LocalizedTextRecord
   createdAtLabel: LocalizedTextRecord
+  createdFromRunId?: string
+  sourceSignature: string
   summary: LocalizedTextRecord
+  selectedChapterId: string
   chapters: BookManuscriptCheckpointChapterRecord[]
+}
+
+export interface CreateBookManuscriptCheckpointInput {
+  bookId: string
+  title: string
+  summary: string
+  sourceSignature: string
+  selectedChapterId: string
 }
 
 export interface BookDraftAssemblyTraceRollupRecord {
@@ -143,6 +156,85 @@ export interface BookDraftAssemblyChapterRecord {
   scenes: BookDraftAssemblySceneRecord[]
 }
 
+export type BookDraftAssemblyManuscriptSectionKind =
+  | 'chapter-heading'
+  | 'scene-draft'
+  | 'scene-gap'
+  | 'transition-draft'
+  | 'transition-gap'
+
+export interface BookDraftAssemblyManuscriptSectionRecordBase {
+  kind: BookDraftAssemblyManuscriptSectionKind
+  chapterId: string
+  chapterOrder: number
+  chapterTitle: LocalizedTextRecord
+}
+
+export interface BookDraftAssemblyChapterHeadingSectionRecord extends BookDraftAssemblyManuscriptSectionRecordBase {
+  kind: 'chapter-heading'
+  summary: LocalizedTextRecord
+  assembledWordCount: number
+  missingDraftCount: number
+}
+
+export interface BookDraftAssemblySceneManuscriptSectionRecord extends BookDraftAssemblyManuscriptSectionRecordBase {
+  kind: 'scene-draft' | 'scene-gap'
+  sceneId: string
+  sceneOrder: number
+  sceneTitle: LocalizedTextRecord
+  sceneSummary: LocalizedTextRecord
+  proseDraft?: string
+  gapReason?: LocalizedTextRecord
+  draftWordCount?: number
+  traceReady: boolean
+  sourcePatchId?: string
+  sourceProposalIds: string[]
+  acceptedFactIds: string[]
+}
+
+export interface BookDraftAssemblyTransitionManuscriptSectionRecord extends BookDraftAssemblyManuscriptSectionRecordBase {
+  kind: 'transition-draft' | 'transition-gap'
+  fromSceneId: string
+  toSceneId: string
+  fromSceneTitle: LocalizedTextRecord
+  toSceneTitle: LocalizedTextRecord
+  transitionProse?: string
+  artifactId?: string
+  gapReason?: LocalizedTextRecord
+}
+
+export type BookDraftAssemblyManuscriptSectionRecord =
+  | BookDraftAssemblyChapterHeadingSectionRecord
+  | BookDraftAssemblySceneManuscriptSectionRecord
+  | BookDraftAssemblyTransitionManuscriptSectionRecord
+
+export interface BookDraftAssemblySourceManifestEntryRecord {
+  kind: 'scene-draft' | 'scene-gap' | 'transition-draft' | 'transition-gap'
+  chapterId: string
+  chapterOrder: number
+  chapterTitle: LocalizedTextRecord
+  sceneId?: string
+  sceneOrder?: number
+  sceneTitle?: LocalizedTextRecord
+  fromSceneId?: string
+  toSceneId?: string
+  sourcePatchId?: string
+  sourceProposalIds: string[]
+  acceptedFactIds: string[]
+  artifactId?: string
+  traceReady: boolean
+  draftWordCount?: number
+  gapReason?: LocalizedTextRecord
+}
+
+export interface BookDraftAssemblyReadableManuscriptRecord {
+  formatVersion: 'book-manuscript-assembly-v1'
+  markdown: string
+  plainText: string
+  sections: BookDraftAssemblyManuscriptSectionRecord[]
+  sourceManifest: BookDraftAssemblySourceManifestEntryRecord[]
+}
+
 export interface BookDraftAssemblyRecord {
   bookId: string
   title: LocalizedTextRecord
@@ -153,6 +245,7 @@ export interface BookDraftAssemblyRecord {
   missingDraftSceneCount: number
   assembledWordCount: number
   chapters: BookDraftAssemblyChapterRecord[]
+  readableManuscript: BookDraftAssemblyReadableManuscriptRecord
 }
 
 export type BookExportProfileKind = 'review_packet' | 'submission_preview' | 'archive_snapshot'
@@ -241,6 +334,35 @@ export interface BuildBookExportArtifactInput {
   reviewGateSnapshot: BookExportArtifactReviewGateSnapshot
 }
 
+export interface CreateBookExperimentBranchInput {
+  bookId: string
+  title: string
+  summary: string
+  rationale: string
+  basedOnCheckpointId?: string
+  selectedChapterId: string
+}
+
+export interface ArchiveBookExperimentBranchInput {
+  bookId: string
+  branchId: string
+  archiveNote: string
+}
+
+export type BookExperimentBranchAdoptionKind = 'canon_patch' | 'prose_draft'
+
+export type BookExperimentBranchAdoptionStatus = 'pending' | 'adopted' | 'blocked'
+
+export interface CreateBookExperimentBranchAdoptionInput {
+  bookId: string
+  branchId: string
+  chapterId: string
+  sceneId: string
+  kind: BookExperimentBranchAdoptionKind
+  summary: string
+  sourceSignature: string
+}
+
 export type BookExperimentBranchStatus = 'active' | 'review' | 'archived'
 
 export interface BookExperimentBranchSceneRecord {
@@ -261,6 +383,19 @@ export interface BookExperimentBranchChapterRecord {
   sceneSnapshots: BookExperimentBranchSceneRecord[]
 }
 
+export interface BookExperimentBranchAdoptionRecord {
+  adoptionId: string
+  branchId: string
+  bookId: string
+  chapterId: string
+  sceneId: string
+  kind: BookExperimentBranchAdoptionKind
+  status: BookExperimentBranchAdoptionStatus
+  summary: LocalizedTextRecord
+  createdAtLabel: LocalizedTextRecord
+  sourceSignature: string
+}
+
 export interface BookExperimentBranchRecord {
   branchId: string
   bookId: string
@@ -268,8 +403,14 @@ export interface BookExperimentBranchRecord {
   summary: LocalizedTextRecord
   rationale: LocalizedTextRecord
   createdAtLabel: LocalizedTextRecord
+  createdFromRunId?: string
+  sourceSignature: string
   basedOnCheckpointId?: string
+  selectedChapterId: string
   status: BookExperimentBranchStatus
+  archivedAtLabel?: LocalizedTextRecord
+  archiveNote?: LocalizedTextRecord
+  adoptions?: BookExperimentBranchAdoptionRecord[]
   chapterSnapshots: BookExperimentBranchChapterRecord[]
 }
 
@@ -285,6 +426,45 @@ export interface ChapterStructureAssemblyHintRecord {
   detail: LocalizedTextRecord
 }
 
+export type ChapterSceneBacklogStatus = 'planned' | 'running' | 'needs_review' | 'drafted' | 'revised'
+
+export interface ChapterBacklogConstraintRecord {
+  id: string
+  label: LocalizedTextRecord
+  detail: LocalizedTextRecord
+}
+
+export interface ChapterBacklogProposalSceneRecord {
+  proposalSceneId: string
+  sceneId: string
+  order: number
+  title: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  purpose: LocalizedTextRecord
+  pov: LocalizedTextRecord
+  location: LocalizedTextRecord
+  conflict: LocalizedTextRecord
+  reveal: LocalizedTextRecord
+  backlogStatus: ChapterSceneBacklogStatus
+  plannerNotes: LocalizedTextRecord
+}
+
+export interface ChapterBacklogProposalRecord {
+  proposalId: string
+  chapterId: string
+  goalSnapshot: LocalizedTextRecord
+  constraintSnapshot: ChapterBacklogConstraintRecord[]
+  scenes: ChapterBacklogProposalSceneRecord[]
+  status: 'draft' | 'accepted'
+}
+
+export interface ChapterBacklogPlanningRecord {
+  goal: LocalizedTextRecord
+  constraints: ChapterBacklogConstraintRecord[]
+  proposals: ChapterBacklogProposalRecord[]
+  acceptedProposalId?: string
+}
+
 export interface ChapterStructureSceneRecord {
   id: string
   order: number
@@ -295,6 +475,7 @@ export interface ChapterStructureSceneRecord {
   location: LocalizedTextRecord
   conflict: LocalizedTextRecord
   reveal: LocalizedTextRecord
+  backlogStatus: ChapterSceneBacklogStatus
   statusLabel: LocalizedTextRecord
   proseStatusLabel: LocalizedTextRecord
   runStatusLabel: LocalizedTextRecord
@@ -312,6 +493,7 @@ export interface ChapterStructureWorkspaceRecord {
   chapterId: string
   title: LocalizedTextRecord
   summary: LocalizedTextRecord
+  planning: ChapterBacklogPlanningRecord
   scenes: ChapterStructureSceneRecord[]
   inspector: ChapterStructureInspectorRecord
   viewsMeta?: {
@@ -322,7 +504,157 @@ export interface ChapterStructureWorkspaceRecord {
 export type ChapterSceneStructureField = 'summary' | 'purpose' | 'pov' | 'location' | 'conflict' | 'reveal'
 export type ChapterSceneStructurePatch = Partial<Record<ChapterSceneStructureField, string>>
 
+export interface PatchChapterBacklogPlanningInput {
+  locale: 'en' | 'zh-CN'
+  goal?: string
+  constraints?: string[]
+}
+
+export interface UpdateChapterBacklogProposalSceneInput {
+  locale: 'en' | 'zh-CN'
+  patch?: Partial<Record<'title' | 'summary' | 'purpose' | 'pov' | 'location' | 'conflict' | 'reveal' | 'plannerNotes', string>>
+  order?: number
+  backlogStatus?: ChapterSceneBacklogStatus
+}
+
+export interface StartNextChapterSceneRunInput {
+  locale: 'en' | 'zh-CN'
+  mode?: RunMode
+  note?: string
+}
+
+export interface ChapterRunNextSceneRecord {
+  chapterId: string
+  sceneId: string
+  order: number
+  title: LocalizedTextRecord
+  backlogStatus: ChapterSceneBacklogStatus
+}
+
+export interface StartNextChapterSceneRunRecord {
+  chapter: ChapterStructureWorkspaceRecord
+  run: RunRecord
+  selectedScene: ChapterRunNextSceneRecord
+}
+
+export interface ChapterDraftAssemblyTraceRollupRecord {
+  acceptedFactCount: number
+  relatedAssetCount: number
+  sourceProposalCount: number
+  missingLinks: string[]
+}
+
+export interface ChapterDraftAssemblyArtifactRefRecord {
+  kind: 'prose-draft'
+  id: string
+}
+
+export interface ChapterDraftAssemblySceneSectionRecordBase {
+  sceneId: string
+  order: number
+  title: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  backlogStatus: ChapterSceneBacklogStatus
+  proseStatusLabel: LocalizedTextRecord
+  latestDiffSummary?: string
+  warningsCount: number
+  revisionQueueCount?: number
+  draftWordCount?: number
+  traceReady: boolean
+  traceRollup: ChapterDraftAssemblyTraceRollupRecord
+}
+
+export interface ChapterDraftAssemblySceneDraftSectionRecord extends ChapterDraftAssemblySceneSectionRecordBase {
+  kind: 'scene-draft'
+  proseDraft: string
+  sourcePatchId?: string
+  sourceProposals: SceneTraceProposalRefModel[]
+  acceptedFactIds: string[]
+  relatedAssets: SceneTraceAssetRefModel[]
+}
+
+export interface ChapterDraftAssemblySceneGapSectionRecord extends ChapterDraftAssemblySceneSectionRecordBase {
+  kind: 'scene-gap'
+  gapReason: LocalizedTextRecord
+}
+
+export type ChapterDraftAssemblySceneSectionRecord =
+  | ChapterDraftAssemblySceneDraftSectionRecord
+  | ChapterDraftAssemblySceneGapSectionRecord
+
+export interface ChapterDraftAssemblyTransitionSectionRecordBase {
+  fromSceneId: string
+  toSceneId: string
+  fromSceneTitle: LocalizedTextRecord
+  toSceneTitle: LocalizedTextRecord
+}
+
+export interface ChapterDraftAssemblyTransitionDraftSectionRecord extends ChapterDraftAssemblyTransitionSectionRecordBase {
+  kind: 'transition-draft'
+  transitionProse: string
+  artifactRef: ChapterDraftAssemblyArtifactRefRecord
+}
+
+export interface ChapterDraftAssemblyTransitionGapSectionRecord extends ChapterDraftAssemblyTransitionSectionRecordBase {
+  kind: 'transition-gap'
+  gapReason: LocalizedTextRecord
+}
+
+export type ChapterDraftAssemblyTransitionSectionRecord =
+  | ChapterDraftAssemblyTransitionDraftSectionRecord
+  | ChapterDraftAssemblyTransitionGapSectionRecord
+
+export type ChapterDraftAssemblySectionRecord =
+  | ChapterDraftAssemblySceneSectionRecord
+  | ChapterDraftAssemblyTransitionSectionRecord
+
+export type ChapterDraftAssemblySceneRecord = ChapterDraftAssemblySceneSectionRecord
+
+export interface ChapterDraftAssemblyRecord {
+  chapterId: string
+  title: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  sceneCount: number
+  draftedSceneCount: number
+  missingDraftCount: number
+  assembledWordCount: number
+  warningsCount: number
+  queuedRevisionCount: number
+  tracedSceneCount: number
+  missingTraceSceneCount: number
+  scenes: ChapterDraftAssemblySceneRecord[]
+  sections: ChapterDraftAssemblySectionRecord[]
+}
+
 export type StoredReviewDecisionStatus = 'reviewed' | 'deferred' | 'dismissed'
+export type ReviewIssueSeverityRecord = 'blocker' | 'warning' | 'info'
+export type ReviewIssueSourceRecord =
+  | 'manuscript'
+  | 'compare'
+  | 'export'
+  | 'branch'
+  | 'traceability'
+  | 'continuity'
+  | 'asset-consistency'
+  | 'stale-prose'
+  | 'scene-proposal'
+  | 'chapter-draft'
+export type ReviewIssueKindRecord =
+  | 'missing_draft'
+  | 'trace_gap'
+  | 'continuity_conflict'
+  | 'asset_inconsistency'
+  | 'missing_trace'
+  | 'stale_prose_after_canon_change'
+  | 'chapter_gap'
+  | 'rewrite_request'
+  | 'compare_delta'
+  | 'export_blocker'
+  | 'export_warning'
+  | 'branch_blocker'
+  | 'branch_warning'
+  | 'scene_proposal'
+  | 'chapter_annotation'
 
 export interface ReviewIssueDecisionRecord {
   id: string
@@ -343,8 +675,77 @@ export interface SetReviewIssueDecisionInput {
   note?: string
 }
 
-export type ReviewFixActionStatus = 'started' | 'checked' | 'blocked'
+export type ReviewFixActionStatus = 'started' | 'checked' | 'blocked' | 'rewrite_requested'
 export type ReviewFixActionTargetScope = 'book' | 'chapter' | 'scene' | 'asset'
+export type ReviewIssueSnapshotDecisionStatus = 'open' | StoredReviewDecisionStatus | 'stale'
+export type ReviewIssueSnapshotFixActionStatus = 'not_started' | ReviewFixActionStatus | 'stale'
+
+export interface ReviewIssueSceneLocatorRecord {
+  chapterId: string
+  sceneId: string
+}
+
+export interface ReviewIssueAssetLocatorRecord {
+  assetId: string
+}
+
+export interface ReviewIssueCanonLocatorRecord {
+  entityId: string
+  factIds: string[]
+}
+
+export interface ReviewIssueProseLocatorRecord {
+  chapterId: string
+  sceneId: string
+  excerpt: string
+}
+
+export interface ReviewIssueSnapshotDecisionRecord {
+  status: ReviewIssueSnapshotDecisionStatus
+  note?: string
+  updatedAtLabel?: string
+  updatedByLabel?: string
+  isStale: boolean
+}
+
+export interface ReviewIssueSnapshotFixActionRecord {
+  status: ReviewIssueSnapshotFixActionStatus
+  sourceHandoffId?: string
+  sourceHandoffLabel?: string
+  targetScope?: ReviewFixActionTargetScope
+  note?: string
+  rewriteRequestNote?: string
+  rewriteTargetSceneId?: string
+  rewriteRequestId?: string
+  startedAtLabel?: string
+  updatedAtLabel?: string
+  updatedByLabel?: string
+  isStale: boolean
+}
+
+export interface ReviewIssueSnapshotRecord {
+  id: string
+  severity: ReviewIssueSeverityRecord
+  source: ReviewIssueSourceRecord
+  kind: ReviewIssueKindRecord
+  title: string
+  detail: string
+  issueSignature: string
+  chapterId?: string
+  sceneId?: string
+  assetId?: string
+  sceneLocator?: ReviewIssueSceneLocatorRecord
+  assetLocator?: ReviewIssueAssetLocatorRecord
+  canonLocator?: ReviewIssueCanonLocatorRecord
+  proseLocator?: ReviewIssueProseLocatorRecord
+  decision: ReviewIssueSnapshotDecisionRecord
+  fixAction: ReviewIssueSnapshotFixActionRecord
+}
+
+export interface BookReviewIssueSnapshotsRecord {
+  bookId: string
+  issues: ReviewIssueSnapshotRecord[]
+}
 
 export interface ReviewIssueFixActionRecord {
   id: string
@@ -356,6 +757,9 @@ export interface ReviewIssueFixActionRecord {
   targetScope: ReviewFixActionTargetScope
   status: ReviewFixActionStatus
   note?: string
+  rewriteRequestNote?: string
+  rewriteTargetSceneId?: string
+  rewriteRequestId?: string
   startedAtLabel: string
   updatedAtLabel: string
   updatedByLabel: string
@@ -370,9 +774,13 @@ export interface SetReviewIssueFixActionInput {
   targetScope: ReviewFixActionTargetScope
   status: ReviewFixActionStatus
   note?: string
+  rewriteRequestNote?: string
+  rewriteTargetSceneId?: string
+  rewriteRequestId?: string
 }
 
-export type AssetKind = 'character' | 'location' | 'rule'
+export type CanonicalAssetKind = 'character' | 'location' | 'organization' | 'object' | 'lore'
+export type AssetKind = CanonicalAssetKind
 export type AssetMentionBackingKind = 'canon' | 'draft_context' | 'unlinked'
 export type AssetContextVisibilityRecord =
   | 'public'
@@ -438,6 +846,31 @@ export interface AssetProfileRecord {
   sections: AssetProfileSectionRecord[]
 }
 
+export interface AssetStoryBibleSourceRefRecord {
+  id: string
+  kind: 'scene' | 'chapter' | 'asset' | 'note'
+  label: LocalizedTextRecord
+}
+
+export interface AssetStoryBibleFactRecord {
+  id: string
+  label: LocalizedTextRecord
+  value: LocalizedTextRecord
+  visibility: AssetContextVisibilityRecord
+  sourceRefs: AssetStoryBibleSourceRefRecord[]
+  lastReviewedAtLabel: string
+}
+
+export interface AssetStateTimelineEntryRecord {
+  id: string
+  label: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  sceneId: string
+  chapterId: string
+  status: 'established' | 'watch' | 'at-risk' | 'spoiler'
+  sourceRefs: AssetStoryBibleSourceRefRecord[]
+}
+
 export interface AssetMentionBackingRecord {
   kind: AssetMentionBackingKind
   sceneId?: string
@@ -484,7 +917,11 @@ export interface AssetRecord {
   kind: AssetKind
   title: LocalizedTextRecord
   summary: LocalizedTextRecord
+  visibility?: AssetContextVisibilityRecord
   profile: AssetProfileRecord
+  canonFacts?: AssetStoryBibleFactRecord[]
+  privateFacts?: AssetStoryBibleFactRecord[]
+  stateTimeline?: AssetStateTimelineEntryRecord[]
   mentions: AssetMentionRecord[]
   relations: AssetRelationRecord[]
   contextPolicy?: AssetContextPolicyRecord
@@ -492,9 +929,33 @@ export interface AssetRecord {
   notes?: LocalizedTextRecord[]
 }
 
+export interface AssetSummaryRecord {
+  id: string
+  kind: CanonicalAssetKind
+  title: LocalizedTextRecord
+  summary: LocalizedTextRecord
+  visibility: AssetContextVisibilityRecord
+  mentionCount: number
+  relationCount: number
+  hasWarnings: boolean
+}
+
+export interface AssetNavigatorGroupsRecord {
+  character: AssetSummaryRecord[]
+  location: AssetSummaryRecord[]
+  organization: AssetSummaryRecord[]
+  object: AssetSummaryRecord[]
+  lore: AssetSummaryRecord[]
+}
+
+export interface AssetNavigatorResponseRecord {
+  groups: AssetNavigatorGroupsRecord
+}
+
 export interface AssetKnowledgeWorkspaceRecord {
   assetId: string
   assets: AssetRecord[]
+  requestedVisibility?: AssetContextVisibilityRecord
   viewsMeta: {
     availableViews: AssetKnowledgeView[]
   }
@@ -879,6 +1340,7 @@ export interface SceneFixtureRecord {
 }
 
 export type RunMode = 'continue' | 'rewrite' | 'from-scratch'
+export type RunFailureClass = 'provider_error' | 'model_timeout' | 'invalid_output' | 'cancelled' | 'unknown'
 export type RunScope = 'scene' | 'chapter' | 'book'
 export type RunStatus = 'queued' | 'running' | 'waiting_review' | 'completed' | 'failed' | 'cancelled'
 
@@ -886,6 +1348,20 @@ export interface StartSceneRunInput {
   sceneId: string
   mode?: RunMode
   note?: string
+}
+
+export interface RetryRunInput {
+  runId: string
+  mode?: RunMode
+}
+
+export interface CancelRunInput {
+  runId: string
+  reason?: string
+}
+
+export interface ResumeRunInput {
+  runId: string
 }
 
 export interface RunRecord {
@@ -899,7 +1375,40 @@ export interface RunRecord {
   completedAtLabel?: string
   pendingReviewId?: string
   latestEventId?: string
+  failureClass?: RunFailureClass
+  failureMessage?: string
+  retryOfRunId?: string
+  resumableFromEventId?: string
+  cancelRequestedAtLabel?: string
+  usage?: RunUsageRecord
+  runtimeSummary?: RunRuntimeSummaryRecord
   eventCount: number
+}
+
+export interface RunUsageRecord {
+  inputTokens: number
+  outputTokens: number
+  estimatedCostUsd: number
+  actualCostUsd?: number
+  provider: string
+  modelId: string
+}
+
+export interface RunRuntimeSummaryRecord {
+  health: 'stable' | 'attention' | 'failed' | 'cancelled'
+  costLabel: string
+  tokenLabel: string
+  failureClassLabel: string
+  nextActionLabel: string
+}
+
+export interface RunFailureDetailRecord {
+  failureClass: RunFailureClass
+  message: string
+  provider?: string
+  modelId?: string
+  retryable: boolean
+  sourceEventIds: string[]
 }
 
 export type RunArtifactKind =
@@ -918,10 +1427,11 @@ export interface RunArtifactSummaryRecord {
   statusLabel: LocalizedTextRecord
   createdAtLabel: LocalizedTextRecord
   sourceEventIds: string[]
+  usage?: RunUsageRecord
 }
 
 export type SceneRunAgentRole = 'scene-planner' | 'scene-writer'
-export type RunArtifactAssetKind = 'character' | 'location' | 'rule'
+export type RunArtifactAssetKind = CanonicalAssetKind
 export type ProposalChangeKind = 'action' | 'reveal' | 'state-change' | 'continuity-note'
 
 export interface RunArtifactSectionRecord {
@@ -1002,7 +1512,7 @@ export interface RunContextAssetActivationRecord {
   id: string
   assetId: string
   assetTitle: LocalizedTextRecord
-  assetKind: 'character' | 'location' | 'rule'
+  assetKind: RunArtifactAssetKind
   decision: RunContextAssetActivationDecisionRecord
   reasonKind: AssetContextActivationReasonKindRecord
   reasonLabel: LocalizedTextRecord
@@ -1044,6 +1554,7 @@ export interface AgentInvocationArtifactDetailRecord extends RunArtifactSummaryR
   contextPacketId?: string
   outputSchemaLabel: LocalizedTextRecord
   generatedRefs: RunArtifactGeneratedRefRecord[]
+  failureDetail?: RunFailureDetailRecord
 }
 
 export interface ProposalSetArtifactDetailRecord extends RunArtifactSummaryRecord {
@@ -1052,6 +1563,7 @@ export interface ProposalSetArtifactDetailRecord extends RunArtifactSummaryRecor
   sourceInvocationIds: string[]
   proposals: ProposalSetArtifactProposalRecord[]
   reviewOptions: ProposalSetReviewOptionRecord[]
+  failureDetail?: RunFailureDetailRecord
 }
 
 export interface CanonPatchArtifactDetailRecord extends RunArtifactSummaryRecord {
@@ -1075,6 +1587,7 @@ export interface ProseDraftArtifactDetailRecord extends RunArtifactSummaryRecord
   wordCount: number
   relatedAssets: RunArtifactRelatedAssetRecord[]
   traceLinkIds: string[]
+  failureDetail?: RunFailureDetailRecord
 }
 
 export type RunArtifactDetailRecord =
@@ -1097,6 +1610,10 @@ export type RunEventKind =
   | 'prose_generated'
   | 'run_completed'
   | 'run_failed'
+  | 'run_retry_scheduled'
+  | 'run_cancel_requested'
+  | 'run_cancelled'
+  | 'run_resumed'
 
 export type RunEventRefKind =
   | 'context-packet'
@@ -1123,6 +1640,7 @@ export interface RunEventRecord {
   createdAtLabel: string
   severity?: 'info' | 'warning' | 'error'
   refs?: RunEventRefRecord[]
+  usage?: RunUsageRecord
   metadata?: Record<string, string | number | boolean | null>
 }
 
@@ -1183,6 +1701,7 @@ export interface RunTraceResponse {
   runId: string
   links: RunTraceLinkRecord[]
   nodes: RunTraceNodeRecord[]
+  isPartialFailure?: boolean
   summary: {
     proposalSetCount: number
     canonPatchCount: number

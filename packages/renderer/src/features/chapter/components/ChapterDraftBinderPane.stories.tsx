@@ -59,3 +59,10 @@ export const QuietChapter: Story = {
     variant: 'quiet',
   },
 }
+
+export const WaitingReviewGate: Story = {
+  args: {
+    selectedSceneId: 'scene-concourse-delay',
+    variant: 'waiting-review',
+  },
+}

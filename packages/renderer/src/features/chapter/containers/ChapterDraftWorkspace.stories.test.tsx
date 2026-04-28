@@ -2,7 +2,14 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { withStorybookLocale } from '../../../../.storybook/storybook-locale'
-import meta, { Default } from './ChapterDraftWorkspace.stories'
+import meta, {
+  Default,
+  LongDraftKeepsDockVisible,
+  RunningGate,
+  TransitionGap,
+  TransitionReady,
+  WaitingReviewGate,
+} from './ChapterDraftWorkspace.stories'
 
 afterEach(() => {
   cleanup()
@@ -44,5 +51,97 @@ describe('ChapterDraftWorkspace story locale integration', () => {
     expect(screen.getAllByText(/Drafted/).length).toBeGreaterThan(0)
     expect(screen.getByText('Browse the assembled reading order while route.sceneId keeps the focus stable.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /EN/ })).not.toBeInTheDocument()
+  })
+
+  it('renders the waiting-review orchestration panel copy in both locales', () => {
+    const WaitingReviewStory = () => {
+      if (!meta.render) {
+        throw new Error('Expected ChapterDraftWorkspace story to define a render function')
+      }
+
+      return meta.render((WaitingReviewGate.args ?? {}) as Parameters<NonNullable<typeof meta.render>>[0])
+    }
+
+    render(withStorybookLocale(WaitingReviewStory, {
+      globals: { locale: 'en' },
+    } as never))
+
+    expect(screen.getByRole('button', { name: 'Review pending' })).toBeDisabled()
+    expect(screen.getByText('Chapter orchestration')).toBeInTheDocument()
+
+    cleanup()
+
+    render(withStorybookLocale(WaitingReviewStory, {
+      globals: { locale: 'zh-CN' },
+    } as never))
+
+    expect(screen.getByRole('button', { name: '等待 Review' })).toBeDisabled()
+    expect(screen.getByText('章节编排')).toBeInTheDocument()
+  })
+
+  it('renders running scenes as blocking in the draft story preview', () => {
+    const RunningStory = () => {
+      if (!meta.render) {
+        throw new Error('Expected ChapterDraftWorkspace story to define a render function')
+      }
+
+      return meta.render((RunningGate.args ?? {}) as Parameters<NonNullable<typeof meta.render>>[0])
+    }
+
+    render(withStorybookLocale(RunningStory, {
+      globals: { locale: 'en' },
+    } as never))
+
+    expect(screen.getByRole('button', { name: 'Scene running' })).toBeDisabled()
+    expect(screen.getAllByText('Run in progress').length).toBeGreaterThan(0)
+  })
+
+  it('renders transition gap and transition ready seam states in the updated draft stories', () => {
+    const TransitionGapStory = () => {
+      if (!meta.render) {
+        throw new Error('Expected ChapterDraftWorkspace story to define a render function')
+      }
+
+      return meta.render((TransitionGap.args ?? {}) as Parameters<NonNullable<typeof meta.render>>[0])
+    }
+
+    render(withStorybookLocale(TransitionGapStory, {
+      globals: { locale: 'en' },
+    } as never))
+
+    expect(screen.getAllByText('Transition gap').length).toBeGreaterThan(0)
+
+    cleanup()
+
+    const TransitionReadyStory = () => {
+      if (!meta.render) {
+        throw new Error('Expected ChapterDraftWorkspace story to define a render function')
+      }
+
+      return meta.render((TransitionReady.args ?? {}) as Parameters<NonNullable<typeof meta.render>>[0])
+    }
+
+    render(withStorybookLocale(TransitionReadyStory, {
+      globals: { locale: 'en' },
+    } as never))
+
+    expect(screen.getAllByText('Transition ready').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/artifact-backed/i).length).toBeGreaterThan(0)
+  })
+
+  it('keeps the dock rendered for the long draft story state', () => {
+    const LongDraftStory = () => {
+      if (!meta.render) {
+        throw new Error('Expected ChapterDraftWorkspace story to define a render function')
+      }
+
+      return meta.render((LongDraftKeepsDockVisible.args ?? {}) as Parameters<NonNullable<typeof meta.render>>[0])
+    }
+
+    render(withStorybookLocale(LongDraftStory, {
+      globals: { locale: 'en' },
+    } as never))
+
+    expect(screen.getByRole('region', { name: 'Chapter draft bottom dock' })).toBeInTheDocument()
   })
 })

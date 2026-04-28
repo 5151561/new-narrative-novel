@@ -54,6 +54,27 @@ function createIssue(id: string, overrides: Partial<ReviewIssueViewModel> = {}):
   }
 }
 
+function createSceneRewriteIssue(id: string, overrides: Partial<ReviewIssueViewModel> = {}): ReviewIssueViewModel {
+  const handoff = {
+    id: `${id}-scene-handoff`,
+    label: 'Open scene draft',
+    target: {
+      scope: 'scene' as const,
+      sceneId: 'scene-5',
+      lens: 'draft' as const,
+      tab: 'prose' as const,
+    },
+  }
+
+  return createIssue(id, {
+    source: 'scene-proposal',
+    kind: 'scene_proposal',
+    handoffs: [handoff],
+    primaryFixHandoff: handoff,
+    ...overrides,
+  })
+}
+
 function createInbox(): BookReviewInboxViewModel {
   const blocker = createIssue('export-blocker', {
     severity: 'blocker',
@@ -99,6 +120,12 @@ function createInbox(): BookReviewInboxViewModel {
       warnings: 1,
       info: 1,
       traceGaps: 0,
+      continuityConflicts: 0,
+      assetInconsistencies: 0,
+      missingTrace: 0,
+      staleProse: 0,
+      chapterGaps: 0,
+      rewriteRequests: 0,
       missingDrafts: 0,
       compareDeltas: 1,
       exportReadiness: 1,
@@ -320,6 +347,66 @@ describe('BookDraftReviewView', () => {
       issueSignature: 'compare-warning::signature',
       handoff: inbox.selectedIssue!.primaryFixHandoff,
       note: 'Open source and compare.',
+    })
+  })
+
+  it('forwards rewrite requests from scene or chapter handoffs without changing decision controls', async () => {
+    const user = userEvent.setup()
+    const rewriteIssue = createSceneRewriteIssue('scene-proposal-1', {
+      title: 'Scene proposal issue',
+      detail: 'Scene rewrite requested.',
+    })
+    const inbox = {
+      ...createInbox(),
+      selectedIssueId: rewriteIssue.id,
+      selectedIssue: rewriteIssue,
+      issues: [rewriteIssue],
+      filteredIssues: [rewriteIssue],
+      groupedIssues: {
+        blockers: [],
+        warnings: [rewriteIssue],
+        info: [],
+      },
+      counts: {
+        ...createInbox().counts,
+        total: 1,
+        warnings: 1,
+      },
+      visibleOpenCount: 1,
+      selectedChapterIssueCount: 1,
+      annotationsByChapterId: {},
+    }
+    const onSetFixStatus = vi.fn()
+
+    render(
+      <AppProviders>
+        <BookDraftReviewView
+          inbox={inbox}
+          onSelectFilter={vi.fn()}
+          onSelectStatusFilter={vi.fn()}
+          onSelectIssue={vi.fn()}
+          onSetDecision={vi.fn()}
+          onClearDecision={vi.fn()}
+          onStartFix={vi.fn()}
+          onSetFixStatus={onSetFixStatus}
+          onClearFix={vi.fn()}
+          onOpenReviewSource={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    await user.type(screen.getByLabelText('Source fix note'), 'Please rewrite this scene.')
+    await user.click(screen.getByRole('button', { name: 'Create rewrite request' }))
+
+    expect(onSetFixStatus).toHaveBeenCalledWith({
+      issueId: rewriteIssue.id,
+      issueSignature: rewriteIssue.issueSignature,
+      status: 'rewrite_requested',
+      handoff: rewriteIssue.primaryFixHandoff,
+      note: 'Please rewrite this scene.',
+      rewriteRequestNote: 'Please rewrite this scene.',
+      rewriteTargetSceneId: 'scene-5',
+      rewriteRequestId: 'rewrite-request-scene-proposal-1',
     })
   })
 

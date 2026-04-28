@@ -53,6 +53,7 @@ import type {
 } from '../types/book-compare-view-models'
 import type {
   BookDraftChapterViewModel,
+  BookDraftReadableManuscriptViewModel,
   BookDraftSceneSectionViewModel,
   BookDraftWorkspaceViewModel,
 } from '../types/book-draft-view-models'
@@ -72,6 +73,98 @@ type LocalizedText = {
 
 function localize(locale: Locale, text: LocalizedText) {
   return text[locale]
+}
+
+function buildStoryChapterHeading(locale: Locale, order: number, title: string) {
+  return locale === 'zh-CN' ? `第 ${order} 章：${title}` : `Chapter ${order}: ${title}`
+}
+
+function buildStorySceneHeading(locale: Locale, order: number, title: string) {
+  return locale === 'zh-CN' ? `场景 ${order}：${title}` : `Scene ${order}: ${title}`
+}
+
+function buildStoryReadableManuscript(
+  locale: Locale,
+  title: string,
+  summary: string,
+  chapters: BookDraftChapterViewModel[],
+): BookDraftReadableManuscriptViewModel {
+  const markdownLines = [`# ${title}`]
+  const plainTextLines = [title]
+  const sections: BookDraftReadableManuscriptViewModel['sections'] = []
+  const sourceManifest: BookDraftReadableManuscriptViewModel['sourceManifest'] = []
+
+  if (summary.trim()) {
+    markdownLines.push('', summary)
+    plainTextLines.push('', summary)
+  }
+
+  for (const chapter of chapters) {
+    sections.push({
+      kind: 'chapter-heading',
+      chapterId: chapter.chapterId,
+      chapterOrder: chapter.order,
+      chapterTitle: chapter.title,
+      summary: chapter.summary,
+      assembledWordCount: chapter.assembledWordCount,
+      missingDraftCount: chapter.missingDraftCount,
+    })
+    markdownLines.push('', `## ${buildStoryChapterHeading(locale, chapter.order, chapter.title)}`)
+    plainTextLines.push('', buildStoryChapterHeading(locale, chapter.order, chapter.title))
+    if (chapter.summary.trim()) {
+      markdownLines.push('', chapter.summary)
+      plainTextLines.push(chapter.summary)
+    }
+
+    for (const section of chapter.sections) {
+      sections.push({
+        kind: section.isMissingDraft ? 'scene-gap' : 'scene-draft',
+        chapterId: chapter.chapterId,
+        chapterOrder: chapter.order,
+        chapterTitle: chapter.title,
+        sceneId: section.sceneId,
+        sceneOrder: section.order,
+        sceneTitle: section.title,
+        sceneSummary: section.summary,
+        proseDraft: section.proseDraft,
+        gapReason: section.isMissingDraft ? section.latestDiffSummary : undefined,
+        draftWordCount: section.draftWordCount,
+        traceReady: section.traceReady,
+      })
+      sourceManifest.push({
+        kind: section.isMissingDraft ? 'scene-gap' : 'scene-draft',
+        chapterId: chapter.chapterId,
+        chapterOrder: chapter.order,
+        chapterTitle: chapter.title,
+        sceneId: section.sceneId,
+        sceneOrder: section.order,
+        sceneTitle: section.title,
+        sourceProposalIds: [],
+        acceptedFactIds: [],
+        traceReady: section.traceReady,
+        draftWordCount: section.draftWordCount,
+        gapReason: section.isMissingDraft ? section.latestDiffSummary : undefined,
+      })
+      markdownLines.push('', `### ${buildStorySceneHeading(locale, section.order, section.title)}`)
+      plainTextLines.push('', buildStorySceneHeading(locale, section.order, section.title))
+      if (section.isMissingDraft) {
+        const gapReason = section.latestDiffSummary ?? (locale === 'zh-CN' ? '该场景仍缺少正文草稿。' : 'This scene still needs prose draft.')
+        markdownLines.push('', `> ${locale === 'zh-CN' ? '缺稿' : 'Manuscript gap'}: ${gapReason}`)
+        plainTextLines.push(`[${locale === 'zh-CN' ? '缺稿' : 'Manuscript gap'}] ${gapReason}`)
+      } else if (section.proseDraft?.trim()) {
+        markdownLines.push('', section.proseDraft)
+        plainTextLines.push(section.proseDraft)
+      }
+    }
+  }
+
+  return {
+    formatVersion: 'book-manuscript-assembly-v1',
+    markdown: markdownLines.join('\n').trim(),
+    plainText: plainTextLines.join('\n').trim(),
+    sections,
+    sourceManifest,
+  }
 }
 
 const draftSectionSeedMap: Record<
@@ -393,6 +486,12 @@ function buildBookDraftStoryWorkspace(
               : `${chapter.queuedRevisionCount} queued revisions`,
         })),
     },
+    readableManuscript: buildStoryReadableManuscript(
+      locale,
+      structureWorkspace.title,
+      structureWorkspace.summary,
+      chapters,
+    ),
   }
 }
 
@@ -657,6 +756,7 @@ export function buildBookDraftReviewStoryData(
     exportProfileId?: string
     branchId?: string
     branchBaseline?: 'current' | 'checkpoint'
+    reviewSeedBookId?: string
     reviewFilter?: BookReviewFilter
     reviewStatusFilter?: BookReviewStatusFilter
     reviewIssueId?: string
@@ -669,7 +769,7 @@ export function buildBookDraftReviewStoryData(
     }>
     fixActionStates?: Array<{
       issueId: string
-      status: 'started' | 'checked' | 'blocked'
+      status: 'started' | 'checked' | 'blocked' | 'rewrite_requested'
       note?: string
       stale?: boolean
     }>
@@ -705,7 +805,10 @@ export function buildBookDraftReviewStoryData(
     compareWorkspace: compareData.compare,
     exportWorkspace: exportData.exportWorkspace,
     branchWorkspace: branchData.branchWorkspace,
-    reviewSeeds: options?.includeReviewSeeds === false ? [] : getBookReviewSeeds(exportData.workspace.bookId),
+    reviewSeeds:
+      options?.includeReviewSeeds === false
+        ? []
+        : getBookReviewSeeds(options?.reviewSeedBookId ?? exportData.workspace.bookId),
     reviewFilter: options?.reviewFilter ?? 'all',
     reviewIssueId: options?.reviewIssueId,
   })
@@ -754,6 +857,16 @@ export function buildBookDraftReviewStoryData(
           targetScope: handoff.target.scope,
           status: fixActionState.status,
           note: fixActionState.note,
+          rewriteRequestNote: fixActionState.status === 'rewrite_requested' ? fixActionState.note : undefined,
+          rewriteTargetSceneId:
+            fixActionState.status === 'rewrite_requested'
+              ? handoff.target.scope === 'scene'
+                ? handoff.target.sceneId
+                : handoff.target.scope === 'chapter'
+                  ? handoff.target.sceneId
+                  : undefined
+              : undefined,
+          rewriteRequestId: fixActionState.status === 'rewrite_requested' ? `story-rewrite-${issue.id}` : undefined,
           startedAtLabel: 'Story source fix started',
           updatedAtLabel: 'Story source fix updated',
           updatedByLabel: 'Story reviewer',
@@ -766,7 +879,10 @@ export function buildBookDraftReviewStoryData(
     compareWorkspace: compareData.compare,
     exportWorkspace: exportData.exportWorkspace,
     branchWorkspace: branchData.branchWorkspace,
-    reviewSeeds: options?.includeReviewSeeds === false ? [] : getBookReviewSeeds(exportData.workspace.bookId),
+    reviewSeeds:
+      options?.includeReviewSeeds === false
+        ? []
+        : getBookReviewSeeds(options?.reviewSeedBookId ?? exportData.workspace.bookId),
     reviewFilter: options?.reviewFilter ?? 'all',
     reviewStatusFilter: options?.reviewStatusFilter ?? 'open',
     reviewIssueId: options?.reviewIssueId,

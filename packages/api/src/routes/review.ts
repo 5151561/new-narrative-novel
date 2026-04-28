@@ -4,11 +4,16 @@ import type { ApiRouteContext } from './route-context.js'
 import { assertEnumValue, assertOptionalString, assertRequiredString } from './validation.js'
 
 const REVIEW_DECISION_STATUSES = ['reviewed', 'deferred', 'dismissed'] as const
-const REVIEW_FIX_ACTION_STATUSES = ['started', 'checked', 'blocked'] as const
+const REVIEW_FIX_ACTION_STATUSES = ['started', 'checked', 'blocked', 'rewrite_requested'] as const
 const REVIEW_FIX_ACTION_TARGET_SCOPES = ['book', 'chapter', 'scene', 'asset'] as const
 
 export function registerReviewRoutes({ app, apiBasePath, repository }: ApiRouteContext) {
   const projectBase = `${apiBasePath}/projects/:projectId`
+
+  app.get(`${projectBase}/books/:bookId/review-issue-snapshots`, async (request) => {
+    const { projectId, bookId } = request.params as { projectId: string; bookId: string }
+    return repository.getReviewIssueSnapshots(projectId, bookId)
+  })
 
   app.get(`${projectBase}/books/:bookId/review-decisions`, async (request) => {
     const { projectId, bookId } = request.params as { projectId: string; bookId: string }
@@ -97,6 +102,9 @@ export function registerReviewRoutes({ app, apiBasePath, repository }: ApiRouteC
       targetScope?: unknown
       status?: unknown
       note?: unknown
+      rewriteRequestNote?: unknown
+      rewriteTargetSceneId?: unknown
+      rewriteRequestId?: unknown
     }
 
     const bodyBookId = assertRequiredString(body?.bookId, 'bookId', {
@@ -133,12 +141,46 @@ export function registerReviewRoutes({ app, apiBasePath, repository }: ApiRouteC
       code: 'INVALID_REVIEW_FIX_ACTION_NOTE',
       detail: { body },
     })
+    const rewriteRequestNote = assertOptionalString(body?.rewriteRequestNote, 'rewriteRequestNote', {
+      code: 'INVALID_REWRITE_REQUEST_NOTE',
+      detail: { body },
+    })
+    const rewriteTargetSceneId = assertOptionalString(body?.rewriteTargetSceneId, 'rewriteTargetSceneId', {
+      code: 'INVALID_REWRITE_TARGET_SCENE',
+      detail: { body },
+    })
+    const rewriteRequestId = assertOptionalString(body?.rewriteRequestId, 'rewriteRequestId', {
+      code: 'INVALID_REWRITE_REQUEST_ID',
+      detail: { body },
+    })
 
     if (bodyBookId !== bookId || bodyIssueId !== issueId) {
       throw badRequest('Review fix action body identifiers must match the route.', {
         code: 'REVIEW_FIX_ACTION_ID_MISMATCH',
         detail: { bookId, issueId, body },
       })
+    }
+
+    if (status === 'rewrite_requested') {
+      if (targetScope !== 'scene' && targetScope !== 'chapter') {
+        throw badRequest('Rewrite requests require a scene or chapter target scope.', {
+          code: 'INVALID_REWRITE_REQUEST_TARGET_SCOPE',
+          detail: { targetScope, issueId, bookId },
+        })
+      }
+
+      if (!rewriteRequestNote || !rewriteRequestId || !rewriteTargetSceneId) {
+        throw badRequest('Rewrite requests require rewrite note, request id, and target scene id.', {
+          code: 'INVALID_REWRITE_REQUEST_PAYLOAD',
+          detail: {
+            issueId,
+            bookId,
+            rewriteRequestNote,
+            rewriteRequestId,
+            rewriteTargetSceneId,
+          },
+        })
+      }
     }
 
     return repository.setReviewFixAction(projectId, {
@@ -150,6 +192,9 @@ export function registerReviewRoutes({ app, apiBasePath, repository }: ApiRouteC
       targetScope,
       status,
       note,
+      rewriteRequestNote,
+      rewriteTargetSceneId,
+      rewriteRequestId,
     })
   })
 

@@ -28,6 +28,13 @@ describe('ChapterBottomDock', () => {
               detail: 'Carry platform pressure into the concourse.',
             },
           ],
+          status: {
+            acceptedProposalId: 'chapter-signals-in-rain-backlog-proposal-001',
+            selectedSceneBacklogStatusLabel: 'Planned',
+            sceneStatuses: [
+              { id: 'scene-midnight-platform', title: 'Midnight Platform', backlogStatusLabel: 'Planned' },
+            ],
+          },
         }}
         activity={[]}
       />,
@@ -41,6 +48,7 @@ describe('ChapterBottomDock', () => {
     expect(within(problemsSection!).getByText('Midnight Platform · Unresolved 3')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Bell timing')).toBeInTheDocument()
     expect(within(problemsSection!).getByText('Carry platform pressure')).toBeInTheDocument()
+    expect(within(problemsSection!).getByText('Backlog status support')).toBeInTheDocument()
     expect(within(problemsSection!).queryByText('Missing reveal')).not.toBeInTheDocument()
   })
 
@@ -59,6 +67,9 @@ describe('ChapterBottomDock', () => {
           },
           problemsSummary: [],
           assemblyHints: [],
+          status: {
+            sceneStatuses: [],
+          },
         }}
         activity={[
           {
@@ -111,6 +122,9 @@ describe('ChapterBottomDock', () => {
           },
           problemsSummary: [],
           assemblyHints: [],
+          status: {
+            sceneStatuses: [],
+          },
         }}
         activity={[
           {

@@ -182,6 +182,53 @@ describe('fixture API server local project-state persistence', () => {
       })
       expect(patchResponse.statusCode).toBe(200)
 
+      const planningResponse = await firstServer.app.inject({
+        method: 'PATCH',
+        url: '/api/projects/book-signal-arc/chapters/chapter-signals-in-rain/planning-input',
+        payload: {
+          locale: 'en',
+          goal: 'Persist the public-pressure chapter plan.',
+          constraints: [
+            'Keep the ledger closed.',
+            'Keep witness pressure visible.',
+          ],
+        },
+      })
+      expect(planningResponse.statusCode).toBe(200)
+
+      const proposalResponse = await firstServer.app.inject({
+        method: 'POST',
+        url: '/api/projects/book-signal-arc/chapters/chapter-signals-in-rain/backlog-proposals',
+        payload: {
+          locale: 'en',
+        },
+      })
+      expect(proposalResponse.statusCode).toBe(200)
+      const proposal = proposalResponse.json().planning.proposals.at(-1)
+
+      const editProposalResponse = await firstServer.app.inject({
+        method: 'PATCH',
+        url: `/api/projects/book-signal-arc/chapters/chapter-signals-in-rain/backlog-proposals/${proposal.proposalId}/scenes/${proposal.scenes[1].proposalSceneId}`,
+        payload: {
+          locale: 'en',
+          patch: {
+            summary: 'Persisted backlog opening beat.',
+          },
+          order: 1,
+          backlogStatus: 'needs_review',
+        },
+      })
+      expect(editProposalResponse.statusCode).toBe(200)
+
+      const acceptProposalResponse = await firstServer.app.inject({
+        method: 'POST',
+        url: `/api/projects/book-signal-arc/chapters/chapter-signals-in-rain/backlog-proposals/${proposal.proposalId}/accept`,
+        payload: {
+          locale: 'en',
+        },
+      })
+      expect(acceptProposalResponse.statusCode).toBe(200)
+
       const setupResponse = await firstServer.app.inject({
         method: 'PATCH',
         url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/setup',
@@ -321,6 +368,37 @@ describe('fixture API server local project-state persistence', () => {
       ]))
 
       expect(chapterResponse.statusCode).toBe(200)
+      expect(chapterResponse.json()).toMatchObject({
+        planning: {
+          acceptedProposalId: 'chapter-signals-in-rain-backlog-proposal-001',
+          goal: {
+            en: 'Persist the public-pressure chapter plan.',
+          },
+          constraints: [
+            {
+              label: {
+                en: 'Keep the ledger closed.',
+              },
+            },
+            {
+              label: {
+                en: 'Keep witness pressure visible.',
+              },
+            },
+          ],
+        },
+      })
+      expect(chapterResponse.json().scenes.map((scene: { order: number; id: string; backlogStatus: string }) => `${scene.order}:${scene.id}:${scene.backlogStatus}`)).toEqual([
+        '1:scene-concourse-delay:needs_review',
+        '2:scene-midnight-platform:planned',
+        '3:scene-ticket-window:planned',
+        '4:scene-departure-bell:planned',
+      ])
+      expect(chapterResponse.json().scenes.find((scene: { id: string }) => scene.id === 'scene-concourse-delay')).toMatchObject({
+        summary: {
+          en: 'Persisted backlog opening beat.',
+        },
+      })
       expect(chapterResponse.json().scenes.find((scene: { id: string }) => scene.id === 'scene-midnight-platform')).toMatchObject({
         summary: {
           en: 'Persisted structure summary.',

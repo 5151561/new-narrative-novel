@@ -20,6 +20,10 @@ function ChapterStructureInspectorPaneStory({
       chapterSummary={workspace.summary}
       unresolvedCount={workspace.unresolvedCount}
       inspector={workspace.inspector}
+      planning={workspace.planning}
+      selectedSceneBacklogStatusLabel={
+        workspace.scenes.find((scene) => scene.id === workspace.selectedSceneId)?.backlogStatusLabel
+      }
     />
   )
 }

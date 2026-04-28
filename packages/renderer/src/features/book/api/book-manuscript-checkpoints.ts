@@ -24,8 +24,19 @@ export interface BookManuscriptCheckpointRecord {
   bookId: string
   title: BookLocalizedText
   createdAtLabel: BookLocalizedText
+  createdFromRunId?: string
+  sourceSignature: string
   summary: BookLocalizedText
+  selectedChapterId: string
   chapters: BookManuscriptCheckpointChapterRecord[]
+}
+
+export interface CreateBookManuscriptCheckpointInput {
+  bookId: string
+  title: string
+  summary: string
+  sourceSignature: string
+  selectedChapterId: string
 }
 
 export const DEFAULT_BOOK_MANUSCRIPT_CHECKPOINT_ID = 'checkpoint-book-signal-arc-pr11-baseline'
@@ -48,10 +59,12 @@ export const mockBookManuscriptCheckpointSeeds: Record<string, BookManuscriptChe
       bookId: 'book-signal-arc',
       title: text('PR11 Baseline', 'PR11 基线'),
       createdAtLabel: text('2026-04-17 22:10', '2026-04-17 22:10'),
+      sourceSignature: 'checkpoint:checkpoint-book-signal-arc-pr11-baseline',
       summary: text(
         'Baseline manuscript snapshot captured before compare/review work started.',
         '在 compare/review 工作开始前采集的基线稿快照。',
       ),
+      selectedChapterId: 'chapter-signals-in-rain',
       chapters: [
         {
           chapterId: 'chapter-signals-in-rain',
@@ -164,12 +177,45 @@ export const mockBookManuscriptCheckpointSeeds: Record<string, BookManuscriptChe
   ],
 }
 
+const mockBookManuscriptCheckpointStore = clone(mockBookManuscriptCheckpointSeeds)
+
+function createMirroredText(value: string): BookLocalizedText {
+  return text(value, value)
+}
+
 export function getMockBookManuscriptCheckpoints(bookId: string): BookManuscriptCheckpointRecord[] {
-  return clone(mockBookManuscriptCheckpointSeeds[bookId] ?? [])
+  return clone(mockBookManuscriptCheckpointStore[bookId] ?? [])
 }
 
 export function getMockBookManuscriptCheckpoint(bookId: string, checkpointId: string): BookManuscriptCheckpointRecord | null {
-  const checkpoints = mockBookManuscriptCheckpointSeeds[bookId] ?? []
+  const checkpoints = mockBookManuscriptCheckpointStore[bookId] ?? []
   const record = checkpoints.find((item) => item.checkpointId === checkpointId)
   return record ? clone(record) : null
+}
+
+export function createMockBookManuscriptCheckpoint(
+  input: CreateBookManuscriptCheckpointInput & Pick<BookManuscriptCheckpointRecord, 'chapters'> & { createdFromRunId?: string },
+): BookManuscriptCheckpointRecord {
+  const checkpoints = mockBookManuscriptCheckpointStore[input.bookId] ?? []
+  const record: BookManuscriptCheckpointRecord = {
+    checkpointId: `checkpoint-${input.bookId}-${String(checkpoints.length + 1).padStart(3, '0')}`,
+    bookId: input.bookId,
+    title: createMirroredText(input.title),
+    createdAtLabel: createMirroredText('2026-04-28 10:00'),
+    createdFromRunId: input.createdFromRunId,
+    sourceSignature: input.sourceSignature,
+    summary: createMirroredText(input.summary),
+    selectedChapterId: input.selectedChapterId,
+    chapters: clone(input.chapters),
+  }
+
+  mockBookManuscriptCheckpointStore[input.bookId] = [...checkpoints, record]
+  return clone(record)
+}
+
+export function resetMockBookManuscriptCheckpointStore() {
+  for (const key of Object.keys(mockBookManuscriptCheckpointStore)) {
+    delete mockBookManuscriptCheckpointStore[key]
+  }
+  Object.assign(mockBookManuscriptCheckpointStore, clone(mockBookManuscriptCheckpointSeeds))
 }

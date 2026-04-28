@@ -128,6 +128,10 @@ describe('fixture API server book draft live assembly', () => {
         kind: 'gap',
         sceneId: 'scene-concourse-delay',
         order: 2,
+        proseStatusLabel: {
+          en: 'Draft handoff ready',
+          'zh-CN': '草稿交接已就绪',
+        },
         traceReady: false,
         traceRollup: {
           acceptedFactCount: 0,
@@ -171,6 +175,67 @@ describe('fixture API server book draft live assembly', () => {
       for (const previewOnlySceneId of signalArcMockOnlyPreviewSceneIds) {
         expect(listAssemblySceneIds(assembly)).not.toContain(previewOnlySceneId)
       }
+    })
+  })
+
+  it('assembles a readable whole-book manuscript from PR60 chapter assembly truth with a source manifest', async () => {
+    await withTestServer(async ({ app }) => {
+      const chapterAssemblyResponse = await app.inject({
+        method: 'GET',
+        url: '/api/projects/book-signal-arc/chapters/chapter-signals-in-rain/draft-assembly',
+      })
+      expect(chapterAssemblyResponse.statusCode).toBe(200)
+      const chapterAssembly = chapterAssemblyResponse.json()
+
+      const assembly = await fetchBookDraftAssembly(app)
+
+      expect(assembly.readableManuscript).toMatchObject({
+        formatVersion: 'book-manuscript-assembly-v1',
+        markdown: expect.stringContaining('# Signal Arc'),
+        plainText: expect.stringContaining('Signal Arc'),
+      })
+      expect(assembly.readableManuscript.markdown).toContain('## Chapter 1: Signals in Rain')
+      expect(assembly.readableManuscript.markdown).toContain('### Scene 1: Midnight Platform')
+      expect(assembly.readableManuscript.markdown).toContain('> Manuscript gap:')
+      expect(assembly.readableManuscript.plainText).toContain('Chapter 1: Signals in Rain')
+      expect(assembly.readableManuscript.plainText).toContain('Scene 1: Midnight Platform')
+
+      const sourceManifest = assembly.readableManuscript.sourceManifest
+      expect(sourceManifest).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'scene-draft',
+            chapterId: 'chapter-signals-in-rain',
+            sceneId: 'scene-midnight-platform',
+            sourcePatchId: expect.any(String),
+            sourceProposalIds: expect.any(Array),
+            acceptedFactIds: expect.any(Array),
+            traceReady: true,
+          }),
+          expect.objectContaining({
+            kind: 'scene-gap',
+            chapterId: 'chapter-signals-in-rain',
+            sceneId: 'scene-concourse-delay',
+            gapReason: expect.objectContaining({
+              en: expect.any(String),
+              'zh-CN': expect.any(String),
+            }),
+            traceReady: false,
+          }),
+        ]),
+      )
+      expect(assembly.readableManuscript.sections.map((section: { kind: string }) => section.kind)).toContain(
+        'chapter-heading',
+      )
+      expect(assembly.readableManuscript.sections.map((section: { kind: string }) => section.kind)).toContain(
+        'scene-draft',
+      )
+      expect(assembly.readableManuscript.sections.map((section: { kind: string }) => section.kind)).toContain(
+        'scene-gap',
+      )
+      expect(assembly.chapters[0].scenes.map((scene: { sceneId: string }) => scene.sceneId)).toEqual(
+        chapterAssembly.scenes.map((scene: { sceneId: string }) => scene.sceneId),
+      )
     })
   })
 
@@ -234,11 +299,24 @@ describe('fixture API server book draft live assembly', () => {
           'zh-CN': '已生成',
         },
       })
+      const draftedSceneAfter = sceneAfter as unknown as { proseDraft: string }
       expect(assemblyAfter).toMatchObject({
         draftedSceneCount: 2,
         missingDraftSceneCount: 3,
       })
       expect(assemblyAfter.assembledWordCount).toBeGreaterThan(assemblyBefore.assembledWordCount)
+      expect(assemblyAfter.readableManuscript.markdown).toContain('### Scene 1: Warehouse Bridge')
+      expect(assemblyAfter.readableManuscript.markdown).toContain(draftedSceneAfter.proseDraft)
+      expect(assemblyAfter.readableManuscript.sourceManifest).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'scene-draft',
+            chapterId: 'chapter-open-water-signals',
+            sceneId: 'scene-warehouse-bridge',
+            sourcePatchId: expect.any(String),
+          }),
+        ]),
+      )
     })
   })
 

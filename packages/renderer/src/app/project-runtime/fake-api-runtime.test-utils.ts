@@ -10,6 +10,11 @@ import type {
   BookDraftAssemblyRecord,
   BookDraftAssemblySceneRecord,
 } from '@/features/book/api/book-draft-assembly-records'
+import type {
+  ChapterDraftAssemblyRecord,
+  ChapterDraftAssemblySceneRecord,
+  ChapterDraftAssemblySectionRecord,
+} from '@/features/chapter/api/chapter-draft-assembly-records'
 import { MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH } from '@/features/scene/api/scene-runtime'
 import { buildSceneTraceabilityViewModel } from '@/features/traceability/lib/traceability-mappers'
 
@@ -184,6 +189,197 @@ function localizeFallback(value: string) {
   }
 }
 
+function countWords(text: string) {
+  return text.trim().split(/\s+/).length
+}
+
+function buildFakeBookDraftAssemblyChapterRecord(input: {
+  chapterAssembly: ChapterDraftAssemblyRecord
+  order: number
+}): BookDraftAssemblyChapterRecord {
+  return {
+    chapterId: input.chapterAssembly.chapterId,
+    order: input.order,
+    title: structuredClone(input.chapterAssembly.title),
+    summary: structuredClone(input.chapterAssembly.summary),
+    sceneCount: input.chapterAssembly.sceneCount,
+    draftedSceneCount: input.chapterAssembly.draftedSceneCount,
+    missingDraftCount: input.chapterAssembly.missingDraftCount,
+    assembledWordCount: input.chapterAssembly.assembledWordCount,
+    warningsCount: input.chapterAssembly.warningsCount,
+    queuedRevisionCount: input.chapterAssembly.queuedRevisionCount,
+    tracedSceneCount: input.chapterAssembly.tracedSceneCount,
+    missingTraceSceneCount: input.chapterAssembly.missingTraceSceneCount,
+    scenes: input.chapterAssembly.scenes.map((scene): BookDraftAssemblySceneRecord =>
+      scene.kind === 'scene-gap'
+        ? {
+            kind: 'gap' as const,
+            sceneId: scene.sceneId,
+            order: scene.order,
+            title: structuredClone(scene.title),
+            summary: structuredClone(scene.summary),
+            proseStatusLabel: structuredClone(scene.proseStatusLabel),
+            latestDiffSummary: scene.latestDiffSummary,
+            warningsCount: scene.warningsCount,
+            revisionQueueCount: scene.revisionQueueCount,
+            draftWordCount: scene.draftWordCount,
+            traceReady: scene.traceReady,
+            traceRollup: structuredClone(scene.traceRollup),
+            gapReason: structuredClone(scene.gapReason),
+          }
+        : {
+            kind: 'draft' as const,
+            sceneId: scene.sceneId,
+            order: scene.order,
+            title: structuredClone(scene.title),
+            summary: structuredClone(scene.summary),
+            proseStatusLabel: structuredClone(scene.proseStatusLabel),
+            proseDraft: scene.proseDraft,
+            latestDiffSummary: scene.latestDiffSummary,
+            warningsCount: scene.warningsCount,
+            revisionQueueCount: scene.revisionQueueCount,
+            draftWordCount: scene.draftWordCount,
+            traceReady: scene.traceReady,
+            traceRollup: structuredClone(scene.traceRollup),
+            sourcePatchId: scene.sourcePatchId,
+            sourceProposals: structuredClone(scene.sourceProposals),
+            acceptedFactIds: structuredClone(scene.acceptedFactIds),
+            relatedAssets: structuredClone(scene.relatedAssets),
+          }),
+  }
+}
+
+function buildFakeBookReadableManuscript(input: {
+  bookTitle: string
+  bookSummary: string
+  chapters: Array<{
+    order: number
+    assembly: ChapterDraftAssemblyRecord
+  }>
+}) {
+  const markdownLines = [`# ${input.bookTitle}`]
+  const plainTextLines = [input.bookTitle]
+  const sections: BookDraftAssemblyRecord['readableManuscript']['sections'] = []
+  const sourceManifest: BookDraftAssemblyRecord['readableManuscript']['sourceManifest'] = []
+
+  if (input.bookSummary.trim()) {
+    markdownLines.push('', input.bookSummary)
+    plainTextLines.push('', input.bookSummary)
+  }
+
+  for (const chapter of input.chapters) {
+    sections.push({
+      kind: 'chapter-heading',
+      chapterId: chapter.assembly.chapterId,
+      chapterOrder: chapter.order,
+      chapterTitle: structuredClone(chapter.assembly.title),
+      summary: structuredClone(chapter.assembly.summary),
+      assembledWordCount: chapter.assembly.assembledWordCount,
+      missingDraftCount: chapter.assembly.missingDraftCount,
+    })
+
+    markdownLines.push('', `## Chapter ${chapter.order}: ${chapter.assembly.title.en}`)
+    plainTextLines.push('', `Chapter ${chapter.order}: ${chapter.assembly.title.en}`)
+    if (chapter.assembly.summary.en.trim()) {
+      markdownLines.push('', chapter.assembly.summary.en)
+      plainTextLines.push(chapter.assembly.summary.en)
+    }
+
+    for (const section of chapter.assembly.sections) {
+      if (section.kind === 'scene-draft' || section.kind === 'scene-gap') {
+        sections.push({
+          kind: section.kind,
+          chapterId: chapter.assembly.chapterId,
+          chapterOrder: chapter.order,
+          chapterTitle: structuredClone(chapter.assembly.title),
+          sceneId: section.sceneId,
+          sceneOrder: section.order,
+          sceneTitle: structuredClone(section.title),
+          sceneSummary: structuredClone(section.summary),
+          proseDraft: section.kind === 'scene-draft' ? section.proseDraft : undefined,
+          gapReason: section.kind === 'scene-gap' ? structuredClone(section.gapReason) : undefined,
+          draftWordCount: section.draftWordCount,
+          traceReady: section.traceReady,
+          sourcePatchId: section.kind === 'scene-draft' ? section.sourcePatchId : undefined,
+          sourceProposalIds: section.kind === 'scene-draft'
+            ? section.sourceProposals.map((proposal) => proposal.proposalId)
+            : [],
+          acceptedFactIds: section.kind === 'scene-draft' ? structuredClone(section.acceptedFactIds) : [],
+        })
+        sourceManifest.push({
+          kind: section.kind,
+          chapterId: chapter.assembly.chapterId,
+          chapterOrder: chapter.order,
+          chapterTitle: structuredClone(chapter.assembly.title),
+          sceneId: section.sceneId,
+          sceneOrder: section.order,
+          sceneTitle: structuredClone(section.title),
+          sourcePatchId: section.kind === 'scene-draft' ? section.sourcePatchId : undefined,
+          sourceProposalIds: section.kind === 'scene-draft'
+            ? section.sourceProposals.map((proposal) => proposal.proposalId)
+            : [],
+          acceptedFactIds: section.kind === 'scene-draft' ? structuredClone(section.acceptedFactIds) : [],
+          traceReady: section.traceReady,
+          draftWordCount: section.draftWordCount,
+          gapReason: section.kind === 'scene-gap' ? structuredClone(section.gapReason) : undefined,
+        })
+        markdownLines.push('', `### Scene ${section.order}: ${section.title.en}`)
+        plainTextLines.push('', `Scene ${section.order}: ${section.title.en}`)
+        if (section.kind === 'scene-draft') {
+          markdownLines.push('', section.proseDraft)
+          plainTextLines.push(section.proseDraft)
+        } else {
+          markdownLines.push('', `> Manuscript gap: ${section.gapReason.en}`)
+          plainTextLines.push(`[Manuscript gap] ${section.gapReason.en}`)
+        }
+        continue
+      }
+
+      sections.push({
+        kind: section.kind,
+        chapterId: chapter.assembly.chapterId,
+        chapterOrder: chapter.order,
+        chapterTitle: structuredClone(chapter.assembly.title),
+        fromSceneId: section.fromSceneId,
+        toSceneId: section.toSceneId,
+        fromSceneTitle: structuredClone(section.fromSceneTitle),
+        toSceneTitle: structuredClone(section.toSceneTitle),
+        transitionProse: section.kind === 'transition-draft' ? section.transitionProse : undefined,
+        artifactId: section.kind === 'transition-draft' ? section.artifactRef.id : undefined,
+        gapReason: section.kind === 'transition-gap' ? structuredClone(section.gapReason) : undefined,
+      })
+      sourceManifest.push({
+        kind: section.kind,
+        chapterId: chapter.assembly.chapterId,
+        chapterOrder: chapter.order,
+        chapterTitle: structuredClone(chapter.assembly.title),
+        fromSceneId: section.fromSceneId,
+        toSceneId: section.toSceneId,
+        sourceProposalIds: [],
+        acceptedFactIds: [],
+        artifactId: section.kind === 'transition-draft' ? section.artifactRef.id : undefined,
+        traceReady: section.kind === 'transition-draft',
+        gapReason: section.kind === 'transition-gap' ? structuredClone(section.gapReason) : undefined,
+      })
+      if (section.kind === 'transition-draft') {
+        markdownLines.push('', section.transitionProse)
+        plainTextLines.push('', section.transitionProse)
+      } else {
+        markdownLines.push('', `> Transition gap: ${section.gapReason.en}`)
+        plainTextLines.push('', `[Transition gap] ${section.gapReason.en}`)
+      }
+    }
+  }
+
+  return {
+    formatVersion: 'book-manuscript-assembly-v1' as const,
+    markdown: markdownLines.join('\n').trim(),
+    plainText: plainTextLines.join('\n').trim(),
+    sections,
+    sourceManifest,
+  }
+}
+
 async function buildFakeBookDraftAssembly(
   mockRuntime: ReturnType<typeof createMockProjectRuntime>,
   bookId: string,
@@ -193,113 +389,31 @@ async function buildFakeBookDraftAssembly(
     return null
   }
 
-  const chapters = (
+  const chapterAssemblies = (
     await Promise.all(
       bookRecord.chapterIds.map(async (chapterId, index) => {
-        const chapterRecord = await mockRuntime.chapterClient.getChapterStructureWorkspace({ chapterId })
-        if (!chapterRecord) {
+        const chapterAssembly = await buildFakeChapterDraftAssembly(mockRuntime, chapterId)
+        if (!chapterAssembly) {
           return null
         }
 
-        const scenes = (
-          await Promise.all(
-            [...chapterRecord.scenes]
-              .sort((left, right) => left.order - right.order)
-              .map(async (scene): Promise<BookDraftAssemblySceneRecord> => {
-                const prose = await mockRuntime.sceneClient.getSceneProse(scene.id)
-                const execution = await mockRuntime.traceabilitySceneClient.getSceneExecution(scene.id)
-                const inspector = await mockRuntime.traceabilitySceneClient.getSceneInspector(scene.id)
-                const patchPreview = await mockRuntime.traceabilitySceneClient.previewAcceptedPatch(scene.id)
-                const trace = buildSceneTraceabilityViewModel({
-                  sceneId: scene.id,
-                  execution,
-                  prose,
-                  inspector,
-                  patchPreview,
-                })
-                const proseDraft = prose?.proseDraft?.trim()
-                const proseStatusLabel = prose?.statusLabel ?? (proseDraft ? 'Ready' : 'Waiting for prose artifact')
-                const traceRollup = {
-                  acceptedFactCount: trace.acceptedFacts.length,
-                  relatedAssetCount: trace.relatedAssets.length,
-                  sourceProposalCount: trace.sourceProposals.length,
-                  missingLinks: trace.missingLinks,
-                }
-
-                if (proseDraft) {
-                  return {
-                    kind: 'draft',
-                    sceneId: scene.id,
-                    order: scene.order,
-                    title: scene.title,
-                    summary: scene.summary,
-                    proseStatusLabel: localizeFallback(proseStatusLabel),
-                    proseDraft,
-                    latestDiffSummary: prose?.latestDiffSummary,
-                    warningsCount: prose?.warningsCount ?? 0,
-                    revisionQueueCount: prose?.revisionQueueCount,
-                    draftWordCount: prose?.draftWordCount,
-                    traceReady: !trace.missingLinks.includes('trace'),
-                    traceRollup,
-                    sourcePatchId: prose?.traceSummary?.sourcePatchId,
-                    sourceProposals: prose?.traceSummary?.sourceProposals ?? trace.sourceProposals,
-                    acceptedFactIds: prose?.traceSummary?.acceptedFactIds ?? trace.acceptedFacts.map((fact) => fact.id),
-                    relatedAssets: prose?.traceSummary?.relatedAssets ?? trace.relatedAssets,
-                  }
-                }
-
-                const gapReason =
-                  prose?.latestDiffSummary ??
-                  (trace.missingLinks.includes('trace')
-                    ? 'Trace coverage is still missing for this scene.'
-                    : 'No prose artifact has been materialized for this scene yet.')
-
-                return {
-                  kind: 'gap',
-                  sceneId: scene.id,
-                  order: scene.order,
-                  title: scene.title,
-                  summary: scene.summary,
-                  proseStatusLabel: localizeFallback(proseStatusLabel),
-                  latestDiffSummary: prose?.latestDiffSummary,
-                  warningsCount: prose?.warningsCount ?? 0,
-                  revisionQueueCount: prose?.revisionQueueCount,
-                  draftWordCount: prose?.draftWordCount,
-                  traceReady: !trace.missingLinks.includes('trace'),
-                  traceRollup,
-                  gapReason: localizeFallback(gapReason),
-                }
-              }),
-          )
-        ).sort((left, right) => left.order - right.order)
-
-        const draftedSceneCount = scenes.filter((scene) => scene.kind === 'draft').length
-        const tracedSceneCount = scenes.filter((scene) => scene.traceReady).length
-        const warningsCount = scenes.reduce((total, scene) => total + scene.warningsCount, 0)
-        const queuedRevisionCount = scenes.reduce((total, scene) => total + (scene.revisionQueueCount ?? 0), 0)
-        const assembledWordCount = scenes.reduce(
-          (total, scene) => total + (scene.kind === 'draft' ? scene.draftWordCount ?? 0 : 0),
-          0,
-        )
-
         return {
-          chapterId: chapterRecord.chapterId,
           order: index + 1,
-          title: chapterRecord.title,
-          summary: chapterRecord.summary,
-          sceneCount: scenes.length,
-          draftedSceneCount,
-          missingDraftCount: scenes.length - draftedSceneCount,
-          assembledWordCount,
-          warningsCount,
-          queuedRevisionCount,
-          tracedSceneCount,
-          missingTraceSceneCount: scenes.length - tracedSceneCount,
-          scenes,
-        } satisfies BookDraftAssemblyChapterRecord
+          assembly: chapterAssembly,
+        }
       }),
     )
-  ).filter((chapter): chapter is BookDraftAssemblyChapterRecord => chapter !== null)
+  ).filter((chapter): chapter is { order: number; assembly: ChapterDraftAssemblyRecord } => chapter !== null)
+  const chapters = chapterAssemblies.map(({ order, assembly }) =>
+    buildFakeBookDraftAssemblyChapterRecord({
+      chapterAssembly: assembly,
+      order,
+    }))
+  const readableManuscript = buildFakeBookReadableManuscript({
+    bookTitle: bookRecord.title.en,
+    bookSummary: bookRecord.summary.en,
+    chapters: chapterAssemblies,
+  })
 
   return {
     bookId: bookRecord.bookId,
@@ -311,6 +425,139 @@ async function buildFakeBookDraftAssembly(
     missingDraftSceneCount: chapters.reduce((total, chapter) => total + chapter.missingDraftCount, 0),
     assembledWordCount: chapters.reduce((total, chapter) => total + chapter.assembledWordCount, 0),
     chapters,
+    readableManuscript,
+  }
+}
+
+async function buildFakeChapterDraftAssembly(
+  mockRuntime: ReturnType<typeof createMockProjectRuntime>,
+  chapterId: string,
+): Promise<ChapterDraftAssemblyRecord | null> {
+  const chapterRecord = await mockRuntime.chapterClient.getChapterStructureWorkspace({ chapterId })
+  if (!chapterRecord) {
+    return null
+  }
+
+  const scenes = (
+    await Promise.all(
+      [...chapterRecord.scenes]
+        .sort((left, right) => left.order - right.order)
+        .map(async (scene): Promise<ChapterDraftAssemblySceneRecord> => {
+          const prose = await mockRuntime.sceneClient.getSceneProse(scene.id)
+          const execution = await mockRuntime.traceabilitySceneClient.getSceneExecution(scene.id)
+          const inspector = await mockRuntime.traceabilitySceneClient.getSceneInspector(scene.id)
+          const patchPreview = await mockRuntime.traceabilitySceneClient.previewAcceptedPatch(scene.id)
+          const trace = buildSceneTraceabilityViewModel({
+            sceneId: scene.id,
+            execution,
+            prose,
+            inspector,
+            patchPreview,
+          })
+          const proseDraft = prose?.proseDraft?.trim()
+          const proseStatusLabel = prose?.statusLabel ?? (proseDraft ? 'Ready' : 'Waiting for prose artifact')
+          const traceRollup = {
+            acceptedFactCount: trace.acceptedFacts.length,
+            relatedAssetCount: trace.relatedAssets.length,
+            sourceProposalCount: trace.sourceProposals.length,
+            missingLinks: trace.missingLinks,
+          }
+
+          if (proseDraft) {
+            return {
+              kind: 'scene-draft',
+              sceneId: scene.id,
+              order: scene.order,
+              title: scene.title,
+              summary: scene.summary,
+              backlogStatus: scene.backlogStatus,
+              proseStatusLabel: localizeFallback(proseStatusLabel),
+              proseDraft,
+              latestDiffSummary: prose?.latestDiffSummary,
+              warningsCount: prose?.warningsCount ?? 0,
+              revisionQueueCount: prose?.revisionQueueCount,
+              draftWordCount: prose?.draftWordCount,
+              traceReady: !trace.missingLinks.includes('trace'),
+              traceRollup,
+              sourcePatchId: prose?.traceSummary?.sourcePatchId,
+              sourceProposals: prose?.traceSummary?.sourceProposals ?? trace.sourceProposals,
+              acceptedFactIds: prose?.traceSummary?.acceptedFactIds ?? trace.acceptedFacts.map((fact) => fact.id),
+              relatedAssets: prose?.traceSummary?.relatedAssets ?? trace.relatedAssets,
+            }
+          }
+
+          const gapReason =
+            prose?.latestDiffSummary ??
+            (trace.missingLinks.includes('trace')
+              ? 'Trace coverage is still missing for this scene.'
+              : 'No prose artifact has been materialized for this scene yet.')
+
+          return {
+            kind: 'scene-gap',
+            sceneId: scene.id,
+            order: scene.order,
+            title: scene.title,
+            summary: scene.summary,
+            backlogStatus: scene.backlogStatus,
+            proseStatusLabel: localizeFallback(proseStatusLabel),
+            latestDiffSummary: prose?.latestDiffSummary,
+            warningsCount: prose?.warningsCount ?? 0,
+            revisionQueueCount: prose?.revisionQueueCount,
+            draftWordCount: prose?.draftWordCount,
+            traceReady: !trace.missingLinks.includes('trace'),
+            traceRollup,
+            gapReason: localizeFallback(gapReason),
+          }
+        }),
+    )
+  ).sort((left, right) => left.order - right.order)
+
+  const sections: ChapterDraftAssemblySectionRecord[] = []
+  for (const [index, scene] of scenes.entries()) {
+    sections.push(scene)
+    const nextScene = scenes[index + 1]
+    if (!nextScene) {
+      continue
+    }
+
+    sections.push({
+      kind: 'transition-gap',
+      fromSceneId: scene.sceneId,
+      toSceneId: nextScene.sceneId,
+      fromSceneTitle: scene.title,
+      toSceneTitle: nextScene.title,
+      gapReason: localizeFallback('No artifact-backed transition draft has been materialized for this seam yet.'),
+    })
+  }
+
+  const draftedSceneCount = scenes.filter((scene) => scene.kind === 'scene-draft').length
+  const tracedSceneCount = scenes.filter((scene) => scene.traceReady).length
+  const warningsCount = scenes.reduce((total, scene) => total + scene.warningsCount, 0)
+  const queuedRevisionCount = scenes.reduce((total, scene) => total + (scene.revisionQueueCount ?? 0), 0)
+  const assembledWordCount = sections.reduce((total, section) => {
+    if (section.kind === 'scene-draft') {
+      return total + (section.draftWordCount ?? countWords(section.proseDraft))
+    }
+    if (section.kind === 'transition-draft') {
+      return total + countWords(section.transitionProse)
+    }
+    return total
+  }, 0)
+
+  return {
+    chapterId: chapterRecord.chapterId,
+    title: chapterRecord.title,
+    summary: chapterRecord.summary,
+    sceneCount: scenes.length,
+    draftedSceneCount,
+    missingDraftCount: scenes.length - draftedSceneCount,
+    assembledWordCount,
+    warningsCount,
+    queuedRevisionCount,
+    tracedSceneCount,
+    missingTraceSceneCount: scenes.length - tracedSceneCount,
+    scenes,
+    sections,
   }
 }
 
@@ -420,6 +667,11 @@ async function handleFakeApiRequest<TResponse, TBody>(
     }) as Promise<TResponse>
   }
 
+  const chapterDraftAssemblyMatch = path.match(new RegExp(`${projectBasePattern}/chapters/([^/]+)/draft-assembly$`))
+  if (method === 'GET' && chapterDraftAssemblyMatch) {
+    return buildFakeChapterDraftAssembly(mockRuntime, decodeSegment(chapterDraftAssemblyMatch[1]!)) as Promise<TResponse>
+  }
+
   const assetKnowledgeMatch = path.match(new RegExp(`${projectBasePattern}/assets/([^/]+)/knowledge$`))
   if (method === 'GET' && assetKnowledgeMatch) {
     return mockRuntime.assetClient.getAssetKnowledgeWorkspace({
@@ -479,6 +731,82 @@ async function handleFakeApiRequest<TResponse, TBody>(
   const chapterSceneReorderMatch = path.match(
     new RegExp(`${projectBasePattern}/chapters/([^/]+)/scenes/([^/]+)/reorder$`),
   )
+  const chapterPlanningInputMatch = path.match(
+    new RegExp(`${projectBasePattern}/chapters/([^/]+)/planning-input$`),
+  )
+  if (method === 'PATCH' && chapterPlanningInputMatch) {
+    const planningBody = body as { locale: 'en' | 'zh-CN'; goal?: string; constraints?: string[] }
+    return mockRuntime.chapterClient.updateChapterBacklogInput({
+      chapterId: decodeSegment(chapterPlanningInputMatch[1]!),
+      locale: planningBody.locale,
+      goal: planningBody.goal,
+      constraints: planningBody.constraints,
+    }) as Promise<TResponse>
+  }
+
+  const chapterBacklogProposalsMatch = path.match(
+    new RegExp(`${projectBasePattern}/chapters/([^/]+)/backlog-proposals$`),
+  )
+  if (method === 'POST' && chapterBacklogProposalsMatch) {
+    const generateBody = body as { locale: 'en' | 'zh-CN' }
+    return mockRuntime.chapterClient.generateChapterBacklogProposal({
+      chapterId: decodeSegment(chapterBacklogProposalsMatch[1]!),
+      locale: generateBody.locale,
+    }) as Promise<TResponse>
+  }
+
+  const chapterBacklogProposalSceneMatch = path.match(
+    new RegExp(`${projectBasePattern}/chapters/([^/]+)/backlog-proposals/([^/]+)/scenes/([^/]+)$`),
+  )
+  if (method === 'PATCH' && chapterBacklogProposalSceneMatch) {
+    const proposalSceneBody = body as {
+      locale: 'en' | 'zh-CN'
+      patch?: Partial<Record<'title' | 'summary' | 'purpose' | 'plannerNotes', string>>
+      order?: number
+      backlogStatus?: 'planned' | 'running' | 'needs_review' | 'drafted' | 'revised'
+    }
+    return mockRuntime.chapterClient.updateChapterBacklogProposalScene({
+      chapterId: decodeSegment(chapterBacklogProposalSceneMatch[1]!),
+      proposalId: decodeSegment(chapterBacklogProposalSceneMatch[2]!),
+      proposalSceneId: decodeSegment(chapterBacklogProposalSceneMatch[3]!),
+      locale: proposalSceneBody.locale,
+      patch: proposalSceneBody.patch,
+      order: proposalSceneBody.order,
+      backlogStatus: proposalSceneBody.backlogStatus,
+    }) as Promise<TResponse>
+  }
+
+  const chapterBacklogProposalAcceptMatch = path.match(
+    new RegExp(`${projectBasePattern}/chapters/([^/]+)/backlog-proposals/([^/]+)/accept$`),
+  )
+  if (method === 'POST' && chapterBacklogProposalAcceptMatch) {
+    const acceptBody = body as { locale: 'en' | 'zh-CN' }
+    return mockRuntime.chapterClient.acceptChapterBacklogProposal({
+      chapterId: decodeSegment(chapterBacklogProposalAcceptMatch[1]!),
+      proposalId: decodeSegment(chapterBacklogProposalAcceptMatch[2]!),
+      locale: acceptBody.locale,
+    }) as Promise<TResponse>
+  }
+
+  const chapterRunNextSceneMatch = path.match(
+    new RegExp(`${projectBasePattern}/chapters/([^/]+)/run-next-scene$`),
+  )
+  if (method === 'POST' && chapterRunNextSceneMatch) {
+    const chapterRunBody = body as {
+      locale: 'en' | 'zh-CN'
+      mode?: 'continue' | 'rewrite' | 'from-scratch'
+      note?: string
+    }
+    return cloneFakeApiResponse(
+      await mockRuntime.chapterClient.startNextChapterSceneRun({
+        chapterId: decodeSegment(chapterRunNextSceneMatch[1]!),
+        locale: chapterRunBody.locale,
+        mode: chapterRunBody.mode,
+        note: chapterRunBody.note,
+      }),
+    ) as TResponse
+  }
+
   if (method === 'POST' && chapterSceneReorderMatch) {
     const reorderBody = body as { targetIndex: number }
     return mockRuntime.chapterClient.reorderChapterScene({
@@ -561,6 +889,37 @@ async function handleFakeApiRequest<TResponse, TBody>(
       await mockRuntime.runClient.getRunEvents({
         runId: decodeSegment(runEventsMatch[1]!),
         cursor: typeof query?.cursor === 'string' ? query.cursor : undefined,
+      }),
+    ) as TResponse
+  }
+
+  const runRetryMatch = path.match(new RegExp(`${projectBasePattern}/runs/([^/]+)/retry$`))
+  if (method === 'POST' && runRetryMatch) {
+    const retryBody = body as { mode?: 'continue' | 'rewrite' | 'from-scratch' }
+    return cloneFakeApiResponse(
+      await mockRuntime.runClient.retryRun({
+        runId: decodeSegment(runRetryMatch[1]!),
+        mode: retryBody.mode,
+      }),
+    ) as TResponse
+  }
+
+  const runCancelMatch = path.match(new RegExp(`${projectBasePattern}/runs/([^/]+)/cancel$`))
+  if (method === 'POST' && runCancelMatch) {
+    const cancelBody = body as { reason?: string }
+    return cloneFakeApiResponse(
+      await mockRuntime.runClient.cancelRun({
+        runId: decodeSegment(runCancelMatch[1]!),
+        reason: cancelBody.reason,
+      }),
+    ) as TResponse
+  }
+
+  const runResumeMatch = path.match(new RegExp(`${projectBasePattern}/runs/([^/]+)/resume$`))
+  if (method === 'POST' && runResumeMatch) {
+    return cloneFakeApiResponse(
+      await mockRuntime.runClient.resumeRun({
+        runId: decodeSegment(runResumeMatch[1]!),
       }),
     ) as TResponse
   }

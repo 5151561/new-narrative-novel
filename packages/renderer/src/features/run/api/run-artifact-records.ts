@@ -1,10 +1,16 @@
 import type {
   AssetContextActivationReasonKindRecord,
   AssetContextBudgetRecord,
+  CanonicalAssetKind,
   AssetContextTargetAgentRecord,
   AssetContextVisibilityRecord,
 } from '@/features/asset/api/asset-records'
-import type { RunEventRefRecord, RunReviewDecisionKind, RunSelectedProposalVariantRecord } from './run-records'
+import type {
+  RunEventRefRecord,
+  RunReviewDecisionKind,
+  RunSelectedProposalVariantRecord,
+  RunUsageRecord,
+} from './run-records'
 
 export interface LocalizedTextRecord {
   en: string
@@ -27,10 +33,20 @@ export interface RunArtifactSummaryRecord {
   statusLabel: LocalizedTextRecord
   createdAtLabel: LocalizedTextRecord
   sourceEventIds: string[]
+  usage?: RunUsageRecord
+}
+
+export interface RunFailureDetailRecord {
+  failureClass: 'provider_error' | 'model_timeout' | 'invalid_output' | 'cancelled' | 'unknown'
+  message: string
+  provider?: string
+  modelId?: string
+  retryable: boolean
+  sourceEventIds: string[]
 }
 
 export type SceneRunAgentRole = 'scene-planner' | 'scene-writer'
-export type RunArtifactAssetKind = 'character' | 'location' | 'rule'
+export type RunArtifactAssetKind = CanonicalAssetKind
 export type ProposalChangeKind = 'action' | 'reveal' | 'state-change' | 'continuity-note'
 
 export interface RunArtifactSectionRecord {
@@ -111,7 +127,7 @@ export interface RunContextAssetActivationRecord {
   id: string
   assetId: string
   assetTitle: LocalizedTextRecord
-  assetKind: 'character' | 'location' | 'rule'
+  assetKind: RunArtifactAssetKind
   decision: RunContextAssetActivationDecisionRecord
   reasonKind: AssetContextActivationReasonKindRecord
   reasonLabel: LocalizedTextRecord
@@ -153,6 +169,7 @@ export interface AgentInvocationArtifactDetailRecord extends RunArtifactSummaryR
   contextPacketId?: string
   outputSchemaLabel: LocalizedTextRecord
   generatedRefs: RunArtifactGeneratedRefRecord[]
+  failureDetail?: RunFailureDetailRecord
 }
 
 export interface ProposalSetArtifactDetailRecord extends RunArtifactSummaryRecord {
@@ -161,6 +178,7 @@ export interface ProposalSetArtifactDetailRecord extends RunArtifactSummaryRecor
   sourceInvocationIds: string[]
   proposals: ProposalSetArtifactProposalRecord[]
   reviewOptions: ProposalSetReviewOptionRecord[]
+  failureDetail?: RunFailureDetailRecord
 }
 
 export interface CanonPatchArtifactDetailRecord extends RunArtifactSummaryRecord {
@@ -184,6 +202,7 @@ export interface ProseDraftArtifactDetailRecord extends RunArtifactSummaryRecord
   wordCount: number
   relatedAssets: RunArtifactRelatedAssetRecord[]
   traceLinkIds: string[]
+  failureDetail?: RunFailureDetailRecord
 }
 
 export type RunArtifactDetailRecord =

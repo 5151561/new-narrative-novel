@@ -5,5 +5,15 @@ storybook-static/
 .DS_Store
 refer/
 .playwright-mcp
-apps/
+apps/*
+!apps/desktop/
+apps/desktop/*
+!apps/desktop/src/
+apps/desktop/src/*
+!apps/desktop/src/main/
+apps/desktop/src/main/*
+!apps/desktop/src/main/credential-store.ts
+!apps/desktop/src/main/credential-store.test.ts
+!apps/desktop/src/main/model-binding-store.ts
+!apps/desktop/src/main/model-binding-store.test.ts
 .superpowers/

@@ -61,6 +61,50 @@ describe('api project runtime HTTP compatibility smoke', () => {
       runStatus: 'paused',
     })
 
+    const generatedBacklog = await runtime.chapterClient.generateChapterBacklogProposal({
+      chapterId: 'chapter-signals-in-rain',
+      locale: 'en',
+    })
+    expect(generatedBacklog?.planning.proposals).toHaveLength(1)
+    const proposal = generatedBacklog?.planning.proposals.at(-1)
+    expect(proposal).toBeTruthy()
+    if (!proposal) {
+      return
+    }
+
+    const patchedBacklog = await runtime.chapterClient.updateChapterBacklogProposalScene({
+      chapterId: 'chapter-signals-in-rain',
+      proposalId: proposal.proposalId,
+      proposalSceneId: proposal.scenes[0]!.proposalSceneId,
+      locale: 'en',
+      backlogStatus: 'drafted',
+    })
+    expect(patchedBacklog?.planning.proposals.at(-1)?.scenes[0]?.backlogStatus).toBe('drafted')
+
+    const acceptedBacklog = await runtime.chapterClient.acceptChapterBacklogProposal({
+      chapterId: 'chapter-signals-in-rain',
+      proposalId: proposal.proposalId,
+      locale: 'en',
+    })
+    expect(acceptedBacklog?.planning.acceptedProposalId).toBe(proposal.proposalId)
+
+    const chapterRun = await runtime.chapterClient.startNextChapterSceneRun({
+      chapterId: 'chapter-signals-in-rain',
+      locale: 'en',
+      mode: 'continue',
+      note: 'Advance the next chapter scene.',
+    })
+    expect(chapterRun).toMatchObject({
+      selectedScene: {
+        sceneId: 'scene-concourse-delay',
+      },
+      run: {
+        scope: 'scene',
+        scopeId: 'scene-concourse-delay',
+        status: 'waiting_review',
+      },
+    })
+
     const startedRun = await runtime.runClient.startSceneRun({
       sceneId: defaultSceneId,
       mode: 'rewrite',

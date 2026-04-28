@@ -13,7 +13,18 @@ describe('desktop main bridge registration', () => {
     const ipcHandle = vi.fn()
     const appOn = vi.fn()
     const setApplicationMenu = vi.fn()
+    const createProjectBackup = vi.fn(async () => ({
+      filePath: '/tmp/local-project/.narrative/backups/project-backup-2026-04-28T00-00-00-000Z.json',
+    }))
+    const exportProjectArchive = vi.fn(async () => ({
+      filePath: '/tmp/local-project/.narrative/exports/project-archive-2026-04-28T00-00-00-000Z.json',
+    }))
     const projectStore = {
+      createProject: vi.fn(async () => ({
+        projectId: 'local-project-created',
+        projectRoot: '/tmp/project-created',
+        projectTitle: 'Created Project',
+      })),
       forgetProjectRoot: vi.fn(async () => []),
       getCurrentProject: vi.fn(() => ({
         projectId: 'local-project-alpha',
@@ -45,6 +56,61 @@ describe('desktop main bridge registration', () => {
       getSnapshot: vi.fn(() => workerSnapshot),
       restart: vi.fn(async () => restartedSnapshot),
       stop: vi.fn(() => workerSnapshot),
+    }
+    const credentialStore = {
+      deleteCredential: vi.fn(async () => ({
+        configured: false,
+        provider: 'openai' as const,
+      })),
+      getCredentialStatus: vi.fn(async () => ({
+        configured: true,
+        provider: 'openai' as const,
+        redactedValue: 'sk-...alue',
+      })),
+      saveCredential: vi.fn(async () => ({
+        configured: true,
+        provider: 'openai' as const,
+        redactedValue: 'sk-...alue',
+      })),
+    }
+    const modelBindingStore = {
+      readBindings: vi.fn(async () => ({
+        continuityReviewer: {
+          provider: 'fixture' as const,
+        },
+        planner: {
+          modelId: 'gpt-5.4',
+          provider: 'openai' as const,
+        },
+        sceneProseWriter: {
+          provider: 'fixture' as const,
+        },
+        sceneRevision: {
+          provider: 'fixture' as const,
+        },
+        summary: {
+          provider: 'fixture' as const,
+        },
+      })),
+      updateBinding: vi.fn(async () => ({
+        continuityReviewer: {
+          provider: 'fixture' as const,
+        },
+        planner: {
+          modelId: 'gpt-5.4',
+          provider: 'openai' as const,
+        },
+        sceneProseWriter: {
+          provider: 'fixture' as const,
+        },
+        sceneRevision: {
+          modelId: 'gpt-5.4-mini',
+          provider: 'openai' as const,
+        },
+        summary: {
+          provider: 'fixture' as const,
+        },
+      })),
     }
     const localApiSupervisor = {
       getLogs: vi.fn(() => []),
@@ -117,6 +183,16 @@ describe('desktop main bridge registration', () => {
     vi.doMock('./project-store.js', () => ({
       ProjectStore: vi.fn(() => projectStore),
     }))
+    vi.doMock('./credential-store.js', () => ({
+      CredentialStore: vi.fn(() => credentialStore),
+    }))
+    vi.doMock('./model-binding-store.js', () => ({
+      ModelBindingStore: vi.fn(() => modelBindingStore),
+    }))
+    vi.doMock('../../../../packages/api/src/repositories/project-backup.js', () => ({
+      createProjectBackup,
+      exportProjectArchive,
+    }))
     vi.doMock('./runtime-config.js', () => ({
       resolveWorkspaceRoot: vi.fn(() => '/tmp/local-project'),
     }))
@@ -127,18 +203,27 @@ describe('desktop main bridge registration', () => {
     await import('./main.js')
 
     const initialMenuOptions = setApplicationMenu.mock.calls.at(-1)?.[0] as {
+      onCreateProject?: () => Promise<void>
       onOpenProject?: () => Promise<void>
       onOpenRecentProject?: (projectRoot: string) => Promise<void>
+      onCreateProjectBackup?: () => Promise<void>
+      onExportProjectArchive?: () => Promise<void>
     } | undefined
 
     const registrations = new Map(
-      ipcHandle.mock.calls.map(([channel, handler]) => [channel as string, handler as () => unknown]),
+      ipcHandle.mock.calls.map(([channel, handler]) => [channel as string, handler as (...args: unknown[]) => unknown]),
     )
 
     expect(registrations.has(DESKTOP_API_CHANNELS.getWorkerStatus)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.restartWorker)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.getCurrentProject)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.getRuntimeConfig)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.getProviderCredentialStatus)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.saveProviderCredential)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.deleteProviderCredential)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.getModelBindings)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.updateModelBinding)).toBe(true)
+    expect(Array.from(registrations.keys())).not.toContain('narrativeDesktop:getRawCredential')
 
     expect(registrations.get(DESKTOP_API_CHANNELS.getCurrentProject)?.()).toEqual({
       projectId: 'local-project-alpha',
@@ -164,8 +249,63 @@ describe('desktop main bridge registration', () => {
       processId: 4201,
       status: 'ready',
     })
+    await expect(
+      registrations.get(DESKTOP_API_CHANNELS.getProviderCredentialStatus)?.(undefined, 'openai'),
+    ).resolves.toEqual({
+      configured: true,
+      provider: 'openai',
+      redactedValue: 'sk-...alue',
+    })
+    await expect(
+      registrations.get(DESKTOP_API_CHANNELS.saveProviderCredential)?.(undefined, {
+        provider: 'openai',
+        secret: 'sk-secret-value',
+      }),
+    ).resolves.toEqual({
+      configured: true,
+      provider: 'openai',
+      redactedValue: 'sk-...alue',
+    })
+    await expect(
+      registrations.get(DESKTOP_API_CHANNELS.deleteProviderCredential)?.(undefined, 'openai'),
+    ).resolves.toEqual({
+      configured: false,
+      provider: 'openai',
+    })
+    await expect(registrations.get(DESKTOP_API_CHANNELS.getModelBindings)?.()).resolves.toMatchObject({
+      planner: {
+        modelId: 'gpt-5.4',
+        provider: 'openai',
+      },
+    })
+    await expect(
+      registrations.get(DESKTOP_API_CHANNELS.updateModelBinding)?.(undefined, {
+        binding: {
+          modelId: 'gpt-5.4-mini',
+          provider: 'openai',
+        },
+        role: 'sceneRevision',
+      }),
+    ).resolves.toMatchObject({
+      sceneRevision: {
+        modelId: 'gpt-5.4-mini',
+        provider: 'openai',
+      },
+    })
     expect(workerSupervisor.getSnapshot).toHaveBeenCalledTimes(1)
     expect(workerSupervisor.restart).toHaveBeenCalledTimes(1)
+    expect(credentialStore.getCredentialStatus).toHaveBeenCalledWith('openai')
+    expect(credentialStore.saveCredential).toHaveBeenCalledWith('openai', 'sk-secret-value')
+    expect(credentialStore.deleteCredential).toHaveBeenCalledWith('openai')
+    expect(modelBindingStore.readBindings).toHaveBeenCalledWith('/tmp/local-project')
+    expect(modelBindingStore.updateBinding).toHaveBeenCalledWith('/tmp/local-project', {
+      binding: {
+        modelId: 'gpt-5.4-mini',
+        provider: 'openai',
+      },
+      role: 'sceneRevision',
+    })
+    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(3)
 
     const beforeQuitHandler = appOn.mock.calls.find(([event]) => event === 'before-quit')?.[1] as (() => void) | undefined
     expect(beforeQuitHandler).toBeTypeOf('function')
@@ -174,20 +314,43 @@ describe('desktop main bridge registration', () => {
 
     expect(workerSupervisor.stop).toHaveBeenCalledTimes(1)
 
-    projectStore.openProject.mockRejectedValueOnce(new Error('dialog failed'))
-    await expect(initialMenuOptions?.onOpenProject?.()).resolves.toBeUndefined()
-    expect(localApiSupervisor.restart).not.toHaveBeenCalled()
+    expect(initialMenuOptions?.onCreateProject).toBeTypeOf('function')
+    await expect(initialMenuOptions!.onCreateProject!()).resolves.toBeUndefined()
+    expect(projectStore.createProject).toHaveBeenCalledTimes(1)
+    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(4)
     expect(setApplicationMenu).toHaveBeenCalledTimes(2)
 
-    projectStore.selectProjectRoot.mockRejectedValueOnce(new Error('project missing'))
-    await expect(initialMenuOptions?.onOpenRecentProject?.('/tmp/local-project')).resolves.toBeUndefined()
-    expect(projectStore.forgetProjectRoot).toHaveBeenCalledWith('/tmp/local-project')
+    projectStore.openProject.mockRejectedValueOnce(new Error('dialog failed'))
+    expect(initialMenuOptions?.onOpenProject).toBeTypeOf('function')
+    await expect(initialMenuOptions!.onOpenProject!()).resolves.toBeUndefined()
+    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(4)
     expect(setApplicationMenu).toHaveBeenCalledTimes(3)
+
+    projectStore.selectProjectRoot.mockRejectedValueOnce(new Error('project missing'))
+    expect(initialMenuOptions?.onOpenRecentProject).toBeTypeOf('function')
+    await expect(initialMenuOptions!.onOpenRecentProject!('/tmp/local-project')).resolves.toBeUndefined()
+    expect(projectStore.forgetProjectRoot).toHaveBeenCalledWith('/tmp/local-project')
+    expect(setApplicationMenu).toHaveBeenCalledTimes(4)
 
     projectStore.selectProjectRoot.mockRejectedValueOnce(new Error('project missing again'))
     projectStore.forgetProjectRoot.mockRejectedValueOnce(new Error('cleanup failed'))
-    await expect(initialMenuOptions?.onOpenRecentProject?.('/tmp/local-project')).resolves.toBeUndefined()
+    await expect(initialMenuOptions!.onOpenRecentProject!('/tmp/local-project')).resolves.toBeUndefined()
     expect(projectStore.forgetProjectRoot).toHaveBeenCalledWith('/tmp/local-project')
-    expect(setApplicationMenu).toHaveBeenCalledTimes(4)
+    expect(setApplicationMenu).toHaveBeenCalledTimes(5)
+
+    expect(initialMenuOptions?.onCreateProjectBackup).toBeTypeOf('function')
+    await expect(initialMenuOptions!.onCreateProjectBackup!()).resolves.toBeUndefined()
+    expect(createProjectBackup).toHaveBeenCalledWith({
+      projectRoot: '/tmp/local-project',
+      storeFilePath: '/tmp/local-project/.narrative/project-store.json',
+    })
+
+    expect(initialMenuOptions?.onExportProjectArchive).toBeTypeOf('function')
+    await expect(initialMenuOptions!.onExportProjectArchive!()).resolves.toBeUndefined()
+    expect(exportProjectArchive).toHaveBeenCalledWith({
+      projectRoot: '/tmp/local-project',
+      storeFilePath: '/tmp/local-project/.narrative/project-store.json',
+    })
+    expect(setApplicationMenu).toHaveBeenCalledTimes(7)
   })
 })

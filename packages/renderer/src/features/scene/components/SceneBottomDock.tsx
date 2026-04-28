@@ -164,6 +164,19 @@ function ActiveRunSupport({
           ) : null}
         </div>
       </SectionCard>
+      {run?.runtimeSummary ? (
+        <SectionCard eyebrow={locale === 'zh-CN' ? '运行观测' : 'Runtime observability'} title={locale === 'zh-CN' ? '运行摘要' : 'Runtime summary'}>
+          <FactList
+            items={[
+              { id: 'runtime-health', label: locale === 'zh-CN' ? '健康状态' : 'Health', value: run.runtimeSummary.health },
+              { id: 'runtime-tokens', label: locale === 'zh-CN' ? '令牌' : 'Tokens', value: run.runtimeSummary.tokenLabel },
+              { id: 'runtime-cost', label: locale === 'zh-CN' ? '成本' : 'Cost', value: run.runtimeSummary.costLabel },
+              { id: 'runtime-failure', label: locale === 'zh-CN' ? '失败分类' : 'Failure class', value: run.runtimeSummary.failureClassLabel },
+              { id: 'runtime-next-action', label: locale === 'zh-CN' ? '下一步' : 'Next action', value: run.runtimeSummary.nextActionLabel },
+            ]}
+          />
+        </SectionCard>
+      ) : null}
       {run?.status === 'waiting_review' && run.pendingReviewId ? (
         <SectionCard
           eyebrow={locale === 'zh-CN' ? '评审交接' : 'Review Handoff'}

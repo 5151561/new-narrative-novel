@@ -1,5 +1,8 @@
 import type {
+  AssetContextVisibilityRecord,
   AssetRecord,
+  AssetStoryBibleFactRecord,
+  CanonicalAssetKind,
   ContextPacketArtifactDetailRecord,
   FixtureProjectData,
   LocalizedTextRecord,
@@ -28,6 +31,15 @@ function summarizeList(values: string[]) {
   return values.filter(Boolean).join('; ')
 }
 
+const canonicalAssetKinds = ['character', 'location', 'organization', 'object', 'lore'] as const satisfies readonly CanonicalAssetKind[]
+const assetVisibilityRank: Record<AssetContextVisibilityRecord, number> = {
+  public: 0,
+  'character-known': 1,
+  private: 2,
+  spoiler: 3,
+  'editor-only': 4,
+}
+
 function tokenizeTitle(value: string) {
   return value
     .toLowerCase()
@@ -41,10 +53,270 @@ function sceneContextIncludesAssetSignal(sceneText: string, asset: AssetRecord) 
   return tokenizeTitle(asset.title.en).some((token) => normalizedSceneText.includes(token))
 }
 
-function collectAssetFacts(asset: AssetRecord) {
+function isCanonicalAssetKind(value: unknown): value is CanonicalAssetKind {
+  return typeof value === 'string' && canonicalAssetKinds.includes(value as CanonicalAssetKind)
+}
+
+function normalizeAssetKind(kind: AssetRecord['kind'] | 'rule'): CanonicalAssetKind {
+  return kind === 'rule' ? 'lore' : kind
+}
+
+function canReadVisibility(
+  factVisibility: AssetContextVisibilityRecord,
+  requestedVisibility: AssetContextVisibilityRecord,
+) {
+  return assetVisibilityRank[factVisibility] <= assetVisibilityRank[requestedVisibility]
+}
+
+function filterFactsByVisibility(
+  facts: AssetStoryBibleFactRecord[] | undefined,
+  requestedVisibility: AssetContextVisibilityRecord,
+) {
+  return (facts ?? []).filter((fact) => canReadVisibility(fact.visibility, requestedVisibility))
+}
+
+function getEffectiveVisibility(
+  asset: AssetRecord,
+  reasonKind?: RunContextAssetActivationRecord['reasonKind'],
+) {
+  const rule = reasonKind ? pickActivationRule(asset, reasonKind) : undefined
+  return rule?.visibility ?? asset.contextPolicy?.defaultVisibility ?? asset.visibility ?? 'public'
+}
+
+function collectAssetFacts(
+  asset: AssetRecord,
+  requestedVisibility = getEffectiveVisibility(asset),
+) {
   const profileFacts = asset.profile.sections.flatMap((section) => section.facts)
-  const factLine = profileFacts.slice(0, 2).map((fact) => `${fact.label.en}: ${fact.value.en}`).join('; ')
+  const canonFacts = [
+    ...filterFactsByVisibility(asset.canonFacts, requestedVisibility),
+    ...filterFactsByVisibility(asset.privateFacts, requestedVisibility),
+  ]
+  const factLine = [
+    ...canonFacts.slice(0, 2).map((fact) => `${fact.label.en}: ${fact.value.en}`),
+    ...profileFacts.slice(0, Math.max(0, 2 - canonFacts.length)).map((fact) => `${fact.label.en}: ${fact.value.en}`),
+  ].join('; ')
   return factLine ? `${asset.summary.en} ${factLine}`.trim() : asset.summary.en
+}
+
+function toContextAssetRecord(record: AssetRecord): AssetRecord {
+  return {
+    visibility: record.visibility ?? record.contextPolicy?.defaultVisibility ?? 'public',
+    canonFacts: record.canonFacts ?? [],
+    privateFacts: record.privateFacts ?? [],
+    stateTimeline: record.stateTimeline ?? [],
+    ...record,
+    kind: normalizeAssetKind(record.kind as AssetRecord['kind'] | 'rule'),
+  }
+}
+
+function buildContextAssetMap(project: FixtureProjectData) {
+  const assets = new Map<string, AssetRecord>()
+
+  for (const asset of Object.values(project.assets).flatMap((workspace) => workspace.assets)) {
+    assets.set(asset.id, toContextAssetRecord(asset))
+  }
+
+  const renAsset = assets.get('asset-ren-voss')
+  if (renAsset) {
+    assets.set('asset-ren-voss', toContextAssetRecord({
+      ...renAsset,
+      visibility: 'character-known',
+      canonFacts: [
+        {
+          id: 'ren-public-line',
+          label: text('Public line', '公开底线'),
+          value: text('Ren will stall in public before he lets the ledger open.', '只要还在公开场合，Ren 宁可拖延也不会让账本打开。'),
+          visibility: 'public',
+          sourceRefs: [],
+          lastReviewedAtLabel: '2026-04-27 22:10',
+        },
+      ],
+      privateFacts: [
+        {
+          id: 'ren-courier-key',
+          label: text('Courier signal private key', '信使暗号私钥'),
+          value: text('Ren is still the only person carrying the current signal key for the courier network.', 'Ren 仍是唯一携带当前信使网络暗号钥匙的人。'),
+          visibility: 'private',
+          sourceRefs: [],
+          lastReviewedAtLabel: '2026-04-27 22:14',
+        },
+      ],
+    }))
+  }
+
+  if (!assets.has('asset-courier-network')) {
+    assets.set('asset-courier-network', toContextAssetRecord({
+      id: 'asset-courier-network',
+      kind: 'organization',
+      title: text('Courier Network', '信使网络'),
+      summary: text(
+        'The organization trying to keep witness pressure survivable while preserving the closed-ledger line.',
+        '试图在保住闭合账本底线的同时，让目击压力仍可承受的组织。',
+      ),
+      visibility: 'character-known',
+      profile: { sections: [] },
+      canonFacts: [
+        {
+          id: 'network-public-posture',
+          label: text('Public posture', '公开姿态'),
+          value: text('The network prefers delay over exposure when witness pressure spikes.', '当目击压力陡增时，网络宁可拖延也不愿曝光。'),
+          visibility: 'character-known',
+          sourceRefs: [],
+          lastReviewedAtLabel: '2026-04-27 22:22',
+        },
+      ],
+      privateFacts: [],
+      stateTimeline: [],
+      mentions: [],
+      relations: [],
+      contextPolicy: {
+        assetId: 'asset-courier-network',
+        status: 'limited',
+        summary: text('The network can contribute posture and routing facts without leaking private keys.', '这个网络可以提供姿态和调度事实，但不能泄露私钥。'),
+        defaultVisibility: 'character-known',
+        defaultBudget: 'selected-facts',
+        activationRules: [
+          {
+            id: 'network-explicit-link',
+            reasonKind: 'explicit-link',
+            label: text('Explicit courier link', '显式信使链接'),
+            summary: text('Only include the network when a scene or proposal names it directly.', '只有场景或提案直接点名时才纳入这个网络。'),
+            targetAgents: ['scene-manager', 'continuity-reviewer'],
+            visibility: 'character-known',
+            budget: 'selected-facts',
+          },
+        ],
+      },
+    }))
+  }
+
+  if (!assets.has('asset-closed-ledger')) {
+    assets.set('asset-closed-ledger', toContextAssetRecord({
+      id: 'asset-closed-ledger',
+      kind: 'object',
+      title: text('Closed Ledger', '闭合账本'),
+      summary: text(
+        'A sealed object whose proof value would end the bargaining game the moment it becomes public.',
+        '一个一旦公开就会立刻终结整场谈判游戏的封存物件。',
+      ),
+      visibility: 'character-known',
+      profile: { sections: [] },
+      canonFacts: [
+        {
+          id: 'closed-ledger-shell',
+          label: text('Outer shell', '外层封壳'),
+          value: text('Most witnesses only know the ledger as a sealed object that should not be opened publicly.', '大多数目击者只知道它是一个不该在公开场合打开的封存物件。'),
+          visibility: 'character-known',
+          sourceRefs: [],
+          lastReviewedAtLabel: '2026-04-27 22:24',
+        },
+        {
+          id: 'closed-ledger-witness-proof',
+          label: text('Witness proof payload', '目击证明载荷'),
+          value: text('The proof inside the ledger would settle the bargain instantly if revealed to the crowd.', '如果把账本里的证明内容直接暴露给人群，整场交易会被立刻定性。'),
+          visibility: 'spoiler',
+          sourceRefs: [],
+          lastReviewedAtLabel: '2026-04-27 22:26',
+        },
+      ],
+      privateFacts: [],
+      stateTimeline: [],
+      mentions: [],
+      relations: [],
+      contextPolicy: {
+        assetId: 'asset-closed-ledger',
+        status: 'limited',
+        summary: text('The object may enter context with redacted shell facts, but proof payload stays guarded.', '这个物件可以带着去敏后的外壳事实进入上下文，但证明载荷必须受护栏保护。'),
+        defaultVisibility: 'character-known',
+        defaultBudget: 'selected-facts',
+        activationRules: [
+          {
+            id: 'ledger-object-dependency',
+            reasonKind: 'rule-dependency',
+            label: text('Closed-ledger dependency', '闭合账本依赖'),
+            summary: text('Use shell facts for scene planning, never the witness-proof payload.', '场景规划只能使用外壳事实，不能使用目击证明载荷。'),
+            targetAgents: ['scene-manager', 'continuity-reviewer'],
+            visibility: 'character-known',
+            budget: 'selected-facts',
+            guardrailLabel: text('Never include the witness-proof payload in shared context.', '不要把目击证明载荷放进共享上下文。'),
+          },
+        ],
+        exclusions: [
+          {
+            id: 'closed-ledger-proof',
+            label: text('Witness-proof payload', '目击证明载荷'),
+            summary: text('Spoiler proof contents remain excluded from run context.', '剧透级证明内容保持排除，不进入运行上下文。'),
+          },
+        ],
+      },
+    }))
+  }
+
+  if (!assets.has('asset-public-witness-rule')) {
+    assets.set('asset-public-witness-rule', toContextAssetRecord({
+      id: 'asset-public-witness-rule',
+      kind: 'lore',
+      title: text('Public Witness Rule', '公开目击规则'),
+      summary: text(
+        'Lore-level truth that no witnessed bargain survives once direct proof is placed in public view.',
+        '一条 lore 级真相：一旦直接证明被摆到公开目击面前，任何被围观的交易都无法继续维持原状。',
+      ),
+      visibility: 'public',
+      profile: { sections: [] },
+      canonFacts: [
+        {
+          id: 'witness-rule-surface',
+          label: text('Surface rule', '表层规则'),
+          value: text('As long as witnesses remain, the bargain must stay one step away from proof.', '只要目击者还在，交易就必须始终与证明保持一步之遥。'),
+          visibility: 'public',
+          sourceRefs: [],
+          lastReviewedAtLabel: '2026-04-27 22:28',
+        },
+      ],
+      privateFacts: [],
+      stateTimeline: [],
+      mentions: [],
+      relations: [],
+      contextPolicy: {
+        assetId: 'asset-public-witness-rule',
+        status: 'active',
+        summary: text('The public witness rule is safe to reference as high-level lore in read-heavy contexts.', '公开目击规则可以在只读上下文中作为高层 lore 被安全引用。'),
+        defaultVisibility: 'public',
+        defaultBudget: 'summary-only',
+        activationRules: [
+          {
+            id: 'witness-rule-dependency',
+            reasonKind: 'rule-dependency',
+            label: text('Witness rule dependency', '目击规则依赖'),
+            summary: text('Attach the rule summary whenever public proof boundaries govern the scene.', '只要场景受公开证明边界支配，就附带这条规则摘要。'),
+            targetAgents: ['scene-manager', 'continuity-reviewer', 'prose-agent'],
+            visibility: 'public',
+            budget: 'summary-only',
+          },
+        ],
+      },
+    }))
+  }
+
+  return assets
+}
+
+function buildVisibilityFilteredExclusions(input: {
+  packetId: string
+  asset: AssetRecord
+  requestedVisibility: AssetContextVisibilityRecord
+}) {
+  return [...(input.asset.canonFacts ?? []), ...(input.asset.privateFacts ?? [])]
+    .filter((fact) => !canReadVisibility(fact.visibility, input.requestedVisibility))
+    .map((fact, index) => ({
+      id: `${input.packetId}-excluded-${input.asset.id.replace(/^asset-/, '')}-visibility-${String(index + 1).padStart(3, '0')}`,
+      label: fact.label,
+      reason: text(
+        `${fact.visibility} facts for ${input.asset.title.en} stay out of the shared context packet.`,
+        `${input.asset.title['zh-CN']} 的 ${fact.visibility} 级事实不会进入共享上下文包。`,
+      ),
+    }))
 }
 
 function pickActivationRule(asset: AssetRecord, reasonKind: RunContextAssetActivationRecord['reasonKind']) {
@@ -109,7 +381,7 @@ function isRunArtifactCanonFactRecord(value: unknown): value is RunArtifactCanon
 function isRunArtifactIncludedAssetRecord(value: unknown): value is RunArtifactIncludedAssetRecord {
   return isRecord(value)
     && typeof value.assetId === 'string'
-    && (value.kind === 'character' || value.kind === 'location' || value.kind === 'rule')
+    && isCanonicalAssetKind(value.kind)
     && isLocalizedTextRecord(value.label)
     && isLocalizedTextRecord(value.reason)
 }
@@ -126,7 +398,7 @@ function isRunContextAssetActivationRecord(value: unknown): value is RunContextA
     && typeof value.id === 'string'
     && typeof value.assetId === 'string'
     && isLocalizedTextRecord(value.assetTitle)
-    && (value.assetKind === 'character' || value.assetKind === 'location' || value.assetKind === 'rule')
+    && isCanonicalAssetKind(value.assetKind)
     && (value.decision === 'included' || value.decision === 'excluded' || value.decision === 'redacted')
     && typeof value.reasonKind === 'string'
     && isLocalizedTextRecord(value.reasonLabel)
@@ -255,22 +527,31 @@ export function buildSceneContextPacket(input: BuildSceneContextPacketInput): Sc
     scene.inspector.runtime.latestFailure ?? '',
   ].join(' ')
 
+  const contextAssets = buildContextAssetMap(input.project)
   const castAssets = scene.workspace.castIds
-    .map((assetId) => input.project.assets[assetId]?.assets.find((asset) => asset.id === assetId))
+    .map((assetId) => contextAssets.get(assetId))
     .filter((asset): asset is AssetRecord => Boolean(asset))
   const locationAsset = scene.workspace.locationId
-    ? input.project.assets[scene.workspace.locationId]?.assets.find((asset) => asset.id === scene.workspace.locationId)
+    ? contextAssets.get(scene.workspace.locationId)
     : undefined
-  const constraintAssets = scene.setup.constraints
-    .map((constraint) => Object.values(input.project.assets)
-      .flatMap((workspace) => workspace.assets)
+  const rawConstraintAssets = scene.setup.constraints
+    .map((constraint) => [...contextAssets.values()]
       .find((asset) => (
         asset.title.en.toLowerCase() === constraint.label.toLowerCase()
         || asset.title['zh-CN'].toLowerCase() === constraint.label.toLowerCase()
       )))
     .filter((asset): asset is AssetRecord => Boolean(asset))
-  const reviewIssueAssets = Object.values(input.project.assets)
-    .flatMap((workspace) => workspace.assets)
+  const constraintAssets = rawConstraintAssets.flatMap((asset) => {
+    if (asset.id === 'asset-ledger-stays-shut') {
+      return [
+        contextAssets.get('asset-closed-ledger'),
+        contextAssets.get('asset-public-witness-rule'),
+      ].filter((entry): entry is AssetRecord => Boolean(entry))
+    }
+
+    return [asset]
+  })
+  const reviewIssueAssets = [...contextAssets.values()]
     .filter((asset) => (
       asset.contextPolicy?.activationRules.some((rule) => rule.reasonKind === 'review-issue')
       && sceneContextIncludesAssetSignal(sceneContextText, asset)
@@ -279,6 +560,25 @@ export function buildSceneContextPacket(input: BuildSceneContextPacketInput): Sc
 
   for (const asset of [...castAssets, ...(locationAsset ? [locationAsset] : []), ...constraintAssets, ...reviewIssueAssets]) {
     relevantAssets.set(asset.id, asset)
+  }
+
+  if (relevantAssets.has('asset-ren-voss')) {
+    const networkAsset = contextAssets.get('asset-courier-network')
+    if (networkAsset) {
+      relevantAssets.set(networkAsset.id, networkAsset)
+    }
+  }
+
+  if (
+    rawConstraintAssets.some((asset) => asset.id === 'asset-ledger-stays-shut')
+    || sceneContextText.toLowerCase().includes('ledger')
+  ) {
+    for (const assetId of ['asset-closed-ledger', 'asset-public-witness-rule'] as const) {
+      const asset = contextAssets.get(assetId)
+      if (asset) {
+        relevantAssets.set(asset.id, asset)
+      }
+    }
   }
 
   const assetActivations = [...relevantAssets.values()].map((asset) => {
@@ -303,6 +603,24 @@ export function buildSceneContextPacket(input: BuildSceneContextPacketInput): Sc
         asset,
         decision: 'included',
         reasonKind: 'scene-location',
+      })
+    }
+
+    if (asset.id === 'asset-courier-network') {
+      return buildActivationRecord({
+        packetId,
+        asset,
+        decision: 'included',
+        reasonKind: 'explicit-link',
+      })
+    }
+
+    if (asset.contextPolicy?.activationRules.some((rule) => rule.reasonKind === 'rule-dependency')) {
+      return buildActivationRecord({
+        packetId,
+        asset,
+        decision: 'included',
+        reasonKind: 'rule-dependency',
       })
     }
 
@@ -339,31 +657,42 @@ export function buildSceneContextPacket(input: BuildSceneContextPacketInput): Sc
         assetId: asset.id,
         label: asset.title,
         kind: asset.kind,
-        reason: text(collectAssetFacts(asset)),
+        reason: text(collectAssetFacts(asset, activation.visibility)),
       }
     })
 
   const excludedPrivateFacts = assetActivations
     .flatMap((activation) => {
       const asset = relevantAssets.get(activation.assetId)!
+      const visibilityExclusions = buildVisibilityFilteredExclusions({
+        packetId,
+        asset,
+        requestedVisibility: activation.visibility,
+      })
       const exclusions = asset.contextPolicy?.exclusions ?? []
       if (exclusions.length > 0) {
-        return exclusions.map((exclusion, index) => ({
+        return [
+          ...visibilityExclusions,
+          ...exclusions.map((exclusion, index) => ({
           id: `${packetId}-excluded-${asset.id.replace(/^asset-/, '')}-${String(index + 1).padStart(3, '0')}`,
           label: exclusion.label,
           reason: exclusion.summary,
-        }))
+          })),
+        ]
       }
 
       if (activation.decision === 'included') {
-        return []
+        return visibilityExclusions
       }
 
-      return [{
-        id: `${packetId}-excluded-${asset.id.replace(/^asset-/, '')}-001`,
-        label: activation.reasonLabel,
-        reason: activation.note ?? text(`${asset.title.en} was withheld from the shared packet.`),
-      }]
+      return [
+        ...visibilityExclusions,
+        {
+          id: `${packetId}-excluded-${asset.id.replace(/^asset-/, '')}-001`,
+          label: activation.reasonLabel,
+          reason: activation.note ?? text(`${asset.title.en} was withheld from the shared packet.`),
+        },
+      ]
     })
 
   const includedCanonFacts = [

@@ -53,8 +53,8 @@ describe('fixture API server run artifact read surfaces', () => {
           }),
         ],
         metadata: {
-          includedAssetCount: 3,
-          excludedAssetCount: 1,
+          includedAssetCount: 6,
+          excludedAssetCount: 0,
           redactedAssetCount: 1,
         },
       })
@@ -77,8 +77,8 @@ describe('fixture API server run artifact read surfaces', () => {
         kind: 'context-packet',
         sceneId: 'scene-midnight-platform',
         activationSummary: {
-          includedAssetCount: 3,
-          excludedAssetCount: 1,
+          includedAssetCount: 6,
+          excludedAssetCount: 0,
           redactedAssetCount: 1,
           targetAgentCount: 4,
           warningCount: 1,
@@ -119,9 +119,22 @@ describe('fixture API server run artifact read surfaces', () => {
           policyRuleIds: ['ren-scene-cast'],
         }),
         expect.objectContaining({
-          assetId: 'asset-ledger-stays-shut',
-          decision: 'excluded',
-          visibility: 'spoiler',
+          assetId: 'asset-courier-network',
+          assetKind: 'organization',
+          decision: 'included',
+          visibility: 'character-known',
+        }),
+        expect.objectContaining({
+          assetId: 'asset-closed-ledger',
+          assetKind: 'object',
+          decision: 'included',
+          visibility: 'character-known',
+        }),
+        expect.objectContaining({
+          assetId: 'asset-public-witness-rule',
+          assetKind: 'lore',
+          decision: 'included',
+          visibility: 'public',
         }),
         expect.objectContaining({
           assetId: 'asset-departure-bell-timing',

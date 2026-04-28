@@ -233,4 +233,31 @@ describe('RunReviewGate', () => {
       expect(screen.queryByRole('button', { name: 'Submit Rewrite Request' })).not.toBeInTheDocument()
     })
   })
+
+  it('renders retry, cancel, and resume as support actions without replacing scene review', async () => {
+    const user = userEvent.setup()
+    const onRetry = vi.fn()
+    const onCancel = vi.fn()
+    const onResume = vi.fn()
+    renderGate({
+      supportActions: {
+        canRetry: true,
+        canCancel: true,
+        canResume: true,
+        onRetry,
+        onCancel,
+        onResume,
+      },
+    })
+
+    expect(screen.getByText('These actions only recover or stop the runtime path. Final review still belongs on the Scene / Orchestrate main stage.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Retry Run' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel Run' }))
+    await user.click(screen.getByRole('button', { name: 'Resume Run' }))
+
+    expect(onRetry).toHaveBeenCalledTimes(1)
+    expect(onCancel).toHaveBeenCalledTimes(1)
+    expect(onResume).toHaveBeenCalledTimes(1)
+  })
 })

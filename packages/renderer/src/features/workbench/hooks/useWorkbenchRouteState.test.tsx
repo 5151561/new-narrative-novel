@@ -56,6 +56,19 @@ function RouteHarness() {
           patchChapterRoute({
             chapterId: 'chapter-open-water-signals',
             lens: 'structure',
+            view: 'backlog',
+            sceneId: 'scene-dawn-slip',
+          } satisfies Partial<ChapterRouteState>)
+        }
+      >
+        Chapter Backlog
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          patchChapterRoute({
+            chapterId: 'chapter-open-water-signals',
+            lens: 'structure',
             view: 'assembly',
             sceneId: 'scene-dawn-slip',
           } satisfies Partial<ChapterRouteState>)
@@ -388,8 +401,38 @@ describe('useWorkbenchRouteState', () => {
       scope: 'chapter',
       chapterId: 'chapter-signals-in-rain',
       lens: 'draft',
-      view: 'sequence',
+      view: 'backlog',
       sceneId: 'scene-ticket-window',
+    })
+  })
+
+  it('accepts backlog as a valid chapter structure view in route parsing and patching', async () => {
+    const user = userEvent.setup()
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=backlog&sceneId=scene-midnight-platform',
+    )
+
+    render(<RouteHarness />)
+
+    expect(readRoute()).toEqual({
+      scope: 'chapter',
+      chapterId: 'chapter-signals-in-rain',
+      lens: 'structure',
+      view: 'backlog',
+      sceneId: 'scene-midnight-platform',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Chapter Backlog' }))
+
+    expect(readRoute()).toEqual({
+      scope: 'chapter',
+      chapterId: 'chapter-open-water-signals',
+      lens: 'structure',
+      view: 'backlog',
+      sceneId: 'scene-dawn-slip',
     })
   })
 

@@ -73,6 +73,7 @@ function StoryComponent({
     <BookDraftInspectorPane
       bookTitle={workspace.title}
       inspector={workspace.inspector}
+      readableManuscript={workspace.readableManuscript}
       activeDraftView={draftView}
       compare={draftView === 'compare' ? compareData.compare : null}
       branch={draftView === 'branch' ? branchData.branchWorkspace : null}

@@ -2,6 +2,7 @@ import type {
   RunEventKind,
   RunEventRecord,
   RunEventRefRecord,
+  RunUsageRecord,
 } from '../../contracts/api-records.js'
 import { buildRunEventId } from './sceneRunIds.js'
 import { buildDefaultSceneRunTimelineLabel } from './sceneRunTimeline.js'
@@ -10,6 +11,7 @@ import type { SceneRunTimelineLabelBuilder } from './sceneRunRecords.js'
 interface SceneRunEventFactoryOptions {
   buildTimelineLabel?: SceneRunTimelineLabelBuilder
   metadata?: RunEventRecord['metadata']
+  usage?: RunUsageRecord
 }
 
 export function createRunEvent(
@@ -30,6 +32,7 @@ export function createRunEvent(
     summary,
     createdAtLabel: (options?.buildTimelineLabel ?? buildDefaultSceneRunTimelineLabel)(order),
     refs,
+    ...(options?.usage ? { usage: options.usage } : {}),
     ...(options?.metadata ? { metadata: options.metadata } : {}),
   }
 }

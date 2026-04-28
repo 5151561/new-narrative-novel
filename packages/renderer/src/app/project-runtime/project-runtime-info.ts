@@ -1,3 +1,6 @@
+import type { RuntimeKind } from '@/app/runtime'
+
+export type ProjectRuntimeKind = RuntimeKind
 export type ProjectRuntimeSource = 'mock' | 'api'
 
 export type ProjectRuntimeHealthStatus =
@@ -23,6 +26,7 @@ export interface ProjectRuntimeCapabilitiesRecord {
 export interface ProjectRuntimeInfoRecord {
   projectId: string
   projectTitle: string
+  runtimeKind: ProjectRuntimeKind
   source: ProjectRuntimeSource
   status: ProjectRuntimeHealthStatus
   summary: string
@@ -60,6 +64,7 @@ export function createProjectRuntimeInfoRecord({
   projectId,
   projectTitle = projectId,
   source,
+  runtimeKind,
   status,
   summary,
   checkedAtLabel,
@@ -69,6 +74,7 @@ export function createProjectRuntimeInfoRecord({
 }: {
   projectId: string
   projectTitle?: string
+  runtimeKind?: ProjectRuntimeKind
   source: ProjectRuntimeSource
   status: ProjectRuntimeHealthStatus
   summary: string
@@ -77,9 +83,12 @@ export function createProjectRuntimeInfoRecord({
   versionLabel?: string
   capabilities?: Partial<ProjectRuntimeCapabilitiesRecord>
 }): ProjectRuntimeInfoRecord {
+  const resolvedRuntimeKind = runtimeKind ?? (source === 'mock' ? 'mock-storybook' : 'fixture-demo')
+
   return {
     projectId,
     projectTitle,
+    runtimeKind: resolvedRuntimeKind,
     source,
     status,
     summary,

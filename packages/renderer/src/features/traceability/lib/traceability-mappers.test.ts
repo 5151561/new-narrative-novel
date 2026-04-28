@@ -122,6 +122,8 @@ describe('traceability mappers', () => {
       unlinkedMentions: 1,
       mentionsWithMissingSceneTrace: 1,
       relationsWithoutNarrativeBackingCount: 0,
+      relationTargetAssetIdsWithNarrativeBacking: expect.arrayContaining(['asset-mei-arden']),
+      relationTargetAssetIdsWithoutNarrativeBacking: [],
     })
     expect(summary.mentionSummaries).toEqual([
       {

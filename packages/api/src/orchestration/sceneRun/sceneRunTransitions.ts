@@ -8,9 +8,11 @@ import { createRunEvent } from './sceneRunEventFactory.js'
 import { buildDefaultSceneRunTimelineLabel } from './sceneRunTimeline.js'
 import type {
   SceneRunArtifactRecord,
+  SceneRunCancelTransitionInput,
   SceneRunReviewTransitionInput,
   SceneRunReviewTransitionOptions,
   SceneRunReviewTransitionState,
+  SceneRunRetryTransitionInput,
 } from './sceneRunRecords.js'
 
 type SceneRunReviewTransitionBaseInput = Omit<SceneRunReviewTransitionInput, 'decision'>
@@ -283,6 +285,76 @@ export function createRejectSceneRunReviewTransition(
       summary: buildRunSummary('reject'),
       completedAtLabel: completedEvent.createdAtLabel,
       pendingReviewId: undefined,
+    },
+  }
+}
+
+export function createRetryScheduledSceneRunTransition(
+  input: SceneRunRetryTransitionInput,
+  options?: SceneRunReviewTransitionOptions,
+) {
+  const event = createRunEvent(
+    input.runId,
+    input.priorEventCount + 1,
+    'run_retry_scheduled',
+    'Retry scheduled',
+    `Retry scheduled in ${input.mode ?? 'continue'} mode as ${input.nextRunId}.`,
+    undefined,
+    {
+      buildTimelineLabel: options?.buildTimelineLabel ?? buildDefaultSceneRunTimelineLabel,
+      metadata: {
+        mode: input.mode ?? 'continue',
+      },
+    },
+  )
+
+  return {
+    appendedEvents: [event],
+  }
+}
+
+export function createCancelSceneRunTransition(
+  input: SceneRunCancelTransitionInput,
+  options?: SceneRunReviewTransitionOptions,
+): SceneRunReviewTransitionState {
+  const buildTimelineLabel = options?.buildTimelineLabel ?? buildDefaultSceneRunTimelineLabel
+  const note = trimNote(input.reason)
+  const requestedEvent = createRunEvent(
+    input.runId,
+    input.priorEventCount + 1,
+    'run_cancel_requested',
+    'Run cancellation requested',
+    note ? `Run cancellation was requested. Reason: ${note}` : 'Run cancellation was requested.',
+    undefined,
+    {
+      buildTimelineLabel,
+      metadata: note ? { reason: note } : undefined,
+    },
+  )
+  const cancelledEvent = createRunEvent(
+    input.runId,
+    input.priorEventCount + 2,
+    'run_cancelled',
+    'Run cancelled',
+    note ? `Run cancelled before canon or prose changed. Reason: ${note}` : 'Run cancelled before canon or prose changed.',
+    undefined,
+    {
+      buildTimelineLabel,
+    },
+  )
+
+  return {
+    appendedEvents: [requestedEvent, cancelledEvent],
+    generatedArtifacts: [],
+    nextRun: {
+      status: 'cancelled',
+      summary: 'Run cancelled before canon or prose changed.',
+      completedAtLabel: cancelledEvent.createdAtLabel,
+      pendingReviewId: undefined,
+      cancelRequestedAtLabel: requestedEvent.createdAtLabel,
+      failureClass: 'cancelled',
+      failureMessage: note,
+      resumableFromEventId: undefined,
     },
   }
 }

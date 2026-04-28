@@ -117,6 +117,7 @@ describe('mock project runtime', () => {
     await expect(runtime.runtimeInfoClient.getProjectRuntimeInfo()).resolves.toEqual({
       projectId,
       projectTitle: 'book-signal-arc',
+      runtimeKind: 'mock-storybook',
       source: 'mock',
       status: 'healthy',
       summary: 'Using in-memory mock project runtime.',
@@ -653,6 +654,54 @@ describe('mock project runtime', () => {
     expect(proseDraft.artifact).toMatchObject({
       kind: 'prose-draft',
       sourceProposalIds: ['proposal-set-scene-midnight-platform-run-001-proposal-002'],
+    })
+  })
+
+  it('lets chapter run-next-scene go through review acceptance and mirrors backlog status to drafted', async () => {
+    const runtime = createMockProjectRuntime({ projectId, persistence: createMemoryPersistence() })
+
+    const generated = await runtime.chapterClient.generateChapterBacklogProposal({
+      chapterId: 'chapter-signals-in-rain',
+      locale: 'en',
+    })
+    const proposal = generated?.planning.proposals.at(-1)
+    expect(proposal).toBeTruthy()
+    if (!proposal) {
+      return
+    }
+
+    await runtime.chapterClient.updateChapterBacklogProposalScene({
+      chapterId: 'chapter-signals-in-rain',
+      proposalId: proposal.proposalId,
+      proposalSceneId: proposal.scenes[0]!.proposalSceneId,
+      locale: 'en',
+      backlogStatus: 'drafted',
+    })
+    await runtime.chapterClient.acceptChapterBacklogProposal({
+      chapterId: 'chapter-signals-in-rain',
+      proposalId: proposal.proposalId,
+      locale: 'en',
+    })
+
+    const started = await runtime.chapterClient.startNextChapterSceneRun({
+      chapterId: 'chapter-signals-in-rain',
+      locale: 'en',
+      mode: 'continue',
+      note: 'Advance the next chapter scene.',
+    })
+    expect(started?.run.status).toBe('waiting_review')
+
+    await runtime.runClient.submitRunReviewDecision({
+      runId: started!.run.id,
+      reviewId: started!.run.pendingReviewId!,
+      decision: 'accept',
+    })
+
+    const chapter = await runtime.chapterClient.getChapterStructureWorkspace({
+      chapterId: 'chapter-signals-in-rain',
+    })
+    expect(chapter?.scenes.find((scene) => scene.id === 'scene-concourse-delay')).toMatchObject({
+      backlogStatus: 'drafted',
     })
   })
 

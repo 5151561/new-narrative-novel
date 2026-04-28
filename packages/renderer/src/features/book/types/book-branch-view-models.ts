@@ -3,6 +3,23 @@ import type { BookBranchBaseline } from '@/features/workbench/types/workbench-ro
 
 export type BookBranchDeltaKind = 'unchanged' | 'changed' | 'added' | 'missing' | 'draft_missing'
 
+export type BookExperimentBranchAdoptionKind = 'canon_patch' | 'prose_draft'
+
+export type BookExperimentBranchAdoptionStatus = 'pending' | 'adopted' | 'blocked'
+
+export interface BookExperimentBranchAdoptionRecord {
+  adoptionId: string
+  branchId: string
+  bookId: string
+  chapterId: string
+  sceneId: string
+  kind: BookExperimentBranchAdoptionKind
+  status: BookExperimentBranchAdoptionStatus
+  summary: string
+  createdAtLabel: string
+  sourceSignature: string
+}
+
 export interface BookExperimentBranchSummaryViewModel {
   branchId: string
   bookId: string
@@ -12,6 +29,7 @@ export interface BookExperimentBranchSummaryViewModel {
   createdAtLabel: string
   basedOnCheckpointId?: string
   status: BookExperimentBranchStatus
+  adoptions: BookExperimentBranchAdoptionRecord[]
 }
 
 export interface BookExperimentBranchSnapshotSceneViewModel {
@@ -68,6 +86,7 @@ export interface BookBranchSceneDeltaViewModel {
   sourceProposalDelta: number
   branchSourceProposalCount?: number
   baselineSourceProposalCount?: number
+  adoptions: BookExperimentBranchAdoptionRecord[]
 }
 
 export interface BookBranchChapterDeltaViewModel {
@@ -137,4 +156,5 @@ export interface BookExperimentBranchComparisonViewModel {
 export interface BookExperimentBranchWorkspaceViewModel extends BookExperimentBranchComparisonViewModel {
   branch: BookExperimentBranchSummaryViewModel | null
   branches: BookExperimentBranchSummaryViewModel[]
+  adoptions: BookExperimentBranchAdoptionRecord[]
 }

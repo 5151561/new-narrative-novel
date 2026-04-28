@@ -31,8 +31,12 @@ export function AssetInspectorPane({ title, inspector }: AssetInspectorPaneProps
             items={[
               { id: 'asset-title', label: locale === 'zh-CN' ? '资产' : 'Asset', value: title },
               { id: 'kind', label: locale === 'zh-CN' ? '类型' : 'Kind', value: inspector.kindLabel },
+              { id: 'visibility', label: locale === 'zh-CN' ? '可见性' : 'Visibility', value: inspector.visibilityLabel },
               { id: 'mentions', label: locale === 'zh-CN' ? '提及' : 'Mentions', value: `${inspector.mentionCount}` },
               { id: 'relations', label: locale === 'zh-CN' ? '关系' : 'Relations', value: `${inspector.relationCount}` },
+              { id: 'canon-facts', label: locale === 'zh-CN' ? '正典事实' : 'Canon facts', value: `${inspector.canonFactCount}` },
+              { id: 'private-facts', label: locale === 'zh-CN' ? '私密事实' : 'Private facts', value: `${inspector.privateFactCount}` },
+              { id: 'timeline', label: locale === 'zh-CN' ? '时间线条目' : 'Timeline entries', value: `${inspector.timelineEntryCount}` },
             ]}
           />
           <p className="mt-4 text-sm leading-6 text-text-muted">{inspector.summary}</p>

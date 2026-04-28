@@ -6,9 +6,12 @@ import type {
   ProposalSetArtifactDetailRecord,
   ProposalSetReviewOptionRecord,
   ProseDraftArtifactDetailRecord,
+  RunFailureClass,
+  RunFailureDetailRecord,
   RunArtifactGeneratedRefRecord,
   RunReviewDecisionKind,
   RunSelectedProposalVariantRecord,
+  RunUsageRecord,
 } from '../../contracts/api-records.js'
 import {
   buildAgentInvocationId,
@@ -257,6 +260,84 @@ function buildArtifactSummary(input: BuildArtifactDetailBaseInput) {
     statusLabel: input.labels?.statusLabel ?? localizeArtifactStatus(input.artifact.status),
     createdAtLabel: input.labels?.createdAtLabel ?? buildDefaultCreatedAtLabel(input.sourceEventIds),
     sourceEventIds: [...input.sourceEventIds],
+    ...(readUsage(input.artifact) ? { usage: readUsage(input.artifact) } : {}),
+  }
+}
+
+function isRunFailureClass(value: unknown): value is RunFailureClass {
+  return value === 'provider_error'
+    || value === 'model_timeout'
+    || value === 'invalid_output'
+    || value === 'cancelled'
+    || value === 'unknown'
+}
+
+function readUsage(artifact: SceneRunArtifactRecord): RunUsageRecord | undefined {
+  const usage = artifact.meta?.usage
+  if (!isRecord(usage)) {
+    return undefined
+  }
+
+  const inputTokens = usage.inputTokens
+  const outputTokens = usage.outputTokens
+  const estimatedCostUsd = usage.estimatedCostUsd
+  const actualCostUsd = usage.actualCostUsd
+  const provider = usage.provider
+  const modelId = usage.modelId
+
+  if (
+    typeof inputTokens !== 'number'
+    || typeof outputTokens !== 'number'
+    || typeof estimatedCostUsd !== 'number'
+    || typeof provider !== 'string'
+    || typeof modelId !== 'string'
+  ) {
+    return undefined
+  }
+
+  return {
+    inputTokens,
+    outputTokens,
+    estimatedCostUsd,
+    ...(typeof actualCostUsd === 'number' ? { actualCostUsd } : {}),
+    provider,
+    modelId,
+  }
+}
+
+function readFailureDetail(artifact: SceneRunArtifactRecord): RunFailureDetailRecord | undefined {
+  const failureDetail = artifact.meta?.failureDetail
+  if (!isRecord(failureDetail)) {
+    return undefined
+  }
+
+  const failureClass = failureDetail.failureClass
+  const message = failureDetail.message
+  const retryable = failureDetail.retryable
+  const sourceEventIds = failureDetail.sourceEventIds
+  const provider = failureDetail.provider
+  const modelId = failureDetail.modelId
+  const normalizedSourceEventIds = Array.isArray(sourceEventIds)
+    ? sourceEventIds.filter((sourceEventId): sourceEventId is string => typeof sourceEventId === 'string')
+    : []
+
+  if (
+    !isRunFailureClass(failureClass)
+    || typeof message !== 'string'
+    || typeof retryable !== 'boolean'
+    || !Array.isArray(sourceEventIds)
+    || normalizedSourceEventIds.length !== sourceEventIds.length
+  ) {
+    return undefined
+  }
+
+  return {
+    failureClass,
+    message,
+    ...(typeof provider === 'string' ? { provider } : {}),
+    ...(typeof modelId === 'string' ? { modelId } : {}),
+    retryable,
+    sourceEventIds: normalizedSourceEventIds,
   }
 }
 
@@ -560,10 +641,10 @@ function buildDefaultContextSections(
       id: `${artifact.id}-section-assets`,
       title: localize('Asset cues', '资产线索'),
       summary: localize(
-        'Characters, locations, and rules were attached for downstream generation.',
-        '已附带角色、地点与规则供后续生成使用。',
+        'Canonical cast, setting, organization, object, and lore cues were attached for downstream generation.',
+        '已附带 canonical 的角色、地点、组织、物件与 lore 线索供后续生成使用。',
       ),
-      itemCount: 3,
+      itemCount: 6,
     },
   ]
 }
@@ -621,6 +702,33 @@ function buildDefaultIncludedAssets(): ContextPacketArtifactDetailRecord['includ
       reason: localize(
         'Keeps witness pressure and staging anchored to the platform.',
         '将目击压力和场面调度固定在月台上。',
+      ),
+    },
+    {
+      assetId: 'asset-courier-network',
+      label: localize('Courier Network', '信使网络'),
+      kind: 'organization',
+      reason: localize(
+        'Adds the courier-side public posture without exposing private signal handling.',
+        '补充信使一侧的公开姿态，但不暴露私密暗号处理细节。',
+      ),
+    },
+    {
+      assetId: 'asset-closed-ledger',
+      label: localize('Closed Ledger', '闭合账本'),
+      kind: 'object',
+      reason: localize(
+        'Contributes shell-level facts while keeping witness-proof payloads excluded.',
+        '仅提供外壳层事实，同时继续排除目击证明载荷。',
+      ),
+    },
+    {
+      assetId: 'asset-public-witness-rule',
+      label: localize('Public Witness Rule', '公开目击规则'),
+      kind: 'lore',
+      reason: localize(
+        'Carries the high-level rule that keeps public proof out of the bargain.',
+        '承载“公开证明不可直接入场”的高层规则。',
       ),
     },
   ]
@@ -686,24 +794,50 @@ function buildDefaultAssetActivations(
       policyRuleIds: ['platform-scene-location'],
     },
     {
-      id: `${artifact.id}-activation-ledger-stays-shut`,
-      assetId: 'asset-ledger-stays-shut',
-      assetTitle: localize('Ledger Stays Shut', '账本不得打开'),
-      assetKind: 'rule',
-      decision: 'excluded',
+      id: `${artifact.id}-activation-courier-network`,
+      assetId: 'asset-courier-network',
+      assetTitle: localize('Courier Network', '信使网络'),
+      assetKind: 'organization',
+      decision: 'included',
+      reasonKind: 'explicit-link',
+      reasonLabel: localize('Explicit courier link', '显式信使链接'),
+      visibility: 'character-known',
+      budget: 'selected-facts',
+      targetAgents: ['scene-manager', 'continuity-reviewer'],
+      policyRuleIds: ['network-explicit-link'],
+    },
+    {
+      id: `${artifact.id}-activation-closed-ledger`,
+      assetId: 'asset-closed-ledger',
+      assetTitle: localize('Closed Ledger', '闭合账本'),
+      assetKind: 'object',
+      decision: 'included',
       reasonKind: 'rule-dependency',
-      reasonLabel: localize('Rule dependency', '规则依赖'),
-      visibility: 'spoiler',
+      reasonLabel: localize('Closed-ledger dependency', '闭合账本依赖'),
+      visibility: 'character-known',
+      budget: 'selected-facts',
+      targetAgents: ['scene-manager', 'continuity-reviewer'],
+      policyRuleIds: ['ledger-object-dependency'],
+      note: localize('Only shell-level ledger facts entered the packet; witness-proof payloads stayed excluded.', '只有账本外壳层事实进入上下文包；目击证明载荷保持排除。'),
+    },
+    {
+      id: `${artifact.id}-activation-public-witness-rule`,
+      assetId: 'asset-public-witness-rule',
+      assetTitle: localize('Public Witness Rule', '公开目击规则'),
+      assetKind: 'lore',
+      decision: 'included',
+      reasonKind: 'rule-dependency',
+      reasonLabel: localize('Witness rule dependency', '目击规则依赖'),
+      visibility: 'public',
       budget: 'summary-only',
-      targetAgents: ['continuity-reviewer', 'scene-manager'],
-      policyRuleIds: ['ledger-rule-dependency'],
-      note: localize('Spoiler proof contents were excluded from the context packet.', '剧透证明内容已从上下文包排除。'),
+      targetAgents: ['scene-manager', 'continuity-reviewer', 'prose-agent'],
+      policyRuleIds: ['witness-rule-dependency'],
     },
     {
       id: `${artifact.id}-activation-departure-bell-timing`,
       assetId: 'asset-departure-bell-timing',
       assetTitle: localize('Departure Bell Timing', '发车铃时序'),
-      assetKind: 'rule',
+      assetKind: 'lore',
       decision: 'redacted',
       reasonKind: 'review-issue',
       reasonLabel: localize('Editor timing guardrail', '编辑时序护栏'),
@@ -1027,6 +1161,7 @@ export function buildAgentInvocationDetail(
       ? localize('Proposal candidate schema', '提案候选结构')
       : localize('Accepted prose draft schema', '已接受正文草稿结构'),
     generatedRefs: input.generatedRefs ?? buildDefaultGeneratedRefs(input.artifact),
+    ...(readFailureDetail(input.artifact) ? { failureDetail: readFailureDetail(input.artifact) } : {}),
   }
 }
 
@@ -1046,6 +1181,7 @@ export function buildProposalSetDetail(
     ],
     proposals: buildDefaultProposalSetProposals(input.artifact, input.selectedVariants),
     reviewOptions: buildDefaultReviewOptions(),
+    ...(readFailureDetail(input.artifact) ? { failureDetail: readFailureDetail(input.artifact) } : {}),
   }
 }
 
@@ -1121,6 +1257,7 @@ export function buildProseDraftDetail(
     wordCount: writerOutput?.wordCount ?? 140 + sequence * 3,
     relatedAssets: writerOutput?.relatedAssets ?? defaultRelatedAssets,
     traceLinkIds: input.traceLinkIds ?? buildDefaultTraceLinkIds(input.artifact, 'rendered_as'),
+    ...(readFailureDetail(input.artifact) ? { failureDetail: readFailureDetail(input.artifact) } : {}),
   }
 }
 

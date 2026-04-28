@@ -19,9 +19,12 @@ interface ReviewSourceFixControlsProps {
   onSetFixStatus: (input: {
     issueId: string
     issueSignature: string
-    status: 'checked' | 'blocked'
+    status: 'checked' | 'blocked' | 'rewrite_requested'
     handoff: ReviewSourceHandoffViewModel
     note?: string
+    rewriteRequestNote?: string
+    rewriteTargetSceneId?: string
+    rewriteRequestId?: string
   }) => void
   onClearFix: (issueId: string) => void
 }
@@ -32,6 +35,9 @@ function getFixTone(status: ReviewIssueViewModel['fixAction']['status']) {
   }
   if (status === 'blocked') {
     return 'danger' as const
+  }
+  if (status === 'rewrite_requested') {
+    return 'warn' as const
   }
   if (status === 'stale') {
     return 'warn' as const
@@ -53,6 +59,9 @@ function getFixLabel(locale: 'en' | 'zh-CN', status: ReviewIssueViewModel['fixAc
   if (status === 'blocked') {
     return locale === 'zh-CN' ? 'Blocked' : 'Blocked'
   }
+  if (status === 'rewrite_requested') {
+    return locale === 'zh-CN' ? 'Rewrite requested' : 'Rewrite requested'
+  }
   if (status === 'stale') {
     return locale === 'zh-CN' ? 'Fix stale' : 'Fix stale'
   }
@@ -69,6 +78,73 @@ function getTargetScopeLabel(locale: 'en' | 'zh-CN', issue: ReviewIssueViewModel
   return `${handoff.label} · ${handoff.target.scope}`
 }
 
+function getRewriteEligibleHandoff(issue: ReviewIssueViewModel) {
+  return issue.handoffs.find((handoff) => handoff.target.scope === 'scene' || handoff.target.scope === 'chapter') ?? null
+}
+
+function getRewriteTargetSceneId(handoff: ReviewSourceHandoffViewModel | null) {
+  if (!handoff) {
+    return undefined
+  }
+
+  if (handoff.target.scope === 'scene') {
+    return handoff.target.sceneId
+  }
+
+  if (handoff.target.scope === 'chapter') {
+    return handoff.target.sceneId
+  }
+
+  return undefined
+}
+
+function buildRewriteRequestPayload(issue: ReviewIssueViewModel, note: string) {
+  const handoff = getRewriteEligibleHandoff(issue)
+  const rewriteRequestNote = note.trim() ? note.trim() : undefined
+  const rewriteTargetSceneId = getRewriteTargetSceneId(handoff)
+  const rewriteRequestId = issue.id.trim() ? `rewrite-request-${issue.id}` : undefined
+
+  if (!handoff || !rewriteRequestNote || !rewriteTargetSceneId || !rewriteRequestId) {
+    return null
+  }
+
+  return {
+    handoff,
+    rewriteRequestNote,
+    rewriteTargetSceneId,
+    rewriteRequestId,
+  }
+}
+
+function getRewriteRequestDisabledReason(locale: 'en' | 'zh-CN', issue: ReviewIssueViewModel, note: string) {
+  const handoff = getRewriteEligibleHandoff(issue)
+  if (!handoff) {
+    return locale === 'zh-CN'
+      ? 'Rewrite request needs a scene or chapter handoff.'
+      : 'Rewrite request needs a scene or chapter handoff.'
+  }
+
+  if (!note.trim()) {
+    return locale === 'zh-CN'
+      ? 'Rewrite request needs a source fix note before it can be submitted.'
+      : 'Rewrite request needs a source fix note before it can be submitted.'
+  }
+
+  if (!getRewriteTargetSceneId(handoff)) {
+    return locale === 'zh-CN'
+      ? 'Rewrite request needs a scene target before it can be submitted.'
+      : 'Rewrite request needs a scene target before it can be submitted.'
+  }
+
+  if (!issue.id.trim()) {
+    return locale === 'zh-CN'
+      ? 'Rewrite request needs a stable issue id before it can be submitted.'
+      : 'Rewrite request needs a stable issue id before it can be submitted.'
+  }
+
+  return null
+}
+
 export function ReviewSourceFixControls({
   issue,
   isSaving = false,
@@ -80,8 +156,14 @@ export function ReviewSourceFixControls({
   const [note, setNote] = useState(issue.fixAction.note ?? '')
   const handoff = issue.primaryFixHandoff
   const normalizedNote = note.trim() ? note.trim() : undefined
+  const rewriteRequestPayload = buildRewriteRequestPayload(issue, note)
+  const rewriteRequestDisabledReason = getRewriteRequestDisabledReason(locale, issue, note)
   const canSubmit = Boolean(handoff) && !isSaving
-  const isCompleted = issue.fixAction.status === 'checked' || issue.fixAction.status === 'blocked'
+  const canCreateRewriteRequest = Boolean(rewriteRequestPayload) && !isSaving
+  const isCompleted =
+    issue.fixAction.status === 'checked' ||
+    issue.fixAction.status === 'blocked' ||
+    issue.fixAction.status === 'rewrite_requested'
 
   useEffect(() => {
     setNote(issue.fixAction.note ?? '')
@@ -100,7 +182,7 @@ export function ReviewSourceFixControls({
     })
   }
 
-  const setFixStatus = (status: 'checked' | 'blocked') => {
+  const setFixStatus = (status: 'checked' | 'blocked' | 'rewrite_requested') => {
     if (!handoff) {
       return
     }
@@ -111,6 +193,23 @@ export function ReviewSourceFixControls({
       status,
       handoff,
       note: normalizedNote,
+    })
+  }
+
+  const createRewriteRequest = () => {
+    if (!rewriteRequestPayload) {
+      return
+    }
+
+    onSetFixStatus({
+      issueId: issue.id,
+      issueSignature: issue.issueSignature,
+      status: 'rewrite_requested',
+      handoff: rewriteRequestPayload.handoff,
+      note: normalizedNote,
+      rewriteRequestNote: rewriteRequestPayload.rewriteRequestNote,
+      rewriteTargetSceneId: rewriteRequestPayload.rewriteTargetSceneId,
+      rewriteRequestId: rewriteRequestPayload.rewriteRequestId,
     })
   }
 
@@ -156,12 +255,29 @@ export function ReviewSourceFixControls({
         </p>
       ) : null}
 
+      {issue.fixAction.status === 'rewrite_requested' ? (
+        <div className="space-y-2">
+          <p className="text-sm leading-6 text-text-muted">
+            {locale === 'zh-CN'
+              ? `Rewrite request queued for ${issue.fixAction.sourceHandoffLabel ?? getTargetScopeLabel(locale, issue)}.`
+              : `Rewrite request queued for ${issue.fixAction.sourceHandoffLabel ?? getTargetScopeLabel(locale, issue)}.`}
+          </p>
+          {issue.fixAction.rewriteRequestNote ? (
+            <p className="text-sm leading-6 text-text-main">{issue.fixAction.rewriteRequestNote}</p>
+          ) : null}
+        </div>
+      ) : null}
+
       {issue.fixAction.status === 'stale' ? (
         <p className="rounded-md border border-[rgba(156,122,58,0.28)] bg-[rgba(156,122,58,0.08)] px-3 py-2 text-sm leading-6 text-text-main">
           {locale === 'zh-CN'
             ? 'This source fix is stale because the review issue changed after the fix action was recorded.'
             : 'This source fix is stale because the review issue changed after the fix action was recorded.'}
         </p>
+      ) : null}
+
+      {rewriteRequestDisabledReason ? (
+        <p className="text-xs leading-5 text-text-soft">{rewriteRequestDisabledReason}</p>
       ) : null}
 
       <div className="space-y-2">
@@ -199,7 +315,7 @@ export function ReviewSourceFixControls({
               onClick={() => setFixStatus('checked')}
               className="rounded-md border border-line-soft bg-surface-1 px-3 py-2 text-sm text-text-main hover:bg-surface-1 disabled:cursor-not-allowed disabled:text-text-soft"
             >
-              {locale === 'zh-CN' ? 'Mark source checked' : 'Mark source checked'}
+              {locale === 'zh-CN' ? 'Mark fix checked' : 'Mark fix checked'}
             </button>
             <button
               type="button"
@@ -207,9 +323,20 @@ export function ReviewSourceFixControls({
               onClick={() => setFixStatus('blocked')}
               className="rounded-md border border-line-soft bg-surface-1 px-3 py-2 text-sm text-text-main hover:bg-surface-1 disabled:cursor-not-allowed disabled:text-text-soft"
             >
-              {locale === 'zh-CN' ? 'Mark blocked' : 'Mark blocked'}
+              {locale === 'zh-CN' ? 'Block fix' : 'Block fix'}
             </button>
           </>
+        ) : null}
+
+        {issue.fixAction.status === 'not_started' || issue.fixAction.status === 'started' || issue.fixAction.status === 'stale' ? (
+          <button
+            type="button"
+            disabled={!canCreateRewriteRequest}
+            onClick={createRewriteRequest}
+            className="rounded-md border border-line-soft bg-surface-1 px-3 py-2 text-sm text-text-main hover:bg-surface-1 disabled:cursor-not-allowed disabled:text-text-soft"
+          >
+            {locale === 'zh-CN' ? 'Create rewrite request' : 'Create rewrite request'}
+          </button>
         ) : null}
 
         {issue.fixAction.status === 'stale' ? (

@@ -2,13 +2,15 @@ import { getChapterUnresolvedCountLabel, useI18n } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { PaneHeader } from '@/components/ui/PaneHeader'
 
-import type { ChapterStructureInspectorViewModel } from '../types/chapter-view-models'
+import type { ChapterBacklogPlanningViewModel, ChapterStructureInspectorViewModel } from '../types/chapter-view-models'
 
 interface ChapterStructureInspectorPaneProps {
   chapterTitle: string
   chapterSummary?: string
   unresolvedCount: number
   inspector: ChapterStructureInspectorViewModel
+  planning?: ChapterBacklogPlanningViewModel
+  selectedSceneBacklogStatusLabel?: string
 }
 
 export function ChapterStructureInspectorPane({
@@ -16,6 +18,8 @@ export function ChapterStructureInspectorPane({
   chapterSummary,
   unresolvedCount,
   inspector,
+  planning,
+  selectedSceneBacklogStatusLabel,
 }: ChapterStructureInspectorPaneProps) {
   const { locale, dictionary } = useI18n()
   const selectedSceneBrief = inspector.selectedSceneBrief
@@ -59,6 +63,32 @@ export function ChapterStructureInspectorPane({
                 ))}
               </ul>
             </div>
+            {planning ? (
+              <div className="rounded-md border border-line-soft bg-surface-1 p-3">
+                <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
+                  {locale === 'zh-CN' ? 'backlog judgment' : 'Backlog judgment'}
+                </p>
+                <div className="mt-2 space-y-2 text-sm leading-6 text-text-muted">
+                  <p>{planning.goal}</p>
+                  {planning.constraints.length > 0 ? (
+                    <ul className="list-disc space-y-1 pl-5">
+                      {planning.constraints.map((constraint) => (
+                        <li key={constraint.id}>{[constraint.label, constraint.detail].filter(Boolean).join(': ')}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  <p>
+                    {locale === 'zh-CN' ? '当前接受计划' : 'Accepted plan'}:{' '}
+                    {planning.acceptedProposalId ?? (locale === 'zh-CN' ? '尚未接受' : 'Not accepted yet')}
+                  </p>
+                  {selectedSceneBacklogStatusLabel ? (
+                    <p>
+                      {locale === 'zh-CN' ? '当前场景 backlog 状态' : 'Selected scene backlog status'}: {selectedSceneBacklogStatusLabel}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </div>
         </section>
         <section className="rounded-md border border-line-soft bg-surface-2 p-4">

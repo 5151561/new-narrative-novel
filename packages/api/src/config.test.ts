@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { getApiServerConfig } from './config.js'
+import { serializeModelBindings } from './orchestration/modelGateway/model-binding.js'
 
 const originalEnv = { ...process.env }
 const defaultProjectStoreFilePath = fileURLToPath(
@@ -16,6 +17,23 @@ describe('getApiServerConfig', () => {
 
   it('defaults the local project store paths to the workspace .narrative directory', () => {
     expect(getApiServerConfig()).toMatchObject({
+      modelBindings: {
+        continuityReviewer: {
+          provider: 'fixture',
+        },
+        planner: {
+          provider: 'fixture',
+        },
+        sceneProseWriter: {
+          provider: 'fixture',
+        },
+        sceneRevision: {
+          provider: 'fixture',
+        },
+        summary: {
+          provider: 'fixture',
+        },
+      },
       modelProvider: 'fixture',
       openAiApiKey: undefined,
       openAiModel: undefined,
@@ -86,9 +104,71 @@ describe('getApiServerConfig', () => {
     process.env.OPENAI_API_KEY = 'sk-test'
 
     expect(getApiServerConfig()).toMatchObject({
+      modelBindings: {
+        continuityReviewer: {
+          apiKey: 'sk-test',
+          modelId: 'gpt-5.4',
+          provider: 'openai',
+        },
+        planner: {
+          apiKey: 'sk-test',
+          modelId: 'gpt-5.4',
+          provider: 'openai',
+        },
+        sceneProseWriter: {
+          apiKey: 'sk-test',
+          modelId: 'gpt-5.4',
+          provider: 'openai',
+        },
+        sceneRevision: {
+          apiKey: 'sk-test',
+          modelId: 'gpt-5.4',
+          provider: 'openai',
+        },
+        summary: {
+          apiKey: 'sk-test',
+          modelId: 'gpt-5.4',
+          provider: 'openai',
+        },
+      },
       modelProvider: 'openai',
       openAiModel: 'gpt-5.4',
       openAiApiKey: 'sk-test',
+    })
+  })
+
+  it('parses role-specific binding env overrides on top of the legacy global openai fallback', () => {
+    process.env.NARRATIVE_MODEL_PROVIDER = 'openai'
+    process.env.NARRATIVE_OPENAI_MODEL = 'gpt-5.4'
+    process.env.OPENAI_API_KEY = 'sk-global-value'
+    process.env.NARRATIVE_SCENE_REVISION_OPENAI_MODEL = 'gpt-5.4-mini'
+    process.env.NARRATIVE_SCENE_REVISION_OPENAI_API_KEY = 'sk-revision-value'
+    process.env.NARRATIVE_PLANNER_MODEL_PROVIDER = 'fixture'
+
+    expect(getApiServerConfig().modelBindings).toEqual({
+      continuityReviewer: {
+        apiKey: 'sk-global-value',
+        modelId: 'gpt-5.4',
+        provider: 'openai',
+      },
+      planner: {
+        provider: 'fixture',
+      },
+      sceneProseWriter: {
+        apiKey: 'sk-global-value',
+        modelId: 'gpt-5.4',
+        provider: 'openai',
+      },
+      sceneRevision: {
+        apiKey: 'sk-revision-value',
+        modelId: 'gpt-5.4-mini',
+        provider: 'openai',
+      },
+      summary: {
+        apiKey: 'sk-global-value',
+        modelId: 'gpt-5.4',
+        provider: 'openai',
+      },
     })
   })
 
@@ -112,6 +192,24 @@ describe('getApiServerConfig', () => {
       openAiModel: undefined,
       openAiApiKey: undefined,
     })
+  })
+
+  it('serializes model bindings without leaking raw secrets', () => {
+    process.env.NARRATIVE_MODEL_PROVIDER = 'openai'
+    process.env.NARRATIVE_OPENAI_MODEL = 'gpt-5.4'
+    process.env.OPENAI_API_KEY = 'sk-secret-value'
+
+    const serialized = serializeModelBindings(getApiServerConfig().modelBindings ?? {})
+
+    expect(serialized.planner).toEqual({
+      credentialStatus: {
+        configured: true,
+        redactedValue: 'sk-...alue',
+      },
+      modelId: 'gpt-5.4',
+      provider: 'openai',
+    })
+    expect(JSON.stringify(serialized)).not.toContain('sk-secret-value')
   })
 
   it('rejects an unsupported NARRATIVE_MODEL_PROVIDER value', () => {

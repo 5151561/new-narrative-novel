@@ -8,7 +8,12 @@ import { ApiRequestError, createProjectRuntimeTestWrapper, createTestProjectRunt
 import { bookQueryKeys } from '@/features/book/hooks/book-query-keys'
 import { chapterQueryKeys } from '@/features/chapter/hooks/chapter-query-keys'
 import type { RunClient } from '@/features/run/api/run-client'
-import type { RunEventsPageRecord, RunRecord, StartSceneRunInput, SubmitRunReviewDecisionInput } from '@/features/run/api/run-records'
+import type {
+  RunEventsPageRecord,
+  RunRecord,
+  StartSceneRunInput,
+  SubmitRunReviewDecisionInput,
+} from '@/features/run/api/run-records'
 import { sceneQueryKeys } from '@/features/scene/hooks/scene-query-keys'
 
 import { runQueryKeys } from './run-query-keys'
@@ -73,6 +78,9 @@ function createRuntimeWithRunClient(runClient: RunClient, projectId = 'book-sign
 function createRunClientStub(overrides: Partial<RunClient> = {}): RunClient {
   return {
     startSceneRun: vi.fn(),
+    retryRun: vi.fn(),
+    cancelRun: vi.fn(),
+    resumeRun: vi.fn(),
     getRun: vi.fn(),
     getRunEvents: vi.fn(),
     submitRunReviewDecision: vi.fn(),

@@ -71,6 +71,10 @@ export function ChapterDraftBinderPane({ workspace, onSelectScene, onOpenScene }
                       </span>
                       <span className="flex flex-wrap gap-2">
                         <Badge tone={scene.isMissingDraft ? 'warn' : 'success'}>{getWordCountLabel(locale, scene.draftWordCount)}</Badge>
+                        <Badge tone={scene.backlogStatus === 'needs_review' ? 'accent' : scene.backlogStatus === 'planned' ? 'neutral' : 'success'}>
+                          {scene.backlogStatusLabel}
+                        </Badge>
+                        <Badge tone="neutral">{scene.runStatusLabel}</Badge>
                         {scene.revisionQueueCount ? <Badge tone="accent">{locale === 'zh-CN' ? `修订 ${scene.revisionQueueCount}` : `Queue ${scene.revisionQueueCount}`}</Badge> : null}
                         {scene.warningsCount > 0 ? <Badge tone="warn">{locale === 'zh-CN' ? `警告 ${scene.warningsCount}` : `Warn ${scene.warningsCount}`}</Badge> : null}
                       </span>

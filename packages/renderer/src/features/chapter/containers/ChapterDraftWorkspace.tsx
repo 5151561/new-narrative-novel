@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { getWorkbenchLensLabel, useI18n } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
@@ -12,10 +12,56 @@ import { ChapterDraftBinderPane } from '../components/ChapterDraftBinderPane'
 import { ChapterDraftInspectorPane } from '../components/ChapterDraftInspectorPane'
 import { ChapterDraftReader } from '../components/ChapterDraftReader'
 import { ChapterModeRail } from '../components/ChapterModeRail'
+import { ChapterRunOrchestrationPanel } from '../components/ChapterRunOrchestrationPanel'
+import { useStartNextChapterSceneRunMutation } from '../hooks/useStartNextChapterSceneRunMutation'
 import { useChapterDraftWorkspaceQuery } from '../hooks/useChapterDraftWorkspaceQuery'
 import { useChapterDraftTraceabilityQuery } from '@/features/traceability/hooks/useChapterDraftTraceabilityQuery'
 import { ChapterDraftDockContainer } from './ChapterDraftDockContainer'
 import type { ChapterDraftWorkspaceViewModel } from '../types/chapter-draft-view-models'
+
+function resolveChapterRunGate(
+  scenes: Array<{
+    sceneId: string
+    title: string
+    order: number
+    summary: string
+    backlogStatus: 'planned' | 'running' | 'needs_review' | 'drafted' | 'revised'
+    backlogStatusLabel: string
+    runStatusLabel: string
+  }>,
+) {
+  const orderedScenes = [...scenes].sort((left, right) => left.order - right.order)
+  const blockingScenes: Array<{
+    sceneId: string
+    title: string
+    order: number
+    runStatusLabel: string
+  }> = []
+
+  for (const scene of orderedScenes) {
+    if (scene.backlogStatus === 'running' || scene.backlogStatus === 'needs_review') {
+      blockingScenes.push({
+        sceneId: scene.sceneId,
+        title: scene.title,
+        order: scene.order,
+        runStatusLabel: scene.runStatusLabel,
+      })
+      break
+    }
+
+    if (scene.backlogStatus === 'planned') {
+      return {
+        nextScene: scene,
+        blockingScenes,
+      }
+    }
+  }
+
+  return {
+    nextScene: undefined,
+    blockingScenes,
+  }
+}
 
 function mergeTraceabilityIntoWorkspace(
   workspace: ChapterDraftWorkspaceViewModel,
@@ -38,10 +84,22 @@ function mergeTraceabilityIntoWorkspace(
       },
     }
   })
+  const sceneById = new Map(scenes.map((scene) => [scene.sceneId, scene]))
+  const sections = workspace.sections?.map((section) => {
+    if (section.kind !== 'scene') {
+      return section
+    }
+
+    return {
+      kind: 'scene' as const,
+      ...(sceneById.get(section.sceneId) ?? section),
+    }
+  })
 
   return {
     ...workspace,
     scenes,
+    sections,
     selectedScene: scenes.find((scene) => scene.sceneId === workspace.selectedSceneId) ?? workspace.selectedScene,
     inspector: {
       ...workspace.inspector,
@@ -102,10 +160,15 @@ function ChapterDraftTopBar({
 export function ChapterDraftWorkspace() {
   const { route, replaceRoute, patchChapterRoute } = useWorkbenchRouteState()
   const { locale } = useI18n()
+  const [lastStartedRunSceneId, setLastStartedRunSceneId] = useState<string | null>(null)
 
   if (route.scope !== 'chapter') {
     return null
   }
+
+  const startNextSceneRunMutation = useStartNextChapterSceneRunMutation({
+    chapterId: route.chapterId,
+  })
 
   const { workspace, isLoading, error } = useChapterDraftWorkspaceQuery({
     chapterId: route.chapterId,
@@ -115,6 +178,9 @@ export function ChapterDraftWorkspace() {
     chapterId: route.chapterId,
     selectedSceneId: route.sceneId ?? null,
   })
+  const { nextScene, blockingScenes } = workspace
+    ? resolveChapterRunGate(workspace.scenes)
+    : { nextScene: undefined, blockingScenes: [] }
 
   const openSceneFromChapter = useCallback(
     (sceneId: string | undefined, lens: Extract<SceneLens, 'orchestrate' | 'draft'>) => {
@@ -233,6 +299,9 @@ export function ChapterDraftWorkspace() {
       view: 'profile',
     })
   }
+  const lastStartedRun = lastStartedRunSceneId
+    ? tracedWorkspace.scenes.find((scene) => scene.sceneId === lastStartedRunSceneId)
+    : null
 
   return (
     <WorkbenchShell
@@ -256,6 +325,54 @@ export function ChapterDraftWorkspace() {
       mainStage={
         <ChapterDraftReader
           workspace={tracedWorkspace}
+          runOrchestrationPanel={
+            <ChapterRunOrchestrationPanel
+              title={locale === 'zh-CN' ? '章节编排' : 'Chapter orchestration'}
+              description={
+                locale === 'zh-CN'
+                  ? '继续按 accepted backlog 顺序推进下一场，并在 review 处停下。'
+                  : 'Keep advancing the accepted backlog one scene at a time and stop at review.'
+              }
+              nextScene={nextScene ? {
+                sceneId: nextScene.sceneId,
+                title: nextScene.title,
+                order: nextScene.order,
+                summary: nextScene.summary,
+                backlogStatusLabel: nextScene.backlogStatusLabel,
+                runStatusLabel: nextScene.runStatusLabel,
+              } : undefined}
+              waitingReviewScenes={blockingScenes.map((scene) => ({
+                ...scene,
+                backlogStatus: tracedWorkspace.scenes.find((candidate) => candidate.sceneId === scene.sceneId)?.backlogStatus === 'running'
+                  ? 'running'
+                  : 'needs_review',
+              }))}
+              draftedSceneCount={tracedWorkspace.draftedSceneCount}
+              missingDraftCount={tracedWorkspace.missingDraftCount}
+              isStarting={startNextSceneRunMutation.isPending}
+              errorMessage={startNextSceneRunMutation.errorState?.message}
+              onStartNextScene={() => {
+                if (!nextScene) {
+                  return
+                }
+
+                void startNextSceneRunMutation
+                  .mutateAsync({
+                    locale,
+                    mode: 'continue',
+                    note: `Advance ${nextScene.title} from chapter ${tracedWorkspace.title}.`,
+                  })
+                  .then(async (record) => {
+                    if (!record) {
+                      return
+                    }
+
+                    setLastStartedRunSceneId(record.selectedScene.sceneId)
+                    await traceability.refetch?.()
+                  })
+              }}
+            />
+          }
           onSelectScene={(sceneId) => patchChapterRoute({ sceneId })}
           onOpenScene={openSceneFromChapter}
         />
@@ -271,7 +388,10 @@ export function ChapterDraftWorkspace() {
           onOpenAsset={openAssetProfile}
         />
       }
-      bottomDock={<ChapterDraftDockContainer workspace={tracedWorkspace} />}
+      bottomDock={<ChapterDraftDockContainer workspace={tracedWorkspace} lastStartedRun={lastStartedRun ? {
+        sceneId: lastStartedRun.sceneId,
+        title: lastStartedRun.title,
+      } : null} />}
     />
   )
 }

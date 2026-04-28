@@ -11,6 +11,7 @@ interface BookExperimentBranchPickerProps {
   branchBaseline: BookBranchBaseline
   onSelectBranch: (branchId: string) => void
   onSelectBranchBaseline: (baseline: BookBranchBaseline) => void
+  onArchiveBranch?: (branchId: string) => void
 }
 
 function getStatusBadge(locale: 'en' | 'zh-CN', status: BookExperimentBranchSummaryViewModel['status']) {
@@ -31,9 +32,25 @@ export function BookExperimentBranchPicker({
   branchBaseline,
   onSelectBranch,
   onSelectBranchBaseline,
+  onArchiveBranch,
 }: BookExperimentBranchPickerProps) {
   const { locale } = useI18n()
   const selectedBranch = branches.find((branch) => branch.branchId === selectedBranchId) ?? null
+  const archiveDisabledReason =
+    selectedBranch?.status === 'archived'
+      ? locale === 'zh-CN'
+        ? '已归档实验稿不能再次归档。'
+        : 'Archived branches cannot be archived again.'
+      : !selectedBranch
+        ? locale === 'zh-CN'
+          ? '请先选择一个实验稿。'
+          : 'Select a branch first.'
+        : !onArchiveBranch
+          ? locale === 'zh-CN'
+            ? '归档接线将在后续 bundle 中连通。'
+            : 'Archive wiring will connect in a later bundle.'
+          : null
+  const archiveDisabled = Boolean(archiveDisabledReason)
 
   return (
     <section className="space-y-4 rounded-md border border-line-soft bg-surface-1 p-4">
@@ -68,7 +85,25 @@ export function BookExperimentBranchPicker({
           </button>
         </div>
       </div>
-      {selectedBranch?.rationale ? <p className="text-sm leading-6 text-text-muted">{selectedBranch.rationale}</p> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {selectedBranch?.rationale ? <p className="text-sm leading-6 text-text-muted">{selectedBranch.rationale}</p> : <span />}
+        <div className="flex min-w-[220px] flex-col items-end gap-2">
+          <button
+            type="button"
+            aria-label={locale === 'zh-CN' ? '归档实验稿' : 'Archive branch'}
+            disabled={archiveDisabled}
+            onClick={() => {
+              if (!archiveDisabled && selectedBranch) {
+                onArchiveBranch?.(selectedBranch.branchId)
+              }
+            }}
+            className="rounded-md border border-line-soft px-3 py-2 text-sm text-text-muted disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {locale === 'zh-CN' ? '归档实验稿' : 'Archive branch'}
+          </button>
+          {archiveDisabledReason ? <p className="text-xs leading-5 text-text-soft">{archiveDisabledReason}</p> : null}
+        </div>
+      </div>
       <div className="grid gap-3 lg:grid-cols-2">
         {branches.map((branch) => {
           const active = branch.branchId === selectedBranchId

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 
 import { useQuery, type QueryObserverResult } from '@tanstack/react-query'
 
-import { useProjectRuntime } from './ProjectRuntimeProvider'
+import { getProjectRuntimeKind, useProjectRuntime } from './ProjectRuntimeProvider'
 import { ApiRequestError } from './api-transport'
 import {
   createProjectRuntimeInfoRecord,
@@ -10,6 +10,7 @@ import {
   type ProjectRuntimeInfoRecord,
   type ProjectRuntimeSource,
 } from './project-runtime-info'
+import type { RuntimeKind } from '@/app/runtime'
 
 export interface ProjectRuntimeHealthQueryResult {
   info: ProjectRuntimeInfoRecord
@@ -23,10 +24,18 @@ interface ProjectRuntimeHealthErrorState {
   summary: string
 }
 
+interface ProjectRuntimeIdentity {
+  projectId: string
+  projectTitle: string
+  runtimeKind: RuntimeKind
+  source: ProjectRuntimeSource
+}
+
 export function useProjectRuntimeHealthQuery(): ProjectRuntimeHealthQueryResult {
   const runtime = useProjectRuntime()
   const source = inferProjectRuntimeSource(runtime)
   const fallbackProjectTitle = getRuntimeProjectTitle(runtime)
+  const runtimeKind = getProjectRuntimeKind(runtime)
   const query = useQuery<ProjectRuntimeInfoRecord, unknown>({
     queryKey: ['project-runtime', runtime.projectId, 'health'],
     queryFn: () => runtime.runtimeInfoClient.getProjectRuntimeInfo(),
@@ -34,10 +43,17 @@ export function useProjectRuntimeHealthQuery(): ProjectRuntimeHealthQueryResult 
 
   return useMemo(() => {
     const error = query.error ?? null
-    const errorState = query.isPending ? null : classifyProjectRuntimeHealthError(error, source, runtime.projectId)
+    const runtimeIdentity = {
+      projectId: runtime.projectId,
+      projectTitle: fallbackProjectTitle,
+      runtimeKind,
+      source,
+    } satisfies ProjectRuntimeIdentity
+    const errorState = query.isPending ? null : classifyProjectRuntimeHealthError(error, runtimeIdentity)
     const info = query.data ?? createFallbackProjectRuntimeInfo({
       projectId: runtime.projectId,
       projectTitle: fallbackProjectTitle,
+      runtimeKind,
       source,
       status: query.isPending ? 'checking' : errorState?.status ?? 'unknown',
       summary: query.isPending ? 'Checking project runtime health.' : errorState?.summary ?? 'Project runtime health check failed.',
@@ -49,7 +65,7 @@ export function useProjectRuntimeHealthQuery(): ProjectRuntimeHealthQueryResult 
       error,
       refetch: query.refetch,
     }
-  }, [fallbackProjectTitle, query.data, query.error, query.isFetching, query.isPending, query.refetch, runtime, source])
+  }, [fallbackProjectTitle, query.data, query.error, query.isFetching, query.isPending, query.refetch, runtime, runtimeKind, source])
 }
 
 function inferProjectRuntimeSource(runtime: { persistence?: unknown }): ProjectRuntimeSource {
@@ -59,12 +75,14 @@ function inferProjectRuntimeSource(runtime: { persistence?: unknown }): ProjectR
 function createFallbackProjectRuntimeInfo({
   projectId,
   projectTitle,
+  runtimeKind,
   source,
   status,
   summary,
 }: {
   projectId: string
   projectTitle: string
+  runtimeKind: RuntimeKind
   source: ProjectRuntimeSource
   status: ProjectRuntimeHealthStatus
   summary: string
@@ -72,6 +90,7 @@ function createFallbackProjectRuntimeInfo({
   return createProjectRuntimeInfoRecord({
     projectId,
     projectTitle,
+    runtimeKind,
     source,
     status,
     summary,
@@ -85,61 +104,60 @@ function getRuntimeProjectTitle(runtime: { projectId: string; projectTitle?: str
 
 function classifyProjectRuntimeHealthError(
   error: unknown,
-  source: ProjectRuntimeSource,
-  projectId: string,
+  runtimeIdentity: ProjectRuntimeIdentity,
 ): ProjectRuntimeHealthErrorState {
   if (error instanceof ApiRequestError) {
     if (isMalformedProjectRuntimeResponseError(error)) {
       return {
         status: 'unavailable',
-        summary: getMalformedRuntimeSummary(source),
+        summary: getMalformedRuntimeSummary(runtimeIdentity),
       }
     }
 
     if (error.status === 401) {
       return {
         status: 'unauthorized',
-        summary: getUnauthorizedRuntimeSummary(source),
+        summary: getUnauthorizedRuntimeSummary(runtimeIdentity),
       }
     }
 
     if (error.status === 403) {
       return {
         status: 'forbidden',
-        summary: getForbiddenRuntimeSummary(source),
+        summary: getForbiddenRuntimeSummary(runtimeIdentity),
       }
     }
 
     if (error.status === 404) {
       return {
         status: 'not_found',
-        summary: getNotFoundRuntimeSummary(source, projectId),
+        summary: getNotFoundRuntimeSummary(runtimeIdentity),
       }
     }
 
     if (error.status >= 500) {
       return {
         status: 'unavailable',
-        summary: getUnavailableRuntimeSummary(source),
+        summary: getUnavailableRuntimeSummary(runtimeIdentity),
       }
     }
 
     return {
       status: 'unknown',
-      summary: getUnknownRuntimeSummary(source),
+      summary: getUnknownRuntimeSummary(runtimeIdentity),
     }
   }
 
   if (error instanceof Error) {
     return {
       status: 'unavailable',
-      summary: getUnavailableRuntimeSummary(source),
+      summary: getUnavailableRuntimeSummary(runtimeIdentity),
     }
   }
 
   return {
     status: 'unknown',
-    summary: getUnknownRuntimeSummary(source),
+    summary: getUnknownRuntimeSummary(runtimeIdentity),
   }
 }
 
@@ -147,48 +165,76 @@ function isMalformedProjectRuntimeResponseError(error: ApiRequestError) {
   return error.message === 'Malformed JSON response'
 }
 
-function getUnavailableRuntimeSummary(source: ProjectRuntimeSource) {
-  if (source === 'api') {
+function isRealLocalProjectRuntime(identity: ProjectRuntimeIdentity) {
+  return identity.runtimeKind === 'real-local-project'
+}
+
+function getUnavailableRuntimeSummary(identity: ProjectRuntimeIdentity) {
+  if (isRealLocalProjectRuntime(identity)) {
+    return `Local project runtime is unavailable for "${identity.projectTitle}". The selected project stays active and mock fallback stays off until the runtime recovers.`
+  }
+
+  if (identity.source === 'api') {
     return 'API demo runtime is unavailable. Start the fixture API or reopen the desktop-local demo, then retry.'
   }
 
   return 'Project runtime is unavailable.'
 }
 
-function getMalformedRuntimeSummary(source: ProjectRuntimeSource) {
-  if (source === 'api') {
+function getMalformedRuntimeSummary(identity: ProjectRuntimeIdentity) {
+  if (isRealLocalProjectRuntime(identity)) {
+    return `Local project runtime returned malformed runtime info for "${identity.projectTitle}". The selected project stays active and mock fallback stays off until the runtime recovers.`
+  }
+
+  if (identity.source === 'api') {
     return 'API demo runtime returned malformed runtime info. Restart the fixture API or reopen the desktop-local demo, then retry.'
   }
 
   return 'Project runtime returned malformed JSON.'
 }
 
-function getUnauthorizedRuntimeSummary(source: ProjectRuntimeSource) {
-  if (source === 'api') {
+function getUnauthorizedRuntimeSummary(identity: ProjectRuntimeIdentity) {
+  if (isRealLocalProjectRuntime(identity)) {
+    return `Local project runtime needs authorization for "${identity.projectTitle}". The selected project stays active and mock fallback stays off until access is restored.`
+  }
+
+  if (identity.source === 'api') {
     return 'API demo runtime requires authentication before this project can load.'
   }
 
   return 'Project runtime authentication is required.'
 }
 
-function getForbiddenRuntimeSummary(source: ProjectRuntimeSource) {
-  if (source === 'api') {
+function getForbiddenRuntimeSummary(identity: ProjectRuntimeIdentity) {
+  if (isRealLocalProjectRuntime(identity)) {
+    return `Local project runtime denied access to "${identity.projectTitle}". The selected project stays active and mock fallback stays off until access is restored.`
+  }
+
+  if (identity.source === 'api') {
     return 'API demo runtime rejected access to this project. Verify the runtime session, then retry.'
   }
 
   return 'Project runtime access is forbidden.'
 }
 
-function getNotFoundRuntimeSummary(source: ProjectRuntimeSource, projectId: string) {
-  if (source === 'api') {
-    return `API demo project "${projectId}" was not found. Verify the runtime project id and seeded fixture data, then retry.`
+function getNotFoundRuntimeSummary(identity: ProjectRuntimeIdentity) {
+  if (isRealLocalProjectRuntime(identity)) {
+    return `Local project runtime could not find "${identity.projectId}". The selected project stays active and mock fallback stays off until the runtime matches this project again.`
+  }
+
+  if (identity.source === 'api') {
+    return `API demo project "${identity.projectId}" was not found. Verify the runtime project id and seeded fixture data, then retry.`
   }
 
   return 'Project runtime was not found.'
 }
 
-function getUnknownRuntimeSummary(source: ProjectRuntimeSource) {
-  if (source === 'api') {
+function getUnknownRuntimeSummary(identity: ProjectRuntimeIdentity) {
+  if (isRealLocalProjectRuntime(identity)) {
+    return `Local project runtime health check failed for "${identity.projectTitle}". The selected project stays active and mock fallback stays off until the runtime recovers.`
+  }
+
+  if (identity.source === 'api') {
     return 'API demo runtime health check failed. Verify the fixture API or desktop-local demo, then retry.'
   }
 

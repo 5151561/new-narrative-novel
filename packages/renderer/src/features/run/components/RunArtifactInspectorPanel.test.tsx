@@ -169,4 +169,39 @@ describe('RunArtifactInspectorPanel', () => {
     expect(screen.getByText('The selected run artifact is no longer available for this run.')).toBeInTheDocument()
     expect(screen.queryByText('Run artifact missing-artifact was not found.')).not.toBeInTheDocument()
   })
+
+  it('shows artifact-level failure detail, usage summary, and retry guidance for failed artifacts', () => {
+    const failedArtifact: RunArtifactDetailRecord = {
+      ...artifact(proposalSetId),
+      usage: {
+        inputTokens: 1420,
+        outputTokens: 318,
+        estimatedCostUsd: 0.0218,
+        actualCostUsd: 0.0241,
+        provider: 'openai',
+        modelId: 'gpt-5.4',
+      },
+      failureDetail: {
+        failureClass: 'invalid_output',
+        message: 'Proposal normalization failed because no safe variant survived validation.',
+        provider: 'openai',
+        modelId: 'gpt-5.4',
+        retryable: false,
+        sourceEventIds: ['run-event-scene-midnight-platform-001-007', 'run-event-scene-midnight-platform-001-008'],
+      },
+    }
+
+    renderInspector(failedArtifact)
+
+    expect(screen.getByRole('heading', { name: 'Failure detail' })).toBeInTheDocument()
+    expect(screen.getByText('invalid_output')).toBeInTheDocument()
+    expect(screen.getByText('Proposal normalization failed because no safe variant survived validation.')).toBeInTheDocument()
+    expect(screen.getByText('1,420 in / 318 out')).toBeInTheDocument()
+    expect(screen.getByText('$0.0218 est. / $0.0241 actual')).toBeInTheDocument()
+    expect(screen.getByText('Retryable')).toBeInTheDocument()
+    expect(screen.getByText('No')).toBeInTheDocument()
+    expect(screen.getByText('Check the source events before starting a new run.')).toBeInTheDocument()
+    expect(screen.getByText('run-event-scene-midnight-platform-001-007')).toBeInTheDocument()
+    expect(screen.getByText('run-event-scene-midnight-platform-001-008')).toBeInTheDocument()
+  })
 })

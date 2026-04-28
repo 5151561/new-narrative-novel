@@ -12,6 +12,8 @@ import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchR
 
 import { resetMockChapterDb } from '../api/mock-chapter-db'
 import { mockChapterRecordSeeds } from '../api/mock-chapter-db'
+import { buildChapterDraftStoryWorkspace } from '../components/chapter-story-fixture'
+import * as chapterDraftWorkspaceQuery from '../hooks/useChapterDraftWorkspaceQuery'
 import { ChapterDraftWorkspace } from './ChapterDraftWorkspace'
 
 const CHAPTER_DRAFT_WORKSPACE_TEST_TIMEOUT_MS = 20_000
@@ -30,6 +32,7 @@ vi.mock('@/features/traceability/hooks/useChapterDraftTraceabilityQuery', async 
 const mockedUseChapterDraftTraceabilityQuery = vi.mocked(useChapterDraftTraceabilityQuery)
 
 afterEach(() => {
+  vi.restoreAllMocks()
   resetMockChapterDb()
   window.localStorage.clear()
   mockedUseChapterDraftTraceabilityQuery.mockReset()
@@ -60,6 +63,16 @@ describe('ChapterDraftWorkspace', () => {
 
   it('keeps binder, reader, inspector, and dock aligned to route.sceneId and roundtrips through scene draft', async () => {
     const user = userEvent.setup()
+    vi.spyOn(chapterDraftWorkspaceQuery, 'useChapterDraftWorkspaceQuery').mockImplementation(() => {
+      const selectedSceneId = new URLSearchParams(window.location.search).get('sceneId') ?? 'scene-ticket-window'
+      return {
+        workspace: buildChapterDraftStoryWorkspace(selectedSceneId),
+        sceneProseStateBySceneId: {},
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      }
+    })
 
     window.history.replaceState(
       {},
@@ -73,7 +86,7 @@ describe('ChapterDraftWorkspace', () => {
       </AppProviders>,
     )
 
-    const ticketWindowButtons = await screen.findAllByRole('button', { name: /Scene 3 Ticket Window Ready for prose pass/i })
+    const ticketWindowButtons = await screen.findAllByRole('button', { name: /Scene 3 Ticket Window/i })
     expect(ticketWindowButtons.some((button) => button.getAttribute('aria-pressed') === 'true')).toBe(true)
     expect(ticketWindowButtons.some((button) => button.getAttribute('aria-current') === 'true')).toBe(true)
     const selectedSceneSection = screen.getByRole('heading', { name: 'Selected section' }).closest('section')
@@ -81,16 +94,21 @@ describe('ChapterDraftWorkspace', () => {
     expect(within(selectedSceneSection!).getAllByText('Ticket Window').length).toBeGreaterThan(0)
     expect(screen.getByRole('region', { name: 'Chapter draft bottom dock' })).toBeInTheDocument()
 
-    await user.click(screen.getAllByRole('button', { name: /Scene 2 Concourse Delay Draft handoff ready/i })[1]!)
+    const concourseReaderButton = screen
+      .getAllByRole('button', { name: /Scene 2 Concourse Delay/i })
+      .find((button) => button.getAttribute('aria-current') !== null)
+    expect(concourseReaderButton).toBeTruthy()
+
+    await user.click(concourseReaderButton!)
 
     await waitFor(() => {
       expect(new URLSearchParams(window.location.search).get('sceneId')).toBe('scene-concourse-delay')
     })
 
-    const concourseButtons = screen.getAllByRole('button', { name: /Scene 2 Concourse Delay Draft handoff ready/i })
+    const concourseButtons = screen.getAllByRole('button', { name: /Scene 2 Concourse Delay/i })
     expect(concourseButtons.some((button) => button.getAttribute('aria-pressed') === 'true')).toBe(true)
     expect(concourseButtons.some((button) => button.getAttribute('aria-current') === 'true')).toBe(true)
-    expect(within(screen.getByRole('region', { name: 'Chapter draft bottom dock' })).getByText('Concourse Delay')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Chapter draft bottom dock' })).getAllByText('Concourse Delay').length).toBeGreaterThan(0)
 
     await user.click(screen.getAllByRole('button', { name: 'Open in Draft: Concourse Delay' })[0]!)
 
@@ -113,12 +131,21 @@ describe('ChapterDraftWorkspace', () => {
       expect(params.get('sceneId')).toBe('scene-concourse-delay')
     })
 
-    const restoredConcourseButtons = await screen.findAllByRole('button', { name: /Scene 2 Concourse Delay Draft handoff ready/i })
+    const restoredConcourseButtons = await screen.findAllByRole('button', { name: /Scene 2 Concourse Delay/i })
     expect(restoredConcourseButtons.some((button) => button.getAttribute('aria-current') === 'true')).toBe(true)
   })
 
   it('opens asset knowledge from chapter traceability and browser back restores the same chapter scene focus', async () => {
     const user = userEvent.setup()
+    const workspace = buildChapterDraftStoryWorkspace('scene-concourse-delay')
+
+    vi.spyOn(chapterDraftWorkspaceQuery, 'useChapterDraftWorkspaceQuery').mockReturnValue({
+      workspace,
+      sceneProseStateBySceneId: {},
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
 
     window.history.replaceState(
       {},
@@ -156,12 +183,55 @@ describe('ChapterDraftWorkspace', () => {
       expect(params.get('sceneId')).toBe('scene-concourse-delay')
     })
 
-    const restoredConcourseButtons = await screen.findAllByRole('button', { name: /Scene 2 Concourse Delay Draft handoff ready/i })
+    const restoredConcourseButtons = await screen.findAllByRole('button', { name: /Concourse Delay/i })
     expect(restoredConcourseButtons.some((button) => button.getAttribute('aria-current') === 'true')).toBe(true)
   })
 
-  it('routes to book scope instead of falling through to scene when clicking Book from chapter draft', async () => {
-    const user = userEvent.setup()
+  it('blocks the draft CTA when an earlier chapter scene is still running', async () => {
+    const runningWorkspace = buildChapterDraftStoryWorkspace('scene-concourse-delay')
+    runningWorkspace.scenes = runningWorkspace.scenes.map((scene) => (
+      scene.sceneId === 'scene-midnight-platform'
+        ? {
+            ...scene,
+            backlogStatus: 'drafted',
+            backlogStatusLabel: 'Drafted',
+            runStatusLabel: 'Run completed',
+          }
+        : scene.sceneId === 'scene-concourse-delay'
+          ? {
+              ...scene,
+              backlogStatus: 'running',
+              backlogStatusLabel: 'Running',
+              runStatusLabel: 'Run in progress',
+            }
+          : scene.sceneId === 'scene-ticket-window'
+            ? {
+                ...scene,
+                backlogStatus: 'planned',
+                backlogStatusLabel: 'Planned',
+                runStatusLabel: 'Idle',
+              }
+            : scene
+    ))
+    runningWorkspace.selectedScene = runningWorkspace.scenes.find((scene) => scene.sceneId === 'scene-concourse-delay') ?? runningWorkspace.selectedScene
+    runningWorkspace.dockSummary.waitingReviewCount = 0
+    runningWorkspace.dockSummary.waitingReviewScenes = []
+
+    vi.spyOn(chapterDraftWorkspaceQuery, 'useChapterDraftWorkspaceQuery').mockReturnValue({
+      workspace: runningWorkspace,
+      sceneProseStateBySceneId: {},
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+    mockedUseChapterDraftTraceabilityQuery.mockReturnValue({
+      traceability: null,
+      selectedSceneTraceLoading: false,
+      chapterCoverageLoading: false,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
 
     window.history.replaceState(
       {},
@@ -175,7 +245,35 @@ describe('ChapterDraftWorkspace', () => {
       </AppProviders>,
     )
 
-    await screen.findAllByRole('button', { name: /Scene 2 Concourse Delay Draft handoff ready/i })
+    expect(await screen.findByRole('button', { name: 'Scene running' })).toBeDisabled()
+    expect(screen.getAllByText('Run in progress').length).toBeGreaterThan(0)
+  })
+
+  it('routes to book scope instead of falling through to scene when clicking Book from chapter draft', async () => {
+    const user = userEvent.setup()
+    const workspace = buildChapterDraftStoryWorkspace('scene-concourse-delay')
+
+    vi.spyOn(chapterDraftWorkspaceQuery, 'useChapterDraftWorkspaceQuery').mockReturnValue({
+      workspace,
+      sceneProseStateBySceneId: {},
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=draft&view=assembly&sceneId=scene-concourse-delay',
+    )
+
+    render(
+      <AppProviders>
+        <ChapterRouteHarness />
+      </AppProviders>,
+    )
+
+    await screen.findAllByRole('button', { name: /Concourse Delay/i })
 
     await user.click(screen.getByRole('button', { name: 'Book' }))
 

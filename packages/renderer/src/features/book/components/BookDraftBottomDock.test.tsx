@@ -588,4 +588,27 @@ describe('BookDraftBottomDock', () => {
       checkedStillOpenCount: 1,
     })
   })
+
+  it('treats missing_trace issues as review trace gaps in dock summaries', () => {
+    const reviewProblems = buildReviewProblems(
+      createReviewInbox([
+        createReviewIssue('trace-gap-1', {
+          kind: 'trace_gap',
+          detail: 'Partial trace coverage remains.',
+        }),
+        createReviewIssue('missing-trace-1', {
+          kind: 'missing_trace',
+          detail: 'No trace references remain.',
+        }),
+      ]),
+    )
+
+    expect(reviewProblems).toMatchObject({
+      traceGapCount: 2,
+    })
+    expect(reviewProblems?.traceGaps.map((issue) => issue.detail)).toEqual([
+      'Partial trace coverage remains.',
+      'No trace references remain.',
+    ])
+  })
 })

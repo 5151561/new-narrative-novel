@@ -90,10 +90,10 @@ function createExportPreview(
         readinessStatus: 'ready',
         scenes: [
           {
-            sceneId: 'scene-warehouse-bridge',
+            sceneId: 'scene-midnight-platform',
             order: 1,
-            title: 'Warehouse Bridge',
-            summary: 'The crew crosses the bridge.',
+            title: 'Midnight Platform',
+            summary: 'The crew crosses the platform.',
             proseDraft: sceneProse,
             draftWordCount: isMissingDraft ? undefined : 4,
             isIncluded: true,
@@ -112,7 +112,7 @@ function createExportPreview(
       blockerCount: overrides.readinessBlocker ? 1 : 0,
       warningCount: overrides.readinessWarning ? 1 : 0,
       infoCount: 0,
-      missingDraftCount: overrides.sceneProse === undefined ? 1 : 0,
+        missingDraftCount: isMissingDraft ? 1 : 0,
       traceGapCount: 0,
       compareChangedSceneCount: 1,
     },
@@ -128,6 +128,75 @@ function createExportPreview(
       includedSections: ['Manuscript body', 'Chapter summaries'],
       excludedSections: includeTraceAppendix ? [] : ['Trace appendix'],
       estimatedPackageLabel: 'Approx. 1 manuscript pages',
+    },
+    readableManuscript: {
+      formatVersion: 'book-manuscript-assembly-v1',
+      markdown: [
+        '# Signal Arc',
+        '',
+        'A relay team follows the signal through the flood district.',
+        '',
+        '## Chapter 1: Open Water Signals',
+        '',
+        'The first relay across the warehouse bridge.',
+        '',
+        '### Scene 1: Midnight Platform',
+        '',
+        sceneProse ?? '> Manuscript gap: No prose artifact has been materialized for this scene yet.',
+      ].join('\n'),
+      plainText: [
+        'Signal Arc',
+        '',
+        'A relay team follows the signal through the flood district.',
+        '',
+        'Chapter 1: Open Water Signals',
+        'The first relay across the warehouse bridge.',
+        '',
+        'Scene 1: Midnight Platform',
+        sceneProse ?? '[Manuscript gap] No prose artifact has been materialized for this scene yet.',
+      ].join('\n'),
+      sections: [
+        {
+          kind: 'chapter-heading',
+          chapterId: 'chapter-open-water-signals',
+          chapterOrder: 1,
+          chapterTitle: 'Open Water Signals',
+          summary: 'The first relay across the warehouse bridge.',
+          assembledWordCount: 88,
+          missingDraftCount: isMissingDraft ? 1 : 0,
+        },
+        {
+          kind: isMissingDraft ? 'scene-gap' : 'scene-draft',
+          chapterId: 'chapter-open-water-signals',
+          chapterOrder: 1,
+          chapterTitle: 'Open Water Signals',
+          sceneId: 'scene-midnight-platform',
+          sceneOrder: 1,
+          sceneTitle: 'Midnight Platform',
+          sceneSummary: 'The crew crosses the bridge.',
+          proseDraft: sceneProse,
+          gapReason: isMissingDraft ? 'No prose artifact has been materialized for this scene yet.' : undefined,
+          draftWordCount: isMissingDraft ? undefined : 4,
+          traceReady: true,
+        },
+      ],
+      sourceManifest: [
+        {
+          kind: isMissingDraft ? 'scene-gap' : 'scene-draft',
+          chapterId: 'chapter-open-water-signals',
+          chapterOrder: 1,
+          chapterTitle: 'Open Water Signals',
+          sceneId: 'scene-midnight-platform',
+          sceneOrder: 1,
+          sceneTitle: 'Midnight Platform',
+          sourcePatchId: isMissingDraft ? undefined : 'canon-patch-001',
+          sourceProposalIds: isMissingDraft ? [] : ['proposal-001'],
+          acceptedFactIds: isMissingDraft ? [] : ['fact-001'],
+          traceReady: true,
+          draftWordCount: isMissingDraft ? undefined : 4,
+          gapReason: isMissingDraft ? 'No prose artifact has been materialized for this scene yet.' : undefined,
+        },
+      ],
     },
   }
 
@@ -241,6 +310,9 @@ describe('book export artifact mappers', () => {
     const exportPreview = createExportPreview()
 
     expect(createBookExportArtifactSourceSignature(exportPreview)).toBe(createBookExportArtifactSourceSignature(exportPreview))
+    expect(createBookExportArtifactSourceSignature(exportPreview)).toContain('sourceManifest')
+    expect(createBookExportArtifactSourceSignature(exportPreview)).toContain('scene-midnight-platform')
+    expect(createBookExportArtifactSourceSignature(exportPreview)).toContain('canon-patch-001')
   })
 
   it('does not change the source signature when only the selected preview chapter changes', () => {
@@ -306,6 +378,63 @@ describe('book export artifact mappers', () => {
     variant.chapters[1]!.scenes[0]!.proseDraft = 'Changed excluded rain draft.'
 
     expect(createBookExportArtifactSourceSignature(variant)).toBe(baseSignature)
+  })
+
+  it('excludes non-included readable manuscript sections and source manifest entries from signatures and artifact content', () => {
+    const exportPreview = createExportPreview()
+    exportPreview.chapters[0]!.scenes.push({
+      sceneId: 'scene-excluded-canal',
+      order: 2,
+      title: 'Excluded Canal',
+      summary: 'Excluded canal summary.',
+      proseDraft: 'Excluded canal draft.',
+      draftWordCount: 3,
+      isIncluded: false,
+      isMissingDraft: false,
+      traceReady: true,
+      warningsCount: 0,
+      compareDelta: 'changed',
+    })
+    exportPreview.readableManuscript.sections.push({
+      kind: 'scene-draft',
+      chapterId: 'chapter-open-water-signals',
+      chapterOrder: 1,
+      chapterTitle: 'Open Water Signals',
+      sceneId: 'scene-excluded-canal',
+      sceneOrder: 2,
+      sceneTitle: 'Excluded Canal',
+      sceneSummary: 'Excluded canal summary.',
+      proseDraft: 'Excluded canal draft.',
+      draftWordCount: 3,
+      traceReady: true,
+    })
+    exportPreview.readableManuscript.sourceManifest.push({
+      kind: 'scene-draft',
+      chapterId: 'chapter-open-water-signals',
+      chapterOrder: 1,
+      chapterTitle: 'Open Water Signals',
+      sceneId: 'scene-excluded-canal',
+      sceneOrder: 2,
+      sceneTitle: 'Excluded Canal',
+      sourcePatchId: 'canon-patch-excluded',
+      sourceProposalIds: ['proposal-excluded'],
+      acceptedFactIds: ['fact-excluded'],
+      traceReady: true,
+      draftWordCount: 3,
+    })
+
+    const signature = createBookExportArtifactSourceSignature(exportPreview)
+    const markdown = buildBookExportArtifactContent({
+      exportPreview,
+      reviewInbox: createReviewInbox(),
+      format: 'markdown',
+    })
+
+    expect(signature).not.toContain('scene-excluded-canal')
+    expect(signature).not.toContain('canon-patch-excluded')
+    expect(markdown).not.toContain('Excluded Canal')
+    expect(markdown).not.toContain('Excluded canal draft.')
+    expect(markdown).not.toContain('canon-patch-excluded')
   })
 
   it('does not change the source signature when an included scene title is not emitted', () => {
@@ -497,9 +626,38 @@ describe('book export artifact mappers', () => {
 
     expect(content).toContain('# Signal Arc')
     expect(content).toContain('- Profile: Editorial Markdown')
-    expect(content).toContain('### Chapter 1: Open Water Signals')
-    expect(content).toContain('#### Scene 1: Warehouse Bridge')
+    expect(content).toContain('## Chapter 1: Open Water Signals')
+    expect(content).toContain('### Scene 1: Midnight Platform')
     expect(content).toContain('Current warehouse bridge draft.')
+    expect(content).toContain('## Source manifest')
+    expect(content).toContain('- Chapter 1 / Scene 1 / Midnight Platform: scene-draft (patch canon-patch-001)')
+  })
+
+  it('respects chapter summary and scene heading profile flags in manuscript-driven artifact content', () => {
+    const exportPreview = createExportPreview()
+    exportPreview.profile.includes.chapterSummaries = false
+    exportPreview.profile.includes.sceneHeadings = false
+
+    const markdown = buildBookExportArtifactContent({
+      exportPreview,
+      reviewInbox: createReviewInbox(),
+      format: 'markdown',
+    })
+    const plainText = buildBookExportArtifactContent({
+      exportPreview,
+      reviewInbox: createReviewInbox(),
+      format: 'plain_text',
+    })
+
+    expect(markdown).toContain('## Chapter 1: Open Water Signals')
+    expect(markdown).not.toContain('The first relay across the warehouse bridge.')
+    expect(markdown).not.toContain('### Scene 1: Midnight Platform')
+    expect(markdown).toContain('Current warehouse bridge draft.')
+
+    expect(plainText).toContain('Chapter 1: Open Water Signals')
+    expect(plainText).not.toContain('The first relay across the warehouse bridge.')
+    expect(plainText).not.toContain('Scene 1: Midnight Platform')
+    expect(plainText).toContain('Current warehouse bridge draft.')
   })
 
   it('excludes the trace appendix when the profile does not include it', () => {
@@ -519,7 +677,9 @@ describe('book export artifact mappers', () => {
       format: 'plain_text',
     })
 
-    expect(content).toContain('[Missing draft]')
+    expect(content).toContain('Manuscript')
+    expect(content).toContain('Source manifest')
+    expect(content).toContain('Chapter 1 / Scene 1 / Midnight Platform: scene-gap (gap: No prose artifact has been materialized for this scene yet.)')
   })
 
   it('marks normalized artifacts stale when the source signature differs', () => {

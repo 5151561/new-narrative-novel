@@ -17,6 +17,7 @@ import {
 import {
   exportMockChapterSnapshot,
   importMockChapterSnapshot,
+  setMockChapterSceneBacklogStatus,
 } from '@/features/chapter/api/mock-chapter-db'
 import {
   createReviewClient,
@@ -188,6 +189,7 @@ function buildMockProjectRuntimeInfo(projectId: string): ProjectRuntimeInfoRecor
   return {
     projectId,
     projectTitle: projectId,
+    runtimeKind: 'mock-storybook',
     source: 'mock',
     status: 'healthy',
     summary: 'Using in-memory mock project runtime.',
@@ -217,7 +219,7 @@ export function createMockProjectRuntime({
   persistence = createLocalStorageProjectPersistence(),
 }: CreateMockProjectRuntimeOptions = {}): ProjectRuntime {
   const baseBookClient = runtimeBookClient ?? createBookClient()
-  const baseChapterClient = runtimeChapterClient ?? createChapterClient()
+  const baseChapterClient = runtimeChapterClient ?? createChapterClient({ projectId })
   const baseAssetClient = runtimeAssetClient ?? createAssetClient()
   const baseReviewClient = runtimeReviewClient ?? createReviewClient()
   const baseRunClient = runtimeRunClient ?? createRunClient({ projectId })
@@ -274,6 +276,9 @@ export function createMockProjectRuntime({
         await ensureHydrated()
         return baseBookClient.getBookManuscriptCheckpoint(input)
       },
+      async createBookManuscriptCheckpoint(input) {
+        return persistAfterMutation(() => baseBookClient.createBookManuscriptCheckpoint(input))
+      },
       async getBookExportProfiles(input) {
         await ensureHydrated()
         return baseBookClient.getBookExportProfiles(input)
@@ -297,11 +302,40 @@ export function createMockProjectRuntime({
         await ensureHydrated()
         return baseBookClient.getBookExperimentBranch(input)
       },
+      async createBookExperimentBranch(input) {
+        return persistAfterMutation(() => baseBookClient.createBookExperimentBranch(input))
+      },
+      async archiveBookExperimentBranch(input) {
+        return persistAfterMutation(() => baseBookClient.archiveBookExperimentBranch(input))
+      },
     },
     chapterClient: {
+      ...(baseChapterClient.getChapterDraftAssembly
+        ? {
+            async getChapterDraftAssembly(input: Parameters<NonNullable<ChapterClient['getChapterDraftAssembly']>>[0]) {
+              await ensureHydrated()
+              return baseChapterClient.getChapterDraftAssembly!(input)
+            },
+          }
+        : {}),
       async getChapterStructureWorkspace(input) {
         await ensureHydrated()
         return baseChapterClient.getChapterStructureWorkspace(input)
+      },
+      async updateChapterBacklogInput(input) {
+        return persistAfterMutation(() => baseChapterClient.updateChapterBacklogInput(input))
+      },
+      async generateChapterBacklogProposal(input) {
+        return persistAfterMutation(() => baseChapterClient.generateChapterBacklogProposal(input))
+      },
+      async updateChapterBacklogProposalScene(input) {
+        return persistAfterMutation(() => baseChapterClient.updateChapterBacklogProposalScene(input))
+      },
+      async acceptChapterBacklogProposal(input) {
+        return persistAfterMutation(() => baseChapterClient.acceptChapterBacklogProposal(input))
+      },
+      async startNextChapterSceneRun(input) {
+        return persistAfterMutation(() => baseChapterClient.startNextChapterSceneRun(input))
       },
       async reorderChapterScene(input) {
         return persistAfterMutation(() => baseChapterClient.reorderChapterScene(input))
@@ -337,6 +371,15 @@ export function createMockProjectRuntime({
       async startSceneRun(input) {
         return persistAfterMutation(() => baseRunClient.startSceneRun(input))
       },
+      async retryRun(input) {
+        return persistAfterMutation(() => baseRunClient.retryRun(input))
+      },
+      async cancelRun(input) {
+        return persistAfterMutation(() => baseRunClient.cancelRun(input))
+      },
+      async resumeRun(input) {
+        return persistAfterMutation(() => baseRunClient.resumeRun(input))
+      },
       async getRun(input) {
         await ensureHydrated()
         return baseRunClient.getRun(input)
@@ -346,7 +389,17 @@ export function createMockProjectRuntime({
         return baseRunClient.getRunEvents(input)
       },
       async submitRunReviewDecision(input) {
-        return persistAfterMutation(() => baseRunClient.submitRunReviewDecision(input))
+        return persistAfterMutation(async () => {
+          const run = await baseRunClient.submitRunReviewDecision(input)
+          if (run.scope === 'scene') {
+            if (input.decision === 'accept' || input.decision === 'accept-with-edit') {
+              setMockChapterSceneBacklogStatus(run.scopeId, 'drafted')
+            } else if (input.decision === 'request-rewrite' || input.decision === 'reject') {
+              setMockChapterSceneBacklogStatus(run.scopeId, 'planned')
+            }
+          }
+          return run
+        })
       },
       async listRunArtifacts(input) {
         await ensureHydrated()

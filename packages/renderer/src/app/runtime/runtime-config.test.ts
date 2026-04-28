@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   createWebRuntimeConfig,
+  getRuntimeKindFromRuntimeConfig,
   resolveRuntimeConfig,
   type RuntimeConfig,
 } from './runtime-config'
@@ -40,10 +41,13 @@ describe('runtime config', () => {
   it('resolves the web runtime config from env when no desktop bridge is present', async () => {
     runtimeEnv.VITE_NARRATIVE_API_BASE_URL = 'https://api.example.test'
 
-    await expect(resolveRuntimeConfig()).resolves.toEqual({
+    const runtimeConfig = await resolveRuntimeConfig()
+
+    expect(runtimeConfig).toEqual({
       apiBaseUrl: 'https://api.example.test',
       runtimeMode: 'web',
     })
+    expect(getRuntimeKindFromRuntimeConfig(runtimeConfig)).toBe('fixture-demo')
   })
 
   it('resolves desktop-local runtime config from the narrow desktop bridge', async () => {
@@ -60,7 +64,10 @@ describe('runtime config', () => {
       },
     })
 
-    await expect(resolveRuntimeConfig()).resolves.toEqual(desktopConfig)
+    const runtimeConfig = await resolveRuntimeConfig()
+
+    expect(runtimeConfig).toEqual(desktopConfig)
+    expect(getRuntimeKindFromRuntimeConfig(runtimeConfig)).toBe('real-local-project')
   })
 
   it('fails loudly when desktop-local runtime config omits the current project identity', async () => {
@@ -115,6 +122,10 @@ describe('runtime config', () => {
         status: 'ready',
       })
     })
+
+    expect(getRuntimeKindFromRuntimeConfig((hook.result.current as { runtimeConfig: RuntimeConfig }).runtimeConfig)).toBe(
+      'real-local-project',
+    )
   })
 
   it('useRuntimeConfig surfaces invalid desktop runtime config errors instead of silently falling back', async () => {

@@ -32,6 +32,24 @@ submitMockRunReviewDecision({
 })
 const artifacts = getMockRunArtifacts({ runId }).artifacts
 const trace = getMockRunTrace({ runId })
+const providerErrorArtifact = {
+  ...getMockRunArtifact({ runId, artifactId: proposalSetId }).artifact,
+  usage: {
+    inputTokens: 1420,
+    outputTokens: 318,
+    estimatedCostUsd: 0.0218,
+    provider: 'openai',
+    modelId: 'gpt-5.4',
+  },
+  failureDetail: {
+    failureClass: 'provider_error' as const,
+    message: 'Provider returned 502 while proposal packaging was being finalized.',
+    provider: 'openai',
+    modelId: 'gpt-5.4',
+    retryable: true,
+    sourceEventIds: ['run-event-scene-midnight-platform-001-007'],
+  },
+}
 
 function getArtifactDetail(artifactId: string | null): RunArtifactDetailRecord | null {
   return artifactId ? getMockRunArtifact({ runId, artifactId }).artifact : null
@@ -48,7 +66,9 @@ const meta = {
     const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({
       [`${proposalSetId}-proposal-001`]: 'variant-midnight-platform-default',
     })
-    const selectedArtifact = getArtifactDetail(selectedArtifactId)
+    const selectedArtifact = selectedArtifactId === args.selectedArtifactId && args.selectedArtifact
+      ? args.selectedArtifact
+      : getArtifactDetail(selectedArtifactId)
 
     return (
       <div className="min-h-[760px] bg-app p-6">
@@ -98,5 +118,12 @@ export const ProposalVariants: Story = {
   args: {
     selectedArtifactId: proposalSetId,
     selectedArtifact: getArtifactDetail(proposalSetId),
+  },
+}
+
+export const ProviderError: Story = {
+  args: {
+    selectedArtifactId: proposalSetId,
+    selectedArtifact: providerErrorArtifact,
   },
 }

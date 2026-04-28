@@ -10,23 +10,31 @@ interface BookExperimentBranchPickerStoryProps {
   variant?: BookStoryVariant
   branchId?: string
   branchBaseline?: 'current' | 'checkpoint'
+  archived?: boolean
 }
 
 function StoryComponent({
   variant = 'default',
   branchId,
   branchBaseline = 'current',
+  archived = false,
 }: BookExperimentBranchPickerStoryProps) {
   const { locale } = useI18n()
   const branchData = buildBookDraftBranchStoryData(locale, { variant, branchId, branchBaseline })
+  const branches = archived
+    ? branchData.branches.map((branch) =>
+        branch.branchId === branchData.selectedBranch.branchId ? { ...branch, status: 'archived' as const } : branch,
+      )
+    : branchData.branches
 
   return (
     <BookExperimentBranchPicker
-      branches={branchData.branches}
+      branches={branches}
       selectedBranchId={branchData.selectedBranch.branchId}
       branchBaseline={branchBaseline}
       onSelectBranch={() => undefined}
       onSelectBranchBaseline={() => undefined}
+      onArchiveBranch={() => undefined}
     />
   )
 }

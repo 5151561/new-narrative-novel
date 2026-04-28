@@ -141,4 +141,26 @@ describe('createSceneProseWriterOpenAiResponsesProvider', () => {
 
     await expect(provider.generate(createRequest())).resolves.toBe('not-json')
   })
+
+  it('sanitizes upstream errors so prose writer failures never echo raw api keys', async () => {
+    const provider = createSceneProseWriterOpenAiResponsesProvider({
+      modelId: 'gpt-5.4',
+      apiKey: 'sk-secret-value',
+      client: {
+        responses: {
+          create: vi.fn().mockRejectedValue(new Error('401 invalid key sk-secret-value')),
+        },
+      },
+    })
+
+    await expect(provider.generate(createRequest())).rejects.toThrowError(
+      'OpenAI Responses request failed for prose model gpt-5.4.',
+    )
+
+    try {
+      await provider.generate(createRequest())
+    } catch (error) {
+      expect(String(error)).not.toContain('sk-secret-value')
+    }
+  })
 })

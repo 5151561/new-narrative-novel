@@ -49,6 +49,7 @@ export function AssetBottomDock({ summary, activity }: AssetBottomDockProps) {
                 items={[
                   { id: 'mentions', label: locale === 'zh-CN' ? '提及' : 'Mentions', value: `${summary.mentionCount}` },
                   { id: 'relations', label: locale === 'zh-CN' ? '关系' : 'Relations', value: `${summary.relationCount}` },
+                  { id: 'timeline', label: locale === 'zh-CN' ? '时间线' : 'Timeline', value: `${summary.timelineEntryCount}` },
                   { id: 'warnings', label: locale === 'zh-CN' ? '警告' : 'Warnings', value: `${summary.warningCount}` },
                   {
                     id: 'missing-fields',

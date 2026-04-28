@@ -388,4 +388,52 @@ describe('book-experiment-branch-mappers', () => {
     expect(branchWorkspace.chapters[1]?.sceneDeltas.find((scene) => scene.sceneId === 'scene-river-ledger')?.title).toBe('河道账本')
     expect(branchWorkspace.chapters[1]?.sceneDeltas.find((scene) => scene.sceneId === 'scene-river-ledger')?.summary).toContain('只存在于基线')
   })
+
+  it('maps branch adoptions onto the matching scene deltas', () => {
+    const workspace = createCurrentDraftWorkspace()
+    const branchRecord = {
+      ...mockBookExperimentBranchSeeds['book-signal-arc']![0]!,
+      adoptions: [
+        {
+          adoptionId: 'adoption-001',
+          branchId: 'branch-book-signal-arc-quiet-ending',
+          bookId: 'book-signal-arc',
+          chapterId: 'chapter-open-water-signals',
+          sceneId: 'scene-warehouse-bridge',
+          kind: 'prose_draft',
+          status: 'adopted',
+          summary: {
+            en: 'Adopt warehouse bridge prose into the current draft.',
+            'zh-CN': '将仓桥正文采用进当前草稿。',
+          },
+          createdAtLabel: {
+            en: '2026-04-28 11:10',
+            'zh-CN': '2026-04-28 11:10',
+          },
+          sourceSignature: 'branch:branch-book-signal-arc-quiet-ending:scene-warehouse-bridge:prose-draft',
+        },
+      ],
+    }
+
+    const branchWorkspace = buildBookExperimentBranchWorkspace({
+      currentDraftWorkspace: workspace,
+      branch: branchRecord,
+      branches: [branchRecord],
+      checkpoint: null,
+      branchBaseline: 'current',
+      selectedChapterId: 'chapter-open-water-signals',
+      locale: 'en',
+    })
+
+    expect(branchWorkspace.adoptions).toHaveLength(1)
+    expect(
+      branchWorkspace.selectedChapter?.sceneDeltas.find((scene) => scene.sceneId === 'scene-warehouse-bridge')?.adoptions,
+    ).toEqual([
+      expect.objectContaining({
+        adoptionId: 'adoption-001',
+        kind: 'prose_draft',
+        status: 'adopted',
+      }),
+    ])
+  })
 })

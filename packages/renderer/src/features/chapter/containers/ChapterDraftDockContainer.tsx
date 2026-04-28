@@ -6,9 +6,10 @@ import type { ChapterDraftWorkspaceViewModel } from '../types/chapter-draft-view
 
 interface ChapterDraftDockContainerProps {
   workspace: ChapterDraftWorkspaceViewModel
+  lastStartedRun?: { sceneId: string; title: string } | null
 }
 
-export function ChapterDraftDockContainer({ workspace }: ChapterDraftDockContainerProps) {
+export function ChapterDraftDockContainer({ workspace, lastStartedRun = null }: ChapterDraftDockContainerProps) {
   const { locale } = useI18n()
   const activity = useChapterDraftActivity({
     chapterId: workspace.chapterId,
@@ -19,6 +20,7 @@ export function ChapterDraftDockContainer({ workspace }: ChapterDraftDockContain
           summary: workspace.selectedScene.summary,
         }
       : null,
+    lastStartedRun,
     locale,
   })
 

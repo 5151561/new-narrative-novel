@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { dialog, type OpenDialogReturnValue } from 'electron'
@@ -36,6 +36,11 @@ export interface ProjectDirectoryDialog {
     title: string
     properties: Array<'openDirectory' | 'createDirectory'>
   }): Promise<OpenDialogReturnValue>
+}
+
+interface ChooseProjectWithDialogOptions {
+  dialog?: ProjectDirectoryDialog
+  readProjectSession?: (projectRoot: string) => Promise<SelectedProjectSession>
 }
 
 const NARRATIVE_PROJECT_FILE = 'narrative.project.json'
@@ -80,6 +85,32 @@ function hasBootstrapMetadata(record: NarrativeProjectFileRecord | null) {
   return record?.bootstrap?.source === DEFAULT_BOOTSTRAP_SOURCE
 }
 
+function getProjectFilePath(projectRoot: string) {
+  return path.join(projectRoot, NARRATIVE_PROJECT_FILE)
+}
+
+function assertSupportedManifestSchema(record: NarrativeProjectFileRecord | null) {
+  if (
+    typeof record?.schemaVersion === 'number'
+    && Number.isFinite(record.schemaVersion)
+    && record.schemaVersion > DEFAULT_SCHEMA_VERSION
+  ) {
+    throw new Error(`Unsupported narrative project schemaVersion: ${record.schemaVersion}`)
+  }
+}
+
+async function readProjectFileRecord(projectRoot: string): Promise<NarrativeProjectFileRecord | null> {
+  try {
+    return JSON.parse(await readFile(getProjectFilePath(projectRoot), 'utf8')) as NarrativeProjectFileRecord
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw error
+    }
+  }
+
+  return null
+}
+
 export async function readOrInitializeProjectSession(
   projectRoot: string,
   {
@@ -87,16 +118,9 @@ export async function readOrInitializeProjectSession(
     now = () => new Date().toISOString(),
   }: ReadProjectSessionOptions = {},
 ): Promise<SelectedProjectSession> {
-  const projectFilePath = path.join(projectRoot, NARRATIVE_PROJECT_FILE)
-  let existingRecord: NarrativeProjectFileRecord | null = null
-
-  try {
-    existingRecord = JSON.parse(await readFile(projectFilePath, 'utf8')) as NarrativeProjectFileRecord
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      throw error
-    }
-  }
+  const projectFilePath = getProjectFilePath(projectRoot)
+  const existingRecord = await readProjectFileRecord(projectRoot)
+  assertSupportedManifestSchema(existingRecord)
 
   await mkdir(path.join(projectRoot, '.narrative', 'artifacts'), { recursive: true })
 
@@ -148,21 +172,66 @@ export async function readOrInitializeProjectSession(
   }
 }
 
+export async function readExistingProjectSession(
+  projectRoot: string,
+  options: ReadProjectSessionOptions = {},
+): Promise<SelectedProjectSession> {
+  await access(projectRoot).catch(() => {
+    throw new Error(`Narrative project root does not exist: ${projectRoot}`)
+  })
+
+  const existingRecord = await readProjectFileRecord(projectRoot)
+  if (!existingRecord) {
+    throw new Error(`Narrative project manifest does not exist: ${getProjectFilePath(projectRoot)}`)
+  }
+
+  assertSupportedManifestSchema(existingRecord)
+  return readOrInitializeProjectSession(projectRoot, options)
+}
+
 export async function openProjectWithDialog({
   dialog: dialogApi = {
     showOpenDialog: (options) => dialog.showOpenDialog(options),
   },
+  readProjectSession = readOrInitializeProjectSession,
+}: ChooseProjectWithDialogOptions = {}): Promise<SelectedProjectSession | null> {
+  return chooseProjectWithDialog({
+    dialog: dialogApi,
+    readProjectSession,
+    title: 'Open Project',
+  })
+}
+
+export async function createProjectWithDialog({
+  dialog: dialogApi = {
+    showOpenDialog: (options) => dialog.showOpenDialog(options),
+  },
+  readProjectSession = readOrInitializeProjectSession,
+}: ChooseProjectWithDialogOptions = {}): Promise<SelectedProjectSession | null> {
+  return chooseProjectWithDialog({
+    dialog: dialogApi,
+    readProjectSession,
+    title: 'Create Project',
+  })
+}
+
+async function chooseProjectWithDialog({
+  dialog: dialogApi,
+  readProjectSession,
+  title,
 }: {
-  dialog?: ProjectDirectoryDialog
-} = {}): Promise<SelectedProjectSession | null> {
+  dialog: ProjectDirectoryDialog
+  readProjectSession: (projectRoot: string) => Promise<SelectedProjectSession>
+  title: string
+}): Promise<SelectedProjectSession | null> {
   const result = await dialogApi.showOpenDialog({
     properties: ['openDirectory', 'createDirectory'],
-    title: 'Open Project',
+    title,
   })
 
   if (result.canceled || result.filePaths.length === 0) {
     return null
   }
 
-  return readOrInitializeProjectSession(result.filePaths[0]!)
+  return readProjectSession(result.filePaths[0]!)
 }

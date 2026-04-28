@@ -146,7 +146,9 @@ describe('useAssetKnowledgeWorkspaceQuery', () => {
       navigator: {
         characters: expect.arrayContaining([expect.objectContaining({ id: 'asset-ren-voss' })]),
         locations: expect.arrayContaining([expect.objectContaining({ id: 'asset-midnight-platform' })]),
-        rules: expect.arrayContaining([expect.objectContaining({ id: 'asset-ledger-stays-shut' })]),
+        organizations: expect.arrayContaining([expect.objectContaining({ id: 'asset-courier-network' })]),
+        objects: expect.arrayContaining([expect.objectContaining({ id: 'asset-closed-ledger' })]),
+        lore: expect.arrayContaining([expect.objectContaining({ id: 'asset-public-witness-rule' })]),
       },
       profile: {
         sections: expect.arrayContaining([
@@ -207,11 +209,25 @@ describe('useAssetKnowledgeWorkspaceQuery', () => {
             label: 'Courier signal private key',
           }),
         ]),
+        participation: expect.arrayContaining([
+          expect.objectContaining({
+            targetAgentLabel: 'Scene manager',
+            redactedFacts: [],
+          }),
+          expect.objectContaining({
+            targetAgentLabel: 'Continuity reviewer',
+            redactedFacts: expect.arrayContaining(['Courier signal key']),
+          }),
+        ]),
       }),
       inspector: expect.objectContaining({
         kindLabel: 'Character',
         mentionCount: 3,
         relationCount: 3,
+        visibilityLabel: 'Character-known',
+        canonFactCount: expect.any(Number),
+        privateFactCount: expect.any(Number),
+        timelineEntryCount: expect.any(Number),
         contextPolicy: expect.objectContaining({
           hasContextPolicy: true,
           statusLabel: 'Active',
@@ -242,7 +258,34 @@ describe('useAssetKnowledgeWorkspaceQuery', () => {
 
     expect(hook.result.current.workspace?.navigator.characters).toHaveLength(2)
     expect(hook.result.current.workspace?.navigator.locations).toHaveLength(2)
-    expect(hook.result.current.workspace?.navigator.rules).toHaveLength(2)
+    expect(hook.result.current.workspace?.navigator.organizations).toHaveLength(1)
+    expect(hook.result.current.workspace?.navigator.objects).toHaveLength(1)
+    expect(hook.result.current.workspace?.navigator.lore).toHaveLength(3)
+    expect(hook.result.current.workspace?.storyBible.canonFacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'ren-public-line',
+          visibilityLabel: 'Public',
+        }),
+      ]),
+    )
+    expect(hook.result.current.workspace?.storyBible.privateFacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'ren-courier-key',
+          visibilityLabel: 'Private',
+        }),
+      ]),
+    )
+    expect(hook.result.current.workspace?.storyBible.stateTimeline).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'ren-midnight-platform',
+          sceneId: 'scene-midnight-platform',
+          statusLabel: expect.any(String),
+        }),
+      ]),
+    )
     expect(hook.result.current.workspace?.dockSummary.problemItems).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ label: 'Warning' }),
@@ -276,6 +319,7 @@ describe('useAssetKnowledgeWorkspaceQuery', () => {
         defaultVisibilityLabel: 'None',
         defaultBudgetLabel: 'None',
         activationRules: [],
+        participation: [],
         exclusions: [],
         warnings: [],
       },
@@ -314,6 +358,41 @@ describe('useAssetKnowledgeWorkspaceQuery', () => {
         }),
       ]),
     )
+  })
+
+  it('filters story bible facts against visibility metadata before mapping the workspace model', async () => {
+    const publicWorkspace = structuredClone(getMockAssetKnowledgeWorkspace('asset-closed-ledger', {
+      visibility: 'public',
+    }))
+    const client = {
+      getAssetKnowledgeWorkspace: vi.fn(async () => publicWorkspace),
+    }
+    const { wrapper } = wrapperFactory()
+
+    const hook = renderHook(
+      () =>
+        useAssetKnowledgeWorkspaceQuery(
+          {
+            assetId: 'asset-closed-ledger',
+          },
+          client,
+        ),
+      { wrapper },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.workspace?.assetId).toBe('asset-closed-ledger')
+    })
+
+    expect(hook.result.current.workspace?.kind).toBe('object')
+    expect(hook.result.current.workspace?.storyBible.canonFacts).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'closed-ledger-shell',
+        }),
+      ]),
+    )
+    expect(hook.result.current.workspace?.storyBible.privateFacts).toEqual([])
   })
 
   it('adds blocked and no-rule context policy problems to the dock summary', async () => {

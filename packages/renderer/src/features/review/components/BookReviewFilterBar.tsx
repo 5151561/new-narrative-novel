@@ -29,7 +29,7 @@ export const BOOK_REVIEW_FILTER_ITEMS: ReviewFilterItem[] = [
   {
     filter: 'trace-gaps',
     label: { en: 'Trace gaps', zh: '溯源缺口' },
-    getCount: (counts) => counts.traceGaps,
+    getCount: (counts) => (counts.traceGaps ?? 0) + (counts.missingTrace ?? 0),
   },
   {
     filter: 'missing-drafts',

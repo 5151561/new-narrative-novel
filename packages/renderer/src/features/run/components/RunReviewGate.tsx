@@ -20,6 +20,14 @@ interface RunReviewGateProps {
   selectedVariants?: RunSelectedProposalVariantRecord[]
   variantSelectionSummary?: string
   initialDraftDecision?: DraftDecision | null
+  supportActions?: {
+    canRetry?: boolean
+    canCancel?: boolean
+    canResume?: boolean
+    onRetry?: () => Promise<void> | void
+    onCancel?: () => Promise<void> | void
+    onResume?: () => Promise<void> | void
+  }
   onSubmitDecision: (input: RunReviewGateSubmitInput) => Promise<void> | void
 }
 
@@ -38,6 +46,7 @@ export function RunReviewGate({
   selectedVariants = [],
   variantSelectionSummary,
   initialDraftDecision = null,
+  supportActions,
   onSubmitDecision,
 }: RunReviewGateProps) {
   const { locale } = useI18n()
@@ -134,6 +143,53 @@ export function RunReviewGate({
             ? '当前运行正等待产品评审决策。选择一个结论，再按需要补充说明。'
             : 'This run is waiting on a product review decision.'}
         </p>
+        {supportActions ? (
+          <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-3">
+            <p className="text-sm leading-6 text-text-muted">
+              {locale === 'zh-CN'
+                ? '这些动作只负责恢复或停止运行链路；最终评审仍然属于 Scene / Orchestrate 主舞台。'
+                : 'These actions only recover or stop the runtime path. Final review still belongs on the Scene / Orchestrate main stage.'}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {supportActions.canRetry ? (
+                <button
+                  type="button"
+                  className="rounded-md border border-line-soft bg-surface-1 px-3 py-2 text-sm disabled:opacity-60"
+                  disabled={isBusy}
+                  onClick={() => {
+                    void Promise.resolve(supportActions.onRetry?.())
+                  }}
+                >
+                  {locale === 'zh-CN' ? '重试运行' : 'Retry Run'}
+                </button>
+              ) : null}
+              {supportActions.canCancel ? (
+                <button
+                  type="button"
+                  className="rounded-md border border-line-soft bg-surface-1 px-3 py-2 text-sm disabled:opacity-60"
+                  disabled={isBusy}
+                  onClick={() => {
+                    void Promise.resolve(supportActions.onCancel?.())
+                  }}
+                >
+                  {locale === 'zh-CN' ? '取消运行' : 'Cancel Run'}
+                </button>
+              ) : null}
+              {supportActions.canResume ? (
+                <button
+                  type="button"
+                  className="rounded-md border border-line-soft bg-surface-1 px-3 py-2 text-sm disabled:opacity-60"
+                  disabled={isBusy}
+                  onClick={() => {
+                    void Promise.resolve(supportActions.onResume?.())
+                  }}
+                >
+                  {locale === 'zh-CN' ? '恢复运行' : 'Resume Run'}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         {selectedVariants.length > 0 ? (
           <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-3">
             <p className="text-sm font-medium text-text-main">

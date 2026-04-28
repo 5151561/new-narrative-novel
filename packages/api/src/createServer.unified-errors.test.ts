@@ -374,7 +374,7 @@ describe('fixture API server unified errors', () => {
             targetScope: 'scene',
             status: 'verifying',
           },
-          allowedStatuses: ['started', 'checked', 'blocked'],
+          allowedStatuses: ['started', 'checked', 'blocked', 'rewrite_requested'],
         },
       })
 

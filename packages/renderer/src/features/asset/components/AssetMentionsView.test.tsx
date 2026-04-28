@@ -155,12 +155,12 @@ describe('AssetMentionsView', () => {
     expect(within(canonCard!).getByText('Force the bargain into a visible stalemate')).toBeInTheDocument()
     expect(within(canonCard!).getByText('patch-1')).toBeInTheDocument()
     expect(within(draftCard!).getByText('Force the trade-off into one visible exchange')).toBeInTheDocument()
-    expect(within(unlinkedCard!).getByText('Missing scene trace')).toBeInTheDocument()
+    expect(within(unlinkedCard!).getAllByText('Missing scene trace').length).toBeGreaterThan(0)
 
-    await user.click(screen.getByRole('button', { name: 'Open in Draft: Midnight Platform' }))
+    await user.click(screen.getByRole('button', { name: /Open in Draft: Midnight Platform/ }))
     await user.click(screen.getByRole('button', { name: 'Open in Orchestrate: Midnight Platform' }))
-    await user.click(screen.getByRole('button', { name: 'Open in Structure: Signals in Rain' }))
-    await user.click(screen.getByRole('button', { name: 'Open in Draft: Night Platform Ledger' }))
+    await user.click(screen.getByRole('button', { name: /Open in Structure: Signals in Rain/ }))
+    await user.click(screen.getByRole('button', { name: /Open in Draft: Night Platform Ledger/ }))
 
     expect(onOpenScene).toHaveBeenNthCalledWith(1, 'scene-midnight-platform', 'draft')
     expect(onOpenScene).toHaveBeenNthCalledWith(2, 'scene-midnight-platform', 'orchestrate')

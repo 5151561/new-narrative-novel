@@ -39,6 +39,7 @@ export function ChapterDraftInspectorPane({
   const selectedScene = inspector.selectedScene
   const selectedTrace = inspector.selectedSceneTraceability ?? null
   const traceCoverage = inspector.chapterTraceCoverage ?? null
+  const transitionSupport = inspector.transitionSupport ?? null
 
   const renderTraceLoadingState = (title: string, message: string) => (
     <EmptyState title={title} message={message} />
@@ -240,6 +241,58 @@ export function ChapterDraftInspectorPane({
                   ? '等 chapter traceability query 完成后，这里会显示 coverage 概览。'
                   : 'Coverage will appear here once the chapter traceability query completes.'
               }
+            />
+          )}
+        </SectionCard>
+        <SectionCard title={locale === 'zh-CN' ? 'Transition support' : 'Transition support'} eyebrow={locale === 'zh-CN' ? 'Seam review' : 'Seam review'}>
+          {transitionSupport ? (
+            <div className="space-y-3">
+              <FactList
+                items={[
+                  {
+                    id: 'transition-ready',
+                    label: locale === 'zh-CN' ? '已就绪接缝' : 'Ready seams',
+                    value: `${transitionSupport.readyCount}`,
+                  },
+                  {
+                    id: 'transition-weak',
+                    label: locale === 'zh-CN' ? '脆弱接缝' : 'Weak seams',
+                    value: `${transitionSupport.weakCount}`,
+                  },
+                  {
+                    id: 'transition-gap',
+                    label: locale === 'zh-CN' ? '显式缺口' : 'Explicit gaps',
+                    value: `${transitionSupport.gapCount}`,
+                  },
+                ]}
+              />
+              {transitionSupport.seams.length > 0 ? (
+                <div className="space-y-2">
+                  {transitionSupport.seams.map((seam) => (
+                    <div key={seam.id} className="rounded-md border border-line-soft bg-surface-2 p-3">
+                      <p className="text-sm font-medium text-text-main">
+                        {seam.direction === 'incoming'
+                          ? (locale === 'zh-CN' ? `进入 ${seam.counterpartTitle}` : `Incoming from ${seam.counterpartTitle}`)
+                          : (locale === 'zh-CN' ? `流向 ${seam.counterpartTitle}` : `Outgoing to ${seam.counterpartTitle}`)}
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-text-muted">{seam.detail}</p>
+                      {seam.artifactId ? (
+                        <p className="mt-2 text-xs uppercase tracking-[0.08em] text-text-soft">{seam.artifactId}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  title={locale === 'zh-CN' ? '当前没有相邻接缝' : 'No adjacent seams'}
+                  message={locale === 'zh-CN' ? '选中场景两侧暂时没有需要额外判断的接缝。' : 'No additional seam judgment is needed around the selected scene.'}
+                />
+              )}
+            </div>
+          ) : (
+            <EmptyState
+              title={locale === 'zh-CN' ? '接缝支持稍后可见' : 'Seam support coming soon'}
+              message={locale === 'zh-CN' ? '章节装配映射完成后，这里会显示接缝支持摘要。' : 'Seam support will appear here once chapter assembly mapping is available.'}
             />
           )}
         </SectionCard>

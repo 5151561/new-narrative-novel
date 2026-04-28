@@ -69,7 +69,7 @@ export interface BookWorkbenchReviewFixActionEvent {
   id: string
   bookId: string
   issueTitle: string
-  action: 'started' | 'checked' | 'blocked' | 'cleared'
+  action: 'started' | 'checked' | 'blocked' | 'rewrite_requested' | 'cleared'
   sourceActionLabel?: string
   note?: string
 }
@@ -130,6 +130,7 @@ interface BookWorkbenchActivityEntry {
     | 'started-source-fix'
     | 'marked-source-checked'
     | 'marked-source-blocked'
+    | 'requested-source-rewrite'
     | 'cleared-source-fix-action'
     | 'opened-review-source'
     | 'built-export-artifact'
@@ -259,7 +260,10 @@ function buildReviewFixActionActivityEntry(event: BookWorkbenchReviewFixActionEv
   return {
     id: event.id,
     kind: 'review-fix-action',
-    tone: event.action === 'started' || event.action === 'checked' ? 'accent' : 'neutral',
+    tone:
+      event.action === 'started' || event.action === 'checked' || event.action === 'rewrite_requested'
+        ? 'accent'
+        : 'neutral',
     action:
       event.action === 'started'
         ? 'started-source-fix'
@@ -267,7 +271,9 @@ function buildReviewFixActionActivityEntry(event: BookWorkbenchReviewFixActionEv
           ? 'marked-source-checked'
           : event.action === 'blocked'
             ? 'marked-source-blocked'
-            : 'cleared-source-fix-action',
+            : event.action === 'rewrite_requested'
+              ? 'requested-source-rewrite'
+              : 'cleared-source-fix-action',
     reviewIssueTitle: event.issueTitle,
     reviewSourceActionLabel: event.sourceActionLabel,
     reviewFixActionNote: event.note,
@@ -628,6 +634,10 @@ function localizeActivityEntry(
             ? locale === 'zh-CN'
               ? '标记来源阻塞'
               : 'Marked source blocked'
+            : entry.action === 'requested-source-rewrite'
+              ? locale === 'zh-CN'
+                ? '请求来源重写'
+                : 'Requested source rewrite'
             : locale === 'zh-CN'
               ? '清除来源修复动作'
               : 'Cleared source fix action'

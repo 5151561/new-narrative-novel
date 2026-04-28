@@ -16,7 +16,7 @@ function AssetProfileViewStory({ variant = 'character' }: AssetProfileViewStoryP
     return null
   }
 
-  return <AssetProfileView profile={workspace.profile} />
+  return <AssetProfileView profile={workspace.profile} storyBible={workspace.storyBible} />
 }
 
 const meta = {

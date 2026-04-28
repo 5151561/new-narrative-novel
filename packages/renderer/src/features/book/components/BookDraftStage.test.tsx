@@ -147,6 +147,27 @@ function buildWorkspace(): BookDraftWorkspaceViewModel {
       warningsChapters: [],
       queuedRevisionChapters: [],
     },
+    readableManuscript: {
+      formatVersion: 'book-manuscript-assembly-v1',
+      markdown: '# Signal Arc',
+      plainText: 'Signal Arc',
+      sections: [],
+      sourceManifest: [
+        {
+          kind: 'scene-draft',
+          chapterId: 'chapter-open-water-signals',
+          chapterOrder: 2,
+          chapterTitle: 'Open Water Signals',
+          sceneId: 'scene-warehouse-bridge',
+          sceneOrder: 1,
+          sceneTitle: 'Warehouse Bridge',
+          sourcePatchId: 'canon-patch-stage',
+          sourceProposalIds: ['proposal-stage'],
+          acceptedFactIds: ['fact-stage'],
+          traceReady: true,
+        },
+      ],
+    },
   }
 }
 
@@ -441,6 +462,27 @@ function buildExportWorkspace(): BookExportPreviewWorkspaceViewModel {
       includedSections: ['Manuscript body', 'Compare summary'],
       excludedSections: ['Trace appendix'],
       estimatedPackageLabel: 'Approx. 6 manuscript pages',
+    },
+    readableManuscript: {
+      formatVersion: 'book-manuscript-assembly-v1',
+      markdown: '# Signal Arc',
+      plainText: 'Signal Arc',
+      sections: [],
+      sourceManifest: [
+        {
+          kind: 'scene-draft',
+          chapterId: 'chapter-open-water-signals',
+          chapterOrder: 2,
+          chapterTitle: 'Open Water Signals',
+          sceneId: 'scene-warehouse-bridge',
+          sceneOrder: 1,
+          sceneTitle: 'Warehouse Bridge',
+          sourcePatchId: 'canon-patch-stage',
+          sourceProposalIds: ['proposal-stage'],
+          acceptedFactIds: ['fact-stage'],
+          traceReady: true,
+        },
+      ],
     },
   }
 }

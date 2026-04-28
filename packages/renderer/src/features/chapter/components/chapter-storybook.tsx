@@ -6,7 +6,12 @@ import { createStoryProjectRuntimeEnvironment } from '@/app/project-runtime'
 
 import {
   buildChapterDraftMissingStoryWorkspace,
+  buildChapterDraftTransitionGapStoryWorkspace,
+  buildChapterDraftTransitionReadyStoryWorkspace,
+  buildChapterDraftRunningGateStoryWorkspace,
   buildChapterDraftStoryWorkspace,
+  buildChapterDraftWaitingReviewStoryWorkspace,
+  buildLongChapterDraftStoryWorkspace,
   buildChapterProblemsHeavyStoryWorkspace,
   buildChapterStoryWorkspace,
   buildQuietChapterDraftStoryWorkspace,
@@ -17,7 +22,15 @@ import type { ChapterDraftWorkspaceViewModel } from '../types/chapter-draft-view
 import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
 
 export type ChapterStructureStoryVariant = 'default' | 'problems-heavy'
-export type ChapterDraftStoryVariant = 'default' | 'missing' | 'quiet'
+export type ChapterDraftStoryVariant =
+  | 'default'
+  | 'transition-gap'
+  | 'transition-ready'
+  | 'missing'
+  | 'long-draft'
+  | 'quiet'
+  | 'waiting-review'
+  | 'running-gate'
 
 export function ChapterStoryShell({
   children,
@@ -54,12 +67,32 @@ export function useLocalizedChapterDraftWorkspace(
   const { locale } = useI18n()
 
   return useMemo<ChapterDraftWorkspaceViewModel>(() => {
+    if (variant === 'transition-gap') {
+      return buildChapterDraftTransitionGapStoryWorkspace(selectedSceneId, locale)
+    }
+
+    if (variant === 'transition-ready') {
+      return buildChapterDraftTransitionReadyStoryWorkspace(selectedSceneId, locale)
+    }
+
     if (variant === 'missing') {
       return buildChapterDraftMissingStoryWorkspace(selectedSceneId, locale)
     }
 
+    if (variant === 'long-draft') {
+      return buildLongChapterDraftStoryWorkspace(selectedSceneId, locale)
+    }
+
     if (variant === 'quiet') {
       return buildQuietChapterDraftStoryWorkspace(selectedSceneId, locale)
+    }
+
+    if (variant === 'waiting-review') {
+      return buildChapterDraftWaitingReviewStoryWorkspace(selectedSceneId, locale)
+    }
+
+    if (variant === 'running-gate') {
+      return buildChapterDraftRunningGateStoryWorkspace(selectedSceneId, locale)
     }
 
     return buildChapterDraftStoryWorkspace(selectedSceneId, locale)
@@ -67,6 +100,8 @@ export function useLocalizedChapterDraftWorkspace(
 }
 
 export function buildChapterBottomDockProblems(workspace: ChapterStructureWorkspaceViewModel) {
+  const selectedScene = workspace.scenes.find((scene) => scene.id === workspace.selectedSceneId) ?? workspace.scenes[0]
+
   return {
     unresolvedCount: workspace.unresolvedCount,
     selectedScene: workspace.inspector.selectedSceneBrief
@@ -78,6 +113,15 @@ export function buildChapterBottomDockProblems(workspace: ChapterStructureWorksp
       : null,
     problemsSummary: workspace.inspector.problemsSummary,
     assemblyHints: workspace.inspector.assemblyHints,
+    status: {
+      acceptedProposalId: workspace.planning.acceptedProposalId,
+      selectedSceneBacklogStatusLabel: selectedScene?.backlogStatusLabel,
+      sceneStatuses: workspace.scenes.map((scene) => ({
+        id: scene.id,
+        title: scene.title,
+        backlogStatusLabel: scene.backlogStatusLabel,
+      })),
+    },
   }
 }
 

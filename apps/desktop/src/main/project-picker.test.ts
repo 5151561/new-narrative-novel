@@ -5,7 +5,12 @@ import path from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { openProjectWithDialog, readOrInitializeProjectSession } from './project-picker.js'
+import {
+  createProjectWithDialog,
+  openProjectWithDialog,
+  readExistingProjectSession,
+  readOrInitializeProjectSession,
+} from './project-picker.js'
 
 const tempDirectories: string[] = []
 
@@ -129,6 +134,36 @@ describe('readOrInitializeProjectSession', () => {
     expect(existsSync(path.join(projectRoot, '.narrative'))).toBe(true)
     expect(existsSync(path.join(projectRoot, '.narrative', 'artifacts'))).toBe(true)
   })
+
+  it('refuses to downgrade an unsupported future manifest schema and leaves the manifest untouched', async () => {
+    const projectRoot = createTempProjectRoot('project-picker-future-schema')
+    const manifestPath = path.join(projectRoot, 'narrative.project.json')
+    const originalManifest = `${JSON.stringify({
+      createdAt: '2026-04-27T00:00:00.000Z',
+      projectId: 'local-project-future',
+      schemaVersion: 2,
+      title: 'Future Schema Project',
+      updatedAt: '2026-04-27T00:00:00.000Z',
+    }, null, 2)}\n`
+    writeFileSync(manifestPath, originalManifest, 'utf8')
+
+    await expect(readOrInitializeProjectSession(projectRoot, {
+      createProjectId: () => 'local-project-alpha',
+      now: () => '2026-04-28T00:00:00.000Z',
+    })).rejects.toThrow('Unsupported narrative project schemaVersion')
+    expect(readFileSync(manifestPath, 'utf8')).toBe(originalManifest)
+  })
+})
+
+describe('readExistingProjectSession', () => {
+  it('rejects a missing project root instead of silently recreating a deleted recent project', async () => {
+    const missingProjectRoot = path.join(createTempProjectRoot('project-picker-deleted-root'), 'deleted')
+
+    await expect(readExistingProjectSession(missingProjectRoot)).rejects.toThrow(
+      `Narrative project root does not exist: ${missingProjectRoot}`,
+    )
+    expect(existsSync(missingProjectRoot)).toBe(false)
+  })
 })
 
 describe('openProjectWithDialog', () => {
@@ -169,5 +204,38 @@ describe('openProjectWithDialog', () => {
       properties: ['openDirectory', 'createDirectory'],
       title: 'Open Project',
     })
+  })
+})
+
+describe('createProjectWithDialog', () => {
+  it('initializes the selected directory through the shared project-session reader', async () => {
+    const projectRoot = createTempProjectRoot('project-picker-create')
+    const showOpenDialog = vi.fn(async () => ({
+      canceled: false,
+      filePaths: [projectRoot],
+    }))
+    const readProjectSession = vi.fn(async (selectedRoot: string) => ({
+      projectId: 'local-project-created',
+      projectRoot: selectedRoot,
+      projectTitle: 'Created Through Dialog',
+    }))
+
+    const session = await createProjectWithDialog({
+      dialog: {
+        showOpenDialog,
+      },
+      readProjectSession,
+    })
+
+    expect(session).toEqual({
+      projectId: 'local-project-created',
+      projectRoot,
+      projectTitle: 'Created Through Dialog',
+    })
+    expect(showOpenDialog).toHaveBeenCalledWith({
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Create Project',
+    })
+    expect(readProjectSession).toHaveBeenCalledWith(projectRoot)
   })
 })

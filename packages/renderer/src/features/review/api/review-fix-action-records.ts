@@ -1,4 +1,4 @@
-export type ReviewFixActionStatus = 'started' | 'checked' | 'blocked'
+export type ReviewFixActionStatus = 'started' | 'checked' | 'blocked' | 'rewrite_requested'
 export type ReviewFixActionTargetScope = 'book' | 'chapter' | 'scene' | 'asset'
 
 export interface ReviewIssueFixActionRecord {
@@ -11,6 +11,9 @@ export interface ReviewIssueFixActionRecord {
   targetScope: ReviewFixActionTargetScope
   status: ReviewFixActionStatus
   note?: string
+  rewriteRequestNote?: string
+  rewriteTargetSceneId?: string
+  rewriteRequestId?: string
   startedAtLabel: string
   updatedAtLabel: string
   updatedByLabel: string
@@ -25,6 +28,9 @@ export interface SetReviewIssueFixActionInput {
   targetScope: ReviewFixActionTargetScope
   status: ReviewFixActionStatus
   note?: string
+  rewriteRequestNote?: string
+  rewriteTargetSceneId?: string
+  rewriteRequestId?: string
 }
 
 export interface ClearReviewIssueFixActionInput {

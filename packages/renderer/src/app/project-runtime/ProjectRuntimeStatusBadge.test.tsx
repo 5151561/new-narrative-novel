@@ -67,22 +67,22 @@ describe('ProjectRuntimeStatusBadge', () => {
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Healthy')
   })
 
-  it('renders the local project store runtime state in the shared storybook status surface', () => {
+  it('renders the real-local-project healthy state in the shared storybook status surface', () => {
     const wrapper = createProjectRuntimeTestWrapper()
 
     render(AllStates.render?.({}, {} as never), { wrapper })
 
-    const localProjectStoreSection = screen.getByText('Local project store').parentElement
-    expect(localProjectStoreSection).not.toBeNull()
+    const realLocalProjectSection = screen.getByText('Real local project healthy').parentElement
+    expect(realLocalProjectSection).not.toBeNull()
 
-    const localProjectStoreStatus = within(localProjectStoreSection!).getByRole('status', {
+    const realLocalProjectStatus = within(realLocalProjectSection!).getByRole('status', {
       name: 'Project runtime status',
     })
 
-    expect(localProjectStoreStatus).toHaveTextContent('Local Alpha')
-    expect(localProjectStoreStatus).toHaveTextContent('API')
-    expect(localProjectStoreStatus).toHaveTextContent('Healthy')
-    expect(localProjectStoreStatus).toHaveTextContent('Connected to local project store v1.')
+    expect(realLocalProjectStatus).toHaveTextContent('Signal Arc Desktop')
+    expect(realLocalProjectStatus).toHaveTextContent('API')
+    expect(realLocalProjectStatus).toHaveTextContent('Healthy')
+    expect(realLocalProjectStatus).toHaveTextContent('Connected to the desktop-local runtime for the current project.')
   })
 
   it('surfaces notable capability limitations for a healthy but limited runtime', () => {
@@ -163,20 +163,53 @@ describe('ProjectRuntimeStatusBadge', () => {
     expect(onRetry).toHaveBeenCalledTimes(1)
   })
 
+  it('shows degraded real-local-project status without drifting back to fixture/demo wording', async () => {
+    const user = userEvent.setup()
+    const onRetry = vi.fn()
+
+    renderBadge({
+      info: createProjectRuntimeInfoRecord({
+        projectId: 'desktop-project-signal-arc',
+        projectTitle: 'Signal Arc Desktop',
+        source: 'api',
+        status: 'unavailable',
+        summary:
+          'Local project runtime is unavailable for "Signal Arc Desktop". The selected project stays active and mock fallback stays off until the runtime recovers.',
+        capabilities: {
+          read: false,
+          write: false,
+        },
+      }),
+      onRetry,
+    })
+
+    const status = screen.getByRole('status', { name: 'Project runtime status' })
+    expect(status).toHaveTextContent('Signal Arc Desktop')
+    expect(status).toHaveTextContent('API')
+    expect(status).toHaveTextContent('Unavailable')
+    expect(status).not.toHaveTextContent(/fixture|API demo runtime/i)
+
+    await user.click(screen.getByRole('button', { name: 'Retry runtime check' }))
+    expect(onRetry).toHaveBeenCalledTimes(1)
+  })
+
   it.each([
     {
       status: 'unauthorized' as const,
-      summary: 'Project runtime authentication is required.',
+      projectTitle: 'Signal Arc Desktop',
+      summary:
+        'Local project runtime needs authorization for "Signal Arc Desktop". The selected project stays active and mock fallback stays off until access is restored.',
     },
     {
       status: 'forbidden' as const,
+      projectTitle: 'Signal Arc',
       summary: 'Project runtime access is forbidden.',
     },
-  ])('keeps %s runtime wording clear', ({ status, summary }) => {
+  ])('keeps %s runtime wording clear', ({ status, projectTitle, summary }) => {
     renderBadge({
       info: createProjectRuntimeInfoRecord({
         projectId: 'project-status-badge',
-        projectTitle: 'Signal Arc',
+        projectTitle,
         source: 'api',
         status,
         summary,

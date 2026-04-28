@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '@/app/i18n'
 import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
 import type { ChapterClient } from '@/features/chapter/api/chapter-client'
+import type { ChapterDraftAssemblyRecord } from '@/features/chapter/api/chapter-draft-assembly-records'
 import { mockChapterRecordSeeds } from '@/features/chapter/api/mock-chapter-db'
 import type { SceneClient } from '@/features/scene/api/scene-client'
 
@@ -38,6 +39,167 @@ function createWrapper(runtime = createMockProjectRuntime({
 }
 
 describe('useChapterDraftTraceabilityQuery', () => {
+  it('keeps traceability aligned to live chapter assembly scene ids and selected scene without inventing transition reads', async () => {
+    const liveAssembly: ChapterDraftAssemblyRecord = {
+      chapterId: 'chapter-signals-in-rain',
+      title: { en: 'Signals in Rain', 'zh-CN': '雨中信号' },
+      summary: { en: 'Live assembly', 'zh-CN': '实时装配' },
+      sceneCount: 2,
+      draftedSceneCount: 1,
+      missingDraftCount: 1,
+      assembledWordCount: 4,
+      warningsCount: 0,
+      queuedRevisionCount: 0,
+      tracedSceneCount: 1,
+      missingTraceSceneCount: 1,
+      scenes: [
+        {
+          kind: 'scene-draft',
+          sceneId: 'scene-midnight-platform',
+          order: 1,
+          title: { en: 'Midnight Platform', 'zh-CN': '午夜站台' },
+          summary: { en: 'Drafted opener', 'zh-CN': '已成稿开场' },
+          backlogStatus: 'drafted',
+          proseStatusLabel: { en: 'Generated', 'zh-CN': '已生成' },
+          proseDraft: 'Live draft prose.',
+          warningsCount: 0,
+          traceReady: true,
+          traceRollup: {
+            acceptedFactCount: 1,
+            relatedAssetCount: 1,
+            sourceProposalCount: 1,
+            missingLinks: [],
+          },
+          sourceProposals: [],
+          acceptedFactIds: ['fact-1'],
+          relatedAssets: [],
+        },
+        {
+          kind: 'scene-gap',
+          sceneId: 'scene-concourse-delay',
+          order: 2,
+          title: { en: 'Concourse Delay', 'zh-CN': '大厅延误' },
+          summary: { en: 'Gap scene', 'zh-CN': '缺稿场景' },
+          backlogStatus: 'planned',
+          proseStatusLabel: { en: 'Waiting for prose artifact', 'zh-CN': '等待正文产物' },
+          warningsCount: 0,
+          traceReady: false,
+          traceRollup: {
+            acceptedFactCount: 0,
+            relatedAssetCount: 0,
+            sourceProposalCount: 0,
+            missingLinks: ['trace'],
+          },
+          gapReason: { en: 'Gap stays explicit.', 'zh-CN': '缺口保持显式。' },
+        },
+      ],
+      sections: [
+        {
+          kind: 'scene-draft',
+          sceneId: 'scene-midnight-platform',
+          order: 1,
+          title: { en: 'Midnight Platform', 'zh-CN': '午夜站台' },
+          summary: { en: 'Drafted opener', 'zh-CN': '已成稿开场' },
+          backlogStatus: 'drafted',
+          proseStatusLabel: { en: 'Generated', 'zh-CN': '已生成' },
+          proseDraft: 'Live draft prose.',
+          warningsCount: 0,
+          traceReady: true,
+          traceRollup: {
+            acceptedFactCount: 1,
+            relatedAssetCount: 1,
+            sourceProposalCount: 1,
+            missingLinks: [],
+          },
+          sourceProposals: [],
+          acceptedFactIds: ['fact-1'],
+          relatedAssets: [],
+        },
+        {
+          kind: 'transition-gap',
+          fromSceneId: 'scene-midnight-platform',
+          toSceneId: 'scene-concourse-delay',
+          fromSceneTitle: { en: 'Midnight Platform', 'zh-CN': '午夜站台' },
+          toSceneTitle: { en: 'Concourse Delay', 'zh-CN': '大厅延误' },
+          gapReason: { en: 'No artifact-backed transition draft.', 'zh-CN': '没有带产物引用的过渡草稿。' },
+        },
+        {
+          kind: 'scene-gap',
+          sceneId: 'scene-concourse-delay',
+          order: 2,
+          title: { en: 'Concourse Delay', 'zh-CN': '大厅延误' },
+          summary: { en: 'Gap scene', 'zh-CN': '缺稿场景' },
+          backlogStatus: 'planned',
+          proseStatusLabel: { en: 'Waiting for prose artifact', 'zh-CN': '等待正文产物' },
+          warningsCount: 0,
+          traceReady: false,
+          traceRollup: {
+            acceptedFactCount: 0,
+            relatedAssetCount: 0,
+            sourceProposalCount: 0,
+            missingLinks: ['trace'],
+          },
+          gapReason: { en: 'Gap stays explicit.', 'zh-CN': '缺口保持显式。' },
+        },
+      ],
+    }
+
+    const chapterClient: Pick<ChapterClient, 'getChapterDraftAssembly'> = {
+      getChapterDraftAssembly: vi.fn(async () => structuredClone(liveAssembly)),
+    }
+    const sceneClient: Pick<SceneClient, 'getSceneExecution' | 'getSceneProse' | 'getSceneInspector' | 'previewAcceptedPatch'> = {
+      getSceneExecution: vi.fn(async (sceneId) => ({
+        runId: `run-${sceneId}`,
+        objective: { goal: 'Goal', warningsCount: 0, unresolvedCount: 0, cast: [], constraintSummary: [] },
+        beats: [],
+        proposals: [],
+        acceptedSummary: { sceneSummary: 'Summary', acceptedFacts: [], readiness: 'draftable', pendingProposalCount: 0, warningCount: 0, patchCandidateCount: 0 },
+        runtimeSummary: { runHealth: 'stable', latencyLabel: '', tokenLabel: '', costLabel: '' },
+        canContinueRun: false,
+        canOpenProse: true,
+      })),
+      getSceneProse: vi.fn(async (sceneId) => ({
+        sceneId,
+        proseDraft: sceneId === 'scene-midnight-platform' ? 'Live draft prose.' : undefined,
+        revisionModes: ['rewrite'],
+        warningsCount: 0,
+        focusModeAvailable: true,
+        traceSummary: sceneId === 'scene-midnight-platform' ? { acceptedFactIds: ['fact-1'] } : undefined,
+      })),
+      getSceneInspector: vi.fn(async () => ({
+        context: { acceptedFacts: [], privateInfoGuard: { summary: '', items: [] }, actorKnowledgeBoundaries: [], localState: [], overrides: [] },
+        versions: { checkpoints: [], acceptanceTimeline: [], patchCandidates: [] },
+        runtime: { profile: { label: '', summary: '' }, runHealth: 'stable', metrics: { latencyLabel: '', tokenLabel: '', costLabel: '' } },
+      })),
+      previewAcceptedPatch: vi.fn(async () => null),
+    }
+
+    const hook = renderHook(
+      () =>
+        useChapterDraftTraceabilityQuery(
+          {
+            chapterId: 'chapter-signals-in-rain',
+            selectedSceneId: 'scene-concourse-delay',
+          },
+          {
+            chapterClient,
+            sceneClient,
+          },
+        ),
+      { wrapper: createWrapper() },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(hook.result.current.traceability?.selectedSceneId).toBe('scene-concourse-delay')
+    expect(sceneClient.getSceneExecution).toHaveBeenCalledTimes(2)
+    expect(sceneClient.getSceneExecution).toHaveBeenCalledWith('scene-midnight-platform')
+    expect(sceneClient.getSceneExecution).toHaveBeenCalledWith('scene-concourse-delay')
+    expect(sceneClient.getSceneExecution).not.toHaveBeenCalledWith('scene-midnight-platform::scene-concourse-delay')
+  })
+
   it('uses runtime-injected chapter and traceability scene clients when no overrides are provided', async () => {
     const chapterClient: Pick<ChapterClient, 'getChapterStructureWorkspace'> = {
       getChapterStructureWorkspace: vi.fn(async () => structuredClone(mockChapterRecordSeeds['chapter-signals-in-rain'])),

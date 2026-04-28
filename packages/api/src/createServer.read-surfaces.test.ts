@@ -104,7 +104,7 @@ describe('fixture API server read surfaces', () => {
           }),
           expect.objectContaining({
             id: 'asset-ledger-stays-shut',
-            kind: 'rule',
+            kind: 'lore',
             contextPolicy: expect.objectContaining({
               defaultVisibility: 'spoiler',
             }),

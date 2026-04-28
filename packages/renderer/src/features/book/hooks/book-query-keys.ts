@@ -2,6 +2,7 @@ import type { Locale } from '@/app/i18n'
 
 export const bookQueryKeys = {
   all: ['book'] as const,
+  checkpointRecords: (bookId: string) => [...bookQueryKeys.all, 'checkpoints', bookId] as const,
   draftAssembly: (bookId: string, locale?: Locale) =>
     locale
       ? ([...bookQueryKeys.all, 'draftAssembly', bookId, locale] as const)
@@ -10,20 +11,22 @@ export const bookQueryKeys = {
     locale ? ([...bookQueryKeys.all, 'workspace', bookId, locale] as const) : ([...bookQueryKeys.all, 'workspace', bookId] as const),
   checkpoints: (bookId: string, locale?: Locale) =>
     locale
-      ? ([...bookQueryKeys.all, 'checkpoints', bookId, locale] as const)
-      : ([...bookQueryKeys.all, 'checkpoints', bookId] as const),
+      ? ([...bookQueryKeys.checkpointRecords(bookId), locale] as const)
+      : bookQueryKeys.checkpointRecords(bookId),
   checkpoint: (bookId: string, checkpointId: string, locale?: Locale) =>
     locale
       ? ([...bookQueryKeys.all, 'checkpoint', bookId, checkpointId, locale] as const)
       : ([...bookQueryKeys.all, 'checkpoint', bookId, checkpointId] as const),
+  branchRecords: (bookId: string) => [...bookQueryKeys.all, 'branches', bookId] as const,
+  selectedBranchRecord: (bookId: string, branchId: string) => [...bookQueryKeys.all, 'branch', bookId, branchId] as const,
   branches: (bookId: string, locale?: Locale) =>
     locale
-      ? ([...bookQueryKeys.all, 'branches', bookId, locale] as const)
-      : ([...bookQueryKeys.all, 'branches', bookId] as const),
+      ? ([...bookQueryKeys.branchRecords(bookId), locale] as const)
+      : bookQueryKeys.branchRecords(bookId),
   branch: (bookId: string, branchId: string, locale?: Locale) =>
     locale
-      ? ([...bookQueryKeys.all, 'branch', bookId, branchId, locale] as const)
-      : ([...bookQueryKeys.all, 'branch', bookId, branchId] as const),
+      ? ([...bookQueryKeys.selectedBranchRecord(bookId, branchId), locale] as const)
+      : bookQueryKeys.selectedBranchRecord(bookId, branchId),
   exportProfiles: (bookId: string, locale?: Locale) =>
     locale
       ? ([...bookQueryKeys.all, 'exportProfiles', bookId, locale] as const)

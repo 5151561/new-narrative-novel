@@ -787,7 +787,7 @@ describe('App scene workbench', () => {
     expect(screen.getByRole('button', { name: 'Mentions' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Relations' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Open in Draft: Midnight Platform' }))
+    await user.click(screen.getByRole('button', { name: /Open in Draft: Midnight Platform/ }))
 
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search)
@@ -1684,7 +1684,9 @@ describe('App scene workbench', () => {
       expect.any(Object),
     )
     expect(
-      screen.getByText('API demo runtime is unavailable. Start the fixture API or reopen the desktop-local demo, then retry.'),
+      screen.getByText(
+        'Local project runtime is unavailable for "Signal Arc Desktop". The selected project stays active and mock fallback stays off until the runtime recovers.',
+      ),
     ).toBeInTheDocument()
     expect(screen.getByText('Workbench stays available while the runtime health recovers.')).toBeInTheDocument()
     expect(new URLSearchParams(window.location.search).has('projectId')).toBe(false)

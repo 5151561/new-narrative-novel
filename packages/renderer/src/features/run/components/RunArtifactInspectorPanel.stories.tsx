@@ -41,6 +41,25 @@ const contextPacketRedactedAssets: ContextPacketArtifactDetailRecord = {
   },
 }
 const proposalSet = getMockRunArtifact({ runId, artifactId: proposalSetId }).artifact
+const failedArtifactDetail = {
+  ...proposalSet,
+  usage: {
+    inputTokens: 1420,
+    outputTokens: 318,
+    estimatedCostUsd: 0.0218,
+    actualCostUsd: 0.0241,
+    provider: 'openai',
+    modelId: 'gpt-5.4',
+  },
+  failureDetail: {
+    failureClass: 'invalid_output' as const,
+    message: 'Proposal normalization failed because no safe variant survived validation.',
+    provider: 'openai',
+    modelId: 'gpt-5.4',
+    retryable: false,
+    sourceEventIds: ['run-event-scene-midnight-platform-001-007', 'run-event-scene-midnight-platform-001-008'],
+  },
+}
 submitMockRunReviewDecision({ runId, reviewId, decision: 'accept', selectedVariants })
 const submittedProposalSet = getMockRunArtifact({ runId, artifactId: proposalSetId }).artifact
 const canonPatch = getMockRunArtifact({ runId, artifactId: canonPatchId }).artifact
@@ -132,5 +151,11 @@ export const ErrorArtifactNotFound: Story = {
   args: {
     artifact: null,
     error: new Error('Run artifact missing-artifact was not found.'),
+  },
+}
+
+export const FailedArtifactDetail: Story = {
+  args: {
+    artifact: failedArtifactDetail,
   },
 }

@@ -1,4 +1,5 @@
 import type { ApiServerConfig } from '../../config.js'
+import { resolveModelBindingForRole } from './model-binding.js'
 import { createScenePlannerFixtureProvider, FIXTURE_SCENE_PLANNER_MODEL_ID } from './scenePlannerFixtureProvider.js'
 import {
   createScenePlannerOpenAiResponsesProvider,
@@ -36,7 +37,7 @@ export interface ScenePlannerProvider {
 }
 
 export interface ScenePlannerGatewayConfig
-  extends Pick<ApiServerConfig, 'modelProvider' | 'openAiModel' | 'openAiApiKey'> {}
+  extends Pick<ApiServerConfig, 'modelBindings' | 'modelProvider' | 'openAiModel' | 'openAiApiKey'> {}
 
 export interface ScenePlannerGatewayDependencies {
   fixtureProvider?: ScenePlannerProvider
@@ -67,17 +68,19 @@ export function createScenePlannerGateway(
 
   return {
     async generate(request: ScenePlannerGatewayRequest): Promise<ScenePlannerGatewayResult> {
-      if (config.modelProvider !== 'openai') {
+      const binding = resolveModelBindingForRole(config, 'planner')
+
+      if (binding.provider !== 'openai') {
         return renderFixtureResult(request)
       }
 
-      if (!config.openAiModel || !config.openAiApiKey) {
+      if (!binding.modelId || !binding.apiKey) {
         return renderFixtureResult(request, 'missing-config')
       }
 
       const openAiProvider = dependencies.openAiProvider ?? openAiProviderFactory({
-        modelId: config.openAiModel,
-        apiKey: config.openAiApiKey,
+        modelId: binding.modelId,
+        apiKey: binding.apiKey,
       })
 
       let payload: unknown
@@ -92,7 +95,7 @@ export function createScenePlannerGateway(
           output: parseScenePlannerOutput(payload),
           provenance: {
             provider: 'openai',
-            modelId: config.openAiModel,
+            modelId: binding.modelId,
           },
         }
       } catch {

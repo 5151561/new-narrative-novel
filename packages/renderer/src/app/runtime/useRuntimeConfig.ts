@@ -3,7 +3,15 @@ import { useEffect, useState } from 'react'
 import { createWebRuntimeConfig, resolveRuntimeConfig, type RuntimeConfig, type RuntimeConfigState } from './runtime-config'
 
 function isSameRuntimeConfig(left: RuntimeConfig, right: RuntimeConfig): boolean {
-  return left.runtimeMode === right.runtimeMode && left.apiBaseUrl === right.apiBaseUrl
+  if (left.runtimeMode !== right.runtimeMode || left.apiBaseUrl !== right.apiBaseUrl) {
+    return false
+  }
+
+  if (left.runtimeMode === 'desktop-local' && right.runtimeMode === 'desktop-local') {
+    return left.projectId === right.projectId && left.projectTitle === right.projectTitle
+  }
+
+  return true
 }
 
 function getInitialRuntimeConfigState(): RuntimeConfigState {

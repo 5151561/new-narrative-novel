@@ -156,4 +156,26 @@ describe('createScenePlannerOpenAiResponsesProvider', () => {
       ],
     })
   })
+
+  it('sanitizes upstream errors so provider failures never echo raw api keys', async () => {
+    const provider = createScenePlannerOpenAiResponsesProvider({
+      modelId: 'gpt-5.4',
+      apiKey: 'sk-secret-value',
+      client: {
+        responses: {
+          create: vi.fn().mockRejectedValue(new Error('401 invalid key sk-secret-value')),
+        },
+      },
+    })
+
+    await expect(provider.generate(createRequest())).rejects.toThrowError(
+      'OpenAI Responses request failed for planner model gpt-5.4.',
+    )
+
+    try {
+      await provider.generate(createRequest())
+    } catch (error) {
+      expect(String(error)).not.toContain('sk-secret-value')
+    }
+  })
 })

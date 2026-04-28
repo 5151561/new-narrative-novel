@@ -56,6 +56,7 @@ export function RunTracePanel({ trace, isLoading = false, error = null }: RunTra
   const selectedNodeIds = new Set(selectedLinks.flatMap((link) => [link.from.id, link.to.id]))
   const selectedNodes = trace?.nodes.filter((node) => selectedNodeIds.has(node.id)) ?? []
   const nodesById = useMemo(() => new Map(trace?.nodes.map((node) => [node.id, node]) ?? []), [trace])
+  const isPartialFailureTrace = Boolean(trace?.isPartialFailure)
 
   if (isLoading) {
     return (
@@ -84,6 +85,15 @@ export function RunTracePanel({ trace, isLoading = false, error = null }: RunTra
       <PaneHeader title={locale === 'zh-CN' ? '运行来源链' : 'Run Trace'} description={locale === 'zh-CN' ? '按关系分组显示运行来源。' : 'Grouped run provenance relations.'} />
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <div className="grid gap-4">
+          {isPartialFailureTrace ? (
+            <SectionCard eyebrow="Failure Recovery" title={locale === 'zh-CN' ? '局部失败来源链' : 'Partial failure trace'}>
+              <p className="text-sm leading-6 text-text-muted">
+                {locale === 'zh-CN'
+                  ? '这条来源链只显示运行停止前已经创建的节点，不代表已经形成 accepted canon 或 prose。'
+                  : 'This trace only shows the nodes that existed before the run stopped. It does not imply accepted canon or prose.'}
+              </p>
+            </SectionCard>
+          ) : null}
           <SectionCard eyebrow="Summary" title={locale === 'zh-CN' ? '来源摘要' : 'Trace Summary'}>
             <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {[
