@@ -81,7 +81,7 @@ export function WorkbenchBottomDockFrame<TabId extends string = string>({
       data-testid="workbench-bottom-dock-frame"
     >
       <div
-        className="flex shrink-0 flex-wrap gap-2 border-b border-line-soft px-4 py-3"
+        className="flex shrink-0 flex-wrap gap-2 border-b border-line-soft px-4 py-2"
         role="tablist"
         aria-label={`${ariaLabel} tabs`}
       >
@@ -105,7 +105,7 @@ export function WorkbenchBottomDockFrame<TabId extends string = string>({
               onClick={() => onTabChange(tab.id)}
               onKeyDown={(event) => handleTabKeyDown(event, index)}
               className={cn(
-                'flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm',
+                'flex min-h-8 items-center gap-2 rounded-md px-3 py-1.5 text-sm',
                 isActive
                   ? 'bg-surface-2 text-text-main shadow-ringwarm'
                   : 'text-text-muted hover:bg-surface-2',
