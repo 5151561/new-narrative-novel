@@ -4,8 +4,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AppProviders } from '@/app/providers'
 
+import { createApiProjectRuntime } from './api-project-runtime'
 import type { ProjectRuntime } from './project-runtime'
-import { ProjectRuntimeProvider, useProjectRuntime } from './ProjectRuntimeProvider'
+import {
+  getProjectRuntimeKind,
+  ProjectRuntimeProvider,
+  useProjectRuntime,
+} from './ProjectRuntimeProvider'
 import { createMockProjectRuntime } from './mock-project-runtime'
 
 const runtimeEnv = import.meta.env as Record<string, string | undefined>
@@ -54,6 +59,7 @@ describe('ProjectRuntimeProvider', () => {
     })
 
     expect(hook.result.current).toBe(injectedRuntime)
+    expect(getProjectRuntimeKind(hook.result.current)).toBe('mock-storybook')
   })
 
   it('creates an API runtime by default when the API env is present', () => {
@@ -72,6 +78,7 @@ describe('ProjectRuntimeProvider', () => {
     expect(hook.result.current.sceneClient).toBeDefined()
     expect(hook.result.current.traceabilitySceneClient).toBeDefined()
     expect(hook.result.current.persistence).toBeUndefined()
+    expect(getProjectRuntimeKind(hook.result.current)).toBe('fixture-demo')
   })
 
   it('keeps generic web runtime on the mock fallback when the API env is absent', () => {
@@ -97,6 +104,31 @@ describe('ProjectRuntimeProvider', () => {
 
     expect(hook.result.current.projectId).toBe('book-signal-arc')
     expect(hook.result.current.persistence).toBeDefined()
+    expect(getProjectRuntimeKind(hook.result.current)).toBe('mock-storybook')
+  })
+
+  it('treats an injected API runtime with an explicit local project title as real-local-project instead of fixture-demo', () => {
+    const injectedRuntime = Object.assign(
+      createApiProjectRuntime({
+        projectId: 'desktop-project-signal-arc',
+        transport: {
+          requestJson: vi.fn(),
+        },
+      }),
+      {
+        projectTitle: 'Signal Arc Desktop',
+      },
+    ) satisfies ProjectRuntime
+
+    function Wrapper({ children }: PropsWithChildren) {
+      return <ProjectRuntimeProvider runtime={injectedRuntime}>{children}</ProjectRuntimeProvider>
+    }
+
+    const hook = renderHook(() => useProjectRuntime(), {
+      wrapper: Wrapper,
+    })
+
+    expect(getProjectRuntimeKind(hook.result.current)).toBe('real-local-project')
   })
 
   it('creates an API runtime from desktop-local runtime config using the current project identity instead of env defaults', async () => {
@@ -144,6 +176,7 @@ describe('ProjectRuntimeProvider', () => {
     })
 
     expect(hook.result.current.persistence).toBeUndefined()
+    expect(getProjectRuntimeKind(hook.result.current)).toBe('real-local-project')
 
     await hook.result.current.runtimeInfoClient.getProjectRuntimeInfo()
 

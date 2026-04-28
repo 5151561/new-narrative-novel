@@ -188,6 +188,7 @@ function buildMockProjectRuntimeInfo(projectId: string): ProjectRuntimeInfoRecor
   return {
     projectId,
     projectTitle: projectId,
+    runtimeKind: 'mock-storybook',
     source: 'mock',
     status: 'healthy',
     summary: 'Using in-memory mock project runtime.',

@@ -108,6 +108,7 @@ function isFixtureProjectData(value: unknown): value is FixtureProjectData {
   if (
     typeof runtimeInfo.projectId !== 'string'
     || typeof runtimeInfo.projectTitle !== 'string'
+    || typeof runtimeInfo.runtimeKind !== 'string'
     || typeof runtimeInfo.source !== 'string'
     || typeof runtimeInfo.status !== 'string'
     || typeof runtimeInfo.summary !== 'string'

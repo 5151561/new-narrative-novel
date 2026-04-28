@@ -51,9 +51,31 @@ export default meta
 
 type Story = StoryObj<typeof meta>
 
-export const HealthyMock: Story = {}
+export const FixtureDemoHealthy: Story = {
+  args: {
+    info: createProjectRuntimeInfoRecord({
+      projectId: 'book-signal-arc',
+      projectTitle: 'Signal Arc',
+      source: 'api',
+      status: 'healthy',
+      summary: 'Connected to fixture API runtime.',
+      capabilities: {
+        contextPacketRefs: true,
+        read: true,
+        proposalSetRefs: true,
+        reviewDecisions: true,
+        runEvents: true,
+        runEventPolling: true,
+        runEventStream: true,
+        write: true,
+      },
+    }),
+  },
+}
 
-export const DesktopLocalHealthyCurrentProject: Story = {
+export const MockStorybookHealthy: Story = {}
+
+export const RealLocalProjectHealthy: Story = {
   args: {
     info: createProjectRuntimeInfoRecord({
       projectId: 'desktop-project-signal-arc',
@@ -70,27 +92,6 @@ export const DesktopLocalHealthyCurrentProject: Story = {
         runEventPolling: true,
         runEventStream: true,
         write: true,
-      },
-    }),
-  },
-}
-
-export const LocalProjectStoreHealthy: Story = {
-  args: {
-    info: createProjectRuntimeInfoRecord({
-      projectId: 'local-project-alpha',
-      projectTitle: 'Local Alpha',
-      source: 'api',
-      status: 'healthy',
-      summary: 'Connected to local project store v1.',
-      versionLabel: 'local-project-store-v1',
-      capabilities: {
-        read: true,
-        write: true,
-        runEvents: true,
-        runEventPolling: true,
-        runEventStream: false,
-        reviewDecisions: true,
       },
     }),
   },
@@ -114,14 +115,51 @@ export const HealthyLimited: Story = {
   },
 }
 
-export const DesktopLocalUnavailableCurrentProject: Story = {
+export const RealLocalProjectUnavailable: Story = {
   args: {
     info: createProjectRuntimeInfoRecord({
       projectId: 'desktop-project-signal-arc',
       projectTitle: 'Signal Arc Desktop',
       source: 'api',
       status: 'unavailable',
-      summary: 'API demo runtime is unavailable. Start the fixture API or reopen the desktop-local demo, then retry.',
+      summary:
+        'Local project runtime is unavailable for "Signal Arc Desktop". The selected project stays active and mock fallback stays off until the runtime recovers.',
+      capabilities: {
+        read: false,
+        write: false,
+      },
+    }),
+    onRetry: () => {},
+  },
+}
+
+export const RealLocalProjectUnauthorized: Story = {
+  args: {
+    info: createProjectRuntimeInfoRecord({
+      projectId: 'desktop-project-signal-arc',
+      projectTitle: 'Signal Arc Desktop',
+      source: 'api',
+      status: 'unauthorized',
+      summary:
+        'Local project runtime needs authorization for "Signal Arc Desktop". The selected project stays active and mock fallback stays off until access is restored.',
+      capabilities: {
+        read: false,
+        write: false,
+      },
+    }),
+    onRetry: () => {},
+  },
+}
+
+export const NoSilentMockFallback: Story = {
+  args: {
+    info: createProjectRuntimeInfoRecord({
+      projectId: 'desktop-project-signal-arc',
+      projectTitle: 'Signal Arc Desktop',
+      source: 'api',
+      status: 'unknown',
+      summary:
+        'Local project runtime health check failed for "Signal Arc Desktop". The selected project stays active and mock fallback stays off until the runtime recovers.',
       capabilities: {
         read: false,
         write: false,
@@ -135,7 +173,29 @@ export const AllStates: Story = {
   render: () => {
     const statuses = [
       {
-        title: 'Mock healthy',
+        title: 'Fixture demo healthy',
+        props: {
+          info: createProjectRuntimeInfoRecord({
+            projectId: 'book-signal-arc',
+            projectTitle: 'Signal Arc',
+            source: 'api',
+            status: 'healthy',
+            summary: 'Connected to fixture API runtime.',
+            capabilities: {
+              contextPacketRefs: true,
+              read: true,
+              proposalSetRefs: true,
+              reviewDecisions: true,
+              runEvents: true,
+              runEventPolling: true,
+              runEventStream: true,
+              write: true,
+            },
+          }),
+        },
+      },
+      {
+        title: 'Mock storybook healthy',
         props: {
           info: createProjectRuntimeInfoRecord({
             projectId: 'project-story-runtime',
@@ -157,7 +217,7 @@ export const AllStates: Story = {
         },
       },
       {
-        title: 'Desktop-local healthy',
+        title: 'Real local project healthy',
         props: {
           info: createProjectRuntimeInfoRecord({
             projectId: 'desktop-project-signal-arc',
@@ -170,31 +230,10 @@ export const AllStates: Story = {
               read: true,
               proposalSetRefs: true,
               reviewDecisions: true,
+              write: true,
               runEvents: true,
               runEventPolling: true,
               runEventStream: true,
-              write: true,
-            },
-          }),
-        },
-      },
-      {
-        title: 'Local project store',
-        props: {
-          info: createProjectRuntimeInfoRecord({
-            projectId: 'local-project-alpha',
-            projectTitle: 'Local Alpha',
-            source: 'api',
-            status: 'healthy',
-            summary: 'Connected to local project store v1.',
-            versionLabel: 'local-project-store-v1',
-            capabilities: {
-              read: true,
-              write: true,
-              runEvents: true,
-              runEventPolling: true,
-              runEventStream: false,
-              reviewDecisions: true,
             },
           }),
         },
@@ -241,14 +280,15 @@ export const AllStates: Story = {
         },
       },
       {
-        title: 'Desktop-local unavailable',
+        title: 'Real local project unavailable',
         props: {
           info: createProjectRuntimeInfoRecord({
             projectId: 'desktop-project-signal-arc',
             projectTitle: 'Signal Arc Desktop',
             source: 'api',
             status: 'unavailable',
-            summary: 'API demo runtime is unavailable. Start the fixture API or reopen the desktop-local demo, then retry.',
+            summary:
+              'Local project runtime is unavailable for "Signal Arc Desktop". The selected project stays active and mock fallback stays off until the runtime recovers.',
             capabilities: {
               read: false,
               write: false,
@@ -258,14 +298,33 @@ export const AllStates: Story = {
         },
       },
       {
-        title: 'Unauthorized',
+        title: 'Real local project unauthorized',
         props: {
           info: createProjectRuntimeInfoRecord({
-            projectId: 'project-story-runtime',
+            projectId: 'desktop-project-signal-arc',
             projectTitle: 'Signal Arc Desktop',
             source: 'api',
             status: 'unauthorized',
-            summary: 'API demo runtime requires authentication before this project can load.',
+            summary:
+              'Local project runtime needs authorization for "Signal Arc Desktop". The selected project stays active and mock fallback stays off until access is restored.',
+            capabilities: {
+              read: false,
+              write: false,
+            },
+          }),
+          onRetry: () => {},
+        },
+      },
+      {
+        title: 'No silent mock fallback',
+        props: {
+          info: createProjectRuntimeInfoRecord({
+            projectId: 'desktop-project-signal-arc',
+            projectTitle: 'Signal Arc Desktop',
+            source: 'api',
+            status: 'unknown',
+            summary:
+              'Local project runtime health check failed for "Signal Arc Desktop". The selected project stays active and mock fallback stays off until the runtime recovers.',
             capabilities: {
               read: false,
               write: false,

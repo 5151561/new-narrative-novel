@@ -1,6 +1,7 @@
 import Fastify from 'fastify'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import type { ProjectRuntimeInfoRecord } from './contracts/api-records.js'
 import { createFixtureRepository } from './repositories/fixtureRepository.js'
 import { registerGlobalErrorHandler } from './http/errors.js'
 import { registerProjectRuntimeRoutes } from './routes/project-runtime.js'
@@ -55,8 +56,11 @@ describe('fixture API server runtime info surfaces', () => {
       ])
 
       expect(primaryProjectResponse.statusCode).toBe(200)
-      expect(primaryProjectResponse.json()).toMatchObject({
+      const primaryRuntimeInfo = primaryProjectResponse.json() as ProjectRuntimeInfoRecord
+      expect(primaryRuntimeInfo.runtimeKind).toBe('fixture-demo')
+      expect(primaryRuntimeInfo).toMatchObject({
         projectId: 'book-signal-arc',
+        runtimeKind: 'fixture-demo',
         source: 'api',
         status: 'healthy',
         capabilities: {
@@ -69,8 +73,11 @@ describe('fixture API server runtime info surfaces', () => {
       })
 
       expect(clonedProjectResponse.statusCode).toBe(200)
-      expect(clonedProjectResponse.json()).toMatchObject({
+      const clonedRuntimeInfo = clonedProjectResponse.json() as ProjectRuntimeInfoRecord
+      expect(clonedRuntimeInfo.runtimeKind).toBe('fixture-demo')
+      expect(clonedRuntimeInfo).toMatchObject({
         projectId: 'project-artifact-a',
+        runtimeKind: 'fixture-demo',
         source: 'api',
         status: 'healthy',
         capabilities: {
@@ -84,7 +91,7 @@ describe('fixture API server runtime info surfaces', () => {
     })
   })
 
-  it('overrides the current project runtime title with the selected desktop project title without changing fixture identity', async () => {
+  it('keeps a selected local project on real-local-project runtime kind even when it reuses the canonical fixture project id', async () => {
     await withTestServer(async ({ app }) => {
       const [selectedProjectResponse, otherProjectResponse] = await Promise.all([
         app.inject({
@@ -98,15 +105,23 @@ describe('fixture API server runtime info surfaces', () => {
       ])
 
       expect(selectedProjectResponse.statusCode).toBe(200)
-      expect(selectedProjectResponse.json()).toMatchObject({
+      const selectedRuntimeInfo = selectedProjectResponse.json() as ProjectRuntimeInfoRecord
+      expect(selectedRuntimeInfo.runtimeKind).toBe('real-local-project')
+      expect(selectedRuntimeInfo).toMatchObject({
         projectId: 'book-signal-arc',
         projectTitle: 'Desktop Local Prototype',
+        runtimeKind: 'real-local-project',
+        summary: 'Connected to local project store v1.',
+        versionLabel: 'local-project-store-v1',
       })
 
       expect(otherProjectResponse.statusCode).toBe(200)
-      expect(otherProjectResponse.json()).toMatchObject({
+      const otherRuntimeInfo = otherProjectResponse.json() as ProjectRuntimeInfoRecord
+      expect(otherRuntimeInfo.runtimeKind).toBe('fixture-demo')
+      expect(otherRuntimeInfo).toMatchObject({
         projectId: 'project-artifact-a',
         projectTitle: 'Signal Arc',
+        runtimeKind: 'fixture-demo',
       })
     }, {
       configOverrides: {
@@ -183,9 +198,12 @@ describe('fixture API server runtime info surfaces', () => {
       })
 
       expect(response.statusCode).toBe(200)
-      expect(response.json()).toMatchObject({
+      const runtimeInfo = response.json() as ProjectRuntimeInfoRecord
+      expect(runtimeInfo.runtimeKind).toBe('real-local-project')
+      expect(runtimeInfo).toMatchObject({
         projectId: 'local-project-alpha',
         projectTitle: 'Local Project Alpha',
+        runtimeKind: 'real-local-project',
         source: 'api',
         status: 'healthy',
         summary: 'Connected to local project store v1.',

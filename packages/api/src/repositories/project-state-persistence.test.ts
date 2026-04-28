@@ -81,6 +81,7 @@ describe('localProjectStorePersistence', () => {
           runtimeInfo: {
             projectId: 'book-signal-arc',
             projectTitle: 'Desktop Local Prototype',
+            runtimeKind: 'real-local-project',
             source: 'api',
             status: 'healthy',
             summary: 'Connected to local project store v1.',
@@ -115,6 +116,7 @@ describe('localProjectStorePersistence', () => {
           runtimeInfo: {
             projectId: 'book-signal-arc',
             projectTitle: 'Desktop Local Prototype',
+            runtimeKind: 'real-local-project',
             source: 'api',
             status: 'healthy',
             summary: 'Connected to local project store v1.',
@@ -236,6 +238,7 @@ describe('localProjectStorePersistence', () => {
           runtimeInfo: {
             projectId: 'book-signal-arc',
             projectTitle: 'Desktop Local Prototype',
+            runtimeKind: 'real-local-project',
             source: 'api',
             status: 'healthy',
             summary: 'Connected to local project store v1.',
@@ -283,6 +286,7 @@ describe('localProjectStorePersistence', () => {
           runtimeInfo: {
             projectId: 'project-artifact-a',
             projectTitle: 'Wrong Project',
+            runtimeKind: 'real-local-project',
             source: 'api',
             status: 'healthy',
             summary: 'Connected to local project store v1.',
