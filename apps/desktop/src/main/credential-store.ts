@@ -1,7 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import path from 'node:path'
-
-import { app, safeStorage } from 'electron'
 
 import type {
   ProviderCredentialProvider,
@@ -24,17 +23,22 @@ export interface CredentialStoreEncryption {
 }
 
 const PROVIDER_CREDENTIALS_FILE = 'provider-credentials.json'
+const require = createRequire(import.meta.url)
+
+function loadElectronModule() {
+  return require('electron') as typeof import('electron')
+}
 
 function createDefaultEncryption(): CredentialStoreEncryption {
   return {
     decryptString(value) {
-      return safeStorage.decryptString(Buffer.from(value, 'base64'))
+      return loadElectronModule().safeStorage.decryptString(Buffer.from(value, 'base64'))
     },
     encryptString(value) {
-      return safeStorage.encryptString(value).toString('base64')
+      return loadElectronModule().safeStorage.encryptString(value).toString('base64')
     },
     isEncryptionAvailable() {
-      return safeStorage.isEncryptionAvailable()
+      return loadElectronModule().safeStorage.isEncryptionAvailable()
     },
   }
 }
@@ -93,7 +97,7 @@ export class CredentialStore {
 
   constructor({
     encryption = createDefaultEncryption(),
-    userDataPath = app.getPath('userData'),
+    userDataPath = loadElectronModule().app.getPath('userData'),
   }: {
     encryption?: CredentialStoreEncryption
     userDataPath?: string
