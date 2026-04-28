@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
-import { dialog, type OpenDialogReturnValue } from 'electron'
+import type { OpenDialogReturnValue } from 'electron'
 
 export interface SelectedProjectSession {
   projectId: string
@@ -48,6 +48,14 @@ const DEFAULT_SCHEMA_VERSION = 1
 const DEFAULT_BOOTSTRAP_SOURCE = 'signal-arc-demo-template-v1'
 const DEFAULT_STORE_DATA_FILE = '.narrative/project-store.json'
 const DEFAULT_STORE_ARTIFACT_DIR = '.narrative/artifacts'
+
+async function showNativeDirectoryDialog(options: {
+  title: string
+  properties: Array<'openDirectory' | 'createDirectory'>
+}): Promise<OpenDialogReturnValue> {
+  const { dialog } = await import('electron')
+  return dialog.showOpenDialog(options)
+}
 
 function normalizeProjectTitle(projectRoot: string, value: unknown) {
   if (typeof value === 'string' && value.trim()) {
@@ -191,7 +199,7 @@ export async function readExistingProjectSession(
 
 export async function openProjectWithDialog({
   dialog: dialogApi = {
-    showOpenDialog: (options) => dialog.showOpenDialog(options),
+    showOpenDialog: showNativeDirectoryDialog,
   },
   readProjectSession = readOrInitializeProjectSession,
 }: ChooseProjectWithDialogOptions = {}): Promise<SelectedProjectSession | null> {
@@ -204,7 +212,7 @@ export async function openProjectWithDialog({
 
 export async function createProjectWithDialog({
   dialog: dialogApi = {
-    showOpenDialog: (options) => dialog.showOpenDialog(options),
+    showOpenDialog: showNativeDirectoryDialog,
   },
   readProjectSession = readOrInitializeProjectSession,
 }: ChooseProjectWithDialogOptions = {}): Promise<SelectedProjectSession | null> {

@@ -12,13 +12,20 @@ describe('desktop main bridge registration', () => {
   it('registers worker bridge handlers from the real main entry path', async () => {
     const ipcHandle = vi.fn()
     const appOn = vi.fn()
+    const createMainWindow = vi.fn(async () => undefined)
     const setApplicationMenu = vi.fn()
+    const selectedProject = {
+      projectId: 'local-project-alpha',
+      projectRoot: '/tmp/local-project',
+      projectTitle: 'Desktop Local Project',
+    }
     const createProjectBackup = vi.fn(async () => ({
       filePath: '/tmp/local-project/.narrative/backups/project-backup-2026-04-28T00-00-00-000Z.json',
     }))
     const exportProjectArchive = vi.fn(async () => ({
       filePath: '/tmp/local-project/.narrative/exports/project-archive-2026-04-28T00-00-00-000Z.json',
     }))
+    let currentProject: typeof selectedProject | null = null
     const projectStore = {
       createProject: vi.fn(async () => ({
         projectId: 'local-project-created',
@@ -26,19 +33,14 @@ describe('desktop main bridge registration', () => {
         projectTitle: 'Created Project',
       })),
       forgetProjectRoot: vi.fn(async () => []),
-      getCurrentProject: vi.fn(() => ({
-        projectId: 'local-project-alpha',
-        projectRoot: '/tmp/local-project',
-        projectTitle: 'Desktop Local Project',
-      })),
+      getCurrentProject: vi.fn(() => currentProject),
       getRecentProjects: vi.fn(() => []),
       openProject: vi.fn(async () => null),
       restoreLastProject: vi.fn(async () => null),
-      selectProjectRoot: vi.fn(async () => ({
-        projectId: 'local-project-alpha',
-        projectRoot: '/tmp/local-project',
-        projectTitle: 'Desktop Local Project',
-      })),
+      selectProjectRoot: vi.fn(async () => {
+        currentProject = selectedProject
+        return selectedProject
+      }),
     }
     const workerSnapshot = {
       implementation: 'placeholder' as const,
@@ -175,7 +177,7 @@ describe('desktop main bridge registration', () => {
       setApplicationMenu,
     }))
     vi.doMock('./create-window.js', () => ({
-      createMainWindow: vi.fn(async () => undefined),
+      createMainWindow,
     }))
     vi.doMock('./local-api-supervisor.js', () => ({
       createLocalApiSupervisor: vi.fn(() => localApiSupervisor),
@@ -214,6 +216,11 @@ describe('desktop main bridge registration', () => {
       ipcHandle.mock.calls.map(([channel, handler]) => [channel as string, handler as (...args: unknown[]) => unknown]),
     )
 
+    expect(projectStore.restoreLastProject).toHaveBeenCalledTimes(1)
+    expect(projectStore.selectProjectRoot).toHaveBeenCalledWith('/tmp/local-project')
+    expect(localApiSupervisor.start).toHaveBeenCalledTimes(1)
+    expect(createMainWindow).toHaveBeenCalledTimes(1)
+
     expect(registrations.has(DESKTOP_API_CHANNELS.getWorkerStatus)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.restartWorker)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.getCurrentProject)).toBe(true)
@@ -226,8 +233,8 @@ describe('desktop main bridge registration', () => {
     expect(Array.from(registrations.keys())).not.toContain('narrativeDesktop:getRawCredential')
 
     expect(registrations.get(DESKTOP_API_CHANNELS.getCurrentProject)?.()).toEqual({
-      projectId: 'local-project-alpha',
-      projectTitle: 'Desktop Local Project',
+      projectId: selectedProject.projectId,
+      projectTitle: selectedProject.projectTitle,
     })
     await expect(registrations.get(DESKTOP_API_CHANNELS.getRuntimeConfig)?.()).resolves.toEqual({
       apiBaseUrl: 'http://127.0.0.1:4888/api',

@@ -53,6 +53,7 @@ describe('readOrInitializeProjectSession', () => {
     })
     expect(existsSync(path.join(projectRoot, '.narrative'))).toBe(true)
     expect(existsSync(path.join(projectRoot, '.narrative', 'artifacts'))).toBe(true)
+    expect(readFileSync(path.join(projectRoot, 'narrative.project.json'), 'utf8')).toContain('"schemaVersion": 1')
   })
 
   it('preserves an existing non-fixture project id and title instead of rewriting them to the prototype fixture id', async () => {
@@ -156,6 +157,31 @@ describe('readOrInitializeProjectSession', () => {
 })
 
 describe('readExistingProjectSession', () => {
+  it('restores the selected-project session from an existing narrative manifest without replacing its identity', async () => {
+    const projectRoot = createTempProjectRoot('project-picker-restore-existing')
+    writeFileSync(path.join(projectRoot, 'narrative.project.json'), JSON.stringify({
+      bootstrap: {
+        source: 'signal-arc-demo-template-v1',
+      },
+      createdAt: '2026-04-27T00:00:00.000Z',
+      projectId: 'local-existing-project',
+      schemaVersion: 1,
+      store: {
+        artifactDir: '.narrative/artifacts',
+        dataFile: '.narrative/project-store.json',
+        schemaVersion: 1,
+      },
+      title: 'Existing Local Project',
+      updatedAt: '2026-04-27T00:00:00.000Z',
+    }))
+
+    await expect(readExistingProjectSession(projectRoot)).resolves.toEqual({
+      projectId: 'local-existing-project',
+      projectRoot,
+      projectTitle: 'Existing Local Project',
+    })
+  })
+
   it('rejects a missing project root instead of silently recreating a deleted recent project', async () => {
     const missingProjectRoot = path.join(createTempProjectRoot('project-picker-deleted-root'), 'deleted')
 

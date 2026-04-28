@@ -1,7 +1,6 @@
+import { createRequire } from 'node:module'
 import { readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-
-import { app } from 'electron'
 
 import type { SelectedProjectSession } from './project-picker.js'
 
@@ -13,6 +12,12 @@ interface PersistedRecentProjectsRecord {
 
 const RECENT_PROJECTS_FILE = 'recent-projects.json'
 const MAX_RECENT_PROJECTS = 10
+const require = createRequire(import.meta.url)
+
+function getElectronUserDataPath(): string {
+  const { app } = require('electron') as typeof import('electron')
+  return app.getPath('userData')
+}
 
 function isRecentProjectRecord(value: unknown): value is RecentProjectRecord {
   if (!value || typeof value !== 'object') {
@@ -63,7 +68,7 @@ function isPersistedRecentProjectsRecord(value: unknown): value is PersistedRece
 export class RecentProjectsStore {
   private readonly filePath: string
 
-  constructor({ userDataPath = app.getPath('userData') }: { userDataPath?: string } = {}) {
+  constructor({ userDataPath = getElectronUserDataPath() }: { userDataPath?: string } = {}) {
     this.filePath = path.join(userDataPath, RECENT_PROJECTS_FILE)
   }
 

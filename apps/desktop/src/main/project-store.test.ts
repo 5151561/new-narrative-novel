@@ -1,5 +1,3 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { describe, expect, it, vi } from 'vitest'
@@ -39,46 +37,41 @@ describe('ProjectStore', () => {
   })
 
   it('restores the last valid recent project root on desktop startup', async () => {
-    const invalidRoot = path.join(mkdtempSync(path.join(tmpdir(), 'project-missing-')), 'deleted-root')
-    const validRoot = mkdtempSync(path.join(tmpdir(), 'project-valid-'))
-    const resolvedProject = createSession(validRoot, 'Recovered Project')
-    rmSync(invalidRoot, { force: true, recursive: true })
-    mkdirSync(validRoot, { recursive: true })
-    writeFileSync(path.join(validRoot, 'narrative.project.json'), `${JSON.stringify({
-      bootstrap: {
-        source: 'signal-arc-demo-template-v1',
-      },
-      createdAt: '2026-04-27T00:00:00.000Z',
-      projectId: resolvedProject.projectId,
-      schemaVersion: 1,
-      store: {
-        artifactDir: '.narrative/artifacts',
-        dataFile: '.narrative/project-store.json',
-        schemaVersion: 1,
-      },
-      title: resolvedProject.projectTitle,
-      updatedAt: '2026-04-27T00:00:00.000Z',
-    }, null, 2)}\n`, 'utf8')
+    const createdProject = createSession('/tmp/project-created', 'Created Through Dialog')
+    const openedProject = createSession('/tmp/project-opened', 'Opened Through Dialog')
+    const restoredProject = createSession('/tmp/project-restored', 'Recovered Project')
+    const picker = {
+      createProjectWithDialog: vi.fn(async () => createdProject),
+      openProjectWithDialog: vi.fn(async () => openedProject),
+      readExistingProjectSession: vi.fn(async (projectRoot: string) => {
+        if (projectRoot === '/tmp/missing-project') {
+          throw new Error('Narrative project root does not exist: /tmp/missing-project')
+        }
+
+        return restoredProject
+      }),
+      readOrInitializeProjectSession: vi.fn(async () => restoredProject),
+    }
     const recentProjects = {
       add: vi.fn(async (project: SelectedProjectSession) => [project]),
       list: vi.fn(async () => [
-        createSession(invalidRoot, 'Missing Project'),
-        createSession(validRoot, 'Recovered Project'),
+        createSession('/tmp/missing-project', 'Missing Project'),
+        restoredProject,
       ]),
-      remove: vi.fn(async () => [createSession(validRoot, 'Recovered Project')]),
+      remove: vi.fn(async () => [restoredProject]),
     }
     const store = new ProjectStore({
+      picker,
       recentProjects,
     })
 
-    await expect(store.restoreLastProject()).resolves.toEqual(resolvedProject)
-    expect(store.getCurrentProject()).toEqual(resolvedProject)
-    expect(recentProjects.remove).toHaveBeenCalledWith(invalidRoot)
-    expect(recentProjects.add).toHaveBeenCalledWith(resolvedProject)
-    expect(store.getRecentProjects()).toEqual([resolvedProject])
-    expect(() => readFileSync(path.join(invalidRoot, 'narrative.project.json'), 'utf8')).toThrow()
-
-    rmSync(validRoot, { force: true, recursive: true })
+    await expect(store.restoreLastProject()).resolves.toEqual(restoredProject)
+    await expect(store.createProject()).resolves.toEqual(createdProject)
+    await expect(store.openProject()).resolves.toEqual(openedProject)
+    expect(store.getCurrentProject()).toEqual(openedProject)
+    expect(recentProjects.remove).toHaveBeenCalledWith('/tmp/missing-project')
+    expect(recentProjects.add).toHaveBeenCalledWith(restoredProject)
+    expect(store.getRecentProjects()).toEqual([openedProject])
   })
 
   it('opens a project through the native picker and persists it into recent projects', async () => {
