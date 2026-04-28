@@ -129,6 +129,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {
+  name: 'Scene / Draft / Current Prose',
   args: {
     sceneId: 'scene-midnight-platform',
   },
@@ -165,6 +166,7 @@ export const GeneratedFromAcceptedRun: Story = {
 export const GeneratedFromRun: Story = GeneratedFromAcceptedRun
 
 export const RevisionCandidatePendingReview: Story = {
+  name: 'Scene / Draft / Pending Revision Candidate',
   args: {
     sceneId: 'scene-midnight-platform',
   },

@@ -277,6 +277,40 @@ const inspectorTabLabels: Record<Locale, Record<InspectorTabId, string>> = {
   },
 }
 
+const sceneProseSupportTextLabels: Record<Locale, Record<string, string>> = {
+  en: {
+    Generated: 'Generated',
+    'Generated from run': 'Generated from run',
+    'Generated from accepted run prose artifact.': 'Generated from accepted run prose artifact.',
+    'Revision queued': 'Revision queued',
+    'Revision candidate ready': 'Revision candidate ready',
+    Updated: 'Updated',
+    'Compressed repeated witness beats while preserving accepted provenance.':
+      'Compressed repeated witness beats while preserving accepted provenance.',
+    'Expanded witness-facing beats while preserving accepted provenance.':
+      'Expanded witness-facing beats while preserving accepted provenance.',
+    'Adjusted bargaining tone while preserving accepted provenance.':
+      'Adjusted bargaining tone while preserving accepted provenance.',
+    'Reconciled continuity edges while preserving accepted provenance.':
+      'Reconciled continuity edges while preserving accepted provenance.',
+    'Rebuilt witness-facing beats while preserving accepted provenance.':
+      'Rebuilt witness-facing beats while preserving accepted provenance.',
+  },
+  'zh-CN': {
+    Generated: '已生成',
+    'Generated from run': '已由运行生成',
+    'Generated from accepted run prose artifact.': '已根据采纳的运行正文产物生成。',
+    'Revision queued': '修订已排队',
+    'Revision candidate ready': '修订候选已就绪',
+    Updated: '已更新',
+    'Compressed repeated witness beats while preserving accepted provenance.': '已压缩重复的见证者节拍，并保留已采纳来源链。',
+    'Expanded witness-facing beats while preserving accepted provenance.': '已扩展面向见证者的节拍，并保留已采纳来源链。',
+    'Adjusted bargaining tone while preserving accepted provenance.': '已调整谈判语气，并保留已采纳来源链。',
+    'Reconciled continuity edges while preserving accepted provenance.': '已修补连续性边缘问题，并保留已采纳来源链。',
+    'Rebuilt witness-facing beats while preserving accepted provenance.': '已重建面向见证者的节拍，并保留已采纳来源链。',
+  },
+}
+
 const readinessLabels: Record<Locale, Record<'not-ready' | 'draftable' | 'ready', string>> = {
   en: {
     'not-ready': 'not-ready',
@@ -902,6 +936,31 @@ export function getAssetKindLabel(
 
 export function getSceneTabLabel(locale: Locale, tab: SceneTab) {
   return sceneTabLabels[locale][tab]
+}
+
+function containsCjk(text: string) {
+  return /[\u3400-\u9fff]/u.test(text)
+}
+
+function containsLatinWord(text: string) {
+  return /[A-Za-z]{2,}/.test(text)
+}
+
+export function getSceneProseSupportText(locale: Locale, text?: string | null, fallback?: string) {
+  if (!text) {
+    return text ?? undefined
+  }
+
+  const localizedText = sceneProseSupportTextLabels[locale][text]
+  if (localizedText) {
+    return localizedText
+  }
+
+  if (locale === 'zh-CN' && fallback && containsLatinWord(text) && !containsCjk(text)) {
+    return fallback
+  }
+
+  return text
 }
 
 export function getProjectRuntimeSourceLabel(locale: Locale, source: ProjectRuntimeSource) {

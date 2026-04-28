@@ -1,4 +1,4 @@
-import { useI18n } from '@/app/i18n'
+import { getSceneProseSupportText, useI18n } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { SectionCard } from '@/components/ui/SectionCard'
@@ -21,6 +21,34 @@ interface SceneProseTabProps {
   onToggleFocusMode: () => void
   onRevise: () => void
   onAcceptRevision: () => void
+}
+
+function resolveZhSceneProseStatusFallback(prose: SceneProseViewModel) {
+  if (prose.revisionCandidate) {
+    return '修订候选已就绪'
+  }
+
+  if ((prose.revisionQueueCount ?? 0) > 0) {
+    return '修订已排队'
+  }
+
+  if (prose.proseDraft?.trim()) {
+    return '可进入修订轮次'
+  }
+
+  return '等待正文产物'
+}
+
+function resolveZhSceneProseDiffFallback(prose: SceneProseViewModel) {
+  if (prose.revisionCandidate) {
+    return '已生成新的修订摘要。'
+  }
+
+  if (prose.proseDraft?.trim()) {
+    return '当前正文支持摘要已更新。'
+  }
+
+  return '当前还没有可进入 chapter / book draft 装配的正文。'
 }
 
 export function ProseDraftReader({ proseDraft }: Pick<SceneProseViewModel, 'proseDraft'>) {
@@ -110,14 +138,14 @@ export function ProseSourceSummary({ traceSummary }: Pick<SceneProseViewModel, '
       <div className="grid gap-3 text-sm">
         {normalizedTraceSummary.sourcePatchId ? (
           <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-2">
-            <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">{locale === 'zh-CN' ? 'Source patch' : 'Source patch'}</p>
+            <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">{locale === 'zh-CN' ? '来源补丁' : 'Source patch'}</p>
             <p className="mt-1 break-all font-medium text-text-main">{normalizedTraceSummary.sourcePatchId}</p>
           </div>
         ) : null}
         {sourceProposals.length > 0 ? (
           <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-2">
             <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">
-              {locale === 'zh-CN' ? 'Source proposals' : 'Source proposals'}
+              {locale === 'zh-CN' ? '来源提案' : 'Source proposals'}
             </p>
             <p className="mt-1 text-text-main">
               {locale === 'zh-CN' ? `${sourceProposals.length} 个提案` : `${sourceProposals.length} proposals`}
@@ -133,7 +161,7 @@ export function ProseSourceSummary({ traceSummary }: Pick<SceneProseViewModel, '
         ) : null}
         {relatedAssets.length > 0 ? (
           <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-2">
-            <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">{locale === 'zh-CN' ? 'Related assets' : 'Related assets'}</p>
+            <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">{locale === 'zh-CN' ? '关联资产' : 'Related assets'}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {relatedAssets.map((asset) => (
                 <Badge key={asset.assetId} tone="neutral">
@@ -145,7 +173,7 @@ export function ProseSourceSummary({ traceSummary }: Pick<SceneProseViewModel, '
         ) : null}
         {missingLinks.length > 0 ? (
           <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-2">
-            <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">{locale === 'zh-CN' ? 'Missing links' : 'Missing links'}</p>
+            <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">{locale === 'zh-CN' ? '缺失链接' : 'Missing links'}</p>
             <p className="mt-1 text-text-muted">{missingLinks.join(', ')}</p>
           </div>
         ) : null}
@@ -335,13 +363,13 @@ export function ProseToolbar({
           <Badge tone={prose.focusModeAvailable ? 'success' : 'neutral'}>
             {prose.focusModeAvailable
               ? locale === 'zh-CN'
-                ? '可用专注模式'
-                : 'Focus available'
+                ? '可用聚焦阅读'
+                : 'Reader focus available'
               : locale === 'zh-CN'
-                ? '专注模式不可用'
-                : 'Focus unavailable'}
+                ? '聚焦阅读不可用'
+                : 'Reader focus unavailable'}
           </Badge>
-          {isFocusModeActive ? <Badge tone="accent">{locale === 'zh-CN' ? '专注模式已开启' : 'Focus mode active'}</Badge> : null}
+          {isFocusModeActive ? <Badge tone="accent">{locale === 'zh-CN' ? '聚焦阅读已开启' : 'Reader focus active'}</Badge> : null}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -353,11 +381,11 @@ export function ProseToolbar({
           >
             {isFocusModeActive
               ? locale === 'zh-CN'
-                ? '退出专注模式'
-                : 'Exit Focus Mode'
+                ? '退出聚焦阅读'
+                : 'Exit Reader Focus'
               : locale === 'zh-CN'
-                ? '专注模式'
-                : 'Focus Mode'}
+                ? '聚焦阅读'
+                : 'Reader Focus'}
           </button>
         ) : null}
       </div>
@@ -414,7 +442,13 @@ export function PendingRevisionCandidateCard({
           <p className="text-[11px] uppercase tracking-[0.05em] text-text-soft">
             {locale === 'zh-CN' ? '差异摘要' : 'Diff summary'}
           </p>
-          <p className="mt-1 text-sm leading-6 text-text-main">{candidate.diffSummary}</p>
+          <p className="mt-1 text-sm leading-6 text-text-main">
+            {getSceneProseSupportText(
+              locale,
+              candidate.diffSummary,
+              locale === 'zh-CN' ? '已生成新的修订摘要。' : undefined,
+            )}
+          </p>
         </div>
         <div className="grid gap-2 text-sm text-text-muted">
           <p>{locale === 'zh-CN' ? `来源正文：${candidate.sourceProseDraftId}` : `Source prose: ${candidate.sourceProseDraftId}`}</p>
@@ -476,18 +510,32 @@ export function ProseStatusFooter({ prose, selectedMode }: Pick<SceneProseTabPro
         </div>
         <div className="space-y-1 text-right">
           <p className="text-sm text-text-main">
-            {prose.statusLabel ??
-              (hasDraft ? (locale === 'zh-CN' ? '可进入修订轮次' : 'Ready for revision pass') : locale === 'zh-CN' ? '等待正文产物' : 'Waiting for prose artifact')}
+            {getSceneProseSupportText(
+              locale,
+              prose.statusLabel ??
+                (hasDraft
+                  ? locale === 'zh-CN'
+                    ? '可进入修订轮次'
+                    : 'Ready for revision pass'
+                  : locale === 'zh-CN'
+                    ? '等待正文产物'
+                    : 'Waiting for prose artifact'),
+              locale === 'zh-CN' ? resolveZhSceneProseStatusFallback(prose) : undefined,
+            )}
           </p>
           <p className="text-sm text-text-muted">
-            {prose.latestDiffSummary ??
+            {getSceneProseSupportText(
+              locale,
+              prose.latestDiffSummary ??
               (hasDraft
                 ? locale === 'zh-CN'
                   ? '尚未请求新的正文修订。'
                   : 'No prose revision requested yet.'
                 : locale === 'zh-CN'
                   ? '当前还没有可进入 chapter / book draft 装配的正文。'
-                  : 'No manuscript draft has been materialized for assembly yet.')}
+                  : 'No manuscript draft has been materialized for assembly yet.'),
+              locale === 'zh-CN' ? resolveZhSceneProseDiffFallback(prose) : undefined,
+            )}
           </p>
         </div>
       </div>
@@ -545,7 +593,11 @@ export function SceneProseTab({
           />
           <SectionCard eyebrow={locale === 'zh-CN' ? '差异摘要' : 'Diff Summary'} title={locale === 'zh-CN' ? '最新修订' : 'Latest Revision'}>
             <p className="text-sm leading-6 text-text-muted">
-              {pendingDiffSummary ?? (locale === 'zh-CN' ? '尚未请求新的正文修订。' : 'No prose revision requested yet.')}
+              {getSceneProseSupportText(
+                locale,
+                pendingDiffSummary ?? (locale === 'zh-CN' ? '尚未请求新的正文修订。' : 'No prose revision requested yet.'),
+                locale === 'zh-CN' ? resolveZhSceneProseDiffFallback(prose) : undefined,
+              )}
             </p>
           </SectionCard>
           <ProseSourceSummary traceSummary={prose.traceSummary} />

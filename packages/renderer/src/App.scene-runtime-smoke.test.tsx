@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { APP_LOCALE_STORAGE_KEY } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
 import { createApiProjectRuntime } from '@/app/project-runtime'
 import { createApiTransport } from '@/app/project-runtime/api-transport'
@@ -23,6 +24,11 @@ function expectNavigatorSceneOrder(navigator: ReturnType<typeof within>, labels:
     const nextButton = navigator.getByRole('button', { name: nonEditorCloseButtonName(labels[index + 1]!) })
     expect(currentButton.compareDocumentPosition(nextButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   }
+}
+
+function expectBreadcrumbEnding(ending: string) {
+  const mainStageText = screen.getByTestId('workbench-main-stage-scroll-body').textContent?.replace(/\s+/g, ' ').trim() ?? ''
+  expect(mainStageText).toContain(ending)
 }
 
 vi.mock('@/features/scene/containers/SceneInspectorContainer', () => ({
@@ -107,6 +113,7 @@ describe('App scene runtime smoke', () => {
     expect(initialParams.get('tab')).toBe('execution')
 
     expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    expectBreadcrumbEnding('Scene / Orchestrate')
     const navigator = screen.getByRole('region', { name: 'Navigator' })
     await waitFor(() => {
       expect(within(navigator).getByRole('button', { name: nonEditorCloseButtonName('Midnight Platform') })).toBeInTheDocument()
@@ -124,6 +131,38 @@ describe('App scene runtime smoke', () => {
     expect(within(navigator).queryByRole('button', { name: /Dawn Slip/i })).not.toBeInTheDocument()
 
     expect(screen.getAllByRole('button', { name: 'Run Scene' }).length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: 'Structure' }))
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('lens')).toBe('structure')
+      expect(params.get('tab')).toBe('setup')
+    })
+    expectBreadcrumbEnding('Scene / Structure')
+
+    await user.click(screen.getByRole('button', { name: 'Orchestrate' }))
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('lens')).toBe('orchestrate')
+      expect(params.get('tab')).toBe('execution')
+    })
+    expectBreadcrumbEnding('Scene / Orchestrate')
+
+    await user.click(screen.getByRole('button', { name: 'Draft' }))
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('tab')).toBe('prose')
+    })
+    expectBreadcrumbEnding('Scene / Draft')
+
+    await user.click(screen.getByRole('button', { name: 'Orchestrate' }))
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('lens')).toBe('orchestrate')
+      expect(params.get('tab')).toBe('execution')
+    })
+    expectBreadcrumbEnding('Scene / Orchestrate')
 
     await user.click(screen.getAllByRole('button', { name: 'Run Scene' })[0]!)
 
@@ -181,6 +220,12 @@ describe('App scene runtime smoke', () => {
     await user.click(screen.getByRole('button', { name: 'Open Prose' }))
 
     expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('tab')).toBe('prose')
+    })
+    expectBreadcrumbEnding('Scene / Draft')
     expect(within(bottomDock).getByText('Active Run Support')).toBeInTheDocument()
     expect(within(bottomDock).getAllByText('Proposal set accepted with editor adjustments applied to canon and prose.').length).toBeGreaterThan(0)
     expect(screen.getAllByText(/Midnight Platform opens from the accepted run artifact/i).length).toBeGreaterThan(0)
@@ -265,6 +310,58 @@ describe('App scene runtime smoke', () => {
     expect(within(selectedDestination).getByText('Signals in Rain')).toBeInTheDocument()
     expect(within(selectedDestination).getByText('Re-cut the same chapter through order, density, and assembly pressure without leaving the workbench.')).toBeInTheDocument()
     expect(within(screen.getByRole('region', { name: 'Book draft bottom dock' })).getByText('Focused Signals in Rain')).toBeInTheDocument()
+  }, 20000)
+
+  it('keeps zh-CN scene chrome labels aligned with structure, orchestrate, and draft route state', async () => {
+    const user = userEvent.setup()
+    const server = createTestServer()
+    servers.push(server)
+
+    window.localStorage.setItem(APP_LOCALE_STORAGE_KEY, 'zh-CN')
+
+    await server.app.listen({
+      host: server.config.host,
+      port: 0,
+    })
+
+    const address = server.app.server.address()
+    if (!address || typeof address === 'string') {
+      throw new Error('Expected a TCP address from the test API server.')
+    }
+
+    await renderSceneApp(`http://${server.config.host}:${address.port}`)
+
+    await screen.findByRole('button', { name: '导出' })
+    expectBreadcrumbEnding('场景 / 编排')
+
+    await user.click(screen.getByRole('button', { name: '结构' }))
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('lens')).toBe('structure')
+      expect(params.get('tab')).toBe('setup')
+    })
+    expectBreadcrumbEnding('场景 / 结构')
+
+    await user.click(screen.getByRole('button', { name: '编排' }))
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('lens')).toBe('orchestrate')
+      expect(params.get('tab')).toBe('execution')
+    })
+    expectBreadcrumbEnding('场景 / 编排')
+
+    await user.click(screen.getByRole('button', { name: '成稿' }))
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('lens')).toBe('draft')
+      expect(params.get('tab')).toBe('prose')
+    })
+    expectBreadcrumbEnding('场景 / 成稿')
+    expect(screen.getByRole('button', { name: '聚焦阅读' })).toBeInTheDocument()
+    const proseSurfaceText = screen.getByTestId('workbench-main-stage-scroll-body').textContent ?? ''
+    expect(proseSurfaceText).toContain('当前正文支持摘要已更新。')
+    expect(proseSurfaceText).not.toContain('Generated')
+    expect(proseSurfaceText).not.toContain('A fixture prose draft was rendered for Midnight Platform.')
   }, 20000)
 
   it('keeps request-rewrite terminal, explicit, and route-stable in the API-backed scene flow', async () => {
