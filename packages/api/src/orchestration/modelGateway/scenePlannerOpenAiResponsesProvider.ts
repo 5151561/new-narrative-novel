@@ -42,20 +42,25 @@ export function createScenePlannerOpenAiResponsesProvider(
 
   return {
     async generate(request: ScenePlannerGatewayRequest) {
-      const response = await client.responses.create({
-        model: options.modelId,
-        instructions: request.instructions,
-        input: request.input,
-        text: {
-          format: {
-            name: 'scene_planner_output',
-            type: 'json_schema',
-            strict: true,
-            description: 'Structured scene planner proposal candidates.',
-            schema: scenePlannerOpenAiOutputSchema,
+      let response: { output_text: string }
+      try {
+        response = await client.responses.create({
+          model: options.modelId,
+          instructions: request.instructions,
+          input: request.input,
+          text: {
+            format: {
+              name: 'scene_planner_output',
+              type: 'json_schema',
+              strict: true,
+              description: 'Structured scene planner proposal candidates.',
+              schema: scenePlannerOpenAiOutputSchema,
+            },
           },
-        },
-      })
+        })
+      } catch {
+        throw new Error(`OpenAI Responses request failed for planner model ${options.modelId}.`)
+      }
 
       const outputText = response.output_text.trim()
       if (!outputText) {

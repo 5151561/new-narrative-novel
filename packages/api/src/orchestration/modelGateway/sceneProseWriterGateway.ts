@@ -1,5 +1,6 @@
 import type { RunSelectedProposalVariantRecord } from '../../contracts/api-records.js'
 import type { ApiServerConfig } from '../../config.js'
+import { resolveModelBindingForRole } from './model-binding.js'
 
 import {
   createSceneProseWriterFixtureProvider,
@@ -51,7 +52,7 @@ export interface SceneProseWriterProvider {
 }
 
 export interface SceneProseWriterGatewayConfig
-  extends Pick<ApiServerConfig, 'modelProvider' | 'openAiModel' | 'openAiApiKey'> {}
+  extends Pick<ApiServerConfig, 'modelBindings' | 'modelProvider' | 'openAiModel' | 'openAiApiKey'> {}
 
 export interface SceneProseWriterGatewayDependencies {
   fixtureProvider?: SceneProseWriterProvider
@@ -82,17 +83,22 @@ export function createSceneProseWriterGateway(
 
   return {
     async generate(request: SceneProseWriterGatewayRequest): Promise<SceneProseWriterGatewayResult> {
-      if (config.modelProvider !== 'openai') {
+      const binding = resolveModelBindingForRole(
+        config,
+        request.task === 'revision' ? 'sceneRevision' : 'sceneProseWriter',
+      )
+
+      if (binding.provider !== 'openai') {
         return renderFixtureResult(request)
       }
 
-      if (!config.openAiModel || !config.openAiApiKey) {
+      if (!binding.modelId || !binding.apiKey) {
         return renderFixtureResult(request, 'missing-config')
       }
 
       const openAiProvider = dependencies.openAiProvider ?? openAiProviderFactory({
-        modelId: config.openAiModel,
-        apiKey: config.openAiApiKey,
+        modelId: binding.modelId,
+        apiKey: binding.apiKey,
       })
 
       let payload: unknown
@@ -107,7 +113,7 @@ export function createSceneProseWriterGateway(
           output: parseSceneProseWriterOutput(payload),
           provenance: {
             provider: 'openai',
-            modelId: config.openAiModel,
+            modelId: binding.modelId,
           },
         }
       } catch {

@@ -3,6 +3,16 @@ export type DesktopRuntimeMode = 'web' | 'desktop'
 export type DesktopLocalRuntimeMode = 'desktop-local'
 export type LocalApiStatus = 'stopped' | 'starting' | 'ready' | 'failed'
 export type WorkerStatus = 'disabled' | 'starting' | 'ready' | 'failed' | 'stopped'
+export type ProviderCredentialProvider = 'openai'
+export type DesktopModelBindingProvider = 'fixture' | 'openai'
+export const DESKTOP_MODEL_BINDING_ROLES = [
+  'planner',
+  'sceneProseWriter',
+  'sceneRevision',
+  'continuityReviewer',
+  'summary',
+] as const
+export type DesktopModelBindingRole = (typeof DESKTOP_MODEL_BINDING_ROLES)[number]
 
 export interface DesktopRuntimeConfig {
   runtimeMode: DesktopLocalRuntimeMode
@@ -31,6 +41,29 @@ export interface WorkerStatusSnapshot {
   lastError?: string
 }
 
+export interface ProviderCredentialStatus {
+  provider: ProviderCredentialProvider
+  configured: boolean
+  redactedValue?: string
+}
+
+export interface SaveProviderCredentialInput {
+  provider: ProviderCredentialProvider
+  secret: string
+}
+
+export interface DesktopModelBinding {
+  provider: DesktopModelBindingProvider
+  modelId?: string
+}
+
+export type DesktopModelBindings = Record<DesktopModelBindingRole, DesktopModelBinding>
+
+export interface UpdateModelBindingInput {
+  role: DesktopModelBindingRole
+  binding: DesktopModelBinding
+}
+
 export interface NarrativeDesktopApi {
   getAppVersion(): Promise<string>
   getCurrentProject(): Promise<CurrentProjectSnapshot | null>
@@ -42,6 +75,11 @@ export interface NarrativeDesktopApi {
   getLocalApiLogs(): Promise<string[]>
   getWorkerStatus(): Promise<WorkerStatusSnapshot>
   restartWorker(): Promise<WorkerStatusSnapshot>
+  getProviderCredentialStatus(provider: ProviderCredentialProvider): Promise<ProviderCredentialStatus>
+  saveProviderCredential(input: SaveProviderCredentialInput): Promise<ProviderCredentialStatus>
+  deleteProviderCredential(provider: ProviderCredentialProvider): Promise<ProviderCredentialStatus>
+  getModelBindings(): Promise<DesktopModelBindings>
+  updateModelBinding(input: UpdateModelBindingInput): Promise<DesktopModelBindings>
 }
 
 export const DESKTOP_API_CHANNELS = {
@@ -55,6 +93,11 @@ export const DESKTOP_API_CHANNELS = {
   getLocalApiLogs: 'narrativeDesktop:getLocalApiLogs',
   getWorkerStatus: 'narrativeDesktop:getWorkerStatus',
   restartWorker: 'narrativeDesktop:restartWorker',
+  getProviderCredentialStatus: 'narrativeDesktop:getProviderCredentialStatus',
+  saveProviderCredential: 'narrativeDesktop:saveProviderCredential',
+  deleteProviderCredential: 'narrativeDesktop:deleteProviderCredential',
+  getModelBindings: 'narrativeDesktop:getModelBindings',
+  updateModelBinding: 'narrativeDesktop:updateModelBinding',
 } as const
 
 export type DesktopApiChannel = (typeof DESKTOP_API_CHANNELS)[keyof typeof DESKTOP_API_CHANNELS]

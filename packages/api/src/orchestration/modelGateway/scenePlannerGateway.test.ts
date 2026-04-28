@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { createScenePlannerFixtureProvider } from './scenePlannerFixtureProvider.js'
 import { createScenePlannerGateway } from './scenePlannerGateway.js'
+import { DEFAULT_MODEL_BINDINGS } from './model-binding.js'
 
 function createRequest(overrides?: Partial<{
   sceneId: string
@@ -138,6 +139,53 @@ describe('createScenePlannerGateway', () => {
     expect(openAiProvider.generate).toHaveBeenCalledWith(createRequest())
   })
 
+  it('prefers the planner role binding over the legacy global openai model fields', async () => {
+    const openAiProviderFactory = vi.fn(() => ({
+      generate: vi.fn().mockResolvedValue({
+        proposals: [
+          {
+            title: 'Bind the planner role explicitly',
+            summary: 'The planner should use the planner-specific model binding.',
+            changeKind: 'action',
+            riskLabel: 'Low continuity risk',
+            variants: undefined,
+          },
+        ],
+      }),
+    }))
+
+    const gateway = createScenePlannerGateway(
+      {
+        modelBindings: {
+          ...DEFAULT_MODEL_BINDINGS,
+          planner: {
+            apiKey: 'sk-planner-value',
+            modelId: 'gpt-5.4-mini',
+            provider: 'openai',
+          },
+        },
+        modelProvider: 'openai',
+        openAiApiKey: 'sk-global-value',
+        openAiModel: 'gpt-5.4',
+      },
+      {
+        fixtureProvider: createScenePlannerFixtureProvider(),
+        openAiProviderFactory,
+      },
+    )
+
+    const result = await gateway.generate(createRequest())
+
+    expect(openAiProviderFactory).toHaveBeenCalledWith({
+      apiKey: 'sk-planner-value',
+      modelId: 'gpt-5.4-mini',
+    })
+    expect(result.provenance).toEqual({
+      modelId: 'gpt-5.4-mini',
+      provider: 'openai',
+    })
+  })
+
   it('falls back to fixture with provider-error when the openai provider throws', async () => {
     const gateway = createScenePlannerGateway(
       {
@@ -161,6 +209,7 @@ describe('createScenePlannerGateway', () => {
       fallbackReason: 'provider-error',
     })
     expect(result.output.proposals[0]?.title).toBe('Anchor the arrival beat')
+    expect(JSON.stringify(result)).not.toContain('sk-test')
   })
 
   it('falls back to fixture with invalid-output when the openai provider returns data outside the planner schema', async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { createSceneProseWriterFixtureProvider } from './sceneProseWriterFixtureProvider.js'
+import { DEFAULT_MODEL_BINDINGS } from './model-binding.js'
 import { createSceneProseWriterGateway } from './sceneProseWriterGateway.js'
 
 function createRequest(overrides?: Partial<{
@@ -156,6 +157,106 @@ describe('createSceneProseWriterGateway', () => {
     expect(openAiProvider.generate).toHaveBeenCalledWith(createRequest())
   })
 
+  it('uses the scene prose writer binding for draft tasks and the scene revision binding for revision tasks', async () => {
+    const openAiProviderFactory = vi
+      .fn()
+      .mockImplementationOnce(() => ({
+        generate: vi.fn().mockResolvedValue({
+          body: {
+            en: 'Draft prose uses the draft model binding.',
+            'zh-CN': '草稿正文使用草稿模型绑定。',
+          },
+          excerpt: {
+            en: 'Draft binding excerpt.',
+            'zh-CN': '草稿绑定摘要。',
+          },
+          diffSummary: 'Draft binding diff summary.',
+          relatedAssets: [
+            {
+              assetId: 'asset-draft-binding',
+              kind: 'character',
+              label: {
+                en: 'Draft binding asset',
+                'zh-CN': '草稿绑定素材',
+              },
+            },
+          ],
+        }),
+      }))
+      .mockImplementationOnce(() => ({
+        generate: vi.fn().mockResolvedValue({
+          body: {
+            en: 'Revision prose uses the revision model binding.',
+            'zh-CN': '修订正文使用修订模型绑定。',
+          },
+          excerpt: {
+            en: 'Revision binding excerpt.',
+            'zh-CN': '修订绑定摘要。',
+          },
+          diffSummary: 'Revision binding diff summary.',
+          relatedAssets: [
+            {
+              assetId: 'asset-revision-binding',
+              kind: 'location',
+              label: {
+                en: 'Revision binding asset',
+                'zh-CN': '修订绑定素材',
+              },
+            },
+          ],
+        }),
+      }))
+
+    const gateway = createSceneProseWriterGateway(
+      {
+        modelBindings: {
+          ...DEFAULT_MODEL_BINDINGS,
+          sceneProseWriter: {
+            apiKey: 'sk-draft-value',
+            modelId: 'gpt-5.4',
+            provider: 'openai',
+          },
+          sceneRevision: {
+            apiKey: 'sk-revision-value',
+            modelId: 'gpt-5.4-mini',
+            provider: 'openai',
+          },
+        },
+        modelProvider: 'openai',
+      },
+      {
+        fixtureProvider: createSceneProseWriterFixtureProvider(),
+        openAiProviderFactory,
+      },
+    )
+
+    await expect(gateway.generate(createRequest())).resolves.toMatchObject({
+      provenance: {
+        modelId: 'gpt-5.4',
+        provider: 'openai',
+      },
+    })
+    await expect(gateway.generate(createRequest({
+      input: 'Current prose: Midnight Platform opens from the accepted run artifact.',
+      instructions: 'Return only the revised scene prose and a short diff summary.',
+      task: 'revision',
+    }))).resolves.toMatchObject({
+      provenance: {
+        modelId: 'gpt-5.4-mini',
+        provider: 'openai',
+      },
+    })
+
+    expect(openAiProviderFactory).toHaveBeenNthCalledWith(1, {
+      apiKey: 'sk-draft-value',
+      modelId: 'gpt-5.4',
+    })
+    expect(openAiProviderFactory).toHaveBeenNthCalledWith(2, {
+      apiKey: 'sk-revision-value',
+      modelId: 'gpt-5.4-mini',
+    })
+  })
+
   it('renders a revision candidate through the fixture provider instead of a queue-only placeholder', async () => {
     const gateway = createSceneProseWriterGateway(
       {
@@ -207,6 +308,7 @@ describe('createSceneProseWriterGateway', () => {
       fallbackReason: 'provider-error',
     })
     expect(result.output.body.en).toContain('The scene resolves into generated prose')
+    expect(JSON.stringify(result)).not.toContain('sk-test')
   })
 
   it('falls back to fixture with invalid-output when the openai provider returns data outside the writer schema', async () => {

@@ -52,6 +52,27 @@ describe('LocalApiSupervisor', () => {
     const supervisor = new LocalApiSupervisor({
       fetch,
       findAvailablePort: async () => 4888,
+      getModelBindings: async () => ({
+        continuityReviewer: {
+          provider: 'fixture',
+        },
+        planner: {
+          modelId: 'gpt-5.4',
+          provider: 'openai',
+        },
+        sceneProseWriter: {
+          modelId: 'gpt-5.4',
+          provider: 'openai',
+        },
+        sceneRevision: {
+          modelId: 'gpt-5.4-mini',
+          provider: 'openai',
+        },
+        summary: {
+          provider: 'fixture',
+        },
+      }),
+      getProviderCredential: async () => 'sk-secret-value',
       getCurrentProject: () => ({
         projectId: 'local-project-alpha',
         projectRoot: '/tmp/local-project',
@@ -83,7 +104,17 @@ describe('LocalApiSupervisor', () => {
       NARRATIVE_PROJECT_ROOT: '/tmp/local-project',
       NARRATIVE_PROJECT_STORE_FILE: '/tmp/local-project/.narrative/project-store.json',
       NARRATIVE_PROJECT_TITLE: 'Desktop Local Project',
+      NARRATIVE_MODEL_PROVIDER: 'fixture',
+      NARRATIVE_PLANNER_MODEL_PROVIDER: 'openai',
+      NARRATIVE_PLANNER_OPENAI_API_KEY: 'sk-secret-value',
+      NARRATIVE_PLANNER_OPENAI_MODEL: 'gpt-5.4',
       NARRATIVE_RUNTIME: 'desktop-local',
+      NARRATIVE_SCENE_PROSE_WRITER_MODEL_PROVIDER: 'openai',
+      NARRATIVE_SCENE_PROSE_WRITER_OPENAI_API_KEY: 'sk-secret-value',
+      NARRATIVE_SCENE_PROSE_WRITER_OPENAI_MODEL: 'gpt-5.4',
+      NARRATIVE_SCENE_REVISION_MODEL_PROVIDER: 'openai',
+      NARRATIVE_SCENE_REVISION_OPENAI_API_KEY: 'sk-secret-value',
+      NARRATIVE_SCENE_REVISION_OPENAI_MODEL: 'gpt-5.4-mini',
       PORT: '4888',
     })
     expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:4888/api/health', { signal: expect.any(AbortSignal) })
