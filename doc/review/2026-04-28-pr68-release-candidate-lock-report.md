@@ -16,9 +16,10 @@ Date: `2026-04-28`
 - `pnpm typecheck`
   - PASS
 - `pnpm test`
-  - FAIL
-  - First failing test: `packages/renderer/src/features/book/containers/BookDraftWorkspace.test.tsx > BookDraftWorkspace > keeps binder reader inspector and dock aligned to route.selectedChapterId and roundtrips through chapter draft`
-  - Failure summary: the full workspace test run leaves the app locale in `zh-CN`, so this English assertion cannot find `Chapter 2 Open Water Signals`.
+  - PASS after `RC-B001` fix
+  - Baseline failure before fix:
+    - first failing test: `packages/renderer/src/features/book/containers/BookDraftWorkspace.test.tsx > BookDraftWorkspace > keeps binder reader inspector and dock aligned to route.selectedChapterId and roundtrips through chapter draft`
+    - failure summary: the full workspace test run left the app locale in `zh-CN`, so this English assertion could not find `Chapter 2 Open Water Signals`
 - `pnpm typecheck:desktop`
   - PASS
 - `pnpm test:desktop`
@@ -38,6 +39,7 @@ Pending.
 ## Reproduced Blockers
 
 - `RC-B001` Renderer test isolation leak blocks the baseline verification matrix.
+- `RC-B001` Renderer test isolation leak blocked the baseline verification matrix and is now resolved.
   - Command: `pnpm test`
   - Observed result: `BookDraftWorkspace.test.tsx` fails under the full renderer suite because the locale persists as `zh-CN`.
   - Expected result: the full verification matrix passes with the default English route assertions intact.
@@ -51,6 +53,10 @@ Pending.
     - Candidate leak sites found during tracing:
       - `packages/renderer/src/features/book/components/BookDraftInspectorPane.test.tsx`
       - `packages/renderer/src/features/book/hooks/useBookStructureWorkspaceQuery.test.tsx`
+      - `packages/renderer/src/features/asset/hooks/useAssetKnowledgeWorkspaceQuery.test.tsx`
+      - `packages/renderer/src/features/chapter/hooks/useChapterStructureWorkspaceQuery.test.tsx`
+  - Resolution evidence:
+    - `pnpm test` -> PASS after restoring cleanup in all identified locale-mutating test files
 
 ## Rejected Non-Blockers
 
