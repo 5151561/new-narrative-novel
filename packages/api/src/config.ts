@@ -1,6 +1,13 @@
 import path from 'node:path'
 
 import { resolveDefaultProjectStoreFilePath } from './repositories/project-state-persistence.js'
+import {
+  createModelBindingsFromLegacyConfig,
+  MODEL_BINDING_ROLES,
+  type ModelBindings,
+  type ModelBindingRole,
+  type ResolvedModelBinding,
+} from './orchestration/modelGateway/model-binding.js'
 
 export type ModelProvider = 'fixture' | 'openai'
 
@@ -21,6 +28,7 @@ export interface ApiServerConfig {
   modelProvider: ModelProvider
   openAiModel?: string
   openAiApiKey?: string
+  modelBindings?: ModelBindings
 }
 
 function readPort(name: string, fallback: number) {
@@ -41,17 +49,17 @@ function readPort(name: string, fallback: number) {
   return parsed
 }
 
-function readModelProvider(): ModelProvider {
-  const value = process.env.NARRATIVE_MODEL_PROVIDER
+function readModelProvider(name = 'NARRATIVE_MODEL_PROVIDER', fallback?: ModelProvider): ModelProvider {
+  const value = process.env[name]
   if (value === undefined) {
-    return 'fixture'
+    return fallback ?? 'fixture'
   }
 
   if (value === 'fixture' || value === 'openai') {
     return value
   }
 
-  throw new Error('NARRATIVE_MODEL_PROVIDER must be one of: fixture, openai')
+  throw new Error(`${name} must be one of: fixture, openai`)
 }
 
 function readOptionalTrimmedEnv(name: string) {
@@ -75,6 +83,44 @@ function readCurrentProject() {
   }
 }
 
+const ROLE_ENV_PREFIXES: Record<ModelBindingRole, string> = {
+  continuityReviewer: 'NARRATIVE_CONTINUITY_REVIEWER',
+  planner: 'NARRATIVE_PLANNER',
+  sceneProseWriter: 'NARRATIVE_SCENE_PROSE_WRITER',
+  sceneRevision: 'NARRATIVE_SCENE_REVISION',
+  summary: 'NARRATIVE_SUMMARY',
+}
+
+function readRoleModelBinding(role: ModelBindingRole, legacyBinding: ResolvedModelBinding): ResolvedModelBinding {
+  const prefix = ROLE_ENV_PREFIXES[role]
+  const provider = readModelProvider(`${prefix}_MODEL_PROVIDER`, legacyBinding.provider)
+
+  if (provider !== 'openai') {
+    return {
+      provider: 'fixture',
+    }
+  }
+
+  return {
+    apiKey: readOptionalTrimmedEnv(`${prefix}_OPENAI_API_KEY`) ?? legacyBinding.apiKey,
+    modelId: readOptionalTrimmedEnv(`${prefix}_OPENAI_MODEL`) ?? legacyBinding.modelId,
+    provider: 'openai',
+  }
+}
+
+function readModelBindings(modelProvider: ModelProvider, openAiModel?: string, openAiApiKey?: string): ModelBindings {
+  const legacyBindings = createModelBindingsFromLegacyConfig({
+    modelProvider,
+    openAiApiKey,
+    openAiModel,
+  })
+
+  return MODEL_BINDING_ROLES.reduce<ModelBindings>((result, role) => {
+    result[role] = readRoleModelBinding(role, legacyBindings[role])
+    return result
+  }, { ...legacyBindings })
+}
+
 export function getApiServerConfig(): ApiServerConfig {
   const host = process.env.HOST ?? '127.0.0.1'
   const port = readPort('PORT', 4174)
@@ -96,6 +142,7 @@ export function getApiServerConfig(): ApiServerConfig {
   const openAiApiKey = modelProvider === 'openai'
     ? readOptionalTrimmedEnv('OPENAI_API_KEY')
     : undefined
+  const modelBindings = readModelBindings(modelProvider, openAiModel, openAiApiKey)
 
   return {
     host,
@@ -109,5 +156,6 @@ export function getApiServerConfig(): ApiServerConfig {
     modelProvider,
     openAiModel,
     openAiApiKey,
+    modelBindings,
   }
 }

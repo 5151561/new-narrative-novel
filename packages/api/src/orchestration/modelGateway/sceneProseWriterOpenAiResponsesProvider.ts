@@ -42,20 +42,25 @@ export function createSceneProseWriterOpenAiResponsesProvider(
 
   return {
     async generate(request: SceneProseWriterGatewayRequest) {
-      const response = await client.responses.create({
-        model: options.modelId,
-        instructions: request.instructions,
-        input: request.input,
-        text: {
-          format: {
-            name: 'scene_prose_writer_output',
-            type: 'json_schema',
-            strict: true,
-            description: 'Structured accepted scene prose draft output.',
-            schema: sceneProseWriterOpenAiOutputSchema,
+      let response: { output_text: string }
+      try {
+        response = await client.responses.create({
+          model: options.modelId,
+          instructions: request.instructions,
+          input: request.input,
+          text: {
+            format: {
+              name: 'scene_prose_writer_output',
+              type: 'json_schema',
+              strict: true,
+              description: 'Structured accepted scene prose draft output.',
+              schema: sceneProseWriterOpenAiOutputSchema,
+            },
           },
-        },
-      })
+        })
+      } catch {
+        throw new Error(`OpenAI Responses request failed for prose model ${options.modelId}.`)
+      }
 
       const outputText = response.output_text.trim()
       if (!outputText) {
