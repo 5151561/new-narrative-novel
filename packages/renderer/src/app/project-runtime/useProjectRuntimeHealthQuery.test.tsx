@@ -61,6 +61,7 @@ describe('useProjectRuntimeHealthQuery', () => {
     expect(hook.result.current.info).toEqual({
       projectId: 'project-mock',
       projectTitle: 'project-mock',
+      runtimeKind: 'mock-storybook',
       source: 'mock',
       status: 'healthy',
       summary: 'Using in-memory mock project runtime.',
@@ -197,6 +198,7 @@ describe('useProjectRuntimeHealthQuery', () => {
     const runtimeInfo = createDeferredPromise<{
       projectId: string
       projectTitle: string
+      runtimeKind: 'real-local-project'
       source: 'api'
       status: 'healthy'
       summary: string
@@ -226,6 +228,7 @@ describe('useProjectRuntimeHealthQuery', () => {
         },
       }),
       projectTitle: 'Signal Arc Desktop',
+      runtimeKind: 'real-local-project' as const,
     }
     const wrapper = createProjectRuntimeTestWrapper({ runtime })
     const hook = renderHook(() => useProjectRuntimeHealthQuery(), { wrapper })
@@ -233,6 +236,7 @@ describe('useProjectRuntimeHealthQuery', () => {
     expect(hook.result.current.info).toMatchObject({
       projectId: 'desktop-project-signal-arc',
       projectTitle: 'Signal Arc Desktop',
+      runtimeKind: 'real-local-project',
       source: 'api',
       status: 'checking',
       summary: 'Checking project runtime health.',
@@ -247,10 +251,53 @@ describe('useProjectRuntimeHealthQuery', () => {
     expect(hook.result.current.info).toMatchObject({
       projectId: 'desktop-project-signal-arc',
       projectTitle: 'Signal Arc Desktop',
+      runtimeKind: 'real-local-project',
       source: 'api',
       status: 'unavailable',
-      summary: 'API demo runtime is unavailable. Start the fixture API or reopen the desktop-local demo, then retry.',
+      summary:
+        'Local project runtime is unavailable for "Signal Arc Desktop". The selected project stays active and mock fallback stays off until the runtime recovers.',
     })
+  })
+
+  it('keeps real-local-project auth failures on the selected project identity instead of demo copy', async () => {
+    const runtime = Object.assign(
+      createApiProjectRuntime({
+        projectId: 'desktop-project-signal-arc',
+        transport: {
+          requestJson: vi.fn(async ({ path, method }) => {
+            if (method === 'GET' && path === '/api/projects/desktop-project-signal-arc/runtime-info') {
+              throw new ApiRequestError({
+                status: 401,
+                message: 'runtime-401',
+              })
+            }
+
+            throw new Error(`Unexpected transport request: ${method} ${path}`)
+          }),
+        },
+      }),
+      {
+        projectTitle: 'Signal Arc Desktop',
+        runtimeKind: 'real-local-project' as const,
+      },
+    )
+    const wrapper = createProjectRuntimeTestWrapper({ runtime })
+    const hook = renderHook(() => useProjectRuntimeHealthQuery(), { wrapper })
+
+    await waitFor(() => {
+      expect(hook.result.current.isChecking).toBe(false)
+    })
+
+    expect(hook.result.current.info).toMatchObject({
+      projectId: 'desktop-project-signal-arc',
+      projectTitle: 'Signal Arc Desktop',
+      runtimeKind: 'real-local-project',
+      source: 'api',
+      status: 'unauthorized',
+      summary:
+        'Local project runtime needs authorization for "Signal Arc Desktop". The selected project stays active and mock fallback stays off until access is restored.',
+    })
+    expect(hook.result.current.info.summary).not.toMatch(/fixture|API demo runtime/i)
   })
 
   it('guides the API-backed demo path when runtime-info returns not_found', async () => {
@@ -388,6 +435,7 @@ describe('useProjectRuntimeHealthQuery', () => {
     const deferred = createDeferredPromise<{
       projectId: string
       projectTitle: string
+      runtimeKind: 'fixture-demo'
       source: 'api'
       status: 'healthy'
       summary: string

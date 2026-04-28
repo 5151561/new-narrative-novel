@@ -117,6 +117,7 @@ describe('mock project runtime', () => {
     await expect(runtime.runtimeInfoClient.getProjectRuntimeInfo()).resolves.toEqual({
       projectId,
       projectTitle: 'book-signal-arc',
+      runtimeKind: 'mock-storybook',
       source: 'mock',
       status: 'healthy',
       summary: 'Using in-memory mock project runtime.',

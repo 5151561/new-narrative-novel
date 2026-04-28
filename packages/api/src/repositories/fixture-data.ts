@@ -1831,16 +1831,19 @@ export function createSignalArcProjectTemplate(input: {
     }
   }
 
+  const versionLabel = input.versionLabel ?? 'local-project-store-v1'
+
   return {
     runtimeInfo: {
       projectId: input.projectId,
       projectTitle: input.projectTitle,
+      runtimeKind: versionLabel.startsWith('local-project-store-') ? 'real-local-project' : 'fixture-demo',
       source: 'api',
       status: 'healthy',
       summary: input.runtimeSummary ?? 'Connected to local project store v1.',
       checkedAtLabel: '2026-04-23 10:00',
       apiBaseUrl: input.apiBaseUrl,
-      versionLabel: input.versionLabel ?? 'local-project-store-v1',
+      versionLabel,
       capabilities: {
         read: true,
         write: true,

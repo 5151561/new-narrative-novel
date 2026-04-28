@@ -5,6 +5,7 @@ export interface ApiErrorResponse {
   detail?: unknown
 }
 
+export type ProjectRuntimeKind = 'fixture-demo' | 'mock-storybook' | 'real-local-project'
 export type ProjectRuntimeSource = 'mock' | 'api'
 
 export type ProjectRuntimeHealthStatus =
@@ -30,6 +31,7 @@ export interface ProjectRuntimeCapabilitiesRecord {
 export interface ProjectRuntimeInfoRecord {
   projectId: string
   projectTitle: string
+  runtimeKind: ProjectRuntimeKind
   source: ProjectRuntimeSource
   status: ProjectRuntimeHealthStatus
   summary: string
