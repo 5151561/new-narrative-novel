@@ -76,3 +76,10 @@ export const QuietChapter: Story = {
     quiet: true,
   },
 }
+
+export const WaitingReviewGate: Story = {
+  args: {
+    selectedSceneId: 'scene-concourse-delay',
+    variant: 'waiting-review',
+  },
+}

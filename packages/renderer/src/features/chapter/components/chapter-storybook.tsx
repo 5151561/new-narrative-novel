@@ -6,7 +6,9 @@ import { createStoryProjectRuntimeEnvironment } from '@/app/project-runtime'
 
 import {
   buildChapterDraftMissingStoryWorkspace,
+  buildChapterDraftRunningGateStoryWorkspace,
   buildChapterDraftStoryWorkspace,
+  buildChapterDraftWaitingReviewStoryWorkspace,
   buildChapterProblemsHeavyStoryWorkspace,
   buildChapterStoryWorkspace,
   buildQuietChapterDraftStoryWorkspace,
@@ -17,7 +19,7 @@ import type { ChapterDraftWorkspaceViewModel } from '../types/chapter-draft-view
 import type { ChapterStructureView, ChapterStructureWorkspaceViewModel } from '../types/chapter-view-models'
 
 export type ChapterStructureStoryVariant = 'default' | 'problems-heavy'
-export type ChapterDraftStoryVariant = 'default' | 'missing' | 'quiet'
+export type ChapterDraftStoryVariant = 'default' | 'missing' | 'quiet' | 'waiting-review' | 'running-gate'
 
 export function ChapterStoryShell({
   children,
@@ -60,6 +62,14 @@ export function useLocalizedChapterDraftWorkspace(
 
     if (variant === 'quiet') {
       return buildQuietChapterDraftStoryWorkspace(selectedSceneId, locale)
+    }
+
+    if (variant === 'waiting-review') {
+      return buildChapterDraftWaitingReviewStoryWorkspace(selectedSceneId, locale)
+    }
+
+    if (variant === 'running-gate') {
+      return buildChapterDraftRunningGateStoryWorkspace(selectedSceneId, locale)
     }
 
     return buildChapterDraftStoryWorkspace(selectedSceneId, locale)

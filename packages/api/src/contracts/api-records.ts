@@ -378,6 +378,26 @@ export interface UpdateChapterBacklogProposalSceneInput {
   backlogStatus?: ChapterSceneBacklogStatus
 }
 
+export interface StartNextChapterSceneRunInput {
+  locale: 'en' | 'zh-CN'
+  mode?: RunMode
+  note?: string
+}
+
+export interface ChapterRunNextSceneRecord {
+  chapterId: string
+  sceneId: string
+  order: number
+  title: LocalizedTextRecord
+  backlogStatus: ChapterSceneBacklogStatus
+}
+
+export interface StartNextChapterSceneRunRecord {
+  chapter: ChapterStructureWorkspaceRecord
+  run: RunRecord
+  selectedScene: ChapterRunNextSceneRecord
+}
+
 export type StoredReviewDecisionStatus = 'reviewed' | 'deferred' | 'dismissed'
 
 export interface ReviewIssueDecisionRecord {

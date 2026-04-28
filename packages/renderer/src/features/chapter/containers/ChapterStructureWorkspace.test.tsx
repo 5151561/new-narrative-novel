@@ -168,6 +168,58 @@ describe('ChapterStructureWorkspace', () => {
     expect(screen.getByRole('button', { name: /Sequence 1 Midnight Platform/i })).toBeInTheDocument()
   })
 
+  it('blocks starting a later scene when an earlier chapter scene is still running', async () => {
+    const runningWorkspace = buildChapterStoryWorkspace('scene-concourse-delay')
+    runningWorkspace.scenes = runningWorkspace.scenes.map((scene) => {
+      if (scene.id === 'scene-midnight-platform') {
+        return {
+          ...scene,
+          backlogStatus: 'drafted',
+          backlogStatusLabel: 'Drafted',
+        }
+      }
+      if (scene.id === 'scene-concourse-delay') {
+        return {
+          ...scene,
+          backlogStatus: 'running',
+          backlogStatusLabel: 'Running',
+          runStatusLabel: 'Run in progress',
+        }
+      }
+      if (scene.id === 'scene-ticket-window') {
+        return {
+          ...scene,
+          backlogStatus: 'planned',
+          backlogStatusLabel: 'Planned',
+          runStatusLabel: 'Idle',
+        }
+      }
+
+      return scene
+    })
+    vi.spyOn(chapterWorkspaceQuery, 'useChapterStructureWorkspaceQuery').mockReturnValue({
+      workspace: runningWorkspace,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=structure&view=backlog&sceneId=scene-concourse-delay',
+    )
+
+    render(
+      <AppProviders>
+        <ChapterRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('button', { name: 'Scene running' })).toBeDisabled()
+    expect(screen.getByText('Run in progress')).toBeInTheDocument()
+  })
+
   it('defaults into backlog view for chapter structure routes without an explicit view', async () => {
     window.history.replaceState(
       {},

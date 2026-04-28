@@ -113,8 +113,11 @@ function buildWorkspaceModel(
       summary: scene.summary,
       proseDraft: prose?.proseDraft,
       draftWordCount,
+      backlogStatus: scene.backlogStatus,
+      backlogStatusLabel: scene.backlogStatusLabel,
       proseStatusLabel,
       sceneStatusLabel: scene.statusLabel,
+      runStatusLabel: scene.runStatusLabel,
       latestDiffSummary,
       revisionQueueCount: prose?.revisionQueueCount,
       warningsCount: prose?.warningsCount ?? 0,
@@ -133,6 +136,11 @@ function buildWorkspaceModel(
     missingDraftCount,
     warningsCount,
     queuedRevisionCount,
+    waitingReviewCount: scenes.filter((scene) => scene.backlogStatus === 'needs_review').length,
+    runnableScene: (() => {
+      const runnableScene = scenes.find((scene) => scene.backlogStatus === 'planned')
+      return runnableScene ? buildDockItem(runnableScene, runnableScene.summary) : undefined
+    })(),
     missingDraftScenes: scenes
       .filter((scene) => scene.isMissingDraft)
       .map((scene) => buildDockItem(scene, scene.latestDiffSummary)),
@@ -142,6 +150,9 @@ function buildWorkspaceModel(
     queuedRevisionScenes: scenes
       .filter((scene) => (scene.revisionQueueCount ?? 0) > 0)
       .map((scene) => buildDockItem(scene, buildQueueDetail(locale, scene.revisionQueueCount ?? 0))),
+    waitingReviewScenes: scenes
+      .filter((scene) => scene.backlogStatus === 'needs_review')
+      .map((scene) => buildDockItem(scene, scene.runStatusLabel)),
   }
 
   return {

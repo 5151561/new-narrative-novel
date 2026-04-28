@@ -2,7 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { withStorybookLocale } from '../../../../.storybook/storybook-locale'
-import meta, { Default } from './ChapterDraftWorkspace.stories'
+import meta, { Default, RunningGate, WaitingReviewGate } from './ChapterDraftWorkspace.stories'
 
 afterEach(() => {
   cleanup()
@@ -44,5 +44,48 @@ describe('ChapterDraftWorkspace story locale integration', () => {
     expect(screen.getAllByText(/Drafted/).length).toBeGreaterThan(0)
     expect(screen.getByText('Browse the assembled reading order while route.sceneId keeps the focus stable.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /EN/ })).not.toBeInTheDocument()
+  })
+
+  it('renders the waiting-review orchestration panel copy in both locales', () => {
+    const WaitingReviewStory = () => {
+      if (!meta.render) {
+        throw new Error('Expected ChapterDraftWorkspace story to define a render function')
+      }
+
+      return meta.render((WaitingReviewGate.args ?? {}) as Parameters<NonNullable<typeof meta.render>>[0])
+    }
+
+    render(withStorybookLocale(WaitingReviewStory, {
+      globals: { locale: 'en' },
+    } as never))
+
+    expect(screen.getByRole('button', { name: 'Review pending' })).toBeDisabled()
+    expect(screen.getByText('Chapter orchestration')).toBeInTheDocument()
+
+    cleanup()
+
+    render(withStorybookLocale(WaitingReviewStory, {
+      globals: { locale: 'zh-CN' },
+    } as never))
+
+    expect(screen.getByRole('button', { name: '等待 Review' })).toBeDisabled()
+    expect(screen.getByText('章节编排')).toBeInTheDocument()
+  })
+
+  it('renders running scenes as blocking in the draft story preview', () => {
+    const RunningStory = () => {
+      if (!meta.render) {
+        throw new Error('Expected ChapterDraftWorkspace story to define a render function')
+      }
+
+      return meta.render((RunningGate.args ?? {}) as Parameters<NonNullable<typeof meta.render>>[0])
+    }
+
+    render(withStorybookLocale(RunningStory, {
+      globals: { locale: 'en' },
+    } as never))
+
+    expect(screen.getByRole('button', { name: 'Scene running' })).toBeDisabled()
+    expect(screen.getAllByText('Run in progress').length).toBeGreaterThan(0)
   })
 })

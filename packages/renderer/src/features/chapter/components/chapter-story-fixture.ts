@@ -67,7 +67,7 @@ const structureSceneRecords = [
     backlogStatus: 'needs_review' as const,
     statusLabel: text('Queued', '排队中'),
     proseStatusLabel: text('Queued for draft', '待起草'),
-    runStatusLabel: text('Idle', '未开始'),
+    runStatusLabel: text('Run waiting for review', '等待 Review'),
     unresolvedCount: 2,
     lastRunLabel: text('Not run', '未运行'),
     briefSummary: text(
@@ -324,6 +324,8 @@ const draftSceneRecords = [
     draftWordCount: 11,
     proseStatusLabel: text('Ready for revision pass', '可进入修订轮'),
     sceneStatusLabel: text('Current', '当前'),
+    backlogStatus: 'drafted' as const,
+    runStatusLabel: text('Run completed', '运行完成'),
     latestDiffSummary: text('No prose revision requested yet.', '还没有新的正文修订请求。'),
     revisionQueueCount: 0,
     warningsCount: 0,
@@ -344,6 +346,8 @@ const draftSceneRecords = [
     draftWordCount: 18,
     proseStatusLabel: text('Draft handoff ready', '草稿交接已就绪'),
     sceneStatusLabel: text('Queued', '排队中'),
+    backlogStatus: 'needs_review' as const,
+    runStatusLabel: text('Run waiting for review', '等待 Review'),
     latestDiffSummary: text(
       'Carry the witness pressure forward without resolving courier ownership.',
       '继续把见证压力往后带，不要提前解释信使归属。',
@@ -367,6 +371,8 @@ const draftSceneRecords = [
     draftWordCount: 24,
     proseStatusLabel: text('Ready for prose pass', '可进入正文轮'),
     sceneStatusLabel: text('Guarded', '受控'),
+    backlogStatus: 'planned' as const,
+    runStatusLabel: text('Idle', '未开始'),
     latestDiffSummary: text(
       'Tighten the visible cost before the clerk notices too much.',
       '在售票员察觉太多之前，再把可见代价压紧一点。',
@@ -385,8 +391,11 @@ function buildDraftScenes(locale: Locale) {
     summary: pick(locale, scene.summary),
     proseDraft: pick(locale, scene.proseDraft),
     draftWordCount: scene.draftWordCount,
+    backlogStatus: scene.backlogStatus,
+    backlogStatusLabel: getChapterBacklogStatusLabel(locale, scene.backlogStatus),
     proseStatusLabel: pick(locale, scene.proseStatusLabel),
     sceneStatusLabel: pick(locale, scene.sceneStatusLabel),
+    runStatusLabel: pick(locale, scene.runStatusLabel),
     latestDiffSummary: pick(locale, scene.latestDiffSummary),
     revisionQueueCount: scene.revisionQueueCount,
     warningsCount: scene.warningsCount,
@@ -594,6 +603,13 @@ function buildDraftWorkspace(
       missingDraftCount,
       warningsCount,
       queuedRevisionCount,
+      waitingReviewCount: scenes.filter((scene) => scene.backlogStatus === 'needs_review').length,
+      runnableScene: (() => {
+        const runnableScene = scenes.find((scene) => scene.backlogStatus === 'planned')
+        return runnableScene
+          ? { sceneId: runnableScene.sceneId, title: runnableScene.title, detail: runnableScene.summary }
+          : undefined
+      })(),
       missingDraftScenes: [],
       warningScenes: scenes
         .filter((scene) => scene.warningsCount > 0)
@@ -601,6 +617,9 @@ function buildDraftWorkspace(
       queuedRevisionScenes: scenes
         .filter((scene) => (scene.revisionQueueCount ?? 0) > 0)
         .map((scene) => ({ sceneId: scene.sceneId, title: scene.title, detail: getQueuedRevisionDetail(locale, scene.revisionQueueCount ?? 0) })),
+      waitingReviewScenes: scenes
+        .filter((scene) => scene.backlogStatus === 'needs_review')
+        .map((scene) => ({ sceneId: scene.sceneId, title: scene.title, detail: scene.runStatusLabel })),
     },
     ...overrides,
   }
@@ -638,6 +657,13 @@ export function buildChapterDraftMissingStoryWorkspace(
       missingDraftCount: scenes.filter((scene) => scene.isMissingDraft).length,
       warningsCount: scenes.reduce((total, scene) => total + scene.warningsCount, 0),
       queuedRevisionCount: scenes.reduce((total, scene) => total + (scene.revisionQueueCount ?? 0), 0),
+      waitingReviewCount: scenes.filter((scene) => scene.backlogStatus === 'needs_review').length,
+      runnableScene: (() => {
+        const runnableScene = scenes.find((scene) => scene.backlogStatus === 'planned')
+        return runnableScene
+          ? { sceneId: runnableScene.sceneId, title: runnableScene.title, detail: runnableScene.summary }
+          : undefined
+      })(),
       missingDraftScenes: [
         {
           sceneId: 'scene-concourse-delay',
@@ -651,6 +677,52 @@ export function buildChapterDraftMissingStoryWorkspace(
       queuedRevisionScenes: scenes
         .filter((scene) => (scene.revisionQueueCount ?? 0) > 0)
         .map((scene) => ({ sceneId: scene.sceneId, title: scene.title, detail: getQueuedRevisionDetail(locale, scene.revisionQueueCount ?? 0) })),
+      waitingReviewScenes: scenes
+        .filter((scene) => scene.backlogStatus === 'needs_review')
+        .map((scene) => ({ sceneId: scene.sceneId, title: scene.title, detail: scene.runStatusLabel })),
+    },
+  })
+}
+
+export function buildChapterDraftWaitingReviewStoryWorkspace(
+  selectedSceneId: string,
+  locale: Locale = 'en',
+): ChapterDraftWorkspaceViewModel {
+  return buildDraftWorkspace(selectedSceneId, locale)
+}
+
+export function buildChapterDraftRunningGateStoryWorkspace(
+  selectedSceneId: string,
+  locale: Locale = 'en',
+): ChapterDraftWorkspaceViewModel {
+  const workspace = buildDraftWorkspace(selectedSceneId, locale)
+  const scenes = workspace.scenes.map((scene) => (
+    scene.sceneId === 'scene-concourse-delay'
+      ? {
+          ...scene,
+          backlogStatus: 'running' as const,
+          backlogStatusLabel: getChapterBacklogStatusLabel(locale, 'running'),
+          runStatusLabel: pick(locale, text('Run in progress', '运行中')),
+        }
+      : scene
+  ))
+
+  return buildDraftWorkspace(selectedSceneId, locale, scenes, {
+    dockSummary: {
+      ...workspace.dockSummary,
+      waitingReviewCount: 1,
+      waitingReviewScenes: [
+        {
+          sceneId: 'scene-concourse-delay',
+          title: pick(locale, text('Concourse Delay', '候车厅延误')),
+          detail: pick(locale, text('Run in progress', '运行中')),
+        },
+      ],
+      runnableScene: {
+        sceneId: 'scene-ticket-window',
+        title: pick(locale, text('Ticket Window', '售票窗')),
+        detail: pick(locale, text('Put speed and certainty in the same beat without surfacing the alias.', '让速度与确定性落在同一节拍里，同时不要把化名抬到台前。')),
+      },
     },
   })
 }
@@ -679,8 +751,11 @@ export function buildQuietChapterDraftStoryWorkspace(
         ),
       ),
       draftWordCount: 10,
+      backlogStatus: 'planned' as const,
+      backlogStatusLabel: getChapterBacklogStatusLabel(locale, 'planned'),
       proseStatusLabel: pick(locale, text('Setup draft only', '仅有设定草稿')),
       sceneStatusLabel: pick(locale, text('Current', '当前')),
+      runStatusLabel: pick(locale, text('Idle', '未开始')),
       latestDiffSummary: pick(locale, text('No pending prose revisions.', '当前没有排队中的正文修订。')),
       revisionQueueCount: 0,
       warningsCount: 0,

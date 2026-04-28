@@ -17,6 +17,7 @@ import {
 import {
   exportMockChapterSnapshot,
   importMockChapterSnapshot,
+  setMockChapterSceneBacklogStatus,
 } from '@/features/chapter/api/mock-chapter-db'
 import {
   createReviewClient,
@@ -218,7 +219,7 @@ export function createMockProjectRuntime({
   persistence = createLocalStorageProjectPersistence(),
 }: CreateMockProjectRuntimeOptions = {}): ProjectRuntime {
   const baseBookClient = runtimeBookClient ?? createBookClient()
-  const baseChapterClient = runtimeChapterClient ?? createChapterClient()
+  const baseChapterClient = runtimeChapterClient ?? createChapterClient({ projectId })
   const baseAssetClient = runtimeAssetClient ?? createAssetClient()
   const baseReviewClient = runtimeReviewClient ?? createReviewClient()
   const baseRunClient = runtimeRunClient ?? createRunClient({ projectId })
@@ -316,6 +317,9 @@ export function createMockProjectRuntime({
       async acceptChapterBacklogProposal(input) {
         return persistAfterMutation(() => baseChapterClient.acceptChapterBacklogProposal(input))
       },
+      async startNextChapterSceneRun(input) {
+        return persistAfterMutation(() => baseChapterClient.startNextChapterSceneRun(input))
+      },
       async reorderChapterScene(input) {
         return persistAfterMutation(() => baseChapterClient.reorderChapterScene(input))
       },
@@ -359,7 +363,17 @@ export function createMockProjectRuntime({
         return baseRunClient.getRunEvents(input)
       },
       async submitRunReviewDecision(input) {
-        return persistAfterMutation(() => baseRunClient.submitRunReviewDecision(input))
+        return persistAfterMutation(async () => {
+          const run = await baseRunClient.submitRunReviewDecision(input)
+          if (run.scope === 'scene') {
+            if (input.decision === 'accept' || input.decision === 'accept-with-edit') {
+              setMockChapterSceneBacklogStatus(run.scopeId, 'drafted')
+            } else if (input.decision === 'request-rewrite' || input.decision === 'reject') {
+              setMockChapterSceneBacklogStatus(run.scopeId, 'planned')
+            }
+          }
+          return run
+        })
       },
       async listRunArtifacts(input) {
         await ensureHydrated()

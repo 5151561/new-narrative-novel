@@ -22,6 +22,7 @@ export interface ChapterWorkbenchMutationEvent {
     | 'generated-backlog-proposal'
     | 'updated-backlog-proposal-scene'
     | 'accepted-backlog-proposal'
+    | 'started-next-scene-run'
   sceneTitle: string
   direction?: 'up' | 'down'
 }
@@ -40,6 +41,7 @@ interface ChapterWorkbenchActivityEntry {
     | 'generated-backlog-proposal'
     | 'updated-backlog-proposal-scene'
     | 'accepted-backlog-proposal'
+    | 'started-next-scene-run'
   view?: ChapterStructureView
   sceneTitle?: string
   sceneSummary?: string
@@ -150,6 +152,19 @@ function localizeActivityEntry(
           locale === 'zh-CN'
             ? 'canonical scene 顺序和 backlog 状态已经稳定下来。'
             : 'Canonical scene order and backlog status are now stable.',
+      }
+    }
+
+    if (entry.action === 'started-next-scene-run') {
+      return {
+        id: entry.id,
+        kind: entry.kind,
+        tone: entry.tone,
+        title: locale === 'zh-CN' ? '已启动下一场运行' : 'Started next scene run',
+        detail:
+          locale === 'zh-CN'
+            ? '章节编排已启动 accepted backlog 中的下一场，并停在 review。'
+            : 'Chapter orchestration launched the next accepted backlog scene and stopped at review.',
       }
     }
 

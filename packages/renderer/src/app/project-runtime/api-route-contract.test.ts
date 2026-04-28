@@ -57,6 +57,12 @@ describe('api route contract', () => {
         proposalId: 'proposal-1',
       }),
     ).toBe('/api/projects/project-1/chapters/chapter-1/backlog-proposals/proposal-1/accept')
+    expect(
+      apiRouteContract.chapterRunNextScene({
+        projectId: 'book signal',
+        chapterId: 'chapter/a',
+      }),
+    ).toBe('/api/projects/book%20signal/chapters/chapter%2Fa/run-next-scene')
   })
 
   it('builds the book export artifact write route', () => {

@@ -8,6 +8,7 @@ import { useI18n } from '@/app/i18n'
 
 import { ChapterBinderPane } from '../components/ChapterBinderPane'
 import { ChapterModeRail } from '../components/ChapterModeRail'
+import { ChapterRunOrchestrationPanel } from '../components/ChapterRunOrchestrationPanel'
 import { ChapterStructureInspectorPane } from '../components/ChapterStructureInspectorPane'
 import { ChapterStructureStage } from '../components/ChapterStructureStage'
 import {
@@ -28,6 +29,52 @@ interface ChapterStructureWorkspaceStoryProps {
   state: WorkspaceState
   hideInspector?: boolean
   hideDock?: boolean
+}
+
+function resolveChapterRunGate(
+  scenes: Array<{
+    id: string
+    title: string
+    order: number
+    summary: string
+    backlogStatus: 'planned' | 'running' | 'needs_review' | 'drafted' | 'revised'
+    backlogStatusLabel: string
+    runStatusLabel: string
+  }>,
+) {
+  const orderedScenes = [...scenes].sort((left, right) => left.order - right.order)
+  const blockingScenes: Array<{
+    sceneId: string
+    title: string
+    order: number
+    backlogStatus: 'running' | 'needs_review'
+    runStatusLabel: string
+  }> = []
+
+  for (const scene of orderedScenes) {
+    if (scene.backlogStatus === 'running' || scene.backlogStatus === 'needs_review') {
+      blockingScenes.push({
+        sceneId: scene.id,
+        title: scene.title,
+        order: scene.order,
+        backlogStatus: scene.backlogStatus,
+        runStatusLabel: scene.runStatusLabel,
+      })
+      break
+    }
+
+    if (scene.backlogStatus === 'planned') {
+      return {
+        nextScene: scene,
+        blockingScenes,
+      }
+    }
+  }
+
+  return {
+    nextScene: undefined,
+    blockingScenes,
+  }
 }
 
 function buildWorkspace(selectedSceneId: string, state: WorkspaceState) {
@@ -70,6 +117,7 @@ function WorkspacePreview({ selectedSceneId, state, hideInspector = false, hideD
   const activity = buildChapterStructureStoryActivity(locale, workspace, {
     activeView: 'backlog',
   })
+  const { nextScene, blockingScenes } = resolveChapterRunGate(workspace.scenes)
 
   return (
     <WorkbenchShell
@@ -95,22 +143,43 @@ function WorkspacePreview({ selectedSceneId, state, hideInspector = false, hideD
         state === 'loading' ? (
           <EmptyState title={dictionary.common.loading} message={locale === 'zh-CN' ? '正在准备 backlog 工作区。' : 'Preparing the backlog workspace.'} />
         ) : (
-          <ChapterStructureStage
-            activeView="backlog"
-            labels={{
-              backlog: dictionary.app.backlog,
-              sequence: dictionary.app.sequence,
-              outliner: dictionary.app.outliner,
-              assembly: dictionary.app.assembly,
-            }}
-            availableViews={workspace.viewsMeta?.availableViews}
-            workspace={workspace}
-            title={dictionary.app.chapterStructure}
-            onViewChange={() => undefined}
-            onSelectScene={() => undefined}
-            savingPlanning={state === 'loading'}
-            generatingProposal={state === 'loading'}
-          />
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <ChapterRunOrchestrationPanel
+              title={locale === 'zh-CN' ? '章节编排' : 'Chapter orchestration'}
+              description={
+                locale === 'zh-CN'
+                  ? '按 accepted backlog 顺序推进下一场，并在 review 处停下。'
+                  : 'Advance the next accepted backlog scene in order and stop at review.'
+              }
+              nextScene={nextScene ? {
+                sceneId: nextScene.id,
+                title: nextScene.title,
+                order: nextScene.order,
+                summary: nextScene.summary,
+                backlogStatusLabel: nextScene.backlogStatusLabel,
+                runStatusLabel: nextScene.runStatusLabel,
+              } : undefined}
+              waitingReviewScenes={blockingScenes}
+              draftedSceneCount={workspace.scenes.filter((scene) => scene.backlogStatus === 'drafted' || scene.backlogStatus === 'revised').length}
+              missingDraftCount={workspace.scenes.length - workspace.scenes.filter((scene) => scene.backlogStatus === 'drafted' || scene.backlogStatus === 'revised').length}
+            />
+            <ChapterStructureStage
+              activeView="backlog"
+              labels={{
+                backlog: dictionary.app.backlog,
+                sequence: dictionary.app.sequence,
+                outliner: dictionary.app.outliner,
+                assembly: dictionary.app.assembly,
+              }}
+              availableViews={workspace.viewsMeta?.availableViews}
+              workspace={workspace}
+              title={dictionary.app.chapterStructure}
+              onViewChange={() => undefined}
+              onSelectScene={() => undefined}
+              savingPlanning={state === 'loading'}
+              generatingProposal={state === 'loading'}
+            />
+          </div>
         )
       }
       inspector={

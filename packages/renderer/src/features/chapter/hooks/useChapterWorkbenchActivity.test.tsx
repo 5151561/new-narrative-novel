@@ -206,6 +206,21 @@ describe('useChapterWorkbenchActivity', () => {
         title: 'Moved Ticket Window earlier',
       }),
     ])
+
+    rerender({
+      latestMutation: {
+        id: 'mutation-3',
+        chapterId: 'chapter-signals-in-rain',
+        action: 'started-next-scene-run',
+        sceneTitle: 'Concourse Delay',
+      },
+    })
+
+    expect(result.current[0]).toMatchObject({
+      id: 'mutation-3',
+      kind: 'mutation',
+      title: 'Started next scene run',
+    })
   })
 
   it('ignores stale mutation events from another chapter', () => {

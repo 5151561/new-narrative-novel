@@ -12,7 +12,7 @@ export interface ChapterStructureSceneViewModel {
   location: string
   conflict: string
   reveal: string
-  backlogStatus: string
+  backlogStatus: 'planned' | 'running' | 'needs_review' | 'drafted' | 'revised'
   backlogStatusLabel: string
   statusLabel: string
   proseStatusLabel: string
@@ -38,7 +38,7 @@ export interface ChapterBacklogProposalSceneViewModel {
   location: string
   conflict: string
   reveal: string
-  backlogStatus: string
+  backlogStatus: 'planned' | 'running' | 'needs_review' | 'drafted' | 'revised'
   backlogStatusLabel: string
   plannerNotes: string
 }

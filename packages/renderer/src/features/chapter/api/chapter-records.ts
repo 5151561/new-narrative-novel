@@ -1,5 +1,6 @@
 import type { Locale } from '@/app/i18n'
 import type { ChapterStructureView } from '@/features/chapter/types/chapter-view-models'
+import type { RunMode, RunRecord } from '@/features/run/api/run-records'
 
 export interface ChapterLocalizedText {
   en: string
@@ -91,6 +92,27 @@ export interface ChapterStructureWorkspaceRecord {
   viewsMeta?: {
     availableViews: ChapterStructureView[]
   }
+}
+
+export interface StartNextChapterSceneRunInput {
+  chapterId: string
+  locale: Locale
+  mode?: RunMode
+  note?: string
+}
+
+export interface ChapterRunNextSceneRecord {
+  chapterId: string
+  sceneId: string
+  order: number
+  title: ChapterLocalizedText
+  backlogStatus: ChapterSceneBacklogStatus
+}
+
+export interface StartNextChapterSceneRunRecord {
+  chapter: ChapterStructureWorkspaceRecord
+  run: RunRecord
+  selectedScene: ChapterRunNextSceneRecord
 }
 
 export function readLocalizedChapterText(value: ChapterLocalizedText, locale: Locale): string {

@@ -10,8 +10,11 @@ export interface ChapterDraftSceneViewModel {
   summary: string
   proseDraft?: string
   draftWordCount?: number
+  backlogStatus: 'planned' | 'running' | 'needs_review' | 'drafted' | 'revised'
+  backlogStatusLabel: string
   proseStatusLabel: string
   sceneStatusLabel: string
+  runStatusLabel: string
   latestDiffSummary?: string
   revisionQueueCount?: number
   warningsCount: number
@@ -59,9 +62,12 @@ export interface ChapterDraftDockSummaryViewModel {
   missingDraftCount: number
   warningsCount: number
   queuedRevisionCount: number
+  waitingReviewCount: number
+  runnableScene?: ChapterDraftDockSummaryItem
   missingDraftScenes: ChapterDraftDockSummaryItem[]
   warningScenes: ChapterDraftDockSummaryItem[]
   queuedRevisionScenes: ChapterDraftDockSummaryItem[]
+  waitingReviewScenes: ChapterDraftDockSummaryItem[]
 }
 
 export interface ChapterDraftWorkspaceViewModel {

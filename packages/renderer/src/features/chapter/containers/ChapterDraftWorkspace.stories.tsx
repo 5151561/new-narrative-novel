@@ -10,6 +10,7 @@ import { ChapterDraftBottomDock } from '../components/ChapterDraftBottomDock'
 import { ChapterDraftInspectorPane } from '../components/ChapterDraftInspectorPane'
 import { ChapterDraftReader } from '../components/ChapterDraftReader'
 import { ChapterModeRail } from '../components/ChapterModeRail'
+import { ChapterRunOrchestrationPanel } from '../components/ChapterRunOrchestrationPanel'
 import {
   ChapterStoryShell,
   buildChapterDraftStoryActivity,
@@ -18,9 +19,56 @@ import {
 } from '../components/chapter-storybook'
 import type { ChapterDraftWorkspaceViewModel } from '../types/chapter-draft-view-models'
 
+function resolveChapterRunGate(
+  scenes: Array<{
+    sceneId: string
+    title: string
+    order: number
+    summary: string
+    backlogStatus: 'planned' | 'running' | 'needs_review' | 'drafted' | 'revised'
+    backlogStatusLabel: string
+    runStatusLabel: string
+  }>,
+) {
+  const orderedScenes = [...scenes].sort((left, right) => left.order - right.order)
+  const blockingScenes: Array<{
+    sceneId: string
+    title: string
+    order: number
+    backlogStatus: 'running' | 'needs_review'
+    runStatusLabel: string
+  }> = []
+
+  for (const scene of orderedScenes) {
+    if (scene.backlogStatus === 'running' || scene.backlogStatus === 'needs_review') {
+      blockingScenes.push({
+        sceneId: scene.sceneId,
+        title: scene.title,
+        order: scene.order,
+        backlogStatus: scene.backlogStatus,
+        runStatusLabel: scene.runStatusLabel,
+      })
+      break
+    }
+
+    if (scene.backlogStatus === 'planned') {
+      return {
+        nextScene: scene,
+        blockingScenes,
+      }
+    }
+  }
+
+  return {
+    nextScene: undefined,
+    blockingScenes,
+  }
+}
+
 function WorkspacePreview({ workspace }: { workspace: ChapterDraftWorkspaceViewModel }) {
   const { locale } = useI18n()
   const activity = buildChapterDraftStoryActivity(locale, workspace)
+  const { nextScene, blockingScenes } = resolveChapterRunGate(workspace.scenes)
 
   return (
     <WorkbenchShell
@@ -36,7 +84,34 @@ function WorkspacePreview({ workspace }: { workspace: ChapterDraftWorkspaceViewM
       }
       modeRail={<ChapterModeRail activeLens="draft" onSelectScope={() => undefined} onSelectLens={() => undefined} />}
       navigator={<ChapterDraftBinderPane workspace={workspace} onSelectScene={() => undefined} onOpenScene={() => undefined} />}
-      mainStage={<ChapterDraftReader workspace={workspace} onSelectScene={() => undefined} onOpenScene={() => undefined} />}
+      mainStage={
+        <ChapterDraftReader
+          workspace={workspace}
+          runOrchestrationPanel={
+            <ChapterRunOrchestrationPanel
+              title={locale === 'zh-CN' ? '章节编排' : 'Chapter orchestration'}
+              description={
+                locale === 'zh-CN'
+                  ? '继续按 accepted backlog 顺序推进下一场，并在 review 处停下。'
+                  : 'Keep advancing the accepted backlog one scene at a time and stop at review.'
+              }
+              nextScene={nextScene ? {
+                sceneId: nextScene.sceneId,
+                title: nextScene.title,
+                order: nextScene.order,
+                summary: nextScene.summary,
+                backlogStatusLabel: nextScene.backlogStatusLabel,
+                runStatusLabel: nextScene.runStatusLabel,
+              } : undefined}
+              waitingReviewScenes={blockingScenes}
+              draftedSceneCount={workspace.draftedSceneCount}
+              missingDraftCount={workspace.missingDraftCount}
+            />
+          }
+          onSelectScene={() => undefined}
+          onOpenScene={() => undefined}
+        />
+      }
       inspector={<ChapterDraftInspectorPane chapterTitle={workspace.title} chapterSummary={workspace.summary} inspector={workspace.inspector} />}
       bottomDock={<ChapterDraftBottomDock summary={workspace.dockSummary} activity={activity} />}
     />
@@ -103,6 +178,20 @@ export const QuietChapter: Story = {
   args: {
     selectedSceneId: 'scene-warehouse-bridge',
     variant: 'quiet',
+  },
+}
+
+export const WaitingReviewGate: Story = {
+  args: {
+    selectedSceneId: 'scene-concourse-delay',
+    variant: 'waiting-review',
+  },
+}
+
+export const RunningGate: Story = {
+  args: {
+    selectedSceneId: 'scene-concourse-delay',
+    variant: 'running-gate',
   },
 }
 

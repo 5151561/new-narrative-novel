@@ -12,6 +12,8 @@ import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchR
 
 import { resetMockChapterDb } from '../api/mock-chapter-db'
 import { mockChapterRecordSeeds } from '../api/mock-chapter-db'
+import { buildChapterDraftStoryWorkspace } from '../components/chapter-story-fixture'
+import * as chapterDraftWorkspaceQuery from '../hooks/useChapterDraftWorkspaceQuery'
 import { ChapterDraftWorkspace } from './ChapterDraftWorkspace'
 
 const CHAPTER_DRAFT_WORKSPACE_TEST_TIMEOUT_MS = 20_000
@@ -30,6 +32,7 @@ vi.mock('@/features/traceability/hooks/useChapterDraftTraceabilityQuery', async 
 const mockedUseChapterDraftTraceabilityQuery = vi.mocked(useChapterDraftTraceabilityQuery)
 
 afterEach(() => {
+  vi.restoreAllMocks()
   resetMockChapterDb()
   window.localStorage.clear()
   mockedUseChapterDraftTraceabilityQuery.mockReset()
@@ -158,6 +161,68 @@ describe('ChapterDraftWorkspace', () => {
 
     const restoredConcourseButtons = await screen.findAllByRole('button', { name: /Scene 2 Concourse Delay Draft handoff ready/i })
     expect(restoredConcourseButtons.some((button) => button.getAttribute('aria-current') === 'true')).toBe(true)
+  })
+
+  it('blocks the draft CTA when an earlier chapter scene is still running', async () => {
+    const runningWorkspace = buildChapterDraftStoryWorkspace('scene-concourse-delay')
+    runningWorkspace.scenes = runningWorkspace.scenes.map((scene) => (
+      scene.sceneId === 'scene-midnight-platform'
+        ? {
+            ...scene,
+            backlogStatus: 'drafted',
+            backlogStatusLabel: 'Drafted',
+            runStatusLabel: 'Run completed',
+          }
+        : scene.sceneId === 'scene-concourse-delay'
+          ? {
+              ...scene,
+              backlogStatus: 'running',
+              backlogStatusLabel: 'Running',
+              runStatusLabel: 'Run in progress',
+            }
+          : scene.sceneId === 'scene-ticket-window'
+            ? {
+                ...scene,
+                backlogStatus: 'planned',
+                backlogStatusLabel: 'Planned',
+                runStatusLabel: 'Idle',
+              }
+            : scene
+    ))
+    runningWorkspace.selectedScene = runningWorkspace.scenes.find((scene) => scene.sceneId === 'scene-concourse-delay') ?? runningWorkspace.selectedScene
+    runningWorkspace.dockSummary.waitingReviewCount = 0
+    runningWorkspace.dockSummary.waitingReviewScenes = []
+
+    vi.spyOn(chapterDraftWorkspaceQuery, 'useChapterDraftWorkspaceQuery').mockReturnValue({
+      workspace: runningWorkspace,
+      sceneProseStateBySceneId: {},
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+    mockedUseChapterDraftTraceabilityQuery.mockReturnValue({
+      traceability: null,
+      selectedSceneTraceLoading: false,
+      chapterCoverageLoading: false,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=chapter&id=chapter-signals-in-rain&lens=draft&view=assembly&sceneId=scene-concourse-delay',
+    )
+
+    render(
+      <AppProviders>
+        <ChapterRouteHarness />
+      </AppProviders>,
+    )
+
+    expect(await screen.findByRole('button', { name: 'Scene running' })).toBeDisabled()
+    expect(screen.getAllByText('Run in progress').length).toBeGreaterThan(0)
   })
 
   it('routes to book scope instead of falling through to scene when clicking Book from chapter draft', async () => {

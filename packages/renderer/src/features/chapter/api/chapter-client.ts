@@ -1,10 +1,15 @@
 import type { ChapterStructureWorkspaceRecord } from './chapter-records'
+import type {
+  StartNextChapterSceneRunInput,
+  StartNextChapterSceneRunRecord,
+} from './chapter-records'
 import type { ChapterSceneStructurePatch } from './chapter-record-mutations'
 import {
   acceptMockChapterBacklogProposal,
   generateMockChapterBacklogProposal,
   getMockChapterRecordById,
   reorderMockChapterScene,
+  startNextMockChapterSceneRun,
   updateMockChapterBacklogInput,
   updateMockChapterBacklogProposalScene,
   updateMockChapterSceneStructure,
@@ -20,16 +25,19 @@ export interface ChapterClient {
   generateChapterBacklogProposal(input: GenerateChapterBacklogProposalInput): Promise<ChapterStructureWorkspaceRecord | null>
   updateChapterBacklogProposalScene(input: UpdateChapterBacklogProposalSceneInput): Promise<ChapterStructureWorkspaceRecord | null>
   acceptChapterBacklogProposal(input: AcceptChapterBacklogProposalInput): Promise<ChapterStructureWorkspaceRecord | null>
+  startNextChapterSceneRun(input: StartNextChapterSceneRunInput): Promise<StartNextChapterSceneRunRecord | null>
   reorderChapterScene(input: ReorderChapterSceneInput): Promise<ChapterStructureWorkspaceRecord | null>
   updateChapterSceneStructure(input: UpdateChapterSceneStructureInput): Promise<ChapterStructureWorkspaceRecord | null>
 }
 
 interface CreateChapterClientOptions {
+  projectId?: string
   getChapterById?: (chapterId: string) => ChapterStructureWorkspaceRecord | null
   updateChapterBacklogInput?: (input: UpdateChapterBacklogInput) => ChapterStructureWorkspaceRecord | null
   generateChapterBacklogProposal?: (input: GenerateChapterBacklogProposalInput) => ChapterStructureWorkspaceRecord | null
   updateChapterBacklogProposalScene?: (input: UpdateChapterBacklogProposalSceneInput) => ChapterStructureWorkspaceRecord | null
   acceptChapterBacklogProposal?: (input: AcceptChapterBacklogProposalInput) => ChapterStructureWorkspaceRecord | null
+  startNextChapterSceneRun?: (input: StartNextChapterSceneRunInput) => StartNextChapterSceneRunRecord | null
   reorderChapterScene?: (input: ReorderChapterSceneInput) => ChapterStructureWorkspaceRecord | null
   updateChapterSceneStructure?: (input: UpdateChapterSceneStructureInput) => ChapterStructureWorkspaceRecord | null
 }
@@ -80,11 +88,13 @@ function clone<T>(value: T): T {
 }
 
 export function createChapterClient({
+  projectId,
   getChapterById = getMockChapterRecordById,
   updateChapterBacklogInput = updateMockChapterBacklogInput,
   generateChapterBacklogProposal = generateMockChapterBacklogProposal,
   updateChapterBacklogProposalScene = updateMockChapterBacklogProposalScene,
   acceptChapterBacklogProposal = acceptMockChapterBacklogProposal,
+  startNextChapterSceneRun = (input) => startNextMockChapterSceneRun(input, projectId),
   reorderChapterScene = reorderMockChapterScene,
   updateChapterSceneStructure = updateMockChapterSceneStructure,
 }: CreateChapterClientOptions = {}): ChapterClient {
@@ -108,6 +118,10 @@ export function createChapterClient({
     async acceptChapterBacklogProposal(input) {
       const chapterRecord = acceptChapterBacklogProposal(input)
       return chapterRecord ? clone(chapterRecord) : null
+    },
+    async startNextChapterSceneRun(input) {
+      const record = startNextChapterSceneRun(input)
+      return record ? clone(record) : null
     },
     async reorderChapterScene(input) {
       const chapterRecord = reorderChapterScene(input)

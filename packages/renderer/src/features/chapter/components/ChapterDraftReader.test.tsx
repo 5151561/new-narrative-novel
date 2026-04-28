@@ -23,8 +23,11 @@ const workspace: ChapterDraftWorkspaceViewModel = {
       summary: 'Keep the bargain public and constrained.',
       proseDraft: 'Rain held the platform in place while Ren refused to blink first.',
       draftWordCount: 11,
+      backlogStatus: 'drafted',
+      backlogStatusLabel: 'Drafted',
       proseStatusLabel: 'Ready for revision pass',
       sceneStatusLabel: 'Current',
+      runStatusLabel: 'Run completed',
       latestDiffSummary: 'No prose revision requested yet.',
       revisionQueueCount: 0,
       warningsCount: 0,
@@ -40,8 +43,11 @@ const workspace: ChapterDraftWorkspaceViewModel = {
       order: 2,
       title: 'Concourse Delay',
       summary: 'Hold the crowd bottleneck long enough to keep platform pressure alive.',
+      backlogStatus: 'needs_review',
+      backlogStatusLabel: 'Needs review',
       proseStatusLabel: 'Missing draft',
       sceneStatusLabel: 'Queued',
+      runStatusLabel: 'Run waiting for review',
       latestDiffSummary: 'First prose pass still missing.',
       revisionQueueCount: 1,
       warningsCount: 2,
@@ -59,8 +65,11 @@ const workspace: ChapterDraftWorkspaceViewModel = {
       summary: 'Put speed and certainty in the same beat without surfacing the alias.',
       proseDraft: 'The ticket stalled halfway out while Mei waited for a cleaner answer.',
       draftWordCount: 16,
+      backlogStatus: 'planned',
+      backlogStatusLabel: 'Planned',
       proseStatusLabel: 'Ready for prose pass',
       sceneStatusLabel: 'Guarded',
+      runStatusLabel: 'Idle',
       latestDiffSummary: 'Tighten the visible cost before the clerk notices too much.',
       revisionQueueCount: 2,
       warningsCount: 1,
@@ -77,8 +86,11 @@ const workspace: ChapterDraftWorkspaceViewModel = {
     order: 2,
     title: 'Concourse Delay',
     summary: 'Hold the crowd bottleneck long enough to keep platform pressure alive.',
+    backlogStatus: 'needs_review',
+    backlogStatusLabel: 'Needs review',
     proseStatusLabel: 'Missing draft',
     sceneStatusLabel: 'Queued',
+    runStatusLabel: 'Run waiting for review',
     latestDiffSummary: 'First prose pass still missing.',
     revisionQueueCount: 1,
     warningsCount: 2,
@@ -107,6 +119,12 @@ const workspace: ChapterDraftWorkspaceViewModel = {
     missingDraftCount: 1,
     warningsCount: 3,
     queuedRevisionCount: 3,
+    waitingReviewCount: 1,
+    runnableScene: {
+      sceneId: 'scene-ticket-window',
+      title: 'Ticket Window',
+      detail: 'Put speed and certainty in the same beat without surfacing the alias.',
+    },
     missingDraftScenes: [
       {
         sceneId: 'scene-concourse-delay',
@@ -138,6 +156,13 @@ const workspace: ChapterDraftWorkspaceViewModel = {
         detail: '2 queued revisions',
       },
     ],
+    waitingReviewScenes: [
+      {
+        sceneId: 'scene-concourse-delay',
+        title: 'Concourse Delay',
+        detail: 'Run waiting for review',
+      },
+    ],
   },
 }
 
@@ -149,7 +174,12 @@ describe('ChapterDraftReader', () => {
 
     render(
       <AppProviders>
-        <ChapterDraftReader workspace={workspace} onSelectScene={onSelectScene} onOpenScene={onOpenScene} />
+        <ChapterDraftReader
+          workspace={workspace}
+          runOrchestrationPanel={<div>Chapter orchestration</div>}
+          onSelectScene={onSelectScene}
+          onOpenScene={onOpenScene}
+        />
       </AppProviders>,
     )
 
@@ -160,6 +190,7 @@ describe('ChapterDraftReader', () => {
     expect(firstSection.compareDocumentPosition(secondSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(secondSection.compareDocumentPosition(thirdSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(secondSection).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByText('Chapter orchestration')).toBeInTheDocument()
     expect(screen.getByText('Manuscript gap')).toBeInTheDocument()
     expect(screen.getByText('2 facts')).toBeInTheDocument()
     expect(screen.getByText('2 assets')).toBeInTheDocument()

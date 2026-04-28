@@ -536,6 +536,25 @@ async function handleFakeApiRequest<TResponse, TBody>(
     }) as Promise<TResponse>
   }
 
+  const chapterRunNextSceneMatch = path.match(
+    new RegExp(`${projectBasePattern}/chapters/([^/]+)/run-next-scene$`),
+  )
+  if (method === 'POST' && chapterRunNextSceneMatch) {
+    const chapterRunBody = body as {
+      locale: 'en' | 'zh-CN'
+      mode?: 'continue' | 'rewrite' | 'from-scratch'
+      note?: string
+    }
+    return cloneFakeApiResponse(
+      await mockRuntime.chapterClient.startNextChapterSceneRun({
+        chapterId: decodeSegment(chapterRunNextSceneMatch[1]!),
+        locale: chapterRunBody.locale,
+        mode: chapterRunBody.mode,
+        note: chapterRunBody.note,
+      }),
+    ) as TResponse
+  }
+
   if (method === 'POST' && chapterSceneReorderMatch) {
     const reorderBody = body as { targetIndex: number }
     return mockRuntime.chapterClient.reorderChapterScene({

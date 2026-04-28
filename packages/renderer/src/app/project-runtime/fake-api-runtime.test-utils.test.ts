@@ -565,6 +565,76 @@ describe('createFakeApiRuntime override matching', () => {
     })
   })
 
+  it('records and dispatches the chapter run-next-scene mutation through the mock runtime', async () => {
+    const startNextChapterSceneRun = vi.fn(async () => ({
+      chapter: createChapterWorkspaceRecord(),
+      run: {
+        id: 'run-scene-concourse-delay-chapter-next',
+        scope: 'scene' as const,
+        scopeId: 'scene-concourse-delay',
+        status: 'waiting_review' as const,
+        title: 'scene-concourse-delay run',
+        summary: 'Waiting for review: Advance the next chapter scene.',
+        startedAtLabel: '2026-04-23 10:01',
+        pendingReviewId: 'review-scene-concourse-delay-chapter-next',
+        latestEventId: 'run-event-scene-concourse-delay-chapter-next-009',
+        eventCount: 9,
+      },
+      selectedScene: {
+        chapterId: 'chapter-1',
+        sceneId: 'scene-concourse-delay',
+        order: 2,
+        title: { en: 'Concourse Delay', 'zh-CN': 'Concourse Delay' },
+        backlogStatus: 'planned' as const,
+      },
+    }))
+
+    const chapterClient: ChapterClient = {
+      async getChapterStructureWorkspace() { return null },
+      startNextChapterSceneRun,
+    }
+
+    const { requests, runtime } = createFakeApiRuntime({
+      projectId: 'project-1',
+      mockRuntimeOptions: {
+        projectId: 'project-1',
+        chapterClient,
+      },
+    })
+
+    await expect(
+      runtime.chapterClient.startNextChapterSceneRun({
+        chapterId: 'chapter-1',
+        locale: 'en',
+        mode: 'continue',
+        note: 'Advance the next chapter scene.',
+      }),
+    ).resolves.toMatchObject({
+      run: {
+        status: 'waiting_review',
+      },
+      selectedScene: {
+        sceneId: 'scene-concourse-delay',
+      },
+    })
+
+    expect(startNextChapterSceneRun).toHaveBeenCalledWith({
+      chapterId: 'chapter-1',
+      locale: 'en',
+      mode: 'continue',
+      note: 'Advance the next chapter scene.',
+    })
+    expectRecordedRequest(requests, {
+      method: 'POST',
+      path: '/api/projects/project-1/chapters/chapter-1/run-next-scene',
+      body: {
+        locale: 'en',
+        mode: 'continue',
+        note: 'Advance the next chapter scene.',
+      },
+    })
+  })
+
   it('supports stable mutation-body overrides that throw 409, 422, and 500 ApiRequestError values', async () => {
     const exportInput = createBuildInput()
     const { runtime } = createFakeApiRuntime({

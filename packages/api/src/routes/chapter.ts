@@ -1,6 +1,9 @@
 import { badRequest, notFound } from '../http/errors.js'
 
 import type { ApiRouteContext } from './route-context.js'
+import { assertEnumValue, assertOptionalString } from './validation.js'
+
+const RUN_MODES = ['continue', 'rewrite', 'from-scratch'] as const
 
 export function registerChapterRoutes({ app, apiBasePath, repository }: ApiRouteContext) {
   const projectBase = `${apiBasePath}/projects/:projectId`
@@ -120,6 +123,37 @@ export function registerChapterRoutes({ app, apiBasePath, repository }: ApiRoute
       throw notFound(`Backlog proposal ${proposalId} was not found.`, {
         code: 'CHAPTER_BACKLOG_PROPOSAL_NOT_FOUND',
         detail: { projectId, chapterId, proposalId },
+      })
+    }
+
+    return record
+  })
+
+  app.post(`${projectBase}/chapters/:chapterId/run-next-scene`, async (request) => {
+    const { projectId, chapterId } = request.params as { projectId: string; chapterId: string }
+    const body = request.body as { locale?: unknown; mode?: unknown; note?: unknown } | undefined
+    const locale = readLocaleBody(body, 'INVALID_CHAPTER_RUN_LOCALE')
+    const mode = body?.mode === undefined
+      ? undefined
+      : assertEnumValue(body.mode, 'mode', RUN_MODES, {
+          code: 'INVALID_CHAPTER_RUN_MODE',
+          detail: { body },
+          allowedValuesDetailKey: 'allowedModes',
+        })
+    const note = assertOptionalString(body?.note, 'note', {
+      code: 'INVALID_CHAPTER_RUN_NOTE',
+      detail: { body },
+    })
+
+    const record = await repository.startNextChapterSceneRun(projectId, chapterId, {
+      locale,
+      mode,
+      note,
+    })
+    if (record === null) {
+      throw notFound(`Chapter ${chapterId} was not found.`, {
+        code: 'CHAPTER_NOT_FOUND',
+        detail: { projectId, chapterId },
       })
     }
 

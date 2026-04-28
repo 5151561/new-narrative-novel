@@ -133,6 +133,9 @@ export const apiRouteContract = {
   }) {
     return `${chapterBacklogProposalBase(projectId, chapterId, proposalId)}/accept`
   },
+  chapterRunNextScene({ projectId, chapterId }: { projectId: string; chapterId: string }) {
+    return `${chapterBase(projectId, chapterId)}/run-next-scene`
+  },
   chapterSceneReorder({
     projectId,
     chapterId,

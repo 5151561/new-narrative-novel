@@ -3,7 +3,16 @@ import {
   signalArcSceneIdsByChapter,
 } from '@narrative-novel/fixture-seed'
 
-import type { ChapterLocalizedText, ChapterStructureWorkspaceRecord } from './chapter-records'
+import { ApiRequestError } from '@/app/project-runtime/api-transport'
+import { startMockSceneRun } from '@/features/run/api/mock-run-db'
+
+import type {
+  ChapterLocalizedText,
+  ChapterRunNextSceneRecord,
+  ChapterStructureWorkspaceRecord,
+  StartNextChapterSceneRunInput,
+  StartNextChapterSceneRunRecord,
+} from './chapter-records'
 import {
   acceptChapterBacklogProposal,
   appendGeneratedChapterBacklogProposal,
@@ -475,6 +484,140 @@ export function acceptMockChapterBacklogProposal({
   const nextRecord = acceptChapterBacklogProposal(record, proposalId)
   mutableMockChapterRecords[chapterId] = nextRecord
   return clone(nextRecord)
+}
+
+function updateSceneBacklogStatus(
+  record: ChapterStructureWorkspaceRecord,
+  sceneId: string,
+  backlogStatus: ChapterStructureWorkspaceRecord['scenes'][number]['backlogStatus'],
+) {
+  const acceptedProposalId = record.planning.acceptedProposalId
+
+  return {
+    ...record,
+    scenes: record.scenes.map((scene) => (
+      scene.id === sceneId
+        ? { ...scene, backlogStatus }
+        : scene
+    )),
+    planning: {
+      ...record.planning,
+      proposals: record.planning.proposals.map((proposal) => ({
+        ...proposal,
+        scenes: proposal.scenes.map((scene) => (
+          proposal.proposalId === acceptedProposalId
+          && proposal.status === 'accepted'
+          && scene.sceneId === sceneId
+            ? { ...scene, backlogStatus }
+            : scene
+        )),
+      })),
+    },
+  }
+}
+
+export function startNextMockChapterSceneRun(
+  input: StartNextChapterSceneRunInput,
+  projectId?: string,
+): StartNextChapterSceneRunRecord | null {
+  const record = mutableMockChapterRecords[input.chapterId]
+  if (!record) {
+    return null
+  }
+
+  const acceptedProposalId = record.planning.acceptedProposalId
+  if (!acceptedProposalId) {
+    throw new ApiRequestError({
+      status: 409,
+      message: 'Chapter run cannot start because no accepted backlog proposal is available.',
+      code: 'CHAPTER_RUN_ACCEPTED_BACKLOG_REQUIRED',
+      detail: {
+        chapterId: input.chapterId,
+      },
+    })
+  }
+
+  const acceptedProposal = record.planning.proposals.find((proposal) => proposal.proposalId === acceptedProposalId)
+  if (!acceptedProposal) {
+    throw new ApiRequestError({
+      status: 409,
+      message: 'Chapter run cannot start because no accepted backlog proposal is available.',
+      code: 'CHAPTER_RUN_ACCEPTED_BACKLOG_REQUIRED',
+      detail: {
+        chapterId: input.chapterId,
+      },
+    })
+  }
+
+  const orderedProposalScenes = [...acceptedProposal.scenes].sort((left, right) => left.order - right.order)
+  let selectedScene: ChapterRunNextSceneRecord | null = null
+
+  for (const proposalScene of orderedProposalScenes) {
+    const canonicalScene = record.scenes.find((scene) => scene.id === proposalScene.sceneId)
+    const backlogStatus = canonicalScene?.backlogStatus ?? proposalScene.backlogStatus
+
+    if (backlogStatus === 'running' || backlogStatus === 'needs_review') {
+      throw new ApiRequestError({
+        status: 409,
+        message: 'Chapter run is blocked by a scene waiting for review.',
+        code: 'CHAPTER_RUN_REVIEW_GATE_BLOCKED',
+        detail: {
+          chapterId: input.chapterId,
+          blockingSceneId: proposalScene.sceneId,
+        },
+      })
+    }
+
+    if (backlogStatus === 'planned') {
+      selectedScene = {
+        chapterId: input.chapterId,
+        sceneId: proposalScene.sceneId,
+        order: proposalScene.order,
+        title: clone(proposalScene.title),
+        backlogStatus,
+      }
+      break
+    }
+  }
+
+  if (!selectedScene) {
+    throw new ApiRequestError({
+      status: 409,
+      message: 'Chapter run cannot start because all accepted scenes are already drafted.',
+      code: 'CHAPTER_RUN_ALL_SCENES_DRAFTED',
+      detail: {
+        chapterId: input.chapterId,
+      },
+    })
+  }
+
+  const updatedRecord = updateSceneBacklogStatus(record, selectedScene.sceneId, 'needs_review')
+  mutableMockChapterRecords[input.chapterId] = updatedRecord
+
+  const run = startMockSceneRun({
+    sceneId: selectedScene.sceneId,
+    mode: input.mode,
+    note: input.note,
+  }, projectId)
+
+  return {
+    chapter: clone(updatedRecord),
+    run,
+    selectedScene,
+  }
+}
+
+export function setMockChapterSceneBacklogStatus(sceneId: string, backlogStatus: ChapterStructureWorkspaceRecord['scenes'][number]['backlogStatus']) {
+  for (const [chapterId, record] of Object.entries(mutableMockChapterRecords)) {
+    if (!record.scenes.some((scene) => scene.id === sceneId)) {
+      continue
+    }
+
+    mutableMockChapterRecords[chapterId] = updateSceneBacklogStatus(record, sceneId, backlogStatus)
+    return clone(mutableMockChapterRecords[chapterId]!)
+  }
+
+  return null
 }
 
 interface ReorderMockChapterSceneInput {

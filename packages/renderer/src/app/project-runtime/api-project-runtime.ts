@@ -11,11 +11,15 @@ import type {
   ChapterClient,
   GenerateChapterBacklogProposalInput,
   ReorderChapterSceneInput,
+  StartNextChapterSceneRunInput,
   UpdateChapterBacklogInput,
   UpdateChapterBacklogProposalSceneInput,
   UpdateChapterSceneStructureInput,
 } from '@/features/chapter/api/chapter-client'
-import type { ChapterStructureWorkspaceRecord } from '@/features/chapter/api/chapter-records'
+import type {
+  ChapterStructureWorkspaceRecord,
+  StartNextChapterSceneRunRecord,
+} from '@/features/chapter/api/chapter-records'
 import type { ReviewClient } from '@/features/review/api/review-client'
 import type { ReviewIssueDecisionRecord } from '@/features/review/api/review-decision-records'
 import type { ReviewIssueFixActionRecord } from '@/features/review/api/review-fix-action-records'
@@ -178,6 +182,20 @@ function createChapterClient(projectId: string, transport: ApiTransport): Chapte
         method: 'POST',
         path: apiRouteContract.chapterBacklogProposalAccept({ projectId, chapterId, proposalId }),
         body: { locale },
+      })
+    },
+    async startNextChapterSceneRun({ chapterId, locale, mode, note }: StartNextChapterSceneRunInput) {
+      return transport.requestJson<
+        StartNextChapterSceneRunRecord | null,
+        Pick<StartNextChapterSceneRunInput, 'locale' | 'mode' | 'note'>
+      >({
+        method: 'POST',
+        path: apiRouteContract.chapterRunNextScene({ projectId, chapterId }),
+        body: {
+          locale,
+          mode,
+          note,
+        },
       })
     },
     async reorderChapterScene({ chapterId, sceneId, targetIndex }: ReorderChapterSceneInput) {

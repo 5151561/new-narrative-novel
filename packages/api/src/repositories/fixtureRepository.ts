@@ -16,6 +16,8 @@ import type {
   BookStructureRecord,
   BuildBookExportArtifactInput,
   ChapterSceneStructurePatch,
+  ChapterSceneBacklogStatus,
+  ChapterRunNextSceneRecord,
   ChapterStructureSceneRecord,
   ChapterStructureWorkspaceRecord,
   FixtureDataSnapshot,
@@ -43,12 +45,19 @@ import type {
   SceneWorkspaceViewModel,
   SetReviewIssueDecisionInput,
   SetReviewIssueFixActionInput,
+  StartNextChapterSceneRunInput,
+  StartNextChapterSceneRunRecord,
   StartSceneRunInput,
   SubmitRunReviewDecisionInput,
   UpdateChapterBacklogProposalSceneInput,
 } from '../contracts/api-records.js'
 import { conflict, notFound } from '../http/errors.js'
 import { createChapterBacklogProposal } from '../orchestration/chapterBacklog/chapterBacklogPlanner.js'
+import {
+  CHAPTER_RUN_REVIEW_GATE_BLOCKED,
+  resolveNextChapterRunScene,
+  updateChapterRunSceneBacklogStatus,
+} from '../orchestration/chapterRun/chapterRunOrchestration.js'
 import type {
   ScenePlannerGatewayRequest,
   ScenePlannerGatewayResult,
@@ -461,7 +470,7 @@ function buildSceneRunStatusLabel(run: RunRecord) {
     case 'running':
       return 'Run in progress'
     case 'waiting_review':
-      return 'Run awaiting review'
+      return 'Run waiting for review'
     case 'completed':
       return 'Run completed'
     case 'failed':
@@ -572,6 +581,11 @@ export interface FixtureRepository {
     projectId: string,
     input: { chapterId: string; proposalId: string },
   ): Promise<ChapterStructureWorkspaceRecord | null>
+  startNextChapterSceneRun(
+    projectId: string,
+    chapterId: string,
+    input: StartNextChapterSceneRunInput,
+  ): Promise<StartNextChapterSceneRunRecord | null>
   reorderChapterScene(projectId: string, input: { chapterId: string; sceneId: string; targetIndex: number }): Promise<ChapterStructureWorkspaceRecord | null>
   updateChapterSceneStructure(projectId: string, input: { chapterId: string; sceneId: string; locale: 'en' | 'zh-CN'; patch: ChapterSceneStructurePatch }): Promise<ChapterStructureWorkspaceRecord | null>
   getAssetKnowledge(projectId: string, assetId: string): AssetKnowledgeWorkspaceRecord | null
@@ -946,6 +960,11 @@ export function createFixtureRepository(options: {
       const nextChapter = clone(chapter)
       nextChapter.scenes[sceneIndex] = {
         ...nextChapter.scenes[sceneIndex]!,
+        backlogStatus: run.status === 'waiting_review'
+          ? 'needs_review'
+          : run.status === 'queued' || run.status === 'running'
+            ? 'running'
+            : nextChapter.scenes[sceneIndex]!.backlogStatus,
         runStatusLabel: mergeLocalizedText(nextChapter.scenes[sceneIndex]!.runStatusLabel, 'en', buildSceneRunStatusLabel(run)),
         lastRunLabel: mergeLocalizedText(nextChapter.scenes[sceneIndex]!.lastRunLabel, 'en', `Run ${run.id}`),
       }
@@ -1053,6 +1072,25 @@ export function createFixtureRepository(options: {
     }
   }
 
+  function persistChapterSceneBacklogStatus(
+    projectId: string,
+    chapterId: string,
+    sceneId: string,
+    backlogStatus: ChapterSceneBacklogStatus,
+  ) {
+    const chapter = getChapter(projectId, chapterId)
+    if (!chapter) {
+      return null
+    }
+
+    const nextChapter = updateChapterRunSceneBacklogStatus(chapter, {
+      sceneId,
+      backlogStatus,
+    })
+    getProject(projectId).chapters[chapterId] = nextChapter
+    return nextChapter
+  }
+
   function syncSceneProseFromAcceptedRun(projectId: string, run: RunRecord, decision: SubmitRunReviewDecisionInput['decision']) {
     if (run.scope !== 'scene' || !isAcceptedRunDecision(decision)) {
       return
@@ -1090,6 +1128,39 @@ export function createFixtureRepository(options: {
       run.scopeId,
       hadProseDraft ? { en: 'Updated', 'zh-CN': '已更新' } : { en: 'Generated', 'zh-CN': '已生成' },
     )
+    for (const [chapterId, chapter] of Object.entries(getProject(projectId).chapters)) {
+      if (chapter.scenes.some((chapterScene) => chapterScene.id === run.scopeId)) {
+        persistChapterSceneBacklogStatus(projectId, chapterId, run.scopeId, 'drafted')
+        break
+      }
+    }
+  }
+
+  function syncSceneBacklogStatusFromReviewDecision(
+    projectId: string,
+    run: RunRecord,
+    decision: SubmitRunReviewDecisionInput['decision'],
+  ) {
+    if (run.scope !== 'scene') {
+      return
+    }
+
+    const nextBacklogStatus: ChapterSceneBacklogStatus | null = isAcceptedRunDecision(decision)
+      ? 'drafted'
+      : decision === 'request-rewrite' || decision === 'reject'
+        ? 'planned'
+        : null
+
+    if (!nextBacklogStatus) {
+      return
+    }
+
+    for (const [chapterId, chapter] of Object.entries(getProject(projectId).chapters)) {
+      if (chapter.scenes.some((chapterScene) => chapterScene.id === run.scopeId)) {
+        persistChapterSceneBacklogStatus(projectId, chapterId, run.scopeId, nextBacklogStatus)
+        break
+      }
+    }
   }
 
   function syncRunMutations(projectId: string, run: RunRecord) {
@@ -1394,6 +1465,48 @@ export function createFixtureRepository(options: {
       await persistProjectOverlay(projectId)
       return clone(nextRecord)
     },
+    async startNextChapterSceneRun(projectId, chapterId, input) {
+      const chapter = getChapter(projectId, chapterId)
+      if (!chapter) {
+        return null
+      }
+
+      const nextScene = resolveNextChapterRunScene(chapter)
+      if (!nextScene.ok) {
+        if (nextScene.code === CHAPTER_RUN_REVIEW_GATE_BLOCKED) {
+          throw conflict('Chapter run is blocked by a scene waiting for review.', {
+            code: CHAPTER_RUN_REVIEW_GATE_BLOCKED,
+            detail: { projectId, chapterId, blockingSceneId: nextScene.blockingSceneId },
+          })
+        }
+
+        throw conflict('Chapter run cannot start because no accepted runnable scene is available.', {
+          code: nextScene.code,
+          detail: { projectId, chapterId },
+        })
+      }
+
+      persistChapterSceneBacklogStatus(projectId, chapterId, nextScene.scene.sceneId, 'running')
+      const run = await runStore.startSceneRun(projectId, {
+        sceneId: nextScene.scene.sceneId,
+        mode: input.mode,
+        note: input.note,
+      })
+      syncRunMutations(projectId, run)
+      const chapterAfterRun = persistChapterSceneBacklogStatus(
+        projectId,
+        chapterId,
+        nextScene.scene.sceneId,
+        run.status === 'waiting_review' ? 'needs_review' : 'running',
+      )
+      await persistProjectOverlay(projectId)
+
+      return {
+        chapter: clone(chapterAfterRun ?? getChapter(projectId, chapterId)!),
+        run,
+        selectedScene: nextScene.scene,
+      }
+    },
     async reorderChapterScene(projectId, { chapterId, sceneId, targetIndex }) {
       const record = getChapter(projectId, chapterId)
       if (!record) {
@@ -1666,6 +1779,7 @@ export function createFixtureRepository(options: {
     async submitRunReviewDecision(projectId, input) {
       const run = await runStore.submitRunReviewDecision(projectId, input)
       syncRunMutations(projectId, run)
+      syncSceneBacklogStatusFromReviewDecision(projectId, run, input.decision)
       syncSceneProseFromAcceptedRun(projectId, run, input.decision)
       await persistProjectOverlay(projectId)
       return run

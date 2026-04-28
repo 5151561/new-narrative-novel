@@ -1,11 +1,13 @@
 import { getChapterSceneOrdinalLabel, useI18n } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { PaneHeader } from '@/components/ui/PaneHeader'
+import type { ReactNode } from 'react'
 
 import type { ChapterDraftWorkspaceViewModel } from '../types/chapter-draft-view-models'
 
 interface ChapterDraftReaderProps {
   workspace: ChapterDraftWorkspaceViewModel
+  runOrchestrationPanel?: ReactNode
   onSelectScene?: (sceneId: string) => void
   onOpenScene?: (sceneId: string, lens: 'orchestrate' | 'draft') => void
 }
@@ -46,7 +48,7 @@ function getTraceAssetCountLabel(locale: 'en' | 'zh-CN', count: number) {
   return locale === 'zh-CN' ? `${count} 个资产` : `${count} assets`
 }
 
-export function ChapterDraftReader({ workspace, onSelectScene, onOpenScene }: ChapterDraftReaderProps) {
+export function ChapterDraftReader({ workspace, runOrchestrationPanel, onSelectScene, onOpenScene }: ChapterDraftReaderProps) {
   const { locale, dictionary } = useI18n()
   const missingDraftCopy = getMissingDraftCopy(locale)
 
@@ -56,6 +58,7 @@ export function ChapterDraftReader({ workspace, onSelectScene, onOpenScene }: Ch
         title={dictionary.app.chapterDraft}
         description={dictionary.app.chapterDraftReaderDescription}
       />
+      {runOrchestrationPanel ? <div className="px-6 pb-2">{runOrchestrationPanel}</div> : null}
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
           {workspace.scenes.map((scene) => {

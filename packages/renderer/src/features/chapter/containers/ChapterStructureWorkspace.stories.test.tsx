@@ -2,7 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { withStorybookLocale } from '../../../../.storybook/storybook-locale'
-import meta, { BacklogProposal } from './ChapterStructureWorkspace.stories'
+import meta, { AcceptedPlan, BacklogProposal } from './ChapterStructureWorkspace.stories'
 
 afterEach(() => {
   cleanup()
@@ -42,5 +42,23 @@ describe('ChapterStructureWorkspace story locale integration', () => {
     expect(screen.getByRole('button', { name: /中文/ })).toBeInTheDocument()
     expect(screen.getByText('Chapter goal and constraints')).toBeInTheDocument()
     expect(screen.getByText('Keep chapter structure, placeholder scenes, and unresolved signals aligned.')).toBeInTheDocument()
+  })
+
+  it('renders the orchestration panel inside the workspace preview for accepted plans', () => {
+    const storyArgs = AcceptedPlan.args ?? {}
+    const Story = () => {
+      if (!meta.render) {
+        throw new Error('Expected ChapterStructureWorkspace story to define a render function')
+      }
+
+      return meta.render(storyArgs as Parameters<NonNullable<typeof meta.render>>[0])
+    }
+
+    render(withStorybookLocale(Story, {
+      globals: { locale: 'en' },
+    } as never))
+
+    expect(screen.getByText('Chapter orchestration')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start next scene run' })).toBeInTheDocument()
   })
 })

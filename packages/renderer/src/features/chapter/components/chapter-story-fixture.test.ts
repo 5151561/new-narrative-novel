@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildChapterDraftStoryWorkspace, buildChapterStoryWorkspace } from './chapter-story-fixture'
+import {
+  buildChapterDraftStoryWorkspace,
+  buildChapterDraftWaitingReviewStoryWorkspace,
+  buildChapterStoryWorkspace,
+} from './chapter-story-fixture'
 
 describe('chapter story fixture localization', () => {
   it('builds localized chapter structure fixture content for zh-CN', () => {
@@ -22,5 +26,15 @@ describe('chapter story fixture localization', () => {
     expect(workspace.selectedScene.proseStatusLabel).toBe('草稿交接已就绪')
     expect(workspace.selectedScene.latestDiffSummary).toContain('见证压力')
     expect(workspace.dockSummary.queuedRevisionScenes[0]?.detail).toBe('1 个待处理修订')
+    expect(workspace.selectedScene.backlogStatus).toBe('needs_review')
+    expect(workspace.dockSummary.waitingReviewCount).toBe(1)
+  })
+
+  it('builds a waiting-review draft fixture with a runnable follow-up scene', () => {
+    const workspace = buildChapterDraftWaitingReviewStoryWorkspace('scene-concourse-delay', 'en')
+
+    expect(workspace.dockSummary.waitingReviewCount).toBe(1)
+    expect(workspace.dockSummary.runnableScene?.sceneId).toBe('scene-ticket-window')
+    expect(workspace.dockSummary.waitingReviewScenes[0]?.detail).toBe('Run waiting for review')
   })
 })
