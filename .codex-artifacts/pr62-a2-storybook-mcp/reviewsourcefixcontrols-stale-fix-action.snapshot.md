@@ -1,0 +1,15 @@
+- generic [ref=e6] [box=57,57,734,347]:
+  - generic [ref=e7] [box=74,74,700,25]:
+    - generic [ref=e8] [box=74,74,75,25]: Fix stale
+    - paragraph [ref=e9] [box=157,78,231,16]: Story source fix updated · Story reviewer
+  - generic [ref=e10] [box=74,111,700,45]:
+    - paragraph [ref=e11] [box=74,111,700,17]: Primary fix target
+    - paragraph [ref=e12] [box=74,131,700,24]: Open scene draft · scene
+  - paragraph [ref=e13] [box=74,167,700,42]: This source fix is stale because the review issue changed after the fix action was recorded.
+  - generic [ref=e14] [box=74,221,700,116]:
+    - text: Source fix note
+    - textbox "Source fix note" [ref=e15] [box=74,253,700,78]: Story source fix note.
+  - generic [ref=e16] [box=74,349,700,38]:
+    - button "Create rewrite request" [ref=e17] [cursor=pointer] [box=74,349,170,38]
+    - button "Restart source fix" [ref=e18] [cursor=pointer] [box=252,349,139,38]
+    - button "Clear fix action" [ref=e19] [cursor=pointer] [box=400,349,123,38]

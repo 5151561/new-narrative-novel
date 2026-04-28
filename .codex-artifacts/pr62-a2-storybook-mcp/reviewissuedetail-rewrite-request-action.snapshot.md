@@ -1,0 +1,47 @@
+- generic [ref=e6] [box=57,57,734,1174]:
+  - generic [ref=e7] [box=74,74,700,121]:
+    - generic [ref=e8] [box=74,74,700,25]:
+      - generic [ref=e9] [box=74,74,73,25]: Warning
+      - generic [ref=e10] [box=155,74,121,25]: Traceability QA
+    - generic [ref=e11] [box=74,111,700,84]:
+      - heading "Departure Bell has no trace references" [level=3] [ref=e12] [box=74,111,700,28]
+      - paragraph [ref=e13] [box=74,147,700,48]: Departure Bell currently reads as draft prose, but it carries no scene-level trace references back to canon or proposals.
+  - generic [ref=e14] [box=74,211,700,107]:
+    - paragraph [ref=e15] [box=91,228,666,17]: Recommendation
+    - paragraph [ref=e16] [box=91,252,666,48]: Open the scene draft and request a rewrite that restores the missing trace references before the next review pass.
+  - generic [ref=e17] [box=74,333,700,83]:
+    - paragraph [ref=e18] [box=91,350,666,17]: Source excerpt
+    - paragraph [ref=e19] [box=91,375,666,24]: Departure Bell prose is readable, yet the trace chain is blank.
+  - generic [ref=e20] [box=74,432,700,237]:
+    - generic [ref=e22] [box=91,449,49,25]: Open
+    - generic [ref=e23] [box=91,485,666,116]:
+      - text: Decision note
+      - textbox "Decision note" [ref=e24] [box=91,517,666,78]
+    - generic [ref=e25] [box=91,613,666,38]:
+      - button "Mark reviewed" [ref=e26] [cursor=pointer] [box=91,613,120,38]
+      - button "Defer" [ref=e27] [cursor=pointer] [box=219,613,62,38]
+      - button "Dismiss for this pass" [ref=e28] [cursor=pointer] [box=289,613,159,38]
+  - generic [ref=e29] [box=74,684,700,361]:
+    - generic [ref=e30] [box=91,701,666,25]:
+      - generic [ref=e31] [box=91,701,143,25]: Rewrite requested
+      - paragraph [ref=e32] [box=242,705,231,16]: Story source fix updated · Story reviewer
+    - generic [ref=e33] [box=91,738,666,45]:
+      - paragraph [ref=e34] [box=91,738,666,17]: Primary fix target
+      - paragraph [ref=e35] [box=91,758,666,24]: Open scene draft · scene
+    - generic [ref=e36] [box=91,794,666,56]:
+      - paragraph [ref=e37] [box=91,794,666,24]: Rewrite request queued for Open scene draft.
+      - paragraph [ref=e38] [box=91,826,666,24]: Follow the source proposal before marking this reviewed.
+    - generic [ref=e39] [box=91,862,666,116]:
+      - text: Source fix note
+      - textbox "Source fix note" [ref=e40] [box=91,894,666,78]: Follow the source proposal before marking this reviewed.
+    - button "Clear fix action" [ref=e42] [cursor=pointer] [box=91,990,123,38]
+  - generic [ref=e43] [box=74,1061,700,70]:
+    - generic [ref=e44] [box=74,1061,344,70]:
+      - term [ref=e45] [box=87,1074,318,16]: Chapter
+      - definition [ref=e46] [box=87,1094,318,24]: Open Water Signals
+    - generic [ref=e47] [box=430,1061,344,70]:
+      - term [ref=e48] [box=443,1074,318,16]: Scene
+      - definition [ref=e49] [box=443,1094,318,24]: Departure Bell
+  - generic [ref=e50] [box=74,1147,700,67]:
+    - paragraph [ref=e51] [box=74,1147,700,17]: Handoff actions
+    - button "Open scene draft" [ref=e53] [cursor=pointer] [box=74,1176,138,38]

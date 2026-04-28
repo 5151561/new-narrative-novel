@@ -1,0 +1,10 @@
+Storybook MCP verification for Wave 1 integration:
+- URL: http://127.0.0.1:6006/?path=/story/app-project-runtime-status-badge--all-states
+- Verified in structured snapshot:
+  - Fixture demo healthy
+  - Mock storybook healthy
+  - Real local project healthy
+  - Real local project unavailable
+  - Real local project unauthorized
+  - No silent mock fallback
+- Screenshot: artifacts/wave1-status-badge-all-states.png

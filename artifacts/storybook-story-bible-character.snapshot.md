@@ -1,0 +1,74 @@
+- generic [ref=e3] [box=0,0,1440,1024]:
+  - main [ref=e5] [box=300,0,1140,724]:
+    - generic [ref=e7] [box=310,0,1120,40]:
+      - generic [ref=e8] [box=310,0,355,40]:
+        - button "Remount component" [ref=e9] [cursor=pointer] [box=310,6,28,28]
+        - button "Zoom in" [ref=e12] [cursor=pointer] [box=344,6,28,28]
+        - button "Zoom out" [ref=e16] [cursor=pointer] [box=378,6,28,28]
+        - button "Reset zoom" [ref=e20] [cursor=pointer] [box=412,6,28,28]
+        - button "Apply a grid to the preview" [ref=e24] [cursor=pointer] [box=457,6,28,28]
+        - button "Change the size of the preview" [ref=e28] [cursor=pointer] [box=491,6,28,28]
+        - button "中文" [ref=e605] [cursor=pointer] [box=536,6,61,28]
+        - button "Enable measure" [ref=e33] [cursor=pointer] [box=603,6,28,28]
+        - button "Apply outlines to the preview" [ref=e37] [cursor=pointer] [box=637,6,28,28]
+      - generic [ref=e40] [box=1334,0,96,40]:
+        - button "Go full screen" [ref=e41] [cursor=pointer] [box=1334,6,28,28]
+        - link "Open canvas in new tab" [ref=e44] [cursor=pointer] [box=1368,6,28,28]:
+          - /url: iframe.html?id=mockups-asset-knowledge-workspace--story-bible-character
+        - button "Copy canvas link" [ref=e48] [cursor=pointer] [box=1402,6,28,28]
+    - generic [ref=e56] [box=300,40,1140,684]:
+      - link "Skip to sidebar" [ref=e57] [cursor=pointer] [box=1312,-50,113,28]:
+        - /url: "#mockups-asset-knowledge-workspace--story-bible-character"
+      - iframe [ref=e58] [box=300,40,1140,684]:
+        - generic [ref=f1e2] [box=40,40,1060,604]:
+          - heading "Couldn't find story matching 'mockups-asset-knowledge-workspace--story-bible-character'." [level=1] [ref=f1e3] [box=65,65,1010,30]
+          - paragraph [ref=f1e4] [box=65,119,1010,19]: "The component failed to render properly, likely due to a configuration issue in Storybook. Here are some common causes and how you can address them:"
+          - list [ref=f1e5] [box=65,162,1010,138]:
+            - listitem [ref=f1e6] [box=83,162,992,38]:
+              - strong [ref=f1e7] [box=83,162,171,19]: Missing Context/Providers
+              - text: ": You can use decorators to supply specific contexts or providers, which are sometimes necessary for components to render correctly. For detailed instructions on using decorators, please visit the"
+              - link "Decorators documentation" [ref=f1e8] [cursor=pointer] [box=526,181,166,19]:
+                - /url: https://storybook.js.org/docs/writing-stories/decorators
+              - text: .
+            - listitem [ref=f1e9] [box=83,200,992,50]:
+              - strong [ref=f1e10] [box=83,212,204,19]: Misconfigured Webpack or Vite
+              - text: ": Verify that Storybook picks up all necessary settings for loaders, plugins, and other relevant parameters. You can find step-by-step guides for configuring"
+              - link "Webpack" [ref=f1e11] [cursor=pointer] [box=275,231,59,19]:
+                - /url: https://storybook.js.org/docs/builders/webpack
+              - text: or
+              - link "Vite" [ref=f1e12] [cursor=pointer] [box=354,231,25,19]:
+                - /url: https://storybook.js.org/docs/builders/vite
+              - text: with Storybook.
+            - listitem [ref=f1e13] [box=83,250,992,50]:
+              - strong [ref=f1e14] [box=83,262,200,19]: Missing Environment Variables
+              - text: ": Your Storybook may require specific environment variables to function as intended. You can set up custom environment variables as outlined in the"
+              - link "Environment Variables documentation" [ref=f1e15] [cursor=pointer] [box=255,281,239,19]:
+                - /url: https://storybook.js.org/docs/configure/environment-variables
+              - text: .
+          - code [ref=f1e17] [box=75,335,548,55]: "- Are you sure a story with that id exists? - Please check your stories field of your main.js config. - Also check the browser console and terminal for error messages."
+  - navigation [ref=e61] [box=0,0,299,1024]:
+    - generic [ref=e64] [box=0,0,299,1878]:
+      - generic [ref=e65] [box=0,0,299,1878]:
+        - generic [ref=e66] [box=12,16,275,42]
+        - generic [ref=e80] [box=-10000,74,1,1]: Search for components
+        - generic [ref=e81] [box=12,74,275,32]
+        - generic [ref=e94] [box=12,122,275,1716]
+      - link "Storybook 10.3 Learn what's new in Storybook" [ref=e610] [cursor=pointer] [box=12,956,275,56]:
+        - /url: /?path=/settings/whats-new
+        - img [ref=e612] [box=24,976,16,16]
+        - generic [ref=e614] [box=50,968,203,32]
+        - button "Dismiss notification" [ref=e617] [box=253,970,28,28]
+  - generic [ref=e575] [box=300,725,1140,40]:
+    - tablist [ref=e577] [box=300,725,410,40]:
+      - tab "Controls" [ref=e578] [cursor=pointer] [box=300,725,81,40]:
+        - generic [ref=e581] [box=315,739,51,12]: Controls
+      - tab "Actions" [ref=e582] [cursor=pointer] [box=381,725,76,40]:
+        - generic [ref=e585] [box=396,739,46,12]: Actions
+      - tab "Code" [ref=e586] [cursor=pointer] [box=457,725,61,40]
+      - tab "Interactions" [ref=e587] [cursor=pointer] [box=518,725,101,40]:
+        - generic [ref=e590] [box=533,739,71,12]: Interactions
+    - generic [ref=e593] [box=1371,725,62,40]:
+      - button "Change addon orientation [⌥ D]" [ref=e594] [cursor=pointer] [box=1371,731,28,28]:
+        - img [ref=e595] [box=1378,738,14,14]
+      - button "Hide addons [⌥ A]" [ref=e598] [cursor=pointer] [box=1405,731,28,28]:
+        - img [ref=e599] [box=1412,738,14,14]

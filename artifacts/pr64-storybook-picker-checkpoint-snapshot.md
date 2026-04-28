@@ -1,0 +1,178 @@
+- generic [ref=e3]:
+  - main [ref=e5]:
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - button "Remount component" [ref=e9] [cursor=pointer]:
+          - img [ref=e10]
+        - button "Zoom in" [ref=e12] [cursor=pointer]:
+          - img [ref=e13]
+        - button "Zoom out" [ref=e16] [cursor=pointer]:
+          - img [ref=e17]
+        - button "Reset zoom" [ref=e20] [cursor=pointer]:
+          - img [ref=e21]
+        - button "Change the background of the preview" [ref=e666] [cursor=pointer]:
+          - img [ref=e667]
+        - button "Apply a grid to the preview" [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+        - button "Change the size of the preview" [ref=e28] [cursor=pointer]:
+          - img [ref=e29]
+        - button "中文" [ref=e672] [cursor=pointer]:
+          - img [ref=e673]
+          - text: 中文
+        - button "Enable measure" [ref=e33] [cursor=pointer]:
+          - img [ref=e34]
+        - button "Apply outlines to the preview" [ref=e37] [cursor=pointer]:
+          - img [ref=e38]
+      - generic [ref=e40]:
+        - button "Go full screen" [ref=e41] [cursor=pointer]:
+          - img [ref=e42]
+        - link "Open canvas in new tab" [ref=e44] [cursor=pointer]:
+          - /url: iframe.html?globals=&id=business-bookexperimentbranchpicker--checkpoint-baseline
+          - img [ref=e45]
+        - button "Copy canvas link" [ref=e48] [cursor=pointer]:
+          - img [ref=e49]
+    - generic [ref=e56]:
+      - link "Skip to sidebar" [ref=e57] [cursor=pointer]:
+        - /url: "#business-bookexperimentbranchpicker--checkpoint-baseline"
+      - iframe [ref=e58]:
+        - generic [ref=f1e7]:
+          - generic [ref=f1e8]:
+            - generic [ref=f1e9]
+            - generic [ref=f1e13]
+          - generic [ref=f1e16]:
+            - paragraph [ref=f1e17]: 测试一个低冲突收束版本，让站台与水域段落更早放下压力。
+            - button "归档实验稿" [ref=f1e19] [cursor=pointer]
+          - generic [ref=f1e20]:
+            - button "静默收束稿 一个更低冲突的实验稿，收束尾声压力，但不移除交接逻辑。 审阅中 测试一个低冲突收束版本，让站台与水域段落更早放下压力。 为静默收束审阅准备" [pressed] [ref=f1e21] [cursor=pointer]
+            - button "高压推进稿 一个更高压的实验稿，强化站台交易并逼出更冒险的水域后续。 进行中 压测一个更激进的分支，加入新的升级节拍、警告增长，以及一个刻意留空的场景。 为高压升级审阅准备" [ref=f1e29] [cursor=pointer]
+  - navigation [ref=e61]:
+    - generic [ref=e64]:
+      - generic [ref=e65]:
+        - generic [ref=e66]:
+          - link "Skip to canvas" [ref=e67] [cursor=pointer]:
+            - /url: "#storybook-preview-wrapper"
+          - link "Storybook" [ref=e69] [cursor=pointer]:
+            - /url: ./
+            - img "Storybook" [ref=e70]
+          - button "Shortcuts" [ref=e76] [cursor=pointer]:
+            - img [ref=e77]
+        - generic [ref=e80]: Search for components
+        - generic [ref=e81]:
+          - combobox "Search for components" [ref=e82]:
+            - generic
+            - searchbox "Search for components" [ref=e83]
+            - code
+            - button "Tag filters" [ref=e87] [cursor=pointer]
+          - button [ref=e91] [cursor=pointer]:
+            - img [ref=e92]
+        - generic [ref=e94]:
+          - generic [ref=e98]:
+            - img
+            - generic [ref=e99]
+            - button "Project Runtime" [ref=e108] [cursor=pointer]
+            - generic [ref=e115]
+            - button "Pane" [ref=e124] [cursor=pointer]
+            - generic [ref=e131]
+            - button "AssetBottomDock" [ref=e140] [cursor=pointer]
+            - button "AssetContextPolicyView" [ref=e148] [cursor=pointer]
+            - button "AssetInspectorPane" [ref=e156] [cursor=pointer]
+            - button "AssetMentionsView" [ref=e164] [cursor=pointer]
+            - button "AssetNavigatorPane" [ref=e172] [cursor=pointer]
+            - button "AssetProfileView" [ref=e180] [cursor=pointer]
+            - button "AssetRelationsView" [ref=e188] [cursor=pointer]
+            - button "BookBottomDock" [ref=e196] [cursor=pointer]
+            - button "BookDraftBinderPane" [ref=e204] [cursor=pointer]
+            - button "BookDraftBottomDock" [ref=e212] [cursor=pointer]
+            - button "BookDraftBranchView" [ref=e220] [cursor=pointer]
+            - button "BookDraftCheckpointPicker" [ref=e228] [cursor=pointer]
+            - button "BookDraftCompareView" [ref=e236] [cursor=pointer]
+            - button "BookDraftExportView" [ref=e244] [cursor=pointer]
+            - button "BookDraftInspectorPane" [ref=e252] [cursor=pointer]
+            - button "BookDraftReader" [ref=e260] [cursor=pointer]
+            - button "BookDraftReviewView" [ref=e268] [cursor=pointer]
+            - button "BookDraftStage" [ref=e276] [cursor=pointer]
+            - button "BookExperimentBranchPicker" [expanded] [ref=e284] [cursor=pointer]
+            - link "Docs" [ref=e292] [cursor=pointer]:
+              - /url: /?path=/docs/business-bookexperimentbranchpicker--docs
+            - link "Default" [ref=e297] [cursor=pointer]:
+              - /url: /?path=/story/business-bookexperimentbranchpicker--default
+            - generic [ref=e301]
+            - link "High Pressure" [ref=e308] [cursor=pointer]:
+              - /url: /?path=/story/business-bookexperimentbranchpicker--high-pressure
+            - button "BookExportArtifactGate" [ref=e313] [cursor=pointer]
+            - button "BookExportArtifactPanel" [ref=e321] [cursor=pointer]
+            - button "BookExportProfilePicker" [ref=e329] [cursor=pointer]
+            - button "BookExportReadinessChecklist" [ref=e337] [cursor=pointer]
+            - button "BookInspectorPane" [ref=e345] [cursor=pointer]
+            - button "BookNavigatorPane" [ref=e353] [cursor=pointer]
+            - button "BookOutlinerView" [ref=e361] [cursor=pointer]
+            - button "BookSequenceView" [ref=e369] [cursor=pointer]
+            - button "BookSignalsView" [ref=e377] [cursor=pointer]
+            - button "ChapterAssemblyView" [ref=e385] [cursor=pointer]
+            - button "ChapterBacklogPlannerView" [ref=e393] [cursor=pointer]
+            - button "ChapterBinderPane" [ref=e401] [cursor=pointer]
+            - button "ChapterBottomDock" [ref=e409] [cursor=pointer]
+            - button "ChapterDraftBinderPane" [ref=e417] [cursor=pointer]
+            - button "ChapterDraftBottomDock" [ref=e425] [cursor=pointer]
+            - button "ChapterDraftInspectorPane" [ref=e433] [cursor=pointer]
+            - button "ChapterDraftReader" [ref=e441] [cursor=pointer]
+            - button "ChapterOutlinerView" [ref=e449] [cursor=pointer]
+            - button "ChapterSequenceView" [ref=e457] [cursor=pointer]
+            - button "ChapterStructureInspectorPane" [ref=e465] [cursor=pointer]
+            - button "BookReviewFilterBar" [ref=e473] [cursor=pointer]
+            - button "BookReviewStatusFilterBar" [ref=e481] [cursor=pointer]
+            - button "ReviewDecisionControls" [ref=e489] [cursor=pointer]
+            - button "ReviewIssueDetail" [ref=e497] [cursor=pointer]
+            - button "ReviewIssueList" [ref=e505] [cursor=pointer]
+            - button "ReviewSourceFixControls" [ref=e513] [cursor=pointer]
+            - button "Run" [ref=e521] [cursor=pointer]
+            - button "ProposalCard" [ref=e529] [cursor=pointer]
+            - button "SceneObjectiveStrip" [ref=e537] [cursor=pointer]
+            - generic [ref=e544]
+            - button "Asset" [ref=e553] [cursor=pointer]
+            - button "Book" [ref=e561] [cursor=pointer]
+            - button "Chapter" [ref=e569] [cursor=pointer]
+            - button "Scene" [ref=e577] [cursor=pointer]
+            - button "Workbench" [ref=e585] [cursor=pointer]
+          - text: / / / / / / / / / / /
+      - link "Storybook 10.3 Learn what's new in Storybook" [ref=e677] [cursor=pointer]:
+        - /url: /?path=/settings/whats-new
+        - img [ref=e679]
+        - generic [ref=e681]:
+          - generic "Storybook 10.3" [ref=e682]
+          - generic [ref=e683]: Learn what's new in Storybook
+        - button "Dismiss notification" [ref=e684]:
+          - img [ref=e685]
+  - generic [ref=e594]:
+    - generic [ref=e596]:
+      - tablist [ref=e598]:
+        - tab "Controls 2" [ref=e687] [cursor=pointer]:
+          - generic [ref=e601]:
+            - generic [ref=e602]: Controls
+            - generic [ref=e688]: "2"
+        - tab "Actions" [ref=e603] [cursor=pointer]:
+          - generic [ref=e606]: Actions
+        - tab "Interactions" [ref=e608] [cursor=pointer]:
+          - generic [ref=e611]: Interactions
+      - generic [ref=e614]:
+        - button "Change addon orientation [⌥ D]" [ref=e615] [cursor=pointer]:
+          - img [ref=e616]
+        - button "Hide addons [⌥ A]" [ref=e619] [cursor=pointer]:
+          - img [ref=e620]
+    - table [ref=e691]:
+      - rowgroup [ref=e692]:
+        - row "Name Control" [ref=e693]:
+          - columnheader "Name" [ref=e694]
+          - columnheader "Control" [ref=e695]:
+            - generic [ref=e696]
+      - rowgroup [ref=e700]:
+        - row "variant default" [ref=e701]:
+          - cell "variant" [ref=e702]
+          - cell "default" [ref=e703]:
+            - textbox [ref=e705]:
+              - /placeholder: Edit string...
+        - row "branchBaseline checkpoint" [ref=e706]:
+          - cell "branchBaseline" [ref=e707]
+          - cell "checkpoint" [ref=e708]:
+            - textbox [ref=e710]:
+              - /placeholder: Edit string...

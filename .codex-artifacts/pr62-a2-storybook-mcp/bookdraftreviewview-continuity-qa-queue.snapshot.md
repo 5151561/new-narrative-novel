@@ -1,0 +1,209 @@
+- generic [ref=e6] [box=24,24,1392,6125]:
+  - generic [ref=e7] [box=24,24,1392,72]:
+    - generic [ref=e8] [box=40,36,737,47]:
+      - heading "Review inbox" [level=3] [ref=e9] [box=40,36,737,23]
+      - paragraph [ref=e10] [box=40,63,737,20]: Read manuscript readiness, compare deltas, export blockers, branch warnings, and proposal signals in one queue.
+    - generic [ref=e11] [box=982,36,418,25]:
+      - generic [ref=e12] [box=982,36,95,25]: Blockers 10
+      - generic [ref=e13] [box=1085,36,99,25]: Warnings 29
+      - generic [ref=e14] [box=1192,36,66,25]: Open 41
+      - generic [ref=e15] [box=1265,36,135,25]: Chapter issues 18
+  - generic [ref=e17] [box=40,112,1360,6021]:
+    - generic [ref=e18] [box=40,112,1360,88]:
+      - generic "Review filters" [ref=e19] [box=40,112,1360,38]:
+        - button "All 41" [pressed] [ref=e20] [cursor=pointer] [box=40,112,75,38]:
+          - generic [ref=e21] [box=53,121,16,20]: All
+          - generic [ref=e22] [box=77,121,25,20]: "41"
+        - button "Blockers 10" [ref=e23] [cursor=pointer] [box=123,112,115,38]:
+          - generic [ref=e24] [box=136,121,55,20]: Blockers
+          - generic [ref=e25] [box=200,121,25,20]: "10"
+        - button "Trace gaps 3" [ref=e26] [cursor=pointer] [box=246,112,125,38]:
+          - generic [ref=e27] [box=259,121,71,20]: Trace gaps
+          - generic [ref=e28] [box=338,121,20,20]: "3"
+        - button "Missing drafts 2" [ref=e29] [cursor=pointer] [box=379,112,144,38]:
+          - generic [ref=e30] [box=392,121,91,20]: Missing drafts
+          - generic [ref=e31] [box=491,121,19,20]: "2"
+        - button "Compare deltas 16" [ref=e32] [cursor=pointer] [box=531,112,161,38]:
+          - generic [ref=e33] [box=544,121,102,20]: Compare deltas
+          - generic [ref=e34] [box=654,121,25,20]: "16"
+        - button "Export readiness 16" [ref=e35] [cursor=pointer] [box=700,112,167,38]:
+          - generic [ref=e36] [box=713,121,108,20]: Export readiness
+          - generic [ref=e37] [box=829,121,25,20]: "16"
+        - button "Branch readiness 1" [ref=e38] [cursor=pointer] [box=876,112,163,38]:
+          - generic [ref=e39] [box=889,121,112,20]: Branch readiness
+          - generic [ref=e40] [box=1008,121,18,20]: "1"
+        - button "Scene proposals 0" [ref=e41] [cursor=pointer] [box=1047,112,161,38]:
+          - generic [ref=e42] [box=1060,121,107,20]: Scene proposals
+          - generic [ref=e43] [box=1175,121,20,20]: "0"
+      - generic "Review status filters" [ref=e44] [box=40,162,1360,38]:
+        - button "Open 41" [pressed] [ref=e45] [cursor=pointer] [box=40,162,94,38]:
+          - generic [ref=e46] [box=53,171,35,20]: Open
+          - generic [ref=e47] [box=96,171,25,20]: "41"
+        - button "Reviewed 0" [ref=e48] [cursor=pointer] [box=142,162,115,38]:
+          - generic [ref=e49] [box=155,171,62,20]: Reviewed
+          - generic [ref=e50] [box=225,171,20,20]: "0"
+        - button "Deferred 0" [ref=e51] [cursor=pointer] [box=265,162,110,38]:
+          - generic [ref=e52] [box=278,171,57,20]: Deferred
+          - generic [ref=e53] [box=343,171,20,20]: "0"
+        - button "Dismissed 0" [ref=e54] [cursor=pointer] [box=384,162,120,38]:
+          - generic [ref=e55] [box=397,171,66,20]: Dismissed
+          - generic [ref=e56] [box=471,171,20,20]: "0"
+        - button "All 41" [ref=e57] [cursor=pointer] [box=512,162,75,38]:
+          - generic [ref=e58] [box=525,171,16,20]: All
+          - generic [ref=e59] [box=549,171,25,20]: "41"
+    - generic [ref=e60] [box=40,216,1360,5917]:
+      - generic [ref=e61] [box=40,216,605,5917]:
+        - generic [ref=e62] [box=40,216,605,83]:
+          - paragraph [ref=e63] [box=57,233,571,17]: Review queue
+          - paragraph [ref=e64] [box=57,257,571,24]: Signal Arc currently shows 42 visible issues in this pass.
+        - generic [ref=e65] [box=40,314,605,5819]:
+          - generic [ref=e66] [box=40,314,605,1525]:
+            - generic [ref=e67] [box=40,314,605,24]:
+              - heading "Blockers" [level=3] [ref=e68] [box=40,314,61,24]
+              - generic [ref=e69] [box=632,316,13,20]: "11"
+            - generic [ref=e70] [box=40,350,605,1489]:
+              - article [ref=e71] [box=40,350,605,151]:
+                - button "Blocker Continuity QA Ledger visibility conflicts with the public-proof beat Signals in Rain / Midnight Platform Continuity conflict Ledger" [pressed] [ref=e72] [cursor=pointer] [box=41,351,603,149]
+              - article [ref=e84] [box=40,513,605,115]:
+                - 'button "Blocker Export readiness: Review Packet Draft coverage incomplete Signals in Rain / Ticket Window Export blocker missing_draft" [ref=e85] [cursor=pointer] [box=41,514,603,113]'
+              - article [ref=e97] [box=40,640,605,115]:
+                - 'button "Blocker Export readiness: Review Packet Trace coverage incomplete Signals in Rain / Ticket Window Export blocker trace_gap" [ref=e98] [cursor=pointer] [box=41,641,603,113]'
+              - article [ref=e110] [box=40,766,605,151]:
+                - 'button "Blocker Export readiness: Review Packet Compare baseline still has draft-missing scenes Signals in Rain Export blocker compare_regression" [ref=e111] [cursor=pointer] [box=41,767,603,149]'
+              - article [ref=e123] [box=40,929,605,115]:
+                - 'button "Blocker Export readiness: Review Packet Warnings must be cleared Signals in Rain Export blocker warning_delta" [ref=e124] [cursor=pointer] [box=41,930,603,113]'
+              - article [ref=e136] [box=40,1056,605,151]:
+                - 'button "Blocker Export readiness: Review Packet Compare trace regressions block export readiness Open Water Signals Export blocker compare_regression" [ref=e137] [cursor=pointer] [box=41,1057,603,149]'
+              - article [ref=e149] [box=40,1219,605,115]:
+                - 'button "Blocker Export readiness: Review Packet Warnings must be cleared Open Water Signals Export blocker warning_delta" [ref=e150] [cursor=pointer] [box=41,1220,603,113]'
+              - article [ref=e162] [box=40,1345,605,115]:
+                - 'button "Blocker Export readiness: Review Packet Trace coverage incomplete Dawn Slip / Dawn Release Export blocker trace_gap" [ref=e163] [cursor=pointer] [box=41,1346,603,113]'
+              - article [ref=e175] [box=40,1472,605,115]:
+                - 'button "Blocker Export readiness: Review Packet Warnings must be cleared Dawn Slip Export blocker warning_delta" [ref=e176] [cursor=pointer] [box=41,1473,603,113]'
+              - article [ref=e188] [box=40,1598,605,115]:
+                - 'button "Blocker Compare: PR11 Baseline Compare draft missing Signals in Rain / Ticket Window Missing draft Compare delta" [ref=e189] [cursor=pointer] [box=41,1599,603,113]'
+              - article [ref=e201] [box=40,1725,605,115]:
+                - button "Blocker Current manuscript Draft missing Signals in Rain / Ticket Window Missing draft Current manuscript" [ref=e202] [cursor=pointer] [box=41,1726,603,113]
+          - generic [ref=e214] [box=40,1855,605,3985]:
+            - generic [ref=e215] [box=40,1855,605,24]:
+              - heading "Warnings" [level=3] [ref=e216] [box=40,1855,69,24]
+              - generic [ref=e217] [box=628,1857,17,20]: "29"
+            - generic [ref=e218] [box=40,1891,605,3949]:
+              - article [ref=e219] [box=40,1891,605,151]:
+                - 'button "Warning Export readiness: Review Packet Changed scenes still need review Signals in Rain Export warning compare_regression" [ref=e220] [cursor=pointer] [box=41,1892,603,149]'
+              - article [ref=e232] [box=40,2054,605,151]:
+                - 'button "Warning Export readiness: Review Packet Checkpoint-only scenes remain Signals in Rain Export warning compare_regression" [ref=e233] [cursor=pointer] [box=41,2055,603,149]'
+              - article [ref=e245] [box=40,2217,605,151]:
+                - 'button "Warning Export readiness: Review Packet Queued revisions remain Signals in Rain Export warning queued_revision" [ref=e246] [cursor=pointer] [box=41,2218,603,149]'
+              - article [ref=e258] [box=40,2380,605,151]:
+                - 'button "Warning Export readiness: Review Packet Added scenes should be acknowledged Open Water Signals Export warning compare_regression" [ref=e259] [cursor=pointer] [box=41,2381,603,149]'
+              - article [ref=e271] [box=40,2543,605,151]:
+                - 'button "Warning Export readiness: Review Packet Changed scenes still need review Open Water Signals Export warning compare_regression" [ref=e272] [cursor=pointer] [box=41,2544,603,149]'
+              - article [ref=e284] [box=40,2706,605,151]:
+                - 'button "Warning Export readiness: Review Packet Checkpoint-only scenes remain Open Water Signals Export warning compare_regression" [ref=e285] [cursor=pointer] [box=41,2707,603,149]'
+              - article [ref=e297] [box=40,2869,605,151]:
+                - 'button "Warning Export readiness: Review Packet Queued revisions remain Open Water Signals Export warning queued_revision" [ref=e298] [cursor=pointer] [box=41,2870,603,149]'
+              - article [ref=e310] [box=40,3032,605,151]:
+                - 'button "Warning Export readiness: Review Packet Added scenes should be acknowledged Dawn Slip Export warning compare_regression" [ref=e311] [cursor=pointer] [box=41,3033,603,149]'
+              - article [ref=e323] [box=40,3195,605,115]:
+                - 'button "Warning Branch readiness: Quiet Ending Trace regressed Open Water Signals / Dawn Slip Branch warning" [ref=e324] [cursor=pointer] [box=41,3196,603,113]'
+              - article [ref=e335] [box=40,3322,605,115]:
+                - 'button "Warning Compare: PR11 Baseline Compare delta needs review Signals in Rain / Midnight Platform Compare delta changed" [ref=e336] [cursor=pointer] [box=41,3323,603,113]'
+              - article [ref=e348] [box=40,3448,605,115]:
+                - 'button "Warning Compare: PR11 Baseline Compare warnings increased Signals in Rain / Midnight Platform Compare delta Warnings +6" [ref=e349] [cursor=pointer] [box=41,3449,603,113]'
+              - article [ref=e361] [box=40,3575,605,115]:
+                - 'button "Warning Compare: PR11 Baseline Compare delta needs review Signals in Rain / Concourse Delay Compare delta changed" [ref=e362] [cursor=pointer] [box=41,3576,603,113]'
+              - article [ref=e374] [box=40,3701,605,115]:
+                - 'button "Warning Compare: PR11 Baseline Compare warnings increased Signals in Rain / Concourse Delay Compare delta Warnings +4" [ref=e375] [cursor=pointer] [box=41,3702,603,113]'
+              - article [ref=e387] [box=40,3828,605,115]:
+                - 'button "Warning Compare: PR11 Baseline Compare delta needs review Signals in Rain / Departure Bell Compare delta missing" [ref=e388] [cursor=pointer] [box=41,3829,603,113]'
+              - article [ref=e400] [box=40,3954,605,115]:
+                - 'button "Warning Compare: PR11 Baseline Compare warnings increased Signals in Rain / Ticket Window Compare delta Warnings +4" [ref=e401] [cursor=pointer] [box=41,3955,603,113]'
+              - article [ref=e413] [box=40,4081,605,115]:
+                - 'button "Warning Compare: PR11 Baseline Compare delta needs review Open Water Signals / Warehouse Bridge Compare delta changed" [ref=e414] [cursor=pointer] [box=41,4082,603,113]'
+              - article [ref=e426] [box=40,4207,605,115]:
+                - 'button "Warning Compare: PR11 Baseline Compare trace regression Open Water Signals / Warehouse Bridge Trace gap Compare delta" [ref=e427] [cursor=pointer] [box=41,4208,603,113]'
+              - article [ref=e439] [box=40,4334,605,115]:
+                - 'button "Warning Compare: PR11 Baseline Compare warnings increased Open Water Signals / Warehouse Bridge Compare delta Warnings +2" [ref=e440] [cursor=pointer] [box=41,4335,603,113]'
+              - article [ref=e452] [box=40,4460,605,115]:
+                - 'button "Warning Compare: PR11 Baseline Compare delta needs review Open Water Signals / Canal Watch Compare delta changed" [ref=e453] [cursor=pointer] [box=41,4461,603,113]'
+              - article [ref=e465] [box=40,4587,605,115]:
+                - 'button "Warning Compare: PR11 Baseline Compare warnings increased Open Water Signals / Canal Watch Compare delta Warnings +1" [ref=e466] [cursor=pointer] [box=41,4588,603,113]'
+              - article [ref=e478] [box=40,4713,605,115]:
+                - 'button "Warning Compare: PR11 Baseline Compare delta needs review Open Water Signals / Dawn Slip Compare delta added" [ref=e479] [cursor=pointer] [box=41,4714,603,113]'
+              - article [ref=e491] [box=40,4840,605,115]:
+                - 'button "Warning Compare: PR11 Baseline Compare delta needs review Open Water Signals / River Ledger Compare delta missing" [ref=e492] [cursor=pointer] [box=41,4841,603,113]'
+              - article [ref=e504] [box=40,4966,605,115]:
+                - 'button "Warning Compare: PR11 Baseline Compare delta needs review Dawn Slip / Dawn Release Compare delta added" [ref=e505] [cursor=pointer] [box=41,4967,603,113]'
+              - article [ref=e517] [box=40,5093,605,115]:
+                - 'button "Warning Compare: PR11 Baseline Compare warnings increased Dawn Slip / Dawn Release Compare delta Warnings +2" [ref=e518] [cursor=pointer] [box=41,5094,603,113]'
+              - article [ref=e530] [box=40,5219,605,115]:
+                - button "Warning Current trace coverage Trace references missing Signals in Rain / Ticket Window Missing trace Current manuscript" [ref=e531] [cursor=pointer] [box=41,5220,603,113]
+              - article [ref=e543] [box=40,5346,605,115]:
+                - button "Warning Current trace coverage Trace references missing Dawn Slip / Dawn Release Missing trace Current manuscript" [ref=e544] [cursor=pointer] [box=41,5347,603,113]
+              - article [ref=e556] [box=40,5472,605,115]:
+                - button "Warning Current chapter draft Draft warnings need review Signals in Rain Warnings Chapter draft" [ref=e557] [cursor=pointer] [box=41,5473,603,113]
+              - article [ref=e569] [box=40,5599,605,115]:
+                - button "Warning Current chapter draft Draft warnings need review Open Water Signals Warnings Chapter draft" [ref=e570] [cursor=pointer] [box=41,5600,603,113]
+              - article [ref=e582] [box=40,5725,605,115]:
+                - button "Warning Current chapter draft Draft warnings need review Dawn Slip Warnings Chapter draft" [ref=e583] [cursor=pointer] [box=41,5726,603,113]
+          - generic [ref=e595] [box=40,5856,605,277]:
+            - generic [ref=e596] [box=40,5856,605,24]:
+              - heading "Info" [level=3] [ref=e597] [box=40,5856,30,24]
+              - generic [ref=e598] [box=636,5858,8,20]: "2"
+            - generic [ref=e599] [box=40,5892,605,241]:
+              - article [ref=e600] [box=40,5892,605,115]:
+                - button "Info Current chapter draft Queued revisions remain Signals in Rain Queued revision Chapter draft" [ref=e601] [cursor=pointer] [box=41,5893,603,113]
+              - article [ref=e613] [box=40,6018,605,115]:
+                - button "Info Current chapter draft Queued revisions remain Open Water Signals Queued revision Chapter draft" [ref=e614] [cursor=pointer] [box=41,6019,603,113]
+      - generic [ref=e626] [box=661,216,739,5917]:
+        - generic [ref=e627] [box=678,233,705,121]:
+          - generic [ref=e628] [box=678,233,705,25]:
+            - generic [ref=e629] [box=678,233,71,25]: Blocker
+            - generic [ref=e630] [box=757,233,110,25]: Continuity QA
+          - generic [ref=e631] [box=678,269,705,84]:
+            - heading "Ledger visibility conflicts with the public-proof beat" [level=3] [ref=e632] [box=678,269,705,28]
+            - paragraph [ref=e633] [box=678,305,705,48]: Midnight Platform prose implies the ledger proof already went public while the continuity ledger still marks it as withheld.
+        - generic [ref=e634] [box=678,369,705,107]:
+          - paragraph [ref=e635] [box=695,386,671,17]: Recommendation
+          - paragraph [ref=e636] [box=695,411,671,48]: Open book review, then inspect the ledger profile and the scene execution notes before changing any source material.
+        - generic [ref=e637] [box=678,492,705,107]:
+          - paragraph [ref=e638] [box=695,509,671,17]: Source excerpt
+          - paragraph [ref=e639] [box=695,533,671,48]: The current prose treats the ledger proof as public even though the continuity ledger still keeps it private.
+        - generic [ref=e640] [box=678,614,705,237]:
+          - generic [ref=e642] [box=695,631,49,25]: Open
+          - generic [ref=e643] [box=695,668,671,116]:
+            - text: Decision note
+            - textbox "Decision note" [ref=e644] [box=695,700,671,78]
+          - generic [ref=e645] [box=695,796,671,38]:
+            - button "Mark reviewed" [ref=e646] [cursor=pointer] [box=695,796,120,38]
+            - button "Defer" [ref=e647] [cursor=pointer] [box=823,796,62,38]
+            - button "Dismiss for this pass" [ref=e648] [cursor=pointer] [box=892,796,159,38]
+        - generic [ref=e649] [box=678,867,705,325]:
+          - generic [ref=e651] [box=695,884,98,25]: Not started
+          - generic [ref=e652] [box=695,920,671,45]:
+            - paragraph [ref=e653] [box=695,920,671,17]: Primary fix target
+            - paragraph [ref=e654] [box=695,941,671,24]: Open book review · book
+          - paragraph [ref=e655] [box=695,977,671,20]: Rewrite request needs a scene or chapter handoff.
+          - generic [ref=e656] [box=695,1009,671,116]:
+            - text: Source fix note
+            - textbox "Source fix note" [ref=e657] [box=695,1041,671,78]
+          - generic [ref=e658] [box=695,1137,671,38]:
+            - button "Start source fix" [ref=e659] [cursor=pointer] [box=695,1137,124,38]
+            - button "Create rewrite request" [disabled] [ref=e660] [box=827,1137,170,38]
+        - generic [ref=e661] [box=678,1208,705,152]:
+          - generic [ref=e662] [box=678,1208,347,70]:
+            - term [ref=e663] [box=691,1221,321,16]: Chapter
+            - definition [ref=e664] [box=691,1241,321,24]: Signals in Rain
+          - generic [ref=e665] [box=1036,1208,347,70]:
+            - term [ref=e666] [box=1049,1221,321,16]: Scene
+            - definition [ref=e667] [box=1049,1241,321,24]: Midnight Platform
+          - generic [ref=e668] [box=678,1290,347,70]:
+            - term [ref=e669] [box=691,1303,321,16]: Asset
+            - definition [ref=e670] [box=691,1323,321,24]: Ledger
+        - generic [ref=e671] [box=678,1376,705,67]:
+          - paragraph [ref=e672] [box=678,1376,705,17]: Handoff actions
+          - generic [ref=e673] [box=678,1404,705,38]:
+            - button "Open book review" [ref=e674] [cursor=pointer] [box=678,1404,143,38]
+            - button "Open asset ledger" [ref=e675] [cursor=pointer] [box=828,1404,144,38]
+            - button "Open scene orchestrate" [ref=e676] [cursor=pointer] [box=981,1404,181,38]

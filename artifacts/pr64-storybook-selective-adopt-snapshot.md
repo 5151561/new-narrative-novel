@@ -1,0 +1,96 @@
+- generic [ref=e3]:
+  - main [ref=e5]:
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - button "Remount component" [ref=e9] [cursor=pointer]:
+          - img [ref=e10]
+        - button "Zoom in" [ref=e12] [cursor=pointer]:
+          - img [ref=e13]
+        - button "Zoom out" [ref=e16] [cursor=pointer]:
+          - img [ref=e17]
+        - button "Reset zoom" [ref=e20] [cursor=pointer]:
+          - img [ref=e21]
+        - button "Change the background of the preview" [ref=e686] [cursor=pointer]:
+          - img [ref=e687]
+        - button "Apply a grid to the preview" [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+        - button "Change the size of the preview" [ref=e28] [cursor=pointer]:
+          - img [ref=e29]
+        - button "中文" [ref=e692] [cursor=pointer]:
+          - img [ref=e693]
+          - text: 中文
+        - button "Enable measure" [ref=e33] [cursor=pointer]:
+          - img [ref=e34]
+        - button "Apply outlines to the preview" [ref=e37] [cursor=pointer]:
+          - img [ref=e38]
+      - generic [ref=e40]:
+        - button "Go full screen" [ref=e41] [cursor=pointer]:
+          - img [ref=e42]
+        - link "Open canvas in new tab" [ref=e44] [cursor=pointer]:
+          - /url: iframe.html?globals=&id=business-bookdraftbranchview--selective-adopt
+          - img [ref=e45]
+        - button "Copy canvas link" [ref=e48] [cursor=pointer]:
+          - img [ref=e49]
+    - generic [ref=e56]:
+      - link "Skip to sidebar" [ref=e57] [cursor=pointer]:
+        - /url: "#business-bookdraftbranchview--selective-adopt"
+      - iframe [ref=e58]:
+        - generic [ref=f1e6]:
+          - generic [ref=f1e8]
+          - generic [ref=f1e12]
+  - navigation [ref=e61]:
+    - generic [ref=e64]:
+      - generic [ref=e65]:
+        - generic [ref=e66]:
+          - link "Skip to canvas" [ref=e67] [cursor=pointer]:
+            - /url: "#storybook-preview-wrapper"
+          - link "Storybook" [ref=e69] [cursor=pointer]:
+            - /url: ./
+          - button "Shortcuts" [ref=e76] [cursor=pointer]
+        - generic [ref=e80]: Search for components
+        - generic [ref=e81]:
+          - combobox "Search for components" [ref=e82]
+          - button [ref=e91] [cursor=pointer]
+        - generic [ref=e94]:
+          - generic [ref=e98]
+          - text: / / / / / / / / / / /
+      - link "Storybook 10.3 Learn what's new in Storybook" [ref=e697] [cursor=pointer]:
+        - /url: /?path=/settings/whats-new
+        - img [ref=e699]
+        - generic [ref=e701]:
+          - generic "Storybook 10.3" [ref=e702]
+          - generic [ref=e703]: Learn what's new in Storybook
+        - button "Dismiss notification" [ref=e704]:
+          - img [ref=e705]
+  - generic [ref=e614]:
+    - generic [ref=e616]:
+      - tablist [ref=e618]:
+        - tab "Controls 4" [ref=e707] [cursor=pointer]:
+          - generic [ref=e621]
+        - tab "Actions" [ref=e623] [cursor=pointer]:
+          - generic [ref=e626]: Actions
+        - tab "Interactions" [ref=e628] [cursor=pointer]:
+          - generic [ref=e631]: Interactions
+      - generic [ref=e634]:
+        - button "Change addon orientation [⌥ D]" [ref=e635] [cursor=pointer]:
+          - img [ref=e636]
+        - button "Hide addons [⌥ A]" [ref=e639] [cursor=pointer]:
+          - img [ref=e640]
+    - table [ref=e711]:
+      - rowgroup [ref=e712]:
+        - row "Name Control" [ref=e713]:
+          - columnheader "Name" [ref=e714]
+          - columnheader "Control" [ref=e715]
+      - rowgroup [ref=e720]:
+        - row "variant default" [ref=e721]:
+          - cell "variant" [ref=e722]
+          - cell "default" [ref=e723]
+        - row "branchBaseline current" [ref=e726]:
+          - cell "branchBaseline" [ref=e727]
+          - cell "current" [ref=e728]
+        - row "branchId branch-book-signal-arc-high-pressure" [ref=e731]:
+          - cell "branchId" [ref=e732]
+          - cell "branch-book-signal-arc-high-pressure" [ref=e733]
+        - row "selectedChapterId chapter-signals-in-rain" [ref=e736]:
+          - cell "selectedChapterId" [ref=e737]
+          - cell "chapter-signals-in-rain" [ref=e738]
