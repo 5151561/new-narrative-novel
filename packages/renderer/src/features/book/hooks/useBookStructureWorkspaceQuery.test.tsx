@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useEffect, type PropsWithChildren } from 'react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import { APP_LOCALE_STORAGE_KEY, I18nProvider, type Locale, useI18n } from '@/app/i18n'
 import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
@@ -9,6 +9,10 @@ import { mockBookRecordSeeds } from '../api/mock-book-db'
 
 import { bookQueryKeys } from './book-query-keys'
 import { useBookStructureWorkspaceQuery } from './useBookStructureWorkspaceQuery'
+
+afterEach(() => {
+  window.localStorage.clear()
+})
 
 function wrapperFactory() {
   const queryClient = new QueryClient({
@@ -160,6 +164,31 @@ describe('useBookStructureWorkspaceQuery', () => {
       selectedChapterId: 'chapter-signals-in-rain',
       selectedChapter: expect.objectContaining({
         title: '雨中信号',
+      }),
+    })
+  })
+
+  it('starts from the default English locale in the next test', async () => {
+    const { wrapper } = wrapperFactory()
+
+    const hook = renderHook(
+      () =>
+        useBookStructureWorkspaceQuery({
+          bookId: 'book-signal-arc',
+          selectedChapterId: null,
+        }),
+      {
+        wrapper,
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.workspace?.title).toBe('Signal Arc')
+    })
+
+    expect(hook.result.current.workspace).toMatchObject({
+      selectedChapter: expect.objectContaining({
+        title: 'Signals in Rain',
       }),
     })
   })

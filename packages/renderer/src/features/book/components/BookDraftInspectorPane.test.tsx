@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { APP_LOCALE_STORAGE_KEY } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
@@ -12,6 +12,10 @@ import type { BookDraftInspectorViewModel } from '../types/book-draft-view-model
 import type { BookExportArtifactWorkspaceViewModel } from '../types/book-export-artifact-view-models'
 import type { BookExportPreviewWorkspaceViewModel } from '../types/book-export-view-models'
 import { BookDraftInspectorPane } from './BookDraftInspectorPane'
+
+afterEach(() => {
+  window.localStorage.clear()
+})
 
 function createReviewIssue(overrides: Partial<ReviewIssueViewModel> = {}): ReviewIssueViewModel {
   return {
@@ -782,5 +786,28 @@ describe('BookDraftInspectorPane', () => {
     )
 
     expect(screen.getAllByText('审阅中').length).toBeGreaterThan(0)
+  })
+
+  it('defaults branch review status wording back to English in the next test', () => {
+    render(
+      <AppProviders>
+        <BookDraftInspectorPane
+          bookTitle="Signal Arc"
+          inspector={inspector}
+          activeDraftView="branch"
+          branch={{
+            ...branchWorkspace,
+            branch: branchWorkspace.branch
+              ? {
+                  ...branchWorkspace.branch,
+                  status: 'review',
+                }
+              : null,
+          }}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getAllByText('In Review').length).toBeGreaterThan(0)
   })
 })

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useEffect, type PropsWithChildren } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { APP_LOCALE_STORAGE_KEY, I18nProvider, type Locale, useI18n } from '@/app/i18n'
 import { ProjectRuntimeProvider, createTestProjectRuntime } from '@/app/project-runtime'
@@ -10,6 +10,10 @@ import type { AssetKnowledgeView } from '@/features/workbench/types/workbench-ro
 
 import { assetQueryKeys } from './asset-query-keys'
 import { useAssetKnowledgeWorkspaceQuery } from './useAssetKnowledgeWorkspaceQuery'
+
+afterEach(() => {
+  window.localStorage.clear()
+})
 
 function wrapperFactory(runtime = createTestProjectRuntime()) {
   const queryClient = new QueryClient({
@@ -611,5 +615,25 @@ describe('useAssetKnowledgeWorkspaceQuery', () => {
 
     expect(hook.result.current.workspace?.relations[0]?.targetTitle).toBeTruthy()
     expect(hook.result.current.workspace?.mentions[0]?.title).toBeTruthy()
+  })
+
+  it('starts from the default English locale in the next test', async () => {
+    const { wrapper } = wrapperFactory()
+
+    const hook = renderHook(
+      () =>
+        useAssetKnowledgeWorkspaceQuery({
+          assetId: 'asset-ren-voss',
+        }),
+      {
+        wrapper,
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.workspace?.title).toBe('Ren Voss')
+    })
+
+    expect(hook.result.current.workspace?.relations[0]?.targetTitle).toBe('Mei Arden')
   })
 })

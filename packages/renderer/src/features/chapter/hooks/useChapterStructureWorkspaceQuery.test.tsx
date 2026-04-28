@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useEffect, type PropsWithChildren } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { APP_LOCALE_STORAGE_KEY, I18nProvider, type Locale, useI18n } from '@/app/i18n'
 import { ProjectRuntimeProvider, createTestProjectRuntime } from '@/app/project-runtime'
@@ -14,6 +14,10 @@ import { chapterQueryKeys } from './chapter-query-keys'
 describe('chapter query hooks', () => {
   beforeEach(() => {
     resetMockChapterDb()
+  })
+
+  afterEach(() => {
+    window.localStorage.clear()
   })
 
   function wrapperWithoutRuntime() {
