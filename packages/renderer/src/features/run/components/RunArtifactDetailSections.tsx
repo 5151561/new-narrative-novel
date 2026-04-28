@@ -11,6 +11,7 @@ import type {
   LocalizedTextRecord,
   ProposalSetArtifactDetailRecord,
   ProseDraftArtifactDetailRecord,
+  RunArtifactProvenanceRecord,
   RunArtifactRelatedAssetRecord,
 } from '../api/run-artifact-records'
 import type { RunSelectedProposalVariantRecord } from '../api/run-records'
@@ -94,6 +95,47 @@ function agentRoleLabel(role: AgentInvocationArtifactDetailRecord['agentRole'], 
 
 function invocationLabel(index: number) {
   return `Invocation ${index + 1}`
+}
+
+function getProjectModeLabel(projectMode: RunArtifactProvenanceRecord['projectMode'], locale: Locale) {
+  if (projectMode === 'real-project') {
+    return locale === 'zh-CN' ? '真实项目' : 'Real Project'
+  }
+
+  return locale === 'zh-CN' ? '演示项目' : 'Demo Project'
+}
+
+function getFallbackLabel(fallbackUsed: boolean, locale: Locale) {
+  if (locale === 'zh-CN') {
+    return fallbackUsed ? '是' : '否'
+  }
+
+  return fallbackUsed ? 'Yes' : 'No'
+}
+
+function ProvenanceSection({ provenance }: { provenance: RunArtifactProvenanceRecord }) {
+  const { locale } = useI18n()
+  const providerValue = provenance.providerLabel
+    ? `${provenance.providerLabel} (${provenance.provider})`
+    : provenance.providerId
+      ? `${provenance.provider} / ${provenance.providerId}`
+      : provenance.provider
+
+  return (
+    <SectionCard eyebrow="Provenance" title={locale === 'zh-CN' ? '产物来源' : 'Artifact provenance'}>
+      <FactList
+        items={[
+          { id: 'provider', label: locale === 'zh-CN' ? '提供方' : 'Provider', value: providerValue },
+          { id: 'model-id', label: locale === 'zh-CN' ? '模型 ID' : 'Model ID', value: provenance.modelId },
+          { id: 'project-mode', label: locale === 'zh-CN' ? '项目模式' : 'Project mode', value: getProjectModeLabel(provenance.projectMode, locale) },
+          { id: 'fallback-used', label: locale === 'zh-CN' ? '使用回退' : 'Fallback used', value: getFallbackLabel(provenance.fallbackUsed, locale) },
+          ...(provenance.fallbackReason
+            ? [{ id: 'fallback-reason', label: locale === 'zh-CN' ? '回退原因' : 'Fallback reason', value: provenance.fallbackReason }]
+            : []),
+        ]}
+      />
+    </SectionCard>
+  )
 }
 
 export function ContextPacketArtifactPanel({
@@ -182,6 +224,7 @@ export function AgentInvocationArtifactPanel({ artifact }: { artifact: AgentInvo
           ]}
         />
       </SectionCard>
+      {artifact.provenance ? <ProvenanceSection provenance={artifact.provenance} /> : null}
       <SectionCard eyebrow="Input" title={locale === 'zh-CN' ? '输入摘要' : 'Input Summary'}>
         <p className="text-sm leading-6 text-text-muted">{t(artifact.inputSummary, locale)}</p>
       </SectionCard>
@@ -222,6 +265,7 @@ export function ProposalSetArtifactPanel({
           ]}
         />
       </SectionCard>
+      {artifact.provenance ? <ProvenanceSection provenance={artifact.provenance} /> : null}
       <SectionCard eyebrow="Proposals" title={locale === 'zh-CN' ? '候选提案' : 'Proposals'}>
         {artifact.sourceInvocationIds.length > 0 ? (
           <div className="mb-3 flex flex-wrap gap-2">
@@ -325,6 +369,7 @@ export function ProseDraftArtifactPanel({ artifact }: { artifact: ProseDraftArti
         />
         <SelectedVariantList selectedVariants={artifact.selectedVariants} />
       </SectionCard>
+      {artifact.provenance ? <ProvenanceSection provenance={artifact.provenance} /> : null}
       <SectionCard eyebrow="Excerpt" title={locale === 'zh-CN' ? '正文摘录' : 'Excerpt'}>
         <p className="text-sm leading-6 text-text-main">{t(artifact.excerpt, locale)}</p>
       </SectionCard>

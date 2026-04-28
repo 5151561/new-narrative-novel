@@ -84,12 +84,30 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
   const runStartGuard = useMemo(() => {
     const runtimeKind = runtime ? getProjectRuntimeKind(runtime) : null
     const snapshot = modelSettings?.snapshot
-    if (runtimeKind !== 'real-local-project' || !snapshot) {
+    if (runtimeKind !== 'real-local-project') {
       return undefined
+    }
+
+    if (!snapshot) {
+      return {
+        ctaLabel: dictionary.shell.openModelSettings,
+        message: locale === 'zh-CN'
+          ? '正在读取当前真实项目的模型设置。在确认规划器、正文写作器与连接测试状态之前，不会放行运行场景。'
+          : 'Loading model settings for this real project. Run Scene stays locked until planner, prose writer, and connection status are confirmed.',
+        onRepair: () => {
+          if (modelSettings?.supported) {
+            modelSettings.setOpen(true)
+            return
+          }
+
+          workspaceActions.openTab('setup')
+        },
+      }
     }
 
     const requiredRoles = ['planner', 'sceneProseWriter'] as const
     const providerBindings = requiredRoles.map((role) => snapshot.bindings[role])
+    const hasFixtureProviderBinding = providerBindings.some((binding) => binding.provider === 'fixture')
     const hasMissingProviderModelBinding = providerBindings.some((binding) => {
       return binding.provider === 'openai-compatible' && !binding.modelId?.trim()
     })
@@ -102,21 +120,41 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
     const hasUnknownProviderBinding = providerBindings.some((binding) => {
       return binding.provider === 'openai-compatible' && !snapshot.providers.some((provider) => provider.id === binding.providerId)
     })
+    const hasFailedConnectionTest = snapshot.connectionTest.status === 'failed'
 
-    if (!hasMissingProviderModelBinding && !hasMissingProviderCredential && !hasUnknownProviderBinding) {
+    if (
+      !hasFixtureProviderBinding
+      && !hasMissingProviderModelBinding
+      && !hasMissingProviderCredential
+      && !hasUnknownProviderBinding
+      && !hasFailedConnectionTest
+    ) {
       return undefined
     }
 
-    const missingProviderLabels = providerBindings
-      .filter((binding) => binding.provider === 'openai-compatible')
-      .map((binding) => snapshot.providers.find((provider) => provider.id === binding.providerId)?.label ?? binding.providerId)
-    const providerSummary = missingProviderLabels.length > 0 ? missingProviderLabels.join(', ') : dictionary.shell.modelProviderLabel
+    const providerLabels = providerBindings
+      .map((binding) => {
+        if (binding.provider === 'fixture') {
+          return locale === 'zh-CN' ? '演示 Fixture' : 'Fixture'
+        }
+
+        return snapshot.providers.find((provider) => provider.id === binding.providerId)?.label ?? binding.providerId
+      })
+    const providerSummary = providerLabels.join(', ')
+    const message = hasFailedConnectionTest
+      ? (
+          snapshot.connectionTest.summary
+          ?? (locale === 'zh-CN'
+            ? `当前真实项目的连接测试失败：${providerSummary}。请先修复模型设置，再从现有场景主舞台启动运行。`
+            : `The last real-project connection test failed for ${providerSummary}. Repair model settings before running this scene.`)
+        )
+      : locale === 'zh-CN'
+        ? `当前真实项目的规划或正文绑定仍不可用：${providerSummary}。请先修复模型设置，再从现有场景主舞台启动运行。`
+        : `Planner or prose writer bindings are not ready for this real project: ${providerSummary}. Repair model settings before running this scene.`
 
     return {
       ctaLabel: dictionary.shell.openModelSettings,
-      message: locale === 'zh-CN'
-        ? `当前真实项目的规划或正文提供方配置不完整：${providerSummary}。请先修复模型配置，再从现有场景主舞台启动运行。`
-        : `Planner or prose writer provider settings are incomplete for this real project: ${providerSummary}.`,
+      message,
       onRepair: () => {
         if (modelSettings?.supported) {
           modelSettings.setOpen(true)

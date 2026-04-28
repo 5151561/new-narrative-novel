@@ -24,6 +24,40 @@ function formatCostSummary(estimatedCostUsd: number, actualCostUsd?: number) {
     : `$${estimatedCostUsd.toFixed(4)} est.`
 }
 
+function getProjectModeLabel(projectMode: 'demo-fixture' | 'real-project', locale: 'en' | 'zh-CN') {
+  if (projectMode === 'real-project') {
+    return locale === 'zh-CN' ? '真实项目' : 'Real Project'
+  }
+
+  return locale === 'zh-CN' ? '演示项目' : 'Demo Project'
+}
+
+function resolveArtifactProvenance(artifact: RunArtifactDetailRecord) {
+  if ('provenance' in artifact && artifact.provenance) {
+    return artifact.provenance
+  }
+
+  if (artifact.usage?.projectMode) {
+    return {
+      provider: artifact.usage.provider,
+      modelId: artifact.usage.modelId,
+      projectMode: artifact.usage.projectMode,
+      fallbackUsed: artifact.usage.fallbackUsed ?? false,
+    }
+  }
+
+  if ('failureDetail' in artifact && artifact.failureDetail?.projectMode && artifact.failureDetail.provider && artifact.failureDetail.modelId) {
+    return {
+      provider: artifact.failureDetail.provider,
+      modelId: artifact.failureDetail.modelId,
+      projectMode: artifact.failureDetail.projectMode,
+      fallbackUsed: artifact.failureDetail.fallbackUsed ?? false,
+    }
+  }
+
+  return null
+}
+
 export interface RunArtifactInspectorPanelProps {
   artifact: RunArtifactDetailRecord | null
   isLoading?: boolean
@@ -74,13 +108,55 @@ export function RunArtifactInspectorPanel({
 
   const title = artifact.title[locale] ?? artifact.title.en
   const summary = artifact.summary[locale] ?? artifact.summary.en
+  const provenance = resolveArtifactProvenance(artifact)
 
   return (
     <section className="flex min-h-0 flex-col overflow-hidden rounded-md border border-line-soft bg-surface-1 shadow-ringwarm">
       <PaneHeader title={title} description={summary} />
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {artifact.usage || ('failureDetail' in artifact && artifact.failureDetail) ? (
+        {provenance || artifact.usage || ('failureDetail' in artifact && artifact.failureDetail) ? (
           <div className="grid gap-4 p-4 pb-0">
+            {provenance ? (
+              <SectionCard eyebrow="Runtime" title={locale === 'zh-CN' ? '运行来源' : 'Runtime provenance'}>
+                <FactList
+                  items={[
+                    {
+                      id: 'runtime-provider',
+                      label: locale === 'zh-CN' ? '提供方' : 'Provider',
+                      value: provenance.providerLabel
+                        ? `${provenance.providerLabel} (${provenance.provider})`
+                        : provenance.providerId
+                          ? `${provenance.provider} / ${provenance.providerId}`
+                          : provenance.provider,
+                    },
+                    {
+                      id: 'runtime-model',
+                      label: locale === 'zh-CN' ? '模型 ID' : 'Model ID',
+                      value: provenance.modelId,
+                    },
+                    {
+                      id: 'runtime-project-mode',
+                      label: locale === 'zh-CN' ? '项目模式' : 'Project mode',
+                      value: getProjectModeLabel(provenance.projectMode, locale),
+                    },
+                    {
+                      id: 'runtime-fallback',
+                      label: locale === 'zh-CN' ? '使用回退' : 'Fallback used',
+                      value: locale === 'zh-CN'
+                        ? provenance.fallbackUsed ? '是' : '否'
+                        : provenance.fallbackUsed ? 'Yes' : 'No',
+                    },
+                    ...(provenance.fallbackReason
+                      ? [{
+                          id: 'runtime-fallback-reason',
+                          label: locale === 'zh-CN' ? '回退原因' : 'Fallback reason',
+                          value: provenance.fallbackReason,
+                        }]
+                      : []),
+                  ]}
+                />
+              </SectionCard>
+            ) : null}
             {artifact.usage ? (
               <SectionCard eyebrow="Usage" title={locale === 'zh-CN' ? '令牌与成本' : 'Token and cost summary'}>
                 <FactList

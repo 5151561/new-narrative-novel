@@ -144,6 +144,17 @@ function text(en: string, zhCN = en): LocalizedTextRecord {
   }
 }
 
+function buildDemoFixtureProvenance(modelId: string) {
+  return {
+    provider: 'fixture',
+    providerId: 'fixture-demo',
+    providerLabel: 'Fixture',
+    modelId,
+    projectMode: 'demo-fixture' as const,
+    fallbackUsed: false,
+  }
+}
+
 function isRunArtifactKind(kind: RunEventRefRecord['kind']): kind is RunArtifactKind {
   return (
     kind === 'context-packet'
@@ -537,6 +548,9 @@ function buildContextPacketDetail(state: MockRunState, entry: MockArtifactEntry)
 function buildAgentInvocationDetail(state: MockRunState, entry: MockArtifactEntry): AgentInvocationArtifactDetailRecord {
   const isWriter = entry.id.endsWith('-002')
   const proposalSetId = getProposalSetId(state)
+  const provenance = buildDemoFixtureProvenance(
+    isWriter ? 'fixture-scene-writer' : 'fixture-scene-planner',
+  )
 
   return {
     ...buildArtifactSummary(state, entry),
@@ -556,6 +570,7 @@ function buildAgentInvocationDetail(state: MockRunState, entry: MockArtifactEntr
         label: text('Scene proposal set'),
       },
     ],
+    provenance,
   }
 }
 
@@ -564,6 +579,7 @@ function buildProposalSetDetail(state: MockRunState, entry: MockArtifactEntry): 
   const selectedVariantByProposalId = new Map(
     getSelectedVariants(state).map((selectedVariant) => [selectedVariant.proposalId, selectedVariant.variantId]),
   )
+  const provenance = buildDemoFixtureProvenance('fixture-scene-planner')
 
   return {
     ...buildArtifactSummary(state, entry),
@@ -628,6 +644,7 @@ function buildProposalSetDetail(state: MockRunState, entry: MockArtifactEntry): 
       { decision: 'request-rewrite', label: text('Request rewrite'), description: text('Close this run and start a new run with rewrite guidance when ready.') },
       { decision: 'reject', label: text('Reject'), description: text('Close the run without producing canon or prose artifacts.') },
     ],
+    provenance,
   }
 }
 
@@ -669,6 +686,7 @@ function buildCanonPatchDetail(state: MockRunState, entry: MockArtifactEntry): C
 function buildProseDraftDetail(state: MockRunState, entry: MockArtifactEntry): ProseDraftArtifactDetailRecord {
   const acceptedProposalIds = getAcceptedProposalIds(state)
   const selectedVariants = getSelectedVariantsForProposalIds(state, acceptedProposalIds)
+  const provenance = buildDemoFixtureProvenance('fixture-scene-writer')
 
   return {
     ...buildArtifactSummary(state, entry),
@@ -685,6 +703,7 @@ function buildProseDraftDetail(state: MockRunState, entry: MockArtifactEntry): P
     wordCount: 140 + extractRunSequence(state.run.id) * 3,
     relatedAssets: [buildLeadAsset(state.run.scopeId), buildSettingAsset(state.run.scopeId)],
     traceLinkIds: [buildTraceLinkId(state.run.id, 'rendered_as', 1)],
+    provenance,
   }
 }
 

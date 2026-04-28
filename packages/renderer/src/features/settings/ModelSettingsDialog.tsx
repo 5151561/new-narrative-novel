@@ -23,6 +23,8 @@ const roleOrder: DesktopModelBindingRole[] = [
   'summary',
 ]
 
+const requiredRealProjectRoles: DesktopModelBindingRole[] = ['planner', 'sceneProseWriter']
+
 function createBindingsDraft(bindings?: DesktopModelBindings | null) {
   return {
     continuityReviewer: {
@@ -91,6 +93,7 @@ export function ModelSettingsDialog({ open, onOpenChange }: ModelSettingsDialogP
   }
 
   const snapshot = controller.snapshot
+  const readinessSummary = snapshot ? getRealProjectReadinessSummary(snapshot, locale) : null
 
   return (
     <div className="absolute inset-0 z-20 flex items-start justify-end bg-app/70 p-5">
@@ -307,6 +310,22 @@ export function ModelSettingsDialog({ open, onOpenChange }: ModelSettingsDialogP
                     {dictionary.shell.testModelConnection}
                   </button>
                 </div>
+                {readinessSummary ? (
+                  <div className="rounded-md border border-line-soft bg-surface-2 px-4 py-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-md border border-line-soft bg-app px-2 py-1 text-xs font-medium text-text-main">
+                        {readinessSummary.statusLabel}
+                      </span>
+                      <span className="rounded-md border border-line-soft bg-app px-2 py-1 text-xs text-text-muted">
+                        {readinessSummary.requiredRolesLabel}
+                      </span>
+                      <span className="rounded-md border border-line-soft bg-app px-2 py-1 text-xs text-text-muted">
+                        {readinessSummary.connectionLabel}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm text-text-muted">{readinessSummary.summary}</p>
+                  </div>
+                ) : null}
                 {roleOrder.map((role) => {
                   const draft = bindingsDraft[role]
                   const roleLabel = getModelBindingRoleLabel(locale, role)
@@ -396,4 +415,51 @@ export function ModelSettingsDialog({ open, onOpenChange }: ModelSettingsDialogP
       </div>
     </div>
   )
+}
+
+function getRealProjectReadinessSummary(
+  snapshot: NonNullable<ModelSettingsController['snapshot']>,
+  locale: 'en' | 'zh-CN',
+) {
+  const requiredBindings = requiredRealProjectRoles.map((role) => snapshot.bindings[role])
+  const configuredProviderIds = new Set(
+    snapshot.credentialStatuses.filter((status) => status.configured).map((status) => status.providerId),
+  )
+  const readyRoleCount = requiredBindings.filter((binding) => {
+    if (binding.provider !== 'openai-compatible') {
+      return false
+    }
+
+    return Boolean(
+      binding.modelId?.trim()
+        && snapshot.providers.some((provider) => provider.id === binding.providerId)
+        && configuredProviderIds.has(binding.providerId),
+    )
+  }).length
+  const needsAttention = readyRoleCount !== requiredRealProjectRoles.length || snapshot.connectionTest.status === 'failed'
+  const statusLabel = needsAttention
+    ? locale === 'zh-CN' ? '真实项目运行待修复' : 'Real project run needs attention'
+    : locale === 'zh-CN' ? '真实项目运行已就绪' : 'Real project run ready'
+  const requiredRolesLabel = locale === 'zh-CN'
+    ? `关键角色 ${readyRoleCount}/${requiredRealProjectRoles.length}`
+    : `Required roles ${readyRoleCount}/${requiredRealProjectRoles.length}`
+  const connectionLabel = snapshot.connectionTest.status === 'failed'
+    ? locale === 'zh-CN' ? '连接测试失败' : 'Connection test failed'
+    : snapshot.connectionTest.status === 'passed'
+      ? locale === 'zh-CN' ? '连接测试通过' : 'Connection test passed'
+      : locale === 'zh-CN' ? '尚未测试连接' : 'Connection test not run'
+
+  return {
+    statusLabel,
+    requiredRolesLabel,
+    connectionLabel,
+    summary: snapshot.connectionTest.summary
+      ?? (needsAttention
+        ? locale === 'zh-CN'
+          ? '请先确认规划器与正文写作器都指向可用的 OpenAI-compatible 提供方，并补齐模型与密钥。'
+          : 'Make sure both planner and prose writer bindings target usable OpenAI-compatible providers with models and credentials.'
+        : locale === 'zh-CN'
+          ? '关键真实运行角色已经配置完成，可以回到主舞台启动 Run Scene。'
+          : 'The required real-run roles are configured, so you can return to the Main Stage and run the scene.')
+  }
 }

@@ -1,8 +1,8 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { AllStates, RealLocalProjectTestFailed } from './ProjectRuntimeStatusBadge.stories'
+import { RealLocalProjectHealthy, RealLocalProjectTestFailed } from './ProjectRuntimeStatusBadge.stories'
 import { createProjectRuntimeInfoRecord } from './project-runtime-info'
 import { createProjectRuntimeTestWrapper } from './project-runtime-test-utils'
 import { ProjectRuntimeStatusBadge } from './ProjectRuntimeStatusBadge'
@@ -90,28 +90,149 @@ describe('ProjectRuntimeStatusBadge', () => {
     })
 
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Signal Arc Demo')
-    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Demo Fixture Project')
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Demo Project')
     expect(screen.getByRole('status', { name: 'Project runtime status' })).not.toHaveTextContent('Real Project')
   })
 
-  it('renders the real-local-project healthy state in the shared storybook status surface', () => {
-    const wrapper = createProjectRuntimeTestWrapper()
-
-    render(AllStates.render?.({}, {} as never), { wrapper })
-
-    const realLocalProjectSection = screen.getByText('Real local project healthy').parentElement
-    expect(realLocalProjectSection).not.toBeNull()
-
-    const realLocalProjectStatus = within(realLocalProjectSection!).getByRole('status', {
-      name: 'Project runtime status',
+  it('keeps demo-fixture status honest even when desktop real-provider bindings exist elsewhere', async () => {
+    Object.defineProperty(window, 'narrativeDesktop', {
+      configurable: true,
+      value: {
+        getModelSettingsSnapshot: async () => ({
+          providers: [
+            { id: 'deepseek', label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
+          ],
+          bindings: {
+            continuityReviewer: { provider: 'fixture' },
+            planner: { provider: 'openai-compatible', providerId: 'deepseek', modelId: 'deepseek-reasoner' },
+            sceneProseWriter: { provider: 'openai-compatible', providerId: 'deepseek', modelId: 'deepseek-chat' },
+            sceneRevision: { provider: 'fixture' },
+            summary: { provider: 'fixture' },
+          },
+          connectionTest: {
+            status: 'failed',
+            errorCode: 'missing_key',
+            summary: 'One or more configured provider credentials are missing.',
+          },
+          credentialStatuses: [{
+            configured: false,
+            provider: 'openai-compatible',
+            providerId: 'deepseek',
+          }],
+        }),
+      },
     })
 
+    renderBadge({
+      info: createProjectRuntimeInfoRecord({
+        projectId: 'book-signal-arc',
+        projectTitle: 'Signal Arc Demo',
+        runtimeKind: 'fixture-demo',
+        source: 'api',
+        status: 'healthy',
+        summary: 'Connected to fixture API runtime.',
+        capabilities: {
+          read: true,
+          write: true,
+        },
+      }),
+    })
+
+    const status = screen.getByRole('status', { name: 'Project runtime status' })
+    await screen.findByText('Fixture Ready')
+    expect(status).toHaveTextContent('Demo Project')
+    expect(status).toHaveTextContent('Model Fixture')
+    expect(status).toHaveTextContent('Fixture Ready')
+    expect(status).not.toHaveTextContent('Model Provider DeepSeek')
+    expect(status).not.toHaveTextContent('Test Failed')
+  })
+
+  it('renders the real-local-project healthy state with a ready provider summary', async () => {
+    const wrapper = createProjectRuntimeTestWrapper()
+    Object.defineProperty(window, 'narrativeDesktop', {
+      configurable: true,
+      value: {
+        getModelSettingsSnapshot: async () => RealLocalProjectHealthy.parameters?.desktopModelSettingsSnapshot,
+      },
+    })
+
+    render(
+      RealLocalProjectHealthy.render?.(RealLocalProjectHealthy.args ?? {}, {} as never)
+        ?? <ProjectRuntimeStatusBadge {...(RealLocalProjectHealthy.args as Parameters<typeof ProjectRuntimeStatusBadge>[0])} />,
+      { wrapper },
+    )
+
+    const realLocalProjectStatus = screen.getByRole('status', { name: 'Project runtime status' })
+    await screen.findByText('Model Provider DeepSeek')
     expect(realLocalProjectStatus).toHaveTextContent('Signal Arc Desktop')
     expect(realLocalProjectStatus).toHaveTextContent('API')
     expect(realLocalProjectStatus).toHaveTextContent('Healthy')
     expect(realLocalProjectStatus).toHaveTextContent('Real Project')
-    expect(realLocalProjectStatus).toHaveTextContent('Model Fixture')
+    expect(realLocalProjectStatus).toHaveTextContent('Model Provider DeepSeek')
+    expect(realLocalProjectStatus).toHaveTextContent('Model Ready')
     expect(realLocalProjectStatus).toHaveTextContent('Connected to the desktop-local runtime for the current project.')
+  })
+
+  it('keeps real-project startup honest while desktop model settings are still hydrating', () => {
+    const wrapper = createProjectRuntimeTestWrapper()
+
+    Object.defineProperty(window, 'narrativeDesktop', {
+      configurable: true,
+      value: {
+        getModelSettingsSnapshot: () => new Promise(() => {}),
+        saveProviderProfile: async () => [],
+        deleteProviderProfile: async () => [],
+        saveProviderCredential: async () => ({
+          configured: true,
+          provider: 'openai-compatible' as const,
+          providerId: 'deepseek',
+        }),
+        deleteProviderCredential: async () => ({
+          configured: false,
+          provider: 'openai-compatible' as const,
+          providerId: 'deepseek',
+        }),
+        updateModelBinding: async () => ({
+          continuityReviewer: { provider: 'fixture' as const },
+          planner: { provider: 'fixture' as const },
+          sceneProseWriter: { provider: 'fixture' as const },
+          sceneRevision: { provider: 'fixture' as const },
+          summary: { provider: 'fixture' as const },
+        }),
+        testModelSettings: async () => ({
+          status: 'never' as const,
+        }),
+      },
+    })
+
+    render(
+      <ModelSettingsProvider>
+        <ProjectRuntimeStatusBadge
+          info={createProjectRuntimeInfoRecord({
+            projectId: 'desktop-project-signal-arc',
+            projectTitle: 'Signal Arc Desktop',
+            runtimeKind: 'real-local-project',
+            source: 'api',
+            status: 'healthy',
+            summary: 'Connected to the desktop-local runtime for the current project.',
+            modelBindings: {
+              usable: true,
+            },
+            capabilities: {
+              read: true,
+              write: true,
+            },
+          })}
+        />
+      </ModelSettingsProvider>,
+      { wrapper },
+    )
+
+    const status = screen.getByRole('status', { name: 'Project runtime status' })
+    expect(status).toHaveTextContent('Real Project')
+    expect(status).toHaveTextContent('Model Provider Loading')
+    expect(status).toHaveTextContent('Loading Model Settings')
+    expect(status).not.toHaveTextContent('Model Ready')
   })
 
   it('surfaces notable capability limitations for a healthy but limited runtime', () => {
@@ -303,7 +424,7 @@ describe('ProjectRuntimeStatusBadge', () => {
     const status = screen.getByRole('status', { name: 'Project runtime status' })
     expect(status).toHaveTextContent('Real Project')
     await screen.findByText('Model Provider DeepSeek')
-    expect(status).toHaveTextContent('Key Missing')
+    expect(status).toHaveTextContent('Model Settings Needed')
     expect(status).toHaveTextContent('Test Failed')
   })
 
@@ -325,7 +446,7 @@ describe('ProjectRuntimeStatusBadge', () => {
 
     await screen.findByText('Model Provider DeepSeek')
     expect(failingStatus).toHaveTextContent('Model Provider DeepSeek')
-    expect(failingStatus).toHaveTextContent('Key Missing')
+    expect(failingStatus).toHaveTextContent('Model Settings Needed')
     expect(failingStatus).toHaveTextContent('Test Failed')
   })
 
@@ -394,6 +515,6 @@ describe('ProjectRuntimeStatusBadge', () => {
     )
 
     await user.click(await screen.findByRole('button', { name: 'Model Settings' }))
-    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Key Missing')
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Model Settings Needed')
   })
 })

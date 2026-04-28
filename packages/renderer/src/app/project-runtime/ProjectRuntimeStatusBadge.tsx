@@ -7,6 +7,7 @@ import {
 import {
   useDesktopModelSettingsSnapshot,
   useOptionalModelSettingsController,
+  type DesktopModelBindingRole,
 } from '@/features/settings/ModelSettingsProvider'
 
 import type { ProjectRuntimeHealthStatus, ProjectRuntimeInfoRecord } from './project-runtime-info'
@@ -35,6 +36,8 @@ const statusToneMap: Record<ProjectRuntimeHealthStatus, 'neutral' | 'accent' | '
   unknown: 'warn',
 }
 
+const requiredRealProjectRoles: DesktopModelBindingRole[] = ['planner', 'sceneProseWriter']
+
 export function ProjectRuntimeStatusBadge({
   info,
   isChecking = false,
@@ -48,15 +51,18 @@ export function ProjectRuntimeStatusBadge({
   const showCapabilityLimitations = !isChecking && info.status === 'healthy'
   const capabilityLimitations = showCapabilityLimitations ? getCapabilityLimitations(info, dictionary) : []
   const projectIdentityLabel = info.projectTitle.trim() || info.projectId
-  const projectBadgeLabel = getProjectBadgeLabel(info.runtimeKind, dictionary)
-  const boundProviders = getBoundProviders(modelSettingsSnapshot)
-  const primaryProviderLabel = boundProviders[0]
-  const modelBadgeLabel = primaryProviderLabel
-    ? `${dictionary.shell.modelProviderLabel} ${primaryProviderLabel}`
-    : dictionary.shell.modelFixtureLabel
-  const showModelSettingsRepair = info.runtimeKind === 'real-local-project'
+  const runtimeIsRealProject = info.projectMode === 'real-project'
+  const projectBadgeLabel = getProjectBadgeLabel(info, dictionary, locale)
+  const modelAssessment = getModelAssessment({
+    info,
+    snapshot: modelSettingsSnapshot,
+    isModelSettingsLoading: Boolean(modelSettingsController?.supported && modelSettingsController.loading && !modelSettingsSnapshot),
+    dictionary,
+    locale,
+  })
+  const showModelSettingsRepair = runtimeIsRealProject
     && Boolean(modelSettingsController?.supported)
-    && hasUnusableProviderBindings(modelSettingsSnapshot)
+    && modelAssessment.needsAttention
 
   return (
     <div
@@ -70,21 +76,17 @@ export function ProjectRuntimeStatusBadge({
           {projectIdentityLabel}
         </span>
         {projectBadgeLabel ? (
-          <Badge tone={info.runtimeKind === 'real-local-project' ? 'success' : 'accent'}>
+          <Badge tone={runtimeIsRealProject ? 'success' : 'accent'}>
             {projectBadgeLabel}
           </Badge>
         ) : null}
-        <Badge tone={primaryProviderLabel ? 'accent' : 'neutral'}>
-          {modelBadgeLabel}
+        <Badge tone={modelAssessment.providerTone}>
+          {modelAssessment.providerLabel}
         </Badge>
-        {modelSettingsSnapshot?.credentialStatuses[0] ? (
-          <Badge tone={modelSettingsSnapshot.credentialStatuses.every((status) => status.configured) ? 'success' : 'warn'}>
-            {modelSettingsSnapshot.credentialStatuses.every((status) => status.configured)
-              ? dictionary.shell.keyConfigured
-              : dictionary.shell.keyMissing}
-          </Badge>
-        ) : null}
-        {modelSettingsSnapshot?.connectionTest.status === 'failed' ? (
+        <Badge tone={modelAssessment.statusTone}>
+          {modelAssessment.statusLabel}
+        </Badge>
+        {modelAssessment.hasFailedConnection ? (
           <Badge tone="danger">{dictionary.shell.testFailedLabel}</Badge>
         ) : null}
         <Badge tone={info.source === 'api' ? 'success' : 'accent'}>
@@ -148,18 +150,101 @@ function getCapabilityLimitations(
 }
 
 function getProjectBadgeLabel(
-  runtimeKind: ProjectRuntimeInfoRecord['runtimeKind'],
+  info: ProjectRuntimeInfoRecord,
   dictionary: ReturnType<typeof useI18n>['dictionary'],
+  locale: ReturnType<typeof useI18n>['locale'],
 ) {
-  if (runtimeKind === 'real-local-project') {
+  if (info.projectMode === 'real-project') {
     return dictionary.shell.realProjectLabel
   }
 
-  if (runtimeKind === 'fixture-demo') {
-    return dictionary.shell.demoFixtureProjectLabel
+  if (info.runtimeKind === 'mock-storybook') {
+    return dictionary.shell.mockStorybookProjectLabel
   }
 
-  return undefined
+  return locale === 'zh-CN' ? '演示项目' : 'Demo Project'
+}
+
+function getModelAssessment({
+  info,
+  snapshot,
+  isModelSettingsLoading,
+  dictionary,
+  locale,
+}: {
+  info: ProjectRuntimeInfoRecord
+  snapshot: ReturnType<typeof useDesktopModelSettingsSnapshot>
+  isModelSettingsLoading: boolean
+  dictionary: ReturnType<typeof useI18n>['dictionary']
+  locale: ReturnType<typeof useI18n>['locale']
+}) {
+  const runtimeIsRealProject = info.projectMode === 'real-project'
+  if (!runtimeIsRealProject) {
+    return {
+      providerLabel: dictionary.shell.modelFixtureLabel,
+      providerTone: 'neutral' as const,
+      statusLabel: locale === 'zh-CN' ? '演示 Fixture 已就绪' : 'Fixture Ready',
+      statusTone: 'success' as const,
+      needsAttention: false,
+      hasFailedConnection: false,
+    }
+  }
+
+  if (isModelSettingsLoading) {
+    return {
+      providerLabel: locale === 'zh-CN'
+        ? `${dictionary.shell.modelProviderLabel} 读取中`
+        : `${dictionary.shell.modelProviderLabel} Loading`,
+      providerTone: 'neutral' as const,
+      statusLabel: locale === 'zh-CN' ? '模型设置读取中' : 'Loading Model Settings',
+      statusTone: 'neutral' as const,
+      needsAttention: true,
+      hasFailedConnection: false,
+    }
+  }
+
+  const requiredBindings = snapshot
+    ? requiredRealProjectRoles.map((role) => snapshot.bindings[role])
+    : []
+  const configuredProviderIds = new Set(
+    snapshot?.credentialStatuses.filter((status) => status.configured).map((status) => status.providerId) ?? [],
+  )
+  const providerLabels = getBoundProviders(snapshot)
+  const hasFixtureBinding = requiredBindings.some((binding) => binding.provider === 'fixture')
+  const hasMissingModelId = requiredBindings.some((binding) => (
+    binding.provider === 'openai-compatible' && !binding.modelId?.trim()
+  ))
+  const hasUnknownProviderBinding = requiredBindings.some((binding) => (
+    binding.provider === 'openai-compatible'
+      && !snapshot?.providers.some((provider) => provider.id === binding.providerId)
+  ))
+  const hasMissingCredential = requiredBindings.some((binding) => (
+    binding.provider === 'openai-compatible' && !configuredProviderIds.has(binding.providerId)
+  ))
+  const hasFailedConnection = snapshot?.connectionTest.status === 'failed'
+  const needsAttention = runtimeIsRealProject && (
+    !info.modelBindings.usable
+    || hasFixtureBinding
+    || hasMissingModelId
+    || hasUnknownProviderBinding
+    || hasMissingCredential
+    || hasFailedConnection
+  )
+
+  return {
+    providerLabel: providerLabels[0]
+      ? `${dictionary.shell.modelProviderLabel} ${providerLabels.join(', ')}`
+      : locale === 'zh-CN'
+        ? `${dictionary.shell.modelProviderLabel} 未配置`
+        : `${dictionary.shell.modelProviderLabel} Not configured`,
+    providerTone: providerLabels[0] ? 'accent' as const : 'warn' as const,
+    statusLabel: needsAttention
+      ? locale === 'zh-CN' ? '模型设置待修复' : 'Model Settings Needed'
+      : locale === 'zh-CN' ? '模型已就绪' : 'Model Ready',
+    statusTone: needsAttention ? 'warn' as const : 'success' as const,
+    needsAttention,
+    hasFailedConnection,
+  }
 }
 
 function getBoundProviders(snapshot: ReturnType<typeof useDesktopModelSettingsSnapshot>) {
@@ -169,29 +254,11 @@ function getBoundProviders(snapshot: ReturnType<typeof useDesktopModelSettingsSn
 
   const labels = new Map(snapshot.providers.map((provider) => [provider.id, provider.label]))
   const providerIds = new Set(
-    Object.values(snapshot.bindings)
+    requiredRealProjectRoles
+      .map((role) => snapshot.bindings[role])
       .filter((binding) => binding.provider === 'openai-compatible')
       .map((binding) => binding.providerId),
   )
 
   return Array.from(providerIds).map((providerId) => labels.get(providerId) ?? providerId)
-}
-
-function hasUnusableProviderBindings(snapshot: ReturnType<typeof useDesktopModelSettingsSnapshot>) {
-  if (!snapshot) {
-    return false
-  }
-
-  const providerBindings = Object.values(snapshot.bindings).filter((binding) => binding.provider === 'openai-compatible')
-  if (providerBindings.length === 0) {
-    return false
-  }
-
-  const configuredProviderIds = new Set(
-    snapshot.credentialStatuses.filter((status) => status.configured).map((status) => status.providerId),
-  )
-  const hasMissingModelId = providerBindings.some((binding) => !binding.modelId?.trim())
-  const hasMissingCredential = providerBindings.some((binding) => !configuredProviderIds.has(binding.providerId))
-
-  return hasMissingModelId || hasMissingCredential || snapshot.connectionTest.status === 'failed'
 }

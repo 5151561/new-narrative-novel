@@ -53,6 +53,8 @@ export interface RunUsageRecord {
   actualCostUsd?: number
   provider: string
   modelId: string
+  projectMode?: 'demo-fixture' | 'real-project'
+  fallbackUsed?: boolean
 }
 
 export interface RunRuntimeSummaryRecord {

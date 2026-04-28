@@ -41,8 +41,20 @@ export interface RunFailureDetailRecord {
   message: string
   provider?: string
   modelId?: string
+  projectMode?: 'demo-fixture' | 'real-project'
+  fallbackUsed?: boolean
   retryable: boolean
   sourceEventIds: string[]
+}
+
+export interface RunArtifactProvenanceRecord {
+  provider: string
+  modelId: string
+  projectMode: 'demo-fixture' | 'real-project'
+  fallbackUsed: boolean
+  providerId?: string
+  providerLabel?: string
+  fallbackReason?: 'missing-config' | 'provider-error' | 'invalid-output'
 }
 
 export type SceneRunAgentRole = 'scene-planner' | 'scene-writer'
@@ -169,6 +181,7 @@ export interface AgentInvocationArtifactDetailRecord extends RunArtifactSummaryR
   contextPacketId?: string
   outputSchemaLabel: LocalizedTextRecord
   generatedRefs: RunArtifactGeneratedRefRecord[]
+  provenance?: RunArtifactProvenanceRecord
   failureDetail?: RunFailureDetailRecord
 }
 
@@ -178,6 +191,7 @@ export interface ProposalSetArtifactDetailRecord extends RunArtifactSummaryRecor
   sourceInvocationIds: string[]
   proposals: ProposalSetArtifactProposalRecord[]
   reviewOptions: ProposalSetReviewOptionRecord[]
+  provenance?: RunArtifactProvenanceRecord
   failureDetail?: RunFailureDetailRecord
 }
 
@@ -202,6 +216,7 @@ export interface ProseDraftArtifactDetailRecord extends RunArtifactSummaryRecord
   wordCount: number
   relatedAssets: RunArtifactRelatedAssetRecord[]
   traceLinkIds: string[]
+  provenance?: RunArtifactProvenanceRecord
   failureDetail?: RunFailureDetailRecord
 }
 
