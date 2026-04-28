@@ -4,7 +4,8 @@ import { useEffect, type PropsWithChildren } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { APP_LOCALE_STORAGE_KEY, I18nProvider, type Locale, useI18n } from '@/app/i18n'
-import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
+import { ApiRequestError, ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
+import { mockChapterRecordSeeds } from '@/features/chapter/api/mock-chapter-db'
 import { mockBookRecordSeeds } from '../api/mock-book-db'
 
 import { bookQueryKeys } from './book-query-keys'
@@ -248,5 +249,131 @@ describe('useBookStructureWorkspaceQuery', () => {
     expect(hook.result.current.workspace).toBeUndefined()
     expect(hook.result.current.error).toBeInstanceOf(Error)
     expect(hook.result.current.error?.message).toContain('chapter-open-water-signals')
+  })
+
+  it('keeps the book structure workspace available when one scene prose path is explicitly missing', async () => {
+    const { wrapper } = wrapperFactory()
+
+    const hook = renderHook(
+      () =>
+        useBookStructureWorkspaceQuery(
+          {
+            bookId: 'book-signal-arc',
+            selectedChapterId: 'chapter-signals-in-rain',
+          },
+          {
+            bookClient: {
+              async getBookStructureRecord() {
+                return structuredClone(mockBookRecordSeeds['book-signal-arc'])
+              },
+            },
+            chapterClient: {
+              async getChapterStructureWorkspace({ chapterId }) {
+                return structuredClone(mockChapterRecordSeeds[chapterId])
+              },
+            },
+            sceneClient: {
+              async getSceneProse(sceneId) {
+                if (sceneId === 'scene-concourse-delay') {
+                  throw new ApiRequestError({
+                    status: 404,
+                    code: 'SCENE_NOT_FOUND',
+                    message: `Scene ${sceneId} was not found.`,
+                    detail: { sceneId },
+                  })
+                }
+
+                const runtime = createMockProjectRuntime()
+                return runtime.sceneClient.getSceneProse(sceneId)
+              },
+            },
+            traceabilitySceneClient: {
+              async getSceneExecution(sceneId) {
+                if (sceneId === 'scene-concourse-delay') {
+                  throw new ApiRequestError({
+                    status: 404,
+                    code: 'SCENE_NOT_FOUND',
+                    message: `Scene ${sceneId} was not found.`,
+                    detail: { sceneId },
+                  })
+                }
+
+                const runtime = createMockProjectRuntime()
+                return runtime.traceabilitySceneClient.getSceneExecution(sceneId)
+              },
+              async getSceneProse(sceneId) {
+                if (sceneId === 'scene-concourse-delay') {
+                  throw new ApiRequestError({
+                    status: 404,
+                    code: 'SCENE_NOT_FOUND',
+                    message: `Scene ${sceneId} was not found.`,
+                    detail: { sceneId },
+                  })
+                }
+
+                const runtime = createMockProjectRuntime()
+                return runtime.traceabilitySceneClient.getSceneProse(sceneId)
+              },
+              async getSceneInspector(sceneId) {
+                if (sceneId === 'scene-concourse-delay') {
+                  throw new ApiRequestError({
+                    status: 404,
+                    code: 'SCENE_NOT_FOUND',
+                    message: `Scene ${sceneId} was not found.`,
+                    detail: { sceneId },
+                  })
+                }
+
+                const runtime = createMockProjectRuntime()
+                return runtime.traceabilitySceneClient.getSceneInspector(sceneId)
+              },
+              async previewAcceptedPatch(sceneId) {
+                if (sceneId === 'scene-concourse-delay') {
+                  throw new ApiRequestError({
+                    status: 404,
+                    code: 'SCENE_NOT_FOUND',
+                    message: `Scene ${sceneId} was not found.`,
+                    detail: { sceneId },
+                  })
+                }
+
+                const runtime = createMockProjectRuntime()
+                return runtime.traceabilitySceneClient.previewAcceptedPatch(sceneId)
+              },
+            },
+          },
+        ),
+      {
+        wrapper,
+      },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(hook.result.current.error).toBeNull()
+    expect(hook.result.current.workspace).toMatchObject({
+      bookId: 'book-signal-arc',
+      selectedChapterId: 'chapter-signals-in-rain',
+      chapters: [
+        expect.objectContaining({
+          chapterId: 'chapter-signals-in-rain',
+          missingDraftCount: 1,
+          tracedSceneCount: 2,
+          missingTraceSceneCount: 2,
+        }),
+        expect.objectContaining({
+          chapterId: 'chapter-open-water-signals',
+          missingDraftCount: 1,
+          tracedSceneCount: 0,
+          missingTraceSceneCount: 3,
+        }),
+      ],
+      totals: expect.objectContaining({
+        missingDraftCount: 2,
+        missingTraceSceneCount: 5,
+      }),
+    })
   })
 })
