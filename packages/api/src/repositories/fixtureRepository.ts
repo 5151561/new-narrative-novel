@@ -2,11 +2,17 @@ import { randomUUID } from 'node:crypto'
 
 import type {
   AssetKnowledgeWorkspaceRecord,
+  BookDraftAssemblyChapterHeadingSectionRecord,
   BookDraftAssemblyChapterRecord,
+  BookDraftAssemblyManuscriptSectionRecord,
   BookDraftAssemblyRecord,
+  BookDraftAssemblyReadableManuscriptRecord,
   BookDraftAssemblySceneGapRecord,
   BookDraftAssemblySceneRecord,
+  BookDraftAssemblySceneManuscriptSectionRecord,
+  BookDraftAssemblySourceManifestEntryRecord,
   BookDraftAssemblyTraceRollupRecord,
+  BookDraftAssemblyTransitionManuscriptSectionRecord,
   ChapterDraftAssemblyRecord,
   ChapterDraftAssemblySceneGapSectionRecord,
   ChapterDraftAssemblySceneRecord,
@@ -29,6 +35,7 @@ import type {
   ChapterStructureWorkspaceRecord,
   FixtureDataSnapshot,
   FixtureProjectData,
+  LocalizedTextRecord,
   PatchChapterBacklogPlanningInput,
   ProjectRuntimeInfoRecord,
   ProposalActionInput,
@@ -1421,43 +1428,203 @@ export function createFixtureRepository(options: {
     }
   }
 
-  function buildBookDraftAssemblyChapterRecord(input: {
-    chapterId: string
+  function buildBookDraftAssemblyChapterRecordFromChapterAssembly(input: {
+    chapterAssembly: ChapterDraftAssemblyRecord
     order: number
-    project: FixtureProjectData
-  }): BookDraftAssemblyChapterRecord | null {
-    const chapter = input.project.chapters[input.chapterId]
-    if (!chapter) {
-      return null
-    }
+  }): BookDraftAssemblyChapterRecord {
+    const scenes = input.chapterAssembly.scenes.map((scene) => {
+      const common = {
+        sceneId: scene.sceneId,
+        order: scene.order,
+        title: clone(scene.title),
+        summary: clone(scene.summary),
+        proseStatusLabel: clone(scene.proseStatusLabel),
+        latestDiffSummary: scene.latestDiffSummary,
+        warningsCount: scene.warningsCount,
+        revisionQueueCount: scene.revisionQueueCount,
+        draftWordCount: scene.draftWordCount,
+        traceReady: scene.traceReady,
+        traceRollup: clone(scene.traceRollup),
+      }
 
-    const scenes = [...chapter.scenes]
-      .sort((left, right) => left.order - right.order)
-      .map((scene) => buildBookDraftAssemblySceneRecord({
-        scene,
-        project: input.project,
-      }))
-    const draftedSceneCount = scenes.filter((scene) => scene.kind === 'draft').length
-    const missingDraftCount = scenes.length - draftedSceneCount
-    const warningsCount = scenes.reduce((total, scene) => total + scene.warningsCount, 0)
-    const queuedRevisionCount = scenes.reduce((total, scene) => total + (scene.revisionQueueCount ?? 0), 0)
-    const tracedSceneCount = scenes.filter((scene) => scene.traceReady).length
-    const assembledWordCount = scenes.reduce((total, scene) => total + (scene.draftWordCount ?? 0), 0)
+      if (scene.kind === 'scene-gap') {
+        const gapRecord: BookDraftAssemblySceneGapRecord = {
+          ...common,
+          kind: 'gap',
+          gapReason: clone(scene.gapReason),
+        }
+        return gapRecord
+      }
+
+      return {
+        ...common,
+        kind: 'draft' as const,
+        proseDraft: scene.proseDraft,
+        sourcePatchId: scene.sourcePatchId,
+        sourceProposals: clone(scene.sourceProposals),
+        acceptedFactIds: clone(scene.acceptedFactIds),
+        relatedAssets: clone(scene.relatedAssets),
+      }
+    })
 
     return {
-      chapterId: chapter.chapterId,
+      chapterId: input.chapterAssembly.chapterId,
       order: input.order,
-      title: clone(chapter.title),
-      summary: clone(chapter.summary),
-      sceneCount: scenes.length,
-      draftedSceneCount,
-      missingDraftCount,
-      assembledWordCount,
-      warningsCount,
-      queuedRevisionCount,
-      tracedSceneCount,
-      missingTraceSceneCount: scenes.length - tracedSceneCount,
+      title: clone(input.chapterAssembly.title),
+      summary: clone(input.chapterAssembly.summary),
+      sceneCount: input.chapterAssembly.sceneCount,
+      draftedSceneCount: input.chapterAssembly.draftedSceneCount,
+      missingDraftCount: input.chapterAssembly.missingDraftCount,
+      assembledWordCount: input.chapterAssembly.assembledWordCount,
+      warningsCount: input.chapterAssembly.warningsCount,
+      queuedRevisionCount: input.chapterAssembly.queuedRevisionCount,
+      tracedSceneCount: input.chapterAssembly.tracedSceneCount,
+      missingTraceSceneCount: input.chapterAssembly.missingTraceSceneCount,
       scenes,
+    }
+  }
+
+  function formatBookDraftAssemblyChapterHeading(order: number, title: LocalizedTextRecord) {
+    return `Chapter ${order}: ${title.en}`
+  }
+
+  function formatBookDraftAssemblySceneHeading(order: number, title: LocalizedTextRecord) {
+    return `Scene ${order}: ${title.en}`
+  }
+
+  function buildBookDraftReadableManuscript(input: {
+    book: BookStructureRecord
+    chapters: Array<{
+      order: number
+      assembly: ChapterDraftAssemblyRecord
+    }>
+  }): BookDraftAssemblyReadableManuscriptRecord {
+    const sections: BookDraftAssemblyManuscriptSectionRecord[] = []
+    const sourceManifest: BookDraftAssemblySourceManifestEntryRecord[] = []
+    const markdownLines = [`# ${input.book.title.en}`]
+    const plainTextLines = [input.book.title.en]
+
+    if (input.book.summary.en.trim()) {
+      markdownLines.push('', input.book.summary.en.trim())
+      plainTextLines.push('', input.book.summary.en.trim())
+    }
+
+    for (const chapter of input.chapters) {
+      const chapterHeadingSection: BookDraftAssemblyChapterHeadingSectionRecord = {
+        kind: 'chapter-heading',
+        chapterId: chapter.assembly.chapterId,
+        chapterOrder: chapter.order,
+        chapterTitle: clone(chapter.assembly.title),
+        summary: clone(chapter.assembly.summary),
+        assembledWordCount: chapter.assembly.assembledWordCount,
+        missingDraftCount: chapter.assembly.missingDraftCount,
+      }
+      sections.push(chapterHeadingSection)
+
+      const chapterHeading = formatBookDraftAssemblyChapterHeading(chapter.order, chapter.assembly.title)
+      markdownLines.push('', `## ${chapterHeading}`)
+      plainTextLines.push('', chapterHeading)
+
+      if (chapter.assembly.summary.en.trim()) {
+        markdownLines.push('', chapter.assembly.summary.en.trim())
+        plainTextLines.push(chapter.assembly.summary.en.trim())
+      }
+
+      for (const section of chapter.assembly.sections) {
+        if (section.kind === 'scene-draft' || section.kind === 'scene-gap') {
+          const manuscriptSection: BookDraftAssemblySceneManuscriptSectionRecord = {
+            kind: section.kind,
+            chapterId: chapter.assembly.chapterId,
+            chapterOrder: chapter.order,
+            chapterTitle: clone(chapter.assembly.title),
+            sceneId: section.sceneId,
+            sceneOrder: section.order,
+            sceneTitle: clone(section.title),
+            sceneSummary: clone(section.summary),
+            proseDraft: section.kind === 'scene-draft' ? section.proseDraft : undefined,
+            gapReason: section.kind === 'scene-gap' ? clone(section.gapReason) : undefined,
+            draftWordCount: section.draftWordCount,
+            traceReady: section.traceReady,
+            sourcePatchId: section.kind === 'scene-draft' ? section.sourcePatchId : undefined,
+            sourceProposalIds: section.kind === 'scene-draft'
+              ? section.sourceProposals.map((proposal) => proposal.proposalId)
+              : [],
+            acceptedFactIds: section.kind === 'scene-draft' ? clone(section.acceptedFactIds) : [],
+          }
+          sections.push(manuscriptSection)
+          sourceManifest.push({
+            kind: section.kind,
+            chapterId: chapter.assembly.chapterId,
+            chapterOrder: chapter.order,
+            chapterTitle: clone(chapter.assembly.title),
+            sceneId: section.sceneId,
+            sceneOrder: section.order,
+            sceneTitle: clone(section.title),
+            sourcePatchId: section.kind === 'scene-draft' ? section.sourcePatchId : undefined,
+            sourceProposalIds: manuscriptSection.sourceProposalIds,
+            acceptedFactIds: manuscriptSection.acceptedFactIds,
+            traceReady: section.traceReady,
+            draftWordCount: section.draftWordCount,
+            gapReason: section.kind === 'scene-gap' ? clone(section.gapReason) : undefined,
+          })
+
+          const sceneHeading = formatBookDraftAssemblySceneHeading(section.order, section.title)
+          markdownLines.push('', `### ${sceneHeading}`)
+          plainTextLines.push('', sceneHeading)
+          if (section.kind === 'scene-draft') {
+            markdownLines.push('', section.proseDraft)
+            plainTextLines.push(section.proseDraft)
+          } else {
+            markdownLines.push('', `> Manuscript gap: ${section.gapReason.en}`)
+            plainTextLines.push(`[Manuscript gap] ${section.gapReason.en}`)
+          }
+          continue
+        }
+
+        const manuscriptSection: BookDraftAssemblyTransitionManuscriptSectionRecord = {
+          kind: section.kind,
+          chapterId: chapter.assembly.chapterId,
+          chapterOrder: chapter.order,
+          chapterTitle: clone(chapter.assembly.title),
+          fromSceneId: section.fromSceneId,
+          toSceneId: section.toSceneId,
+          fromSceneTitle: clone(section.fromSceneTitle),
+          toSceneTitle: clone(section.toSceneTitle),
+          transitionProse: section.kind === 'transition-draft' ? section.transitionProse : undefined,
+          artifactId: section.kind === 'transition-draft' ? section.artifactRef.id : undefined,
+          gapReason: section.kind === 'transition-gap' ? clone(section.gapReason) : undefined,
+        }
+        sections.push(manuscriptSection)
+        sourceManifest.push({
+          kind: section.kind,
+          chapterId: chapter.assembly.chapterId,
+          chapterOrder: chapter.order,
+          chapterTitle: clone(chapter.assembly.title),
+          fromSceneId: section.fromSceneId,
+          toSceneId: section.toSceneId,
+          sourceProposalIds: [],
+          acceptedFactIds: [],
+          artifactId: section.kind === 'transition-draft' ? section.artifactRef.id : undefined,
+          traceReady: section.kind === 'transition-draft',
+          gapReason: section.kind === 'transition-gap' ? clone(section.gapReason) : undefined,
+        })
+
+        if (section.kind === 'transition-draft') {
+          markdownLines.push('', section.transitionProse)
+          plainTextLines.push('', section.transitionProse)
+        } else {
+          markdownLines.push('', `> Transition gap: ${section.gapReason.en}`)
+          plainTextLines.push('', `[Transition gap] ${section.gapReason.en}`)
+        }
+      }
+    }
+
+    return {
+      formatVersion: 'book-manuscript-assembly-v1',
+      markdown: markdownLines.join('\n').trim(),
+      plainText: plainTextLines.join('\n').trim(),
+      sections,
+      sourceManifest,
     }
   }
 
@@ -1481,18 +1648,29 @@ export function createFixtureRepository(options: {
         return null
       }
 
-      const chapters = book.chapterIds.flatMap((chapterId, index) => {
-        const chapterRecord = buildBookDraftAssemblyChapterRecord({
+      const chapterAssemblies = book.chapterIds.flatMap((chapterId, index) => {
+        const assembly = buildChapterDraftAssemblyRecord({
           chapterId,
-          order: index + 1,
           project,
         })
 
-        return chapterRecord ? [chapterRecord] : []
+        return assembly ? [{ order: index + 1, assembly }] : []
       })
-      const sceneCount = chapters.reduce((total, chapter) => total + chapter.sceneCount, 0)
-      const draftedSceneCount = chapters.reduce((total, chapter) => total + chapter.draftedSceneCount, 0)
-      const assembledWordCount = chapters.reduce((total, chapter) => total + chapter.assembledWordCount, 0)
+      const chapters = chapterAssemblies.map(({ order, assembly }) =>
+        buildBookDraftAssemblyChapterRecordFromChapterAssembly({
+          chapterAssembly: assembly,
+          order,
+        }))
+      const sceneCount = chapterAssemblies.reduce((total, chapter) => total + chapter.assembly.sceneCount, 0)
+      const draftedSceneCount = chapterAssemblies.reduce((total, chapter) => total + chapter.assembly.draftedSceneCount, 0)
+      const assembledWordCount = chapterAssemblies.reduce(
+        (total, chapter) => total + chapter.assembly.assembledWordCount,
+        0,
+      )
+      const readableManuscript = buildBookDraftReadableManuscript({
+        book,
+        chapters: chapterAssemblies,
+      })
 
       return clone({
         bookId: book.bookId,
@@ -1504,6 +1682,7 @@ export function createFixtureRepository(options: {
         missingDraftSceneCount: sceneCount - draftedSceneCount,
         assembledWordCount,
         chapters,
+        readableManuscript,
       })
     },
     getChapterDraftAssembly(projectId, chapterId) {

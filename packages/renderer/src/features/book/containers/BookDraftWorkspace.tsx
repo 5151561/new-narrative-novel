@@ -882,6 +882,7 @@ export function BookDraftWorkspace() {
         <BookDraftInspectorPane
           bookTitle={workspace.title}
           inspector={workspace.inspector}
+          readableManuscript={workspace.readableManuscript}
           activeDraftView={activeDraftView}
           compare={compareWorkspace ?? null}
           branch={branchWorkspace ?? null}

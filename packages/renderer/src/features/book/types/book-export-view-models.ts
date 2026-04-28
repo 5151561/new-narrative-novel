@@ -1,5 +1,6 @@
 import type { BookExportProfileKind } from '../api/book-export-profiles'
 import type { BookManuscriptCompareDelta } from './book-compare-view-models'
+import type { BookDraftReadableManuscriptViewModel } from './book-draft-view-models'
 
 export interface BookExportProfileIncludesViewModel {
   manuscriptBody: boolean
@@ -119,4 +120,5 @@ export interface BookExportPreviewWorkspaceViewModel {
   totals: BookExportPreviewWorkspaceTotalsViewModel
   readiness: BookExportReadinessViewModel
   packageSummary: BookExportPackageSummaryViewModel
+  readableManuscript: BookDraftReadableManuscriptViewModel
 }

@@ -328,6 +328,27 @@ const exportPreview: BookExportPreviewWorkspaceViewModel = {
     excludedSections: ['Scene headings'],
     estimatedPackageLabel: 'Approx. 8 manuscript pages',
   },
+  readableManuscript: {
+    formatVersion: 'book-manuscript-assembly-v1',
+    markdown: '# Signal Arc',
+    plainText: 'Signal Arc',
+    sections: [],
+    sourceManifest: [
+      {
+        kind: 'scene-draft',
+        chapterId: 'chapter-open-water-signals',
+        chapterOrder: 2,
+        chapterTitle: 'Open Water Signals',
+        sceneId: 'scene-dawn-slip',
+        sceneOrder: 3,
+        sceneTitle: 'Dawn Slip',
+        sourcePatchId: 'canon-patch-003',
+        sourceProposalIds: ['proposal-003', 'proposal-004'],
+        acceptedFactIds: ['fact-003'],
+        traceReady: false,
+      },
+    ],
+  },
 }
 
 const artifactWorkspace: BookExportArtifactWorkspaceViewModel = {
@@ -654,6 +675,7 @@ describe('BookDraftInspectorPane', () => {
         <BookDraftInspectorPane
           bookTitle="Signal Arc"
           inspector={inspector}
+          readableManuscript={exportPreview.readableManuscript}
           activeDraftView="export"
           exportPreview={exportPreview}
         />
@@ -666,6 +688,8 @@ describe('BookDraftInspectorPane', () => {
     expect(screen.getByText('Blocked by missing draft coverage')).toBeInTheDocument()
     expect(screen.getByText('Selected chapter export')).toBeInTheDocument()
     expect(screen.getByText('Approx. 8 manuscript pages')).toBeInTheDocument()
+    expect(screen.getByText('Source manifest')).toBeInTheDocument()
+    expect(screen.getByText(/canon-patch-003/)).toBeInTheDocument()
   })
 
   it('shows artifact status in export mode without adding inspector build actions', () => {
@@ -674,6 +698,7 @@ describe('BookDraftInspectorPane', () => {
         <BookDraftInspectorPane
           bookTitle="Signal Arc"
           inspector={inspector}
+          readableManuscript={exportPreview.readableManuscript}
           activeDraftView="export"
           exportPreview={exportPreview}
           artifactWorkspace={artifactWorkspace}

@@ -12,6 +12,7 @@ import type {
   BookExportArtifactWorkspaceViewModel,
 } from '../types/book-export-artifact-view-models'
 import type { BookExportPreviewWorkspaceViewModel, BookExportScenePreviewViewModel } from '../types/book-export-view-models'
+import { filterReadableManuscriptByIncludedPreview } from './book-export-preview-mappers'
 
 function stableSerialize(value: unknown): string {
   if (Array.isArray(value)) {
@@ -87,6 +88,159 @@ function getArtifactMimeType(format: BookExportArtifactFormat) {
   return format === 'markdown' ? 'text/markdown' : 'text/plain'
 }
 
+function buildFallbackReadableManuscript(exportPreview: BookExportPreviewWorkspaceViewModel) {
+  const markdownLines = [`# ${exportPreview.title}`]
+  const plainTextLines = [exportPreview.title]
+  const sections: NonNullable<BookExportPreviewWorkspaceViewModel['readableManuscript']>['sections'] = []
+  const sourceManifest: NonNullable<BookExportPreviewWorkspaceViewModel['readableManuscript']>['sourceManifest'] = []
+
+  if (exportPreview.summary.trim()) {
+    markdownLines.push('', exportPreview.summary)
+    plainTextLines.push('', exportPreview.summary)
+  }
+
+  for (const chapter of getIncludedChapters(exportPreview)) {
+    sections.push({
+      kind: 'chapter-heading',
+      chapterId: chapter.chapterId,
+      chapterOrder: chapter.order,
+      chapterTitle: chapter.title,
+      summary: chapter.summary,
+      assembledWordCount: chapter.assembledWordCount,
+      missingDraftCount: chapter.missingDraftCount,
+    })
+    markdownLines.push('', `## Chapter ${chapter.order}: ${chapter.title}`)
+    plainTextLines.push('', `Chapter ${chapter.order}: ${chapter.title}`)
+    if (chapter.summary.trim()) {
+      markdownLines.push('', chapter.summary)
+      plainTextLines.push(chapter.summary)
+    }
+
+    for (const scene of getIncludedScenes(chapter)) {
+      const gapReason = scene.isMissingDraft ? 'No prose artifact has been materialized for this scene yet.' : undefined
+      sections.push({
+        kind: scene.isMissingDraft ? 'scene-gap' : 'scene-draft',
+        chapterId: chapter.chapterId,
+        chapterOrder: chapter.order,
+        chapterTitle: chapter.title,
+        sceneId: scene.sceneId,
+        sceneOrder: scene.order,
+        sceneTitle: scene.title,
+        sceneSummary: scene.summary,
+        proseDraft: scene.proseDraft,
+        gapReason,
+        draftWordCount: scene.draftWordCount,
+        traceReady: scene.traceReady,
+      })
+      sourceManifest.push({
+        kind: scene.isMissingDraft ? 'scene-gap' : 'scene-draft',
+        chapterId: chapter.chapterId,
+        chapterOrder: chapter.order,
+        chapterTitle: chapter.title,
+        sceneId: scene.sceneId,
+        sceneOrder: scene.order,
+        sceneTitle: scene.title,
+        sourceProposalIds: [],
+        acceptedFactIds: [],
+        traceReady: scene.traceReady,
+        draftWordCount: scene.draftWordCount,
+        gapReason,
+      })
+      markdownLines.push('', `### Scene ${scene.order}: ${scene.title}`)
+      plainTextLines.push('', `Scene ${scene.order}: ${scene.title}`)
+      if (scene.isMissingDraft) {
+        markdownLines.push('', `> Manuscript gap: ${gapReason}`)
+        plainTextLines.push(`[Manuscript gap] ${gapReason}`)
+      } else {
+        markdownLines.push('', scene.proseDraft?.trim() || '[Missing draft]')
+        plainTextLines.push(scene.proseDraft?.trim() || '[Missing draft]')
+      }
+    }
+  }
+
+  return {
+    formatVersion: 'book-manuscript-assembly-v1' as const,
+    markdown: markdownLines.join('\n').trim(),
+    plainText: plainTextLines.join('\n').trim(),
+    sections,
+    sourceManifest,
+  }
+}
+
+function getReadableManuscript(exportPreview: BookExportPreviewWorkspaceViewModel) {
+  const readableManuscript = exportPreview.readableManuscript ?? buildFallbackReadableManuscript(exportPreview)
+  return filterReadableManuscriptByIncludedPreview({
+    readableManuscript,
+    chapters: exportPreview.chapters,
+  })
+}
+
+function buildMarkdownFromReadableManuscript(
+  exportPreview: BookExportPreviewWorkspaceViewModel,
+  readableManuscript: ReturnType<typeof getReadableManuscript>,
+) {
+  const lines: string[] = [`# ${exportPreview.title}`]
+
+  if (exportPreview.summary.trim()) {
+    lines.push('', exportPreview.summary)
+  }
+
+  for (const section of readableManuscript.sections) {
+    if (section.kind === 'chapter-heading') {
+      lines.push('', `## Chapter ${section.chapterOrder}: ${section.chapterTitle}`)
+      if (exportPreview.profile.includes.chapterSummaries && section.summary?.trim()) {
+        lines.push('', section.summary)
+      }
+      continue
+    }
+
+    if (section.kind === 'scene-draft' || section.kind === 'scene-gap') {
+      if (exportPreview.profile.includes.sceneHeadings) {
+        lines.push('', `### Scene ${section.sceneOrder}: ${section.sceneTitle}`)
+      }
+      lines.push('', section.kind === 'scene-draft' ? (section.proseDraft ?? '[Missing draft]') : `> Manuscript gap: ${section.gapReason}`)
+      continue
+    }
+
+    lines.push('', section.kind === 'transition-draft' ? (section.transitionProse ?? '') : `> Transition gap: ${section.gapReason}`)
+  }
+
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+function buildPlainTextFromReadableManuscript(
+  exportPreview: BookExportPreviewWorkspaceViewModel,
+  readableManuscript: ReturnType<typeof getReadableManuscript>,
+) {
+  const lines: string[] = [exportPreview.title]
+
+  if (exportPreview.summary.trim()) {
+    lines.push('', exportPreview.summary)
+  }
+
+  for (const section of readableManuscript.sections) {
+    if (section.kind === 'chapter-heading') {
+      lines.push('', `Chapter ${section.chapterOrder}: ${section.chapterTitle}`)
+      if (exportPreview.profile.includes.chapterSummaries && section.summary?.trim()) {
+        lines.push(section.summary)
+      }
+      continue
+    }
+
+    if (section.kind === 'scene-draft' || section.kind === 'scene-gap') {
+      if (exportPreview.profile.includes.sceneHeadings) {
+        lines.push('', `Scene ${section.sceneOrder}: ${section.sceneTitle}`)
+      }
+      lines.push(section.kind === 'scene-draft' ? (section.proseDraft ?? '[Missing draft]') : `[Manuscript gap] ${section.gapReason}`)
+      continue
+    }
+
+    lines.push('', section.kind === 'transition-draft' ? (section.transitionProse ?? '') : `[Transition gap] ${section.gapReason}`)
+  }
+
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
 function shouldIncludeChapterTitleInSignature(
   exportPreview: BookExportPreviewWorkspaceViewModel,
   chapter: BookExportPreviewWorkspaceViewModel['chapters'][number],
@@ -110,6 +264,7 @@ function shouldIncludeSceneTitleInSignature(
 }
 
 export function createBookExportArtifactSourceSignature(exportPreview: BookExportPreviewWorkspaceViewModel): string {
+  const readableManuscript = getReadableManuscript(exportPreview)
   return stableSerialize({
     bookId: exportPreview.bookId,
     title: exportPreview.title,
@@ -169,6 +324,7 @@ export function createBookExportArtifactSourceSignature(exportPreview: BookExpor
       excludedSections: exportPreview.packageSummary.excludedSections,
       estimatedPackageLabel: exportPreview.packageSummary.estimatedPackageLabel,
     },
+    sourceManifest: readableManuscript.sourceManifest,
   })
 }
 
@@ -322,20 +478,7 @@ function appendMarkdownManuscript(lines: string[], exportPreview: BookExportPrev
     return
   }
 
-  lines.push('## Manuscript', '')
-  for (const chapter of getIncludedChapters(exportPreview)) {
-    lines.push(`### Chapter ${chapter.order}: ${chapter.title}`, '')
-    if (exportPreview.profile.includes.chapterSummaries && chapter.summary.trim()) {
-      lines.push(chapter.summary, '')
-    }
-
-    for (const scene of getIncludedScenes(chapter)) {
-      if (exportPreview.profile.includes.sceneHeadings) {
-        lines.push(`#### Scene ${scene.order}: ${scene.title}`, '')
-      }
-      lines.push(getSceneProse(scene), '')
-    }
-  }
+  lines.push(buildMarkdownFromReadableManuscript(exportPreview, getReadableManuscript(exportPreview)), '')
 }
 
 function appendPlainTextManuscript(lines: string[], exportPreview: BookExportPreviewWorkspaceViewModel) {
@@ -343,20 +486,44 @@ function appendPlainTextManuscript(lines: string[], exportPreview: BookExportPre
     return
   }
 
-  lines.push('Manuscript', '')
-  for (const chapter of getIncludedChapters(exportPreview)) {
-    lines.push(`Chapter ${chapter.order}: ${chapter.title}`, '')
-    if (exportPreview.profile.includes.chapterSummaries && chapter.summary.trim()) {
-      lines.push(chapter.summary, '')
-    }
+  lines.push(buildPlainTextFromReadableManuscript(exportPreview, getReadableManuscript(exportPreview)), '')
+}
 
-    for (const scene of getIncludedScenes(chapter)) {
-      if (exportPreview.profile.includes.sceneHeadings) {
-        lines.push(`Scene ${scene.order}: ${scene.title}`, '')
-      }
-      lines.push(getSceneProse(scene), '')
-    }
+function buildSourceManifestLine(
+  entry: BookExportPreviewWorkspaceViewModel['readableManuscript']['sourceManifest'][number],
+) {
+  if (entry.kind === 'transition-draft' || entry.kind === 'transition-gap') {
+    const suffix = entry.artifactId
+      ? ` (artifact ${entry.artifactId})`
+      : entry.gapReason
+        ? ` (gap: ${entry.gapReason})`
+        : ''
+
+    return `Transition ${entry.fromSceneId} -> ${entry.toSceneId}: ${entry.kind}${suffix}`
   }
+
+  const location = `Chapter ${entry.chapterOrder} / Scene ${entry.sceneOrder} / ${entry.sceneTitle}`
+  const suffix = entry.sourcePatchId
+    ? ` (patch ${entry.sourcePatchId})`
+    : entry.gapReason
+      ? ` (gap: ${entry.gapReason})`
+      : ''
+
+  return `${location}: ${entry.kind}${suffix}`
+}
+
+function appendSourceManifest(
+  lines: string[],
+  exportPreview: BookExportPreviewWorkspaceViewModel,
+  format: BookExportArtifactFormat,
+) {
+  const readableManuscript = getReadableManuscript(exportPreview)
+  lines.push(format === 'markdown' ? '## Source manifest' : 'Source manifest', '')
+  for (const entry of readableManuscript.sourceManifest) {
+    const line = buildSourceManifestLine(entry)
+    lines.push(`${format === 'markdown' ? '- ' : ''}${line}`)
+  }
+  lines.push('')
 }
 
 function appendTraceAppendix(lines: string[], exportPreview: BookExportPreviewWorkspaceViewModel, format: BookExportArtifactFormat) {
@@ -424,19 +591,13 @@ export function buildBookExportArtifactContent({
   const lines: string[] = []
 
   if (format === 'markdown') {
-    lines.push(`# ${exportPreview.title}`, '')
-    if (exportPreview.summary.trim()) {
-      lines.push(exportPreview.summary, '')
-    }
-    appendMarkdownPackageSummary(lines, exportPreview)
     appendMarkdownManuscript(lines, exportPreview)
+    appendSourceManifest(lines, exportPreview, format)
+    appendMarkdownPackageSummary(lines, exportPreview)
   } else {
-    lines.push(exportPreview.title, '')
-    if (exportPreview.summary.trim()) {
-      lines.push(exportPreview.summary, '')
-    }
-    appendPlainTextPackageSummary(lines, exportPreview)
     appendPlainTextManuscript(lines, exportPreview)
+    appendSourceManifest(lines, exportPreview, format)
+    appendPlainTextPackageSummary(lines, exportPreview)
   }
 
   appendTraceAppendix(lines, exportPreview, format)

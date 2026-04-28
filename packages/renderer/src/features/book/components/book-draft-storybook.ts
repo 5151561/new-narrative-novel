@@ -53,6 +53,7 @@ import type {
 } from '../types/book-compare-view-models'
 import type {
   BookDraftChapterViewModel,
+  BookDraftReadableManuscriptViewModel,
   BookDraftSceneSectionViewModel,
   BookDraftWorkspaceViewModel,
 } from '../types/book-draft-view-models'
@@ -72,6 +73,98 @@ type LocalizedText = {
 
 function localize(locale: Locale, text: LocalizedText) {
   return text[locale]
+}
+
+function buildStoryChapterHeading(locale: Locale, order: number, title: string) {
+  return locale === 'zh-CN' ? `第 ${order} 章：${title}` : `Chapter ${order}: ${title}`
+}
+
+function buildStorySceneHeading(locale: Locale, order: number, title: string) {
+  return locale === 'zh-CN' ? `场景 ${order}：${title}` : `Scene ${order}: ${title}`
+}
+
+function buildStoryReadableManuscript(
+  locale: Locale,
+  title: string,
+  summary: string,
+  chapters: BookDraftChapterViewModel[],
+): BookDraftReadableManuscriptViewModel {
+  const markdownLines = [`# ${title}`]
+  const plainTextLines = [title]
+  const sections: BookDraftReadableManuscriptViewModel['sections'] = []
+  const sourceManifest: BookDraftReadableManuscriptViewModel['sourceManifest'] = []
+
+  if (summary.trim()) {
+    markdownLines.push('', summary)
+    plainTextLines.push('', summary)
+  }
+
+  for (const chapter of chapters) {
+    sections.push({
+      kind: 'chapter-heading',
+      chapterId: chapter.chapterId,
+      chapterOrder: chapter.order,
+      chapterTitle: chapter.title,
+      summary: chapter.summary,
+      assembledWordCount: chapter.assembledWordCount,
+      missingDraftCount: chapter.missingDraftCount,
+    })
+    markdownLines.push('', `## ${buildStoryChapterHeading(locale, chapter.order, chapter.title)}`)
+    plainTextLines.push('', buildStoryChapterHeading(locale, chapter.order, chapter.title))
+    if (chapter.summary.trim()) {
+      markdownLines.push('', chapter.summary)
+      plainTextLines.push(chapter.summary)
+    }
+
+    for (const section of chapter.sections) {
+      sections.push({
+        kind: section.isMissingDraft ? 'scene-gap' : 'scene-draft',
+        chapterId: chapter.chapterId,
+        chapterOrder: chapter.order,
+        chapterTitle: chapter.title,
+        sceneId: section.sceneId,
+        sceneOrder: section.order,
+        sceneTitle: section.title,
+        sceneSummary: section.summary,
+        proseDraft: section.proseDraft,
+        gapReason: section.isMissingDraft ? section.latestDiffSummary : undefined,
+        draftWordCount: section.draftWordCount,
+        traceReady: section.traceReady,
+      })
+      sourceManifest.push({
+        kind: section.isMissingDraft ? 'scene-gap' : 'scene-draft',
+        chapterId: chapter.chapterId,
+        chapterOrder: chapter.order,
+        chapterTitle: chapter.title,
+        sceneId: section.sceneId,
+        sceneOrder: section.order,
+        sceneTitle: section.title,
+        sourceProposalIds: [],
+        acceptedFactIds: [],
+        traceReady: section.traceReady,
+        draftWordCount: section.draftWordCount,
+        gapReason: section.isMissingDraft ? section.latestDiffSummary : undefined,
+      })
+      markdownLines.push('', `### ${buildStorySceneHeading(locale, section.order, section.title)}`)
+      plainTextLines.push('', buildStorySceneHeading(locale, section.order, section.title))
+      if (section.isMissingDraft) {
+        const gapReason = section.latestDiffSummary ?? (locale === 'zh-CN' ? '该场景仍缺少正文草稿。' : 'This scene still needs prose draft.')
+        markdownLines.push('', `> ${locale === 'zh-CN' ? '缺稿' : 'Manuscript gap'}: ${gapReason}`)
+        plainTextLines.push(`[${locale === 'zh-CN' ? '缺稿' : 'Manuscript gap'}] ${gapReason}`)
+      } else if (section.proseDraft?.trim()) {
+        markdownLines.push('', section.proseDraft)
+        plainTextLines.push(section.proseDraft)
+      }
+    }
+  }
+
+  return {
+    formatVersion: 'book-manuscript-assembly-v1',
+    markdown: markdownLines.join('\n').trim(),
+    plainText: plainTextLines.join('\n').trim(),
+    sections,
+    sourceManifest,
+  }
 }
 
 const draftSectionSeedMap: Record<
@@ -393,6 +486,12 @@ function buildBookDraftStoryWorkspace(
               : `${chapter.queuedRevisionCount} queued revisions`,
         })),
     },
+    readableManuscript: buildStoryReadableManuscript(
+      locale,
+      structureWorkspace.title,
+      structureWorkspace.summary,
+      chapters,
+    ),
   }
 }
 

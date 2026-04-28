@@ -139,6 +139,32 @@ export function BookDraftExportView({
                     </div>
                   </div>
                 </section>
+                <section className="rounded-md border border-line-soft bg-surface-1 p-4">
+                  <h4 className="text-base text-text-main">{locale === 'zh-CN' ? '来源清单' : 'Source manifest'}</h4>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">
+                    {locale === 'zh-CN'
+                      ? `当前共 ${exportPreview.readableManuscript.sourceManifest.length} 条来源记录，仅预览前 6 条。`
+                      : `${exportPreview.readableManuscript.sourceManifest.length} source entries are available. Showing the first 6.`}
+                  </p>
+                  <div className="mt-3 space-y-3">
+                    {exportPreview.readableManuscript.sourceManifest.slice(0, 6).map((entry, index) => (
+                      <div key={`${entry.kind}-${entry.sceneId ?? entry.fromSceneId ?? index}`} className="rounded-md border border-line-soft bg-surface-2 p-3">
+                        <p className="text-sm font-medium text-text-main">
+                          {entry.sceneTitle
+                            ? `${entry.sceneTitle} · ${entry.kind}`
+                            : `${entry.fromSceneId ?? 'transition'} -> ${entry.toSceneId ?? 'transition'} · ${entry.kind}`}
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-text-muted">
+                          {entry.sourcePatchId
+                            ? `${locale === 'zh-CN' ? '补丁' : 'Patch'} ${entry.sourcePatchId}`
+                            : entry.artifactId
+                              ? `${locale === 'zh-CN' ? '产物' : 'Artifact'} ${entry.artifactId}`
+                              : entry.gapReason ?? (locale === 'zh-CN' ? '当前没有直接来源引用。' : 'No direct source refs are attached yet.')}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
                 <BookExportArtifactPanel
                   artifactWorkspace={artifactWorkspace}
                   selectedFormat={selectedArtifactFormat}

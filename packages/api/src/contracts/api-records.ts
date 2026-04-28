@@ -145,6 +145,85 @@ export interface BookDraftAssemblyChapterRecord {
   scenes: BookDraftAssemblySceneRecord[]
 }
 
+export type BookDraftAssemblyManuscriptSectionKind =
+  | 'chapter-heading'
+  | 'scene-draft'
+  | 'scene-gap'
+  | 'transition-draft'
+  | 'transition-gap'
+
+export interface BookDraftAssemblyManuscriptSectionRecordBase {
+  kind: BookDraftAssemblyManuscriptSectionKind
+  chapterId: string
+  chapterOrder: number
+  chapterTitle: LocalizedTextRecord
+}
+
+export interface BookDraftAssemblyChapterHeadingSectionRecord extends BookDraftAssemblyManuscriptSectionRecordBase {
+  kind: 'chapter-heading'
+  summary: LocalizedTextRecord
+  assembledWordCount: number
+  missingDraftCount: number
+}
+
+export interface BookDraftAssemblySceneManuscriptSectionRecord extends BookDraftAssemblyManuscriptSectionRecordBase {
+  kind: 'scene-draft' | 'scene-gap'
+  sceneId: string
+  sceneOrder: number
+  sceneTitle: LocalizedTextRecord
+  sceneSummary: LocalizedTextRecord
+  proseDraft?: string
+  gapReason?: LocalizedTextRecord
+  draftWordCount?: number
+  traceReady: boolean
+  sourcePatchId?: string
+  sourceProposalIds: string[]
+  acceptedFactIds: string[]
+}
+
+export interface BookDraftAssemblyTransitionManuscriptSectionRecord extends BookDraftAssemblyManuscriptSectionRecordBase {
+  kind: 'transition-draft' | 'transition-gap'
+  fromSceneId: string
+  toSceneId: string
+  fromSceneTitle: LocalizedTextRecord
+  toSceneTitle: LocalizedTextRecord
+  transitionProse?: string
+  artifactId?: string
+  gapReason?: LocalizedTextRecord
+}
+
+export type BookDraftAssemblyManuscriptSectionRecord =
+  | BookDraftAssemblyChapterHeadingSectionRecord
+  | BookDraftAssemblySceneManuscriptSectionRecord
+  | BookDraftAssemblyTransitionManuscriptSectionRecord
+
+export interface BookDraftAssemblySourceManifestEntryRecord {
+  kind: 'scene-draft' | 'scene-gap' | 'transition-draft' | 'transition-gap'
+  chapterId: string
+  chapterOrder: number
+  chapterTitle: LocalizedTextRecord
+  sceneId?: string
+  sceneOrder?: number
+  sceneTitle?: LocalizedTextRecord
+  fromSceneId?: string
+  toSceneId?: string
+  sourcePatchId?: string
+  sourceProposalIds: string[]
+  acceptedFactIds: string[]
+  artifactId?: string
+  traceReady: boolean
+  draftWordCount?: number
+  gapReason?: LocalizedTextRecord
+}
+
+export interface BookDraftAssemblyReadableManuscriptRecord {
+  formatVersion: 'book-manuscript-assembly-v1'
+  markdown: string
+  plainText: string
+  sections: BookDraftAssemblyManuscriptSectionRecord[]
+  sourceManifest: BookDraftAssemblySourceManifestEntryRecord[]
+}
+
 export interface BookDraftAssemblyRecord {
   bookId: string
   title: LocalizedTextRecord
@@ -155,6 +234,7 @@ export interface BookDraftAssemblyRecord {
   missingDraftSceneCount: number
   assembledWordCount: number
   chapters: BookDraftAssemblyChapterRecord[]
+  readableManuscript: BookDraftAssemblyReadableManuscriptRecord
 }
 
 export type BookExportProfileKind = 'review_packet' | 'submission_preview' | 'archive_snapshot'

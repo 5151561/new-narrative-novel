@@ -190,6 +190,40 @@ const exportWorkspace: BookExportPreviewWorkspaceViewModel = {
     excludedSections: ['Scene headings'],
     estimatedPackageLabel: 'Approx. 12 manuscript pages',
   },
+  readableManuscript: {
+    formatVersion: 'book-manuscript-assembly-v1',
+    markdown: '# Signal Arc',
+    plainText: 'Signal Arc',
+    sections: [],
+    sourceManifest: [
+      {
+        kind: 'scene-draft',
+        chapterId: 'chapter-open-water-signals',
+        chapterOrder: 2,
+        chapterTitle: 'Open Water Signals',
+        sceneId: 'scene-warehouse-bridge',
+        sceneOrder: 1,
+        sceneTitle: 'Warehouse Bridge',
+        sourcePatchId: 'canon-patch-004',
+        sourceProposalIds: ['proposal-004'],
+        acceptedFactIds: ['fact-004'],
+        traceReady: true,
+      },
+      {
+        kind: 'scene-gap',
+        chapterId: 'chapter-open-water-signals',
+        chapterOrder: 2,
+        chapterTitle: 'Open Water Signals',
+        sceneId: 'scene-dawn-slip',
+        sceneOrder: 2,
+        sceneTitle: 'Dawn Slip',
+        sourceProposalIds: [],
+        acceptedFactIds: [],
+        traceReady: false,
+        gapReason: 'Draft still missing.',
+      },
+    ],
+  },
 }
 
 const latestArtifact: BookExportArtifactSummaryViewModel = {
@@ -258,6 +292,8 @@ describe('BookDraftExportView', () => {
     expect(screen.getByRole('heading', { name: 'Selected chapter package' })).toBeInTheDocument()
     expect(screen.getByText('Warehouse Bridge')).toBeInTheDocument()
     expect(screen.getByText('Dawn Slip')).toBeInTheDocument()
+    expect(screen.getByText('Source manifest')).toBeInTheDocument()
+    expect(screen.getAllByText(/scene-draft/i).length).toBeGreaterThan(0)
   })
 
   it('uses chapter clicks and secondary actions to preserve chapter-focused behavior', async () => {

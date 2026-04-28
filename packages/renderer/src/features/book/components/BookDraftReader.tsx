@@ -31,12 +31,18 @@ function getMissingDraftCopy(locale: 'en' | 'zh-CN') {
     : {
         title: 'Manuscript gap',
         detail: 'Keep the chapter order stable, then return here once the scene draft is ready.',
-      }
+  }
+}
+
+function getSelectedChapterDestination(workspace: BookDraftWorkspaceViewModel) {
+  return workspace.chapters.find((chapter) => chapter.chapterId === workspace.selectedChapterId) ?? workspace.selectedChapter ?? null
 }
 
 export function BookDraftReader({ workspace, onSelectChapter, onOpenChapter }: BookDraftReaderProps) {
   const { locale } = useI18n()
   const missingDraftCopy = getMissingDraftCopy(locale)
+  const selectedChapter = getSelectedChapterDestination(workspace)
+  const sourceManifest = workspace.readableManuscript.sourceManifest
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -50,129 +56,161 @@ export function BookDraftReader({ workspace, onSelectChapter, onOpenChapter }: B
       />
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
-          {workspace.chapters.map((chapter) => {
-            const active = chapter.chapterId === workspace.selectedChapterId
+          {selectedChapter ? (
+            <section
+              role="region"
+              aria-label={locale === 'zh-CN' ? '当前手稿落点' : 'Selected manuscript destination'}
+              className="rounded-md border border-line-strong bg-surface-1 px-4 py-4"
+            >
+              <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
+                {locale === 'zh-CN' ? '当前手稿落点' : 'Selected manuscript destination'}
+              </p>
+              <p className="mt-2 text-sm font-medium text-text-main">{selectedChapter.title}</p>
+              <p className="mt-2 text-sm leading-6 text-text-muted">{selectedChapter.summary}</p>
+            </section>
+          ) : null}
+          {workspace.readableManuscript.sections.map((section, index) => {
+            const active = section.chapterId === workspace.selectedChapterId
 
-            return (
-              <section
-                key={chapter.chapterId}
-                className={`rounded-md border ${
-                  active ? 'border-line-strong bg-surface-1 shadow-sm' : 'border-line-soft bg-surface-1'
-                }`}
-              >
+            if (section.kind === 'chapter-heading') {
+              return (
+                <section
+                  key={`${section.chapterId}-${section.kind}-${index}`}
+                  className={`rounded-md border px-5 py-5 ${
+                    active ? 'border-line-strong bg-surface-1 shadow-sm' : 'border-line-soft bg-surface-1'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    aria-current={active}
+                    aria-label={`${getChapterLabel(locale, section.chapterOrder)} ${section.chapterTitle}`}
+                    onClick={() => onSelectChapter?.(section.chapterId)}
+                    className="w-full rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
+                          {getChapterLabel(locale, section.chapterOrder)}
+                        </p>
+                        <h3 className="mt-1 text-lg leading-tight text-text-main">{section.chapterTitle}</h3>
+                      </div>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Badge tone="neutral">{getWordCountLabel(locale, section.assembledWordCount)}</Badge>
+                        <Badge tone={(section.missingDraftCount ?? 0) > 0 ? 'warn' : 'success'}>
+                          {locale === 'zh-CN' ? `缺稿 ${section.missingDraftCount ?? 0}` : `Missing ${section.missingDraftCount ?? 0}`}
+                        </Badge>
+                      </div>
+                    </div>
+                    {section.summary ? <p className="mt-3 text-sm leading-6 text-text-muted">{section.summary}</p> : null}
+                  </button>
+                  <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-line-soft pt-3">
+                    <button
+                      type="button"
+                      aria-label={`${locale === 'zh-CN' ? '在 Draft 中打开' : 'Open in Draft'}: ${section.chapterTitle}`}
+                      onClick={() => onOpenChapter?.(section.chapterId, 'draft')}
+                      className="rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-2 hover:text-text-main"
+                    >
+                      {locale === 'zh-CN' ? '在 Draft 中打开' : 'Open in Draft'}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`${locale === 'zh-CN' ? '在 Structure 中打开' : 'Open in Structure'}: ${section.chapterTitle}`}
+                      onClick={() => onOpenChapter?.(section.chapterId, 'structure')}
+                      className="rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-2 hover:text-text-main"
+                    >
+                      {locale === 'zh-CN' ? '在 Structure 中打开' : 'Open in Structure'}
+                    </button>
+                  </div>
+                </section>
+              )
+            }
+
+            if (section.kind === 'scene-draft' || section.kind === 'scene-gap') {
+              const manifestEntry = sourceManifest.find((entry) => entry.kind === section.kind && entry.sceneId === section.sceneId)
+              return (
                 <button
+                  key={`${section.chapterId}-${section.kind}-${section.sceneId}`}
                   type="button"
-                  aria-current={active}
-                  aria-label={`${getChapterLabel(locale, chapter.order)} ${chapter.title}`}
-                  onClick={() => onSelectChapter?.(chapter.chapterId)}
-                  className="w-full rounded-md px-5 py-5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+                  onClick={() => onSelectChapter?.(section.chapterId)}
+                  className={`w-full rounded-md border px-4 py-4 text-left ${
+                    section.kind === 'scene-gap'
+                      ? 'border-dashed border-line-strong bg-surface-2'
+                      : active
+                        ? 'border-line-strong bg-surface-1'
+                        : 'border-line-soft bg-surface-2'
+                  }`}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
-                        {getChapterLabel(locale, chapter.order)}
+                        {locale === 'zh-CN' ? `场景 ${section.sceneOrder}` : `Scene ${section.sceneOrder}`}
                       </p>
-                      <h3 className="mt-1 text-lg leading-tight text-text-main">{chapter.title}</h3>
+                      <h4 className="mt-1 text-base text-text-main">{section.sceneTitle}</h4>
                     </div>
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <Badge tone="neutral">{getWordCountLabel(locale, chapter.assembledWordCount)}</Badge>
-                      <Badge tone={chapter.missingDraftCount > 0 ? 'warn' : 'success'}>
-                        {locale === 'zh-CN' ? `缺稿 ${chapter.missingDraftCount}` : `Missing ${chapter.missingDraftCount}`}
+                    <div className="flex flex-wrap gap-2">
+                      <Badge tone={section.kind === 'scene-gap' ? 'warn' : 'success'}>
+                        {getWordCountLabel(locale, section.draftWordCount)}
                       </Badge>
-                      <Badge tone={chapter.missingTraceSceneCount > 0 ? 'warn' : 'success'}>
-                        {locale === 'zh-CN' ? `缺溯源 ${chapter.missingTraceSceneCount}` : `Missing trace ${chapter.missingTraceSceneCount}`}
+                      <Badge tone={section.traceReady ? 'accent' : 'warn'}>
+                        {section.traceReady ? (locale === 'zh-CN' ? '溯源已就绪' : 'Trace ready') : locale === 'zh-CN' ? '溯源缺失' : 'Trace missing'}
                       </Badge>
+                      {manifestEntry ? (
+                        <Badge tone="neutral">
+                          {locale === 'zh-CN'
+                            ? `来源 ${manifestEntry.sourceProposalIds.length}/${manifestEntry.acceptedFactIds.length}`
+                            : `Sources ${manifestEntry.sourceProposalIds.length}/${manifestEntry.acceptedFactIds.length}`}
+                        </Badge>
+                      ) : null}
                     </div>
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-text-muted">{chapter.summary}</p>
-                </button>
-                <div className="space-y-4 border-t border-line-soft px-5 py-4">
-                  {active ? (
-                    <div
-                      role="region"
-                      aria-label={locale === 'zh-CN' ? '当前手稿落点' : 'Selected manuscript destination'}
-                      className="rounded-md border border-line-strong bg-surface-1 px-4 py-4"
-                    >
-                      <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
-                        {locale === 'zh-CN' ? '当前手稿落点' : 'Selected manuscript destination'}
-                      </p>
-                      <div className="mt-3 space-y-4">
-                        {chapter.missingDraftCount === 0 && chapter.assembledProseSections.length > 0 ? (
-                          chapter.assembledProseSections.map((section, index) => (
-                            <p key={`${chapter.chapterId}-assembled-${index}`} className="whitespace-pre-wrap text-[15px] leading-7 text-text-main">
-                              {section}
-                            </p>
-                          ))
-                        ) : (
-                          <div className="space-y-3">
-                            <p className="text-sm leading-6 text-text-muted">{missingDraftCopy.detail}</p>
-                            <ul className="space-y-2 text-sm text-text-main">
-                              {chapter.sections
-                                .filter((section) => section.isMissingDraft)
-                                .map((section) => (
-                                  <li key={`${chapter.chapterId}-${section.sceneId}-gap`} className="rounded-md border border-dashed border-line-strong bg-surface-2 px-3 py-3">
-                                    <p className="font-medium">{section.title}</p>
-                                    <p className="mt-1 text-text-muted">{section.latestDiffSummary ?? missingDraftCopy.title}</p>
-                                  </li>
-                                ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
+                  {section.sceneSummary ? <p className="mt-2 text-sm leading-6 text-text-muted">{section.sceneSummary}</p> : null}
+                  {section.kind === 'scene-gap' ? (
+                    <div className="mt-3 rounded-md border border-dashed border-line-strong bg-surface-1 px-4 py-4">
+                      <p className="text-sm font-medium text-text-main">{missingDraftCopy.title}</p>
+                      <p className="mt-2 text-sm leading-6 text-text-muted">{section.gapReason ?? missingDraftCopy.detail}</p>
                     </div>
-                  ) : null}
-                  {chapter.sections.map((section) => (
-                    <article key={section.sceneId} className="space-y-3 rounded-md border border-line-soft bg-surface-2 px-4 py-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
-                            {locale === 'zh-CN' ? `场景 ${section.order}` : `Scene ${section.order}`}
-                          </p>
-                          <h4 className="mt-1 text-base text-text-main">{section.title}</h4>
-                        </div>
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <Badge tone={section.isMissingDraft ? 'warn' : 'success'}>{getWordCountLabel(locale, section.draftWordCount)}</Badge>
-                          <Badge tone={section.traceReady ? 'accent' : 'warn'}>
-                            {section.traceReady ? (locale === 'zh-CN' ? '溯源已就绪' : 'Trace ready') : locale === 'zh-CN' ? '溯源缺失' : 'Trace missing'}
-                          </Badge>
-                        </div>
-                      </div>
-                      <p className="text-sm leading-6 text-text-muted">{section.summary}</p>
-                      {section.isMissingDraft ? (
-                        <div className="rounded-md border border-dashed border-line-strong bg-surface-1 px-4 py-4">
-                          <p className="text-sm font-medium text-text-main">{missingDraftCopy.title}</p>
-                          <p className="mt-2 text-sm leading-6 text-text-muted">{section.latestDiffSummary ?? missingDraftCopy.detail}</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <p className="whitespace-pre-wrap text-[15px] leading-7 text-text-main">{section.proseDraft}</p>
-                          {section.latestDiffSummary ? (
-                            <p className="text-sm leading-6 text-text-muted">{section.latestDiffSummary}</p>
-                          ) : null}
-                        </div>
-                      )}
-                    </article>
-                  ))}
-                </div>
-                <div className="flex flex-wrap justify-end gap-2 border-t border-line-soft px-5 py-3">
-                  <button
-                    type="button"
-                    aria-label={`${locale === 'zh-CN' ? '在 Draft 中打开' : 'Open in Draft'}: ${chapter.title}`}
-                    onClick={() => onOpenChapter?.(chapter.chapterId, 'draft')}
-                    className="rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-2 hover:text-text-main"
-                  >
-                    {locale === 'zh-CN' ? '在 Draft 中打开' : 'Open in Draft'}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`${locale === 'zh-CN' ? '在 Structure 中打开' : 'Open in Structure'}: ${chapter.title}`}
-                    onClick={() => onOpenChapter?.(chapter.chapterId, 'structure')}
-                    className="rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-2 hover:text-text-main"
-                  >
-                    {locale === 'zh-CN' ? '在 Structure 中打开' : 'Open in Structure'}
-                  </button>
-                </div>
-              </section>
+                  ) : (
+                    <div className="mt-3 space-y-2">
+                      <p className="whitespace-pre-wrap text-[15px] leading-7 text-text-main">{section.proseDraft}</p>
+                    </div>
+                  )}
+                </button>
+              )
+            }
+
+            return (
+              <button
+                key={`${section.chapterId}-${section.kind}-${section.fromSceneId}-${section.toSceneId}`}
+                type="button"
+                onClick={() => onSelectChapter?.(section.chapterId)}
+                className={`w-full rounded-md border px-4 py-4 text-left ${
+                  section.kind === 'transition-gap'
+                    ? 'border-dashed border-line-strong bg-surface-2'
+                    : active
+                      ? 'border-line-strong bg-surface-1'
+                      : 'border-line-soft bg-surface-2'
+                }`}
+              >
+                <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">
+                  {locale === 'zh-CN' ? '章节接缝' : 'Chapter seam'}
+                </p>
+                <p className="mt-1 text-sm font-medium text-text-main">
+                  {section.fromSceneTitle} {locale === 'zh-CN' ? '→' : '->'} {section.toSceneTitle}
+                </p>
+                {section.kind === 'transition-draft' ? (
+                  <div className="mt-3 space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge tone="neutral">{section.artifactId ?? (locale === 'zh-CN' ? '无产物' : 'No artifact')}</Badge>
+                    </div>
+                    <p className="whitespace-pre-wrap text-[15px] leading-7 text-text-main">{section.transitionProse}</p>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-md border border-dashed border-line-strong bg-surface-1 px-4 py-4">
+                    <p className="text-sm font-medium text-text-main">{locale === 'zh-CN' ? '过渡缺口' : 'Transition gap'}</p>
+                    <p className="mt-2 text-sm leading-6 text-text-muted">{section.gapReason ?? missingDraftCopy.detail}</p>
+                  </div>
+                )}
+              </button>
             )
           })}
         </div>

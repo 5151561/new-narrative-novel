@@ -10,13 +10,14 @@ import type { BookReviewInboxViewModel, ReviewIssueSeverity, ReviewSourceHandoff
 import { buildCompareReviewAttention } from '../lib/book-draft-compare-presentation'
 import type { BookExperimentBranchWorkspaceViewModel } from '../types/book-branch-view-models'
 import type { BookManuscriptCompareWorkspaceViewModel } from '../types/book-compare-view-models'
-import type { BookDraftInspectorViewModel } from '../types/book-draft-view-models'
+import type { BookDraftInspectorViewModel, BookDraftReadableManuscriptViewModel } from '../types/book-draft-view-models'
 import type { BookExportArtifactWorkspaceViewModel } from '../types/book-export-artifact-view-models'
 import type { BookExportPreviewWorkspaceViewModel } from '../types/book-export-view-models'
 
 interface BookDraftInspectorPaneProps {
   bookTitle: string
   inspector: BookDraftInspectorViewModel
+  readableManuscript?: BookDraftReadableManuscriptViewModel | null
   activeDraftView?: BookDraftView
   compare?: BookManuscriptCompareWorkspaceViewModel | null
   branch?: BookExperimentBranchWorkspaceViewModel | null
@@ -35,6 +36,7 @@ interface BookDraftInspectorPaneProps {
 export function BookDraftInspectorPane({
   bookTitle,
   inspector,
+  readableManuscript = null,
   activeDraftView = 'read',
   compare = null,
   branch = null,
@@ -54,6 +56,9 @@ export function BookDraftInspectorPane({
   const branchWarnings = branch?.readiness.issues.filter((issue) => issue.severity === 'warning') ?? []
   const reviewSelectedIssue = reviewInbox?.selectedIssue ?? null
   const latestArtifact = artifactWorkspace?.latestArtifact ?? null
+  const selectedChapterManifest = selectedChapter
+    ? (readableManuscript?.sourceManifest ?? []).filter((entry) => entry.chapterId === selectedChapter.chapterId)
+    : []
 
   const getReviewSeverityBadge = (severity: ReviewIssueSeverity) => {
     if (severity === 'blocker') {
@@ -156,6 +161,50 @@ export function BookDraftInspectorPane({
             ) : null}
           </div>
         </section>
+        {selectedChapter ? (
+          <section className="rounded-md border border-line-soft bg-surface-2 p-4">
+            <h4 className="text-base text-text-main">{locale === 'zh-CN' ? '来源清单' : 'Source manifest'}</h4>
+            <div className="mt-3 space-y-3">
+              {selectedChapterManifest.length > 0 ? selectedChapterManifest.map((entry, index) => (
+                <div key={`${entry.kind}-${entry.sceneId ?? entry.fromSceneId ?? index}`} className="rounded-md border border-line-soft bg-surface-1 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-medium text-text-main">
+                      {entry.sceneTitle
+                        ? `${entry.sceneTitle}`
+                        : `${entry.fromSceneId ?? 'transition'} -> ${entry.toSceneId ?? 'transition'}`}
+                    </p>
+                    <Badge tone={entry.traceReady ? 'accent' : 'warn'}>
+                      {entry.traceReady ? (locale === 'zh-CN' ? '溯源已就绪' : 'Trace ready') : locale === 'zh-CN' ? '溯源缺失' : 'Trace missing'}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">
+                    {entry.sourcePatchId
+                      ? `${locale === 'zh-CN' ? '补丁' : 'Patch'} ${entry.sourcePatchId}`
+                      : entry.artifactId
+                        ? `${locale === 'zh-CN' ? '产物' : 'Artifact'} ${entry.artifactId}`
+                        : entry.gapReason ?? (locale === 'zh-CN' ? '当前没有直接来源引用。' : 'No direct source refs are attached yet.')}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge tone="neutral">
+                      {locale === 'zh-CN' ? `提案 ${entry.sourceProposalIds.length}` : `Proposals ${entry.sourceProposalIds.length}`}
+                    </Badge>
+                    <Badge tone="neutral">
+                      {locale === 'zh-CN' ? `事实 ${entry.acceptedFactIds.length}` : `Facts ${entry.acceptedFactIds.length}`}
+                    </Badge>
+                  </div>
+                </div>
+              )) : (
+                <div className="rounded-md border border-line-soft bg-surface-1 p-3">
+                  <p className="text-sm leading-6 text-text-muted">
+                    {locale === 'zh-CN'
+                      ? '当前选中章节还没有可展示的来源清单。'
+                      : 'No source manifest entries are available for the selected chapter yet.'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+        ) : null}
         {activeDraftView === 'compare' && compareSelectedChapter ? (
           <>
             <section className="rounded-md border border-line-soft bg-surface-2 p-4">

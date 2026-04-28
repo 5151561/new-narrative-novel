@@ -3,9 +3,14 @@ import { readLocalizedChapterText, type ChapterStructureWorkspaceRecord } from '
 import type { SceneProseViewModel } from '@/features/scene/types/scene-view-models'
 
 import type {
+  BookDraftAssemblyChapterHeadingSectionRecord,
   BookDraftAssemblyChapterRecord,
+  BookDraftAssemblyManuscriptSectionRecord,
   BookDraftAssemblyRecord,
+  BookDraftAssemblyReadableManuscriptRecord,
   BookDraftAssemblySceneRecord,
+  BookDraftAssemblySourceManifestEntryRecord,
+  BookDraftAssemblyTransitionManuscriptSectionRecord,
 } from '../api/book-draft-assembly-records'
 import { readLocalizedBookText, type BookStructureRecord } from '../api/book-records'
 import type { BookSceneTraceRollup } from '../types/book-view-models'
@@ -14,7 +19,10 @@ import type {
   BookDraftDockSummaryItem,
   BookDraftDockSummaryViewModel,
   BookDraftInspectorSelectedChapterViewModel,
+  BookDraftManuscriptSectionViewModel,
+  BookDraftReadableManuscriptViewModel,
   BookDraftSceneSectionViewModel,
+  BookDraftSourceManifestEntryViewModel,
   BookDraftWorkspaceViewModel,
 } from '../types/book-draft-view-models'
 
@@ -114,6 +122,18 @@ function buildPressureDetail(locale: Locale, warningsCount: number, queuedRevisi
   }
 
   return `Warnings ${warningsCount} / Queued revisions ${queuedRevisionCount}`
+}
+
+function buildChapterHeadingLabel(locale: Locale, order: number, title: string) {
+  return locale === 'zh-CN' ? `第 ${order} 章：${title}` : `Chapter ${order}: ${title}`
+}
+
+function buildSceneHeadingLabel(locale: Locale, order: number, title: string) {
+  return locale === 'zh-CN' ? `场景 ${order}：${title}` : `Scene ${order}: ${title}`
+}
+
+function buildManuscriptGapLabel(locale: Locale, gapReason: string) {
+  return locale === 'zh-CN' ? `缺稿：${gapReason}` : `Manuscript gap: ${gapReason}`
 }
 
 function buildSectionViewModel(
@@ -258,6 +278,181 @@ function buildAssemblyChapterViewModel(
   })
 }
 
+function mapReadableManuscriptSectionRecord(
+  section: BookDraftAssemblyManuscriptSectionRecord,
+  locale: Locale,
+): BookDraftManuscriptSectionViewModel {
+  if (section.kind === 'chapter-heading') {
+    return {
+      kind: section.kind,
+      chapterId: section.chapterId,
+      chapterOrder: section.chapterOrder,
+      chapterTitle: readLocalizedBookText(section.chapterTitle, locale),
+      summary: readLocalizedBookText(section.summary, locale),
+      assembledWordCount: section.assembledWordCount,
+      missingDraftCount: section.missingDraftCount,
+    }
+  }
+
+  if (section.kind === 'scene-draft' || section.kind === 'scene-gap') {
+    return {
+      kind: section.kind,
+      chapterId: section.chapterId,
+      chapterOrder: section.chapterOrder,
+      chapterTitle: readLocalizedBookText(section.chapterTitle, locale),
+      sceneId: section.sceneId,
+      sceneOrder: section.sceneOrder,
+      sceneTitle: readLocalizedBookText(section.sceneTitle, locale),
+      sceneSummary: readLocalizedBookText(section.sceneSummary, locale),
+      proseDraft: section.proseDraft,
+      gapReason: section.gapReason ? readLocalizedBookText(section.gapReason, locale) : undefined,
+      draftWordCount: section.draftWordCount,
+      traceReady: section.traceReady,
+    }
+  }
+
+  return {
+    kind: section.kind,
+    chapterId: section.chapterId,
+    chapterOrder: section.chapterOrder,
+    chapterTitle: readLocalizedBookText(section.chapterTitle, locale),
+    fromSceneId: section.fromSceneId,
+    toSceneId: section.toSceneId,
+    fromSceneTitle: readLocalizedBookText(section.fromSceneTitle, locale),
+    toSceneTitle: readLocalizedBookText(section.toSceneTitle, locale),
+    transitionProse: section.transitionProse,
+    artifactId: section.artifactId,
+    gapReason: section.gapReason ? readLocalizedBookText(section.gapReason, locale) : undefined,
+  }
+}
+
+function mapSourceManifestEntryRecord(
+  entry: BookDraftAssemblySourceManifestEntryRecord,
+  locale: Locale,
+): BookDraftSourceManifestEntryViewModel {
+  return {
+    kind: entry.kind,
+    chapterId: entry.chapterId,
+    chapterOrder: entry.chapterOrder,
+    chapterTitle: readLocalizedBookText(entry.chapterTitle, locale),
+    sceneId: entry.sceneId,
+    sceneOrder: entry.sceneOrder,
+    sceneTitle: entry.sceneTitle ? readLocalizedBookText(entry.sceneTitle, locale) : undefined,
+    fromSceneId: entry.fromSceneId,
+    toSceneId: entry.toSceneId,
+    sourcePatchId: entry.sourcePatchId,
+    sourceProposalIds: [...entry.sourceProposalIds],
+    acceptedFactIds: [...entry.acceptedFactIds],
+    artifactId: entry.artifactId,
+    traceReady: entry.traceReady,
+    draftWordCount: entry.draftWordCount,
+    gapReason: entry.gapReason ? readLocalizedBookText(entry.gapReason, locale) : undefined,
+  }
+}
+
+function mapReadableManuscriptRecord(
+  record: BookDraftAssemblyReadableManuscriptRecord,
+  locale: Locale,
+): BookDraftReadableManuscriptViewModel {
+  return {
+    formatVersion: record.formatVersion,
+    markdown: record.markdown,
+    plainText: record.plainText,
+    sections: record.sections.map((section) => mapReadableManuscriptSectionRecord(section, locale)),
+    sourceManifest: record.sourceManifest.map((entry) => mapSourceManifestEntryRecord(entry, locale)),
+  }
+}
+
+function buildFallbackReadableManuscript(input: {
+  title: string
+  summary: string
+  chapters: BookDraftChapterViewModel[]
+  locale: Locale
+}): BookDraftReadableManuscriptViewModel {
+  const { title, summary, chapters, locale } = input
+  const sections: BookDraftManuscriptSectionViewModel[] = []
+  const sourceManifest: BookDraftSourceManifestEntryViewModel[] = []
+  const markdownLines = [`# ${title}`]
+  const plainTextLines = [title]
+
+  if (summary.trim()) {
+    markdownLines.push('', summary)
+    plainTextLines.push('', summary)
+  }
+
+  for (const chapter of chapters) {
+    sections.push({
+      kind: 'chapter-heading',
+      chapterId: chapter.chapterId,
+      chapterOrder: chapter.order,
+      chapterTitle: chapter.title,
+      summary: chapter.summary,
+      assembledWordCount: chapter.assembledWordCount,
+      missingDraftCount: chapter.missingDraftCount,
+    })
+
+    const chapterHeading = buildChapterHeadingLabel(locale, chapter.order, chapter.title)
+    markdownLines.push('', `## ${chapterHeading}`)
+    plainTextLines.push('', chapterHeading)
+
+    if (chapter.summary.trim()) {
+      markdownLines.push('', chapter.summary)
+      plainTextLines.push(chapter.summary)
+    }
+
+    for (const section of chapter.sections) {
+      const sceneHeading = buildSceneHeadingLabel(locale, section.order, section.title)
+      const gapReason = section.latestDiffSummary?.trim() || buildMissingDraftCopy(locale)
+      sections.push({
+        kind: section.isMissingDraft ? 'scene-gap' : 'scene-draft',
+        chapterId: chapter.chapterId,
+        chapterOrder: chapter.order,
+        chapterTitle: chapter.title,
+        sceneId: section.sceneId,
+        sceneOrder: section.order,
+        sceneTitle: section.title,
+        sceneSummary: section.summary,
+        proseDraft: section.proseDraft,
+        gapReason: section.isMissingDraft ? gapReason : undefined,
+        draftWordCount: section.draftWordCount,
+        traceReady: section.traceReady,
+      })
+      sourceManifest.push({
+        kind: section.isMissingDraft ? 'scene-gap' : 'scene-draft',
+        chapterId: chapter.chapterId,
+        chapterOrder: chapter.order,
+        chapterTitle: chapter.title,
+        sceneId: section.sceneId,
+        sceneOrder: section.order,
+        sceneTitle: section.title,
+        sourceProposalIds: [],
+        acceptedFactIds: [],
+        traceReady: section.traceReady,
+        draftWordCount: section.draftWordCount,
+        gapReason: section.isMissingDraft ? gapReason : undefined,
+      })
+
+      markdownLines.push('', `### ${sceneHeading}`)
+      plainTextLines.push('', sceneHeading)
+      if (section.isMissingDraft) {
+        markdownLines.push('', `> ${buildManuscriptGapLabel(locale, gapReason)}`)
+        plainTextLines.push(`[${buildManuscriptGapLabel(locale, gapReason)}]`)
+      } else if (section.proseDraft?.trim()) {
+        markdownLines.push('', section.proseDraft)
+        plainTextLines.push(section.proseDraft)
+      }
+    }
+  }
+
+  return {
+    formatVersion: 'book-manuscript-assembly-v1',
+    markdown: markdownLines.join('\n').trim(),
+    plainText: plainTextLines.join('\n').trim(),
+    sections,
+    sourceManifest,
+  }
+}
+
 function buildInspectorSelectedChapter(
   locale: Locale,
   selectedChapter: BookDraftChapterViewModel | null,
@@ -314,6 +509,7 @@ function buildBookDraftWorkspaceFromChapters(input: {
   locale: Locale
   selectedChapterId?: string | null
   chapters: BookDraftChapterViewModel[]
+  readableManuscript?: BookDraftReadableManuscriptViewModel
 }): BookDraftWorkspaceViewModel {
   const { bookId, title, summary, locale, selectedChapterId, chapters } = input
   const selectedChapter = chapters.find((chapter) => chapter.chapterId === selectedChapterId) ?? chapters[0] ?? null
@@ -402,6 +598,12 @@ function buildBookDraftWorkspaceFromChapters(input: {
       },
     },
     dockSummary,
+    readableManuscript: input.readableManuscript ?? buildFallbackReadableManuscript({
+      title,
+      summary,
+      chapters,
+      locale,
+    }),
   }
 }
 
@@ -462,5 +664,6 @@ export function buildBookDraftWorkspaceViewModelFromAssemblyRecord({
     locale,
     selectedChapterId,
     chapters,
+    readableManuscript: mapReadableManuscriptRecord(record.readableManuscript, locale),
   })
 }

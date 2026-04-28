@@ -14,7 +14,14 @@ import type {
   BookStructureWorkspaceViewModel,
 } from '@/features/book/types/book-view-models'
 
-export type BookStoryVariant = 'default' | 'signals-heavy' | 'quiet-book' | 'missing-trace-attention'
+export type BookStoryVariant =
+  | 'default'
+  | 'signals-heavy'
+  | 'quiet-book'
+  | 'missing-trace-attention'
+  | 'manuscript-ready'
+  | 'manuscript-gaps'
+  | 'source-manifest-pressure'
 
 type LocalizedText = {
   en: string
@@ -57,6 +64,18 @@ const variantTitles: Record<BookStoryVariant, LocalizedText> = {
     en: 'Signal Arc Trace Review',
     'zh-CN': '信号弧线溯源复核',
   },
+  'manuscript-ready': {
+    en: 'Signal Arc Manuscript Ready',
+    'zh-CN': '信号弧线整书可读',
+  },
+  'manuscript-gaps': {
+    en: 'Signal Arc Manuscript Gaps',
+    'zh-CN': '信号弧线手稿缺口',
+  },
+  'source-manifest-pressure': {
+    en: 'Signal Arc Source Pressure',
+    'zh-CN': '信号弧线来源压力',
+  },
 }
 
 const variantSummaries: Record<BookStoryVariant, LocalizedText> = {
@@ -76,6 +95,18 @@ const variantSummaries: Record<BookStoryVariant, LocalizedText> = {
     en: 'Focus on the chapters that still need trace rollups before the book can be treated as review-ready.',
     'zh-CN': '把仍然缺少溯源汇总、还不能当作 review-ready 的章节聚焦出来。',
   },
+  'manuscript-ready': {
+    en: 'A steady whole-book manuscript pass with readable prose and source-ready sections.',
+    'zh-CN': '展示整书正文已经连续可读、来源准备完整的稳态轮次。',
+  },
+  'manuscript-gaps': {
+    en: 'Keep missing draft and seam gaps visible without losing the whole-book reading order.',
+    'zh-CN': '在保持整书阅读顺序的同时，把缺稿和接缝缺口直接暴露出来。',
+  },
+  'source-manifest-pressure': {
+    en: 'Highlight source pressure where patch lineage and unresolved gaps still need judgment.',
+    'zh-CN': '把补丁血缘和未解决缺口一起拉到前台，便于做来源判断。',
+  },
 }
 
 function localize(locale: Locale, text: LocalizedText) {
@@ -83,6 +114,16 @@ function localize(locale: Locale, text: LocalizedText) {
 }
 
 function getChapterSeeds(variant: BookStoryVariant): ChapterSeed[] {
+  if (variant === 'manuscript-ready') {
+    return getChapterSeeds('quiet-book')
+  }
+  if (variant === 'manuscript-gaps') {
+    return getChapterSeeds('default')
+  }
+  if (variant === 'source-manifest-pressure') {
+    return getChapterSeeds('missing-trace-attention')
+  }
+
   switch (variant) {
     case 'signals-heavy':
       return [

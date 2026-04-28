@@ -112,6 +112,10 @@ describe('fixture API server PR37 draft assembly regression closure', () => {
         url: '/api/projects/book-signal-arc/scenes/scene-midnight-platform/prose',
       })
       const revisionCandidate = candidateResponse.json().revisionCandidate
+      expect(assemblyWhilePending.readableManuscript.markdown).toContain(proseBeforeRevision.proseDraft)
+      expect(assemblyWhilePending.readableManuscript.markdown).not.toContain(
+        revisionCandidate?.proseBody ?? 'revision-candidate-not-loaded',
+      )
 
       const acceptRevisionResponse = await app.inject({
         method: 'POST',
@@ -134,6 +138,7 @@ describe('fixture API server PR37 draft assembly regression closure', () => {
         },
         latestDiffSummary: 'Compressed repeated witness beats while preserving accepted provenance.',
       })
+      expect(assemblyAfterAccept.readableManuscript.markdown).toContain(revisionCandidate.proseBody)
     })
   })
 

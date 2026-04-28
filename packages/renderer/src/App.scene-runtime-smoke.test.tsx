@@ -262,8 +262,8 @@ describe('App scene runtime smoke', () => {
       ),
     ).toBeInTheDocument()
     const selectedDestination = screen.getByRole('region', { name: 'Selected manuscript destination' })
-    expect(within(selectedDestination).getByText('Keep the chapter order stable, then return here once the scene draft is ready.')).toBeInTheDocument()
-    expect(within(selectedDestination).getByText('Concourse Delay')).toBeInTheDocument()
+    expect(within(selectedDestination).getByText('Signals in Rain')).toBeInTheDocument()
+    expect(within(selectedDestination).getByText('Re-cut the same chapter through order, density, and assembly pressure without leaving the workbench.')).toBeInTheDocument()
     expect(within(screen.getByRole('region', { name: 'Book draft bottom dock' })).getByText('Focused Signals in Rain')).toBeInTheDocument()
   }, 20000)
 

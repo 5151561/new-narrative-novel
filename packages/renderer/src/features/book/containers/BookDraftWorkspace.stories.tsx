@@ -238,6 +238,7 @@ function WorkspacePreview({
         <BookDraftInspectorPane
           bookTitle={workspace.title}
           inspector={workspace.inspector}
+          readableManuscript={workspace.readableManuscript}
           activeDraftView={draftView}
           compare={draftView === 'compare' ? compareData.compare : null}
           branch={draftView === 'branch' ? branchData.branchWorkspace : null}
@@ -332,6 +333,22 @@ export const QuietBookDraft: Story = {
   },
 }
 
+export const ReadManuscriptReady: Story = {
+  args: {
+    draftView: 'read',
+    variant: 'manuscript-ready',
+    selectedChapterId: 'chapter-signals-in-rain',
+  },
+}
+
+export const ReadManuscriptGaps: Story = {
+  args: {
+    draftView: 'read',
+    variant: 'manuscript-gaps',
+    selectedChapterId: 'chapter-open-water-signals',
+  },
+}
+
 export const ExportReviewPacket: Story = {
   args: {
     draftView: 'export',
@@ -381,6 +398,15 @@ export const ExportReady: Story = {
   args: {
     draftView: 'export',
     variant: 'quiet-book',
+    checkpointId: 'checkpoint-book-signal-arc-quiet-pass',
+    exportProfileId: 'export-review-packet',
+  },
+}
+
+export const ExportReadableManuscript: Story = {
+  args: {
+    draftView: 'export',
+    variant: 'manuscript-ready',
     checkpointId: 'checkpoint-book-signal-arc-quiet-pass',
     exportProfileId: 'export-review-packet',
   },

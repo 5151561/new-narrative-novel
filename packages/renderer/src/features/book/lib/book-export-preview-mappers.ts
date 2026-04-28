@@ -3,7 +3,11 @@ import type { Locale } from '@/app/i18n'
 import type { BookExportProfileRecord } from '../api/book-export-profiles'
 import { readLocalizedBookText } from '../api/book-records'
 import type { BookManuscriptCompareChapterViewModel, BookManuscriptCompareWorkspaceViewModel } from '../types/book-compare-view-models'
-import type { BookDraftChapterViewModel, BookDraftWorkspaceViewModel } from '../types/book-draft-view-models'
+import type {
+  BookDraftChapterViewModel,
+  BookDraftReadableManuscriptViewModel,
+  BookDraftWorkspaceViewModel,
+} from '../types/book-draft-view-models'
 import type {
   BookExportChapterPreviewViewModel,
   BookExportPackageSummaryViewModel,
@@ -72,6 +76,135 @@ function buildScenePreview(
     warningsCount: section.warningsCount,
     compareDelta: compareChapter?.scenes.find((scene) => scene.sceneId === section.sceneId)?.delta,
   }))
+}
+
+function buildIncludedSceneIdSet(chapter: BookExportChapterPreviewViewModel) {
+  return new Set(chapter.scenes.filter((scene) => scene.isIncluded).map((scene) => scene.sceneId))
+}
+
+function buildFallbackReadableManuscriptFromDraftWorkspace(
+  workspace: BookDraftWorkspaceViewModel,
+): BookDraftReadableManuscriptViewModel {
+  const sections: BookDraftReadableManuscriptViewModel['sections'] = []
+  const sourceManifest: BookDraftReadableManuscriptViewModel['sourceManifest'] = []
+
+  for (const chapter of workspace.chapters) {
+    sections.push({
+      kind: 'chapter-heading',
+      chapterId: chapter.chapterId,
+      chapterOrder: chapter.order,
+      chapterTitle: chapter.title,
+      summary: chapter.summary,
+      assembledWordCount: chapter.assembledWordCount,
+      missingDraftCount: chapter.missingDraftCount,
+    })
+
+    for (const scene of chapter.sections) {
+      sections.push({
+        kind: scene.isMissingDraft ? 'scene-gap' : 'scene-draft',
+        chapterId: chapter.chapterId,
+        chapterOrder: chapter.order,
+        chapterTitle: chapter.title,
+        sceneId: scene.sceneId,
+        sceneOrder: scene.order,
+        sceneTitle: scene.title,
+        sceneSummary: scene.summary,
+        proseDraft: scene.proseDraft,
+        gapReason: scene.isMissingDraft ? scene.latestDiffSummary : undefined,
+        draftWordCount: scene.draftWordCount,
+        traceReady: scene.traceReady,
+      })
+      sourceManifest.push({
+        kind: scene.isMissingDraft ? 'scene-gap' : 'scene-draft',
+        chapterId: chapter.chapterId,
+        chapterOrder: chapter.order,
+        chapterTitle: chapter.title,
+        sceneId: scene.sceneId,
+        sceneOrder: scene.order,
+        sceneTitle: scene.title,
+        sourceProposalIds: [],
+        acceptedFactIds: [],
+        traceReady: scene.traceReady,
+        draftWordCount: scene.draftWordCount,
+        gapReason: scene.isMissingDraft ? scene.latestDiffSummary : undefined,
+      })
+    }
+  }
+
+  return {
+    formatVersion: 'book-manuscript-assembly-v1',
+    markdown: '',
+    plainText: '',
+    sections,
+    sourceManifest,
+  }
+}
+
+function shouldIncludeManuscriptSection(
+  section: BookDraftReadableManuscriptViewModel['sections'][number],
+  includedChapterById: Map<string, BookExportChapterPreviewViewModel>,
+) {
+  const chapter = includedChapterById.get(section.chapterId)
+  if (!chapter) {
+    return false
+  }
+
+  if (section.kind === 'chapter-heading') {
+    return true
+  }
+
+  const includedSceneIds = buildIncludedSceneIdSet(chapter)
+  if (section.kind === 'scene-draft' || section.kind === 'scene-gap') {
+    return section.sceneId !== undefined && includedSceneIds.has(section.sceneId)
+  }
+
+  return (
+    section.fromSceneId !== undefined &&
+    section.toSceneId !== undefined &&
+    includedSceneIds.has(section.fromSceneId) &&
+    includedSceneIds.has(section.toSceneId)
+  )
+}
+
+function shouldIncludeSourceManifestEntry(
+  entry: BookDraftReadableManuscriptViewModel['sourceManifest'][number],
+  includedChapterById: Map<string, BookExportChapterPreviewViewModel>,
+) {
+  const chapter = includedChapterById.get(entry.chapterId)
+  if (!chapter) {
+    return false
+  }
+
+  const includedSceneIds = buildIncludedSceneIdSet(chapter)
+  if (entry.kind === 'scene-draft' || entry.kind === 'scene-gap') {
+    return entry.sceneId !== undefined && includedSceneIds.has(entry.sceneId)
+  }
+
+  return (
+    entry.fromSceneId !== undefined &&
+    entry.toSceneId !== undefined &&
+    includedSceneIds.has(entry.fromSceneId) &&
+    includedSceneIds.has(entry.toSceneId)
+  )
+}
+
+export function filterReadableManuscriptByIncludedPreview(input: {
+  readableManuscript: BookDraftReadableManuscriptViewModel
+  chapters: BookExportChapterPreviewViewModel[]
+}): BookDraftReadableManuscriptViewModel {
+  const includedChapterById = new Map(
+    input.chapters
+      .filter((chapter) => chapter.isIncluded)
+      .map((chapter) => [chapter.chapterId, chapter] as const),
+  )
+
+  return {
+    ...input.readableManuscript,
+    sections: input.readableManuscript.sections.filter((section) =>
+      shouldIncludeManuscriptSection(section, includedChapterById)),
+    sourceManifest: input.readableManuscript.sourceManifest.filter((entry) =>
+      shouldIncludeSourceManifestEntry(entry, includedChapterById)),
+  }
 }
 
 function getChapterReadinessStatus(
@@ -454,5 +587,11 @@ export function buildBookExportPreviewWorkspace({
     },
     readiness,
     packageSummary: buildPackageSummary(profile, locale, assembledWordCount, includedChapterCount),
+    readableManuscript: filterReadableManuscriptByIncludedPreview({
+      readableManuscript:
+        currentDraftWorkspace.readableManuscript ??
+        buildFallbackReadableManuscriptFromDraftWorkspace(currentDraftWorkspace),
+      chapters,
+    }),
   }
 }

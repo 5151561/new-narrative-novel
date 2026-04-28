@@ -120,6 +120,73 @@ function createExportPreview(readinessBlocker = false): BookExportPreviewWorkspa
       excludedSections: [],
       estimatedPackageLabel: 'Approx. 1 manuscript pages',
     },
+    readableManuscript: {
+      formatVersion: 'book-manuscript-assembly-v1',
+      markdown: [
+        '# Signal Arc',
+        '',
+        'A relay team follows the signal.',
+        '',
+        '## Chapter 1: Open Water Signals',
+        '',
+        'Open water summary.',
+        '',
+        '### Scene 1: Warehouse Bridge',
+        '',
+        'Current warehouse bridge draft.',
+      ].join('\n'),
+      plainText: [
+        'Signal Arc',
+        '',
+        'A relay team follows the signal.',
+        '',
+        'Chapter 1: Open Water Signals',
+        'Open water summary.',
+        '',
+        'Scene 1: Warehouse Bridge',
+        'Current warehouse bridge draft.',
+      ].join('\n'),
+      sections: [
+        {
+          kind: 'chapter-heading',
+          chapterId: 'chapter-open-water-signals',
+          chapterOrder: 1,
+          chapterTitle: 'Open Water Signals',
+          summary: 'Open water summary.',
+          assembledWordCount: 88,
+          missingDraftCount: 0,
+        },
+        {
+          kind: 'scene-draft',
+          chapterId: 'chapter-open-water-signals',
+          chapterOrder: 1,
+          chapterTitle: 'Open Water Signals',
+          sceneId: 'scene-warehouse-bridge',
+          sceneOrder: 1,
+          sceneTitle: 'Warehouse Bridge',
+          sceneSummary: 'Bridge summary.',
+          proseDraft: 'Current warehouse bridge draft.',
+          draftWordCount: 4,
+          traceReady: true,
+        },
+      ],
+      sourceManifest: [
+        {
+          kind: 'scene-draft',
+          chapterId: 'chapter-open-water-signals',
+          chapterOrder: 1,
+          chapterTitle: 'Open Water Signals',
+          sceneId: 'scene-warehouse-bridge',
+          sceneOrder: 1,
+          sceneTitle: 'Warehouse Bridge',
+          sourcePatchId: 'canon-patch-001',
+          sourceProposalIds: ['proposal-001'],
+          acceptedFactIds: ['fact-001'],
+          traceReady: true,
+          draftWordCount: 4,
+        },
+      ],
+    },
   }
 
   preview.selectedChapter = preview.chapters[0]!
@@ -292,6 +359,74 @@ describe('useBuildBookExportArtifactMutation', () => {
       mimeType: 'text/markdown',
       content: expect.stringContaining('# Signal Arc'),
     })
+    expect(getMockBookExportArtifacts({ bookId: 'book-signal-arc' })[0]?.content).toContain('## Source manifest')
+    expect(getMockBookExportArtifacts({ bookId: 'book-signal-arc' })[0]?.content).toContain(
+      '- Chapter 1 / Scene 1 / Warehouse Bridge: scene-draft (patch canon-patch-001)',
+    )
+  })
+
+  it('does not persist excluded readable manuscript content into the built artifact', async () => {
+    resetMockBookExportArtifactDb()
+    const queryClient = createQueryClient()
+    const hook = renderHook(
+      () =>
+        useBuildBookExportArtifactMutation({
+          bookClient: createBookClient(),
+        }),
+      { wrapper: createWrapper(queryClient) },
+    )
+    const exportPreview = createExportPreview()
+    exportPreview.chapters[0]!.scenes.push({
+      sceneId: 'scene-excluded-canal',
+      order: 2,
+      title: 'Excluded Canal',
+      summary: 'Excluded canal summary.',
+      proseDraft: 'Excluded canal draft.',
+      draftWordCount: 3,
+      isIncluded: false,
+      isMissingDraft: false,
+      traceReady: true,
+      warningsCount: 0,
+    })
+    exportPreview.readableManuscript.sections.push({
+      kind: 'scene-draft',
+      chapterId: 'chapter-open-water-signals',
+      chapterOrder: 1,
+      chapterTitle: 'Open Water Signals',
+      sceneId: 'scene-excluded-canal',
+      sceneOrder: 2,
+      sceneTitle: 'Excluded Canal',
+      sceneSummary: 'Excluded canal summary.',
+      proseDraft: 'Excluded canal draft.',
+      draftWordCount: 3,
+      traceReady: true,
+    })
+    exportPreview.readableManuscript.sourceManifest.push({
+      kind: 'scene-draft',
+      chapterId: 'chapter-open-water-signals',
+      chapterOrder: 1,
+      chapterTitle: 'Open Water Signals',
+      sceneId: 'scene-excluded-canal',
+      sceneOrder: 2,
+      sceneTitle: 'Excluded Canal',
+      sourcePatchId: 'canon-patch-excluded',
+      sourceProposalIds: ['proposal-excluded'],
+      acceptedFactIds: ['fact-excluded'],
+      traceReady: true,
+      draftWordCount: 3,
+    })
+
+    await act(async () => {
+      await hook.result.current.mutateAsync({
+        exportPreview,
+        reviewInbox: createReviewInbox(),
+        format: 'markdown',
+      })
+    })
+
+    expect(getMockBookExportArtifacts({ bookId: 'book-signal-arc' })[0]?.content).not.toContain('Excluded Canal')
+    expect(getMockBookExportArtifacts({ bookId: 'book-signal-arc' })[0]?.content).not.toContain('Excluded canal draft.')
+    expect(getMockBookExportArtifacts({ bookId: 'book-signal-arc' })[0]?.sourceSignature).not.toContain('canon-patch-excluded')
   })
 
   it('throws and does not write when the gate is blocked', async () => {
@@ -372,5 +507,33 @@ describe('useBuildBookExportArtifactMutation', () => {
     expect(artifact.mimeType).toBe('text/plain')
     expect(artifact.content).toContain('Signal Arc')
     expect(artifact.content).not.toContain('# Signal Arc')
+  })
+
+  it('keeps chapter summaries and scene headings out of built artifacts when the export profile disables them', async () => {
+    resetMockBookExportArtifactDb()
+    const hook = renderHook(
+      () =>
+        useBuildBookExportArtifactMutation({
+          bookClient: createBookClient(),
+        }),
+      { wrapper: createWrapper(createQueryClient()) },
+    )
+    const exportPreview = createExportPreview()
+    exportPreview.profile.includes.chapterSummaries = false
+    exportPreview.profile.includes.sceneHeadings = false
+
+    await act(async () => {
+      await hook.result.current.mutateAsync({
+        exportPreview,
+        reviewInbox: createReviewInbox(),
+        format: 'markdown',
+      })
+    })
+
+    const content = getMockBookExportArtifacts({ bookId: 'book-signal-arc' })[0]?.content ?? ''
+    expect(content).toContain('## Chapter 1: Open Water Signals')
+    expect(content).not.toContain('Open water summary.')
+    expect(content).not.toContain('### Scene 1: Warehouse Bridge')
+    expect(content).toContain('Current warehouse bridge draft.')
   })
 })
