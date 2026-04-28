@@ -320,6 +320,12 @@ http://127.0.0.1:6006
 
 Storybook 是前端规范层和评审层。涉及前端组件、页面、fixtures 的改动，应同步更新对应 story，并用结构化页面快照验证关键 story。
 
+但 Storybook 不是实际软件验收替身。涉及前端交付时，必须把 `Storybook Sync Gate` 和 `Real Software Acceptance Gate` 拆开执行，且结论分开写。
+
+完整流程见：
+
+- [doc/frontend-delivery-acceptance-flow.md](/Users/changlepan/new-narrative-novel/doc/frontend-delivery-acceptance-flow.md)
+
 ## 常用命令
 
 根脚本当前暴露：
@@ -403,6 +409,7 @@ book-signal-arc
 - [doc/project-positioning-and-design-principles.md](doc/project-positioning-and-design-principles.md)：产品定位与设计原则。
 - [doc/odd-frontend-comprehensive-design.md](doc/odd-frontend-comprehensive-design.md)：Workbench 交互和前端信息架构。
 - [doc/api-contract.md](doc/api-contract.md)：API/runtime 合同。
+- [doc/frontend-delivery-acceptance-flow.md](doc/frontend-delivery-acceptance-flow.md)：前端交付的 Storybook 同步与真实软件验收双 gate 流程。
 - [packages/renderer/README.md](packages/renderer/README.md)：renderer 包、Storybook 与前端交付约定。
 - [doc/BE-PR1-fixture-backed-api-server-skeleton-execution-plan.md](doc/BE-PR1-fixture-backed-api-server-skeleton-execution-plan.md)：fixture API server 基线。
 - [doc/BE-PR2-scene-run-workflow-skeleton-execution-plan.md](doc/BE-PR2-scene-run-workflow-skeleton-execution-plan.md)：scene run workflow skeleton。

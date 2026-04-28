@@ -4,62 +4,56 @@
 
 本文件适用于 `packages/renderer` 目录内的所有 AI / agent / Codex 前端任务。
 
-本包是 React + Vite + Tailwind 的 UI 层。处理本包任务时，优先把 Storybook、stories、fixtures、文档和测试视为事实来源。
+本包是 React + Vite + Tailwind 的 UI 层，承载：
+
+- App / workbench renderer
+- Storybook stories
+- fixtures / mock data
+- UI tests
+- mockup 预览
+
+但它**不是**“只要 Storybook 成立就等于真实软件成立”的区域。
 
 ---
 
 ## 首要原则
 
-1. 先读 story，再读代码。
-2. 先复用现有组件，再考虑新增组件。
-3. 先做静态展示，再接真实业务逻辑。
-4. 页面任务先补 fixture 和 page story。
-5. 截图只能做视觉核对，不能做主要实现依据。
+1. 先读 `doc/frontend-workbench-constitution.md`。
+2. 先看真实产品入口，再看 story。
+3. Storybook 是 contract layer，不是真实软件真相。
+4. 已接入产品路径的 surface，必须区分 `Storybook Sync Gate` 和 `Real Software Acceptance Gate`。
+5. 截图只能做辅助；主证据必须是 MCP 结构化快照。
 
 ---
 
-## 修改代码前先做什么
+## 真实产品入口优先级
 
-### 对组件任务
+开始任何 renderer 任务前，先定位真实路径：
 
-先检查：
+- `src/App.tsx`
+- `src/app/desktop/DesktopAppRoot.tsx`
+- `src/app/providers.tsx`
+- `src/app/project-runtime/**`
+- 受影响 scope / lens 的 container、hook、query、route 文件
 
-- 是否已有相似组件
-- 是否已有相似变体
-- 是否已有 story 可以扩展
+然后再看：
 
-### 对页面任务
+- `src/**/*.stories.tsx`
+- `src/**/*storybook*.tsx`
+- `src/mock/**`
+- `.storybook/**`
 
-先检查：
-
-- 是否已有相似 layout
-- 是否已有页面级 story
-- 是否已有 fixture / preset
-- 是否已有可复用业务组件
-
-### 对 Storybook 相关任务
-
-先检查：
-
-- `.storybook/main.*`
-- `.storybook/preview.*`
-- 全局样式入口
-- decorators
-- stories 扫描路径
+如果真实软件和 story helper 的行为不一致，以真实产品路径和宪法为准。
 
 ---
 
-## 优先搜索的位置
+## 默认不要再做的事
 
-```txt
-src/**/*.stories.tsx
-src/components/**
-src/pages/**
-src/mock/**
-.storybook/**
-```
-
-如有 Storybook MCP，可优先读取相关 story、组件文档和测试上下文；若不可用，则直接在本地代码中查找同名 story。
+- 先读 story，再把 story 当事实来源
+- 先做静态 story，再假定真实软件自然会跟上
+- 只在 story 里复现问题就开始修
+- 只检查 Storybook 结构化快照就宣称前端完成
+- 把 `Storybook pass` 写成 `真实软件 pass`
 
 ---
 
@@ -68,76 +62,92 @@ src/mock/**
 ### 组件类任务
 
 1. 找现有相似组件
-2. 做最小实现
-3. 补 story
-4. 补文档
+2. 找该组件在真实软件里的接入点
+3. 做最小实现
+4. 补或更新 story
 5. 补测试
+6. 如果组件已接入真实软件，做真实软件 spot-check
 
-### 页面类任务
+### Workbench / 页面 / 容器任务
 
-1. 明确目标页面与复用组件
-2. 先补 fixtures
-3. 先补 page story
-4. 让 story 稳定渲染
-5. 再接业务容器
+1. 明确真实入口、runtime mode、route 和 selected object 真源
+2. 先在真实软件或真实测试路径确认目标状态
+3. 先改真实容器 / route / runtime / query wiring
+4. 再同步 story / fixture / story shell
+5. 补测试
+6. 跑 `Storybook Sync Gate`
+7. 跑 `Real Software Acceptance Gate`
 
 ### 修复类任务
 
-1. 先在 story 中复现
-2. 做最小改动修复
-3. 确认没有污染全局样式
-4. 回到 story 重新验证
+1. 先在真实软件、真实测试、或真实 runtime path 复现
+2. 用 story 缩小状态空间，而不是拿 story 代替真实复现
+3. 做最小改动修复
+4. 回到 Storybook 验证受控状态
+5. 回到真实软件确认真实路径
 
 ---
 
-## 允许做的事
+## Storybook 的正确角色
 
-- 扩展现有组件变体
-- 新增必要的业务组件
-- 补齐 stories、fixtures、docs、tests
-- 修复 story 和页面之间的布局漂移
-- 为 mockup 准备稳定 story
+Storybook 负责：
 
----
+- 组件展示
+- workspace surface 状态枚举
+- fixture / empty / error / dense / loading 等稳定预览
+- 评审和 mockup contract
 
-## 默认避免的事
+Storybook 不负责证明：
 
-- 无依据新建平行组件体系
-- 仅依据截图重建 UI
-- 未补 story 就宣称组件完成
-- 直接把真实接口耦合进展示 story
-- 为单页效果污染全局基础样式
-- 无明确必要时大范围重构目录
+- desktop launcher 真可达
+- preload bridge / runtime config 真接通
+- current project / restore 真成立
+- App 入口下的 route / layout / persistence / runtime 无漂移
 
----
-
-## 页面与 mockup 约束
-
-页面应尽量满足：
-
-- 能在 Storybook 中独立展示
-- 使用固定输入
-- 不依赖随机数据
-- 不依赖不可控时间与网络状态
-
-如果任务目标包含 mockup：
-
-- 应先产出稳定 story
-- 再把该 story 作为导出来源
-- 不要把 Storybook 当导出器本身
+如果任务改了真实软件路径，Storybook 必须同步，但 Storybook 不能替代真实软件验收。
 
 ---
 
-## 修改后自检
+## 必做双 gate 的任务
 
-完成修改后，至少检查：
+以下任务默认必须同时做 Storybook 和真实软件验收：
 
-- story 是否可运行
-- 类型是否合理
-- 是否新增了重复组件
-- 是否缺少常见状态
-- 是否引入明显 hardcode
-- 是否破坏全局样式或主题
+- 改 `App`、`DesktopAppRoot`、runtime、launcher、settings
+- 改 WorkbenchShell、navigator、main stage、inspector、bottom dock 联动
+- 改 scope / lens / route / layout restore / selected object restore
+- 改 review / run / prose / chapter / book 的真实工作流
+- 改任何已经接入桌面软件或 API renderer 的 user-facing surface
+
+如果是纯展示组件、mockup-only state、或未接入真实产品路径的 story，可以说明原因后仅做 Storybook gate。
+
+---
+
+## 优先搜索的位置
+
+```txt
+src/App.tsx
+src/app/desktop/**
+src/app/project-runtime/**
+src/features/**/containers/**
+src/features/workbench/**
+src/**/*.stories.tsx
+src/**/*storybook*.tsx
+src/mock/**
+.storybook/**
+```
+
+---
+
+## 修改后必须自检
+
+至少检查：
+
+- 真实入口是否仍成立
+- story 是否与真实 surface 同步
+- route / layout / selection 真源是否清楚
+- 是否新增了第二套状态真源
+- 是否把业务逻辑偷偷留在 story helper 里
+- 是否缺少真实软件验收结论
 
 ---
 
@@ -148,24 +158,33 @@ pnpm --filter @narrative-novel/renderer typecheck
 pnpm --filter @narrative-novel/renderer test
 pnpm --filter @narrative-novel/renderer storybook
 pnpm --filter @narrative-novel/renderer build-storybook
+pnpm dev:desktop
+pnpm dev:api
+pnpm dev:renderer
 ```
 
 若脚本名与仓库实际不一致，以当前仓库脚本为准。
 
 ---
 
-## 输出说明格式
+## 输出要求
 
-结束任务时，说明：
+结束前端任务时，至少拆开写：
 
-1. 改了哪些文件
-2. 每个文件分别解决了什么问题
-3. 复用了哪些现有组件或 story 约束
-4. 补了哪些 story / fixture / test
-5. 还有哪些风险或后续建议
+1. `Storybook Sync Gate`
+2. `Real Software Acceptance Gate`
+3. `Overall Verdict`
+
+如果只做了 Storybook 检查，必须明确写：
+
+- `真实软件未验收`
+
+不能写成：
+
+- `前端已通过`
 
 ---
 
 ## 一句话约束
 
-在这个包里，优先把 Storybook 规范层补完整，再去扩展业务实现。
+在这个包里，**前端改动必须同步 Storybook，但真正的交付结论必须由真实软件验收决定。**

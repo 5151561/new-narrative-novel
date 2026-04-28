@@ -485,6 +485,52 @@ NarrowViewport
 
 如果一个 PR 改变了布局、主舞台、inspector、dock、navigator、review flow、run flow，但没有对应 Storybook 状态，默认不合格。
 
+### 9.4 Storybook 不能替代真实软件验收
+
+Storybook 负责：
+
+- 受控 state 枚举
+- shell / workspace contract review
+- mock / fixture / empty / error / dense 等稳定预览
+
+Storybook 不负责证明：
+
+- desktop launcher 真正可达
+- preload bridge / runtime config 真正接通
+- current project / recent project restore 真正成立
+- App 入口、route restore、layout restore、query wiring 在真实软件里无漂移
+
+如果 PR 触及：
+
+- `App` / `DesktopAppRoot` / `ProjectRuntime` / runtime config / preload bridge
+- launcher / settings / runtime badge / current project / restore
+- WorkbenchShell / navigator / main stage / inspector / bottom dock 的联动
+- 已接入真实软件的 scope / lens / review / run / prose / draft 流程
+
+则必须额外跑真实软件验收。**Storybook 通过不能替代真实软件通过。**
+
+### 9.5 验收结论必须拆开
+
+前端验收至少要拆成：
+
+- `Storybook Sync Gate`
+- `Real Software Acceptance Gate`
+- `Overall Verdict`
+
+允许：
+
+- `Storybook Sync Gate: pass`
+- `Real Software Acceptance Gate: blocked`
+- `Overall Verdict: not passed`
+
+禁止把：
+
+- `Storybook 通过`
+
+直接写成：
+
+- `前端验收通过`
+
 ---
 
 ## 10. 测试必须固定产品心智
