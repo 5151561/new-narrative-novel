@@ -1,5 +1,15 @@
 {
+  "bootstrap": {
+    "source": "signal-arc-demo-template-v1"
+  },
+  "createdAt": "2026-04-28T13:14:43.420Z",
   "projectId": "book-signal-arc",
   "schemaVersion": 1,
-  "title": "new-narrative-novel"
+  "store": {
+    "artifactDir": ".narrative/artifacts",
+    "dataFile": ".narrative/project-store.json",
+    "schemaVersion": 1
+  },
+  "title": "new-narrative-novel",
+  "updatedAt": "2026-04-28T13:14:43.420Z"
 }

@@ -16,5 +16,11 @@
     "build": "pnpm --filter @narrative-novel/renderer build",
     "storybook": "node ./scripts/run-with-cleanup.mjs pnpm --filter @narrative-novel/renderer storybook",
     "verify:prototype": "node ./scripts/verify-prototype.mjs"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
   }
 }
