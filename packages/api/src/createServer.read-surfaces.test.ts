@@ -383,6 +383,7 @@ describe('fixture API server read surfaces', () => {
       configOverrides: {
         currentProject: {
           projectId: 'local-project-alpha',
+          projectMode: 'real-project',
           projectRoot: '/tmp/local-project-alpha',
           projectTitle: 'Local Project Alpha',
         },

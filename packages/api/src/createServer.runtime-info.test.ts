@@ -127,6 +127,7 @@ describe('fixture API server runtime info surfaces', () => {
       configOverrides: {
         currentProject: {
           projectId: 'book-signal-arc',
+          projectMode: 'real-project',
           projectRoot: '/tmp/desktop-local-prototype',
           projectTitle: 'Desktop Local Prototype',
         },
@@ -213,6 +214,7 @@ describe('fixture API server runtime info surfaces', () => {
       configOverrides: {
         currentProject: {
           projectId: 'local-project-alpha',
+          projectMode: 'real-project',
           projectRoot: '/tmp/local-project-alpha',
           projectTitle: 'Local Project Alpha',
         },

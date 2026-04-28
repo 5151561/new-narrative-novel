@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { DESKTOP_API_CHANNELS } from '../shared/desktop-bridge-types.js'
+import type { SelectedProjectSession } from './project-store.js'
 import type { RecentProjectRecord } from './recent-projects.js'
 
 afterEach(() => {
@@ -27,7 +28,7 @@ describe('desktop main bridge registration', () => {
     const exportProjectArchive = vi.fn(async () => ({
       filePath: '/tmp/local-project/.narrative/exports/project-archive-2026-04-28T00-00-00-000Z.json',
     }))
-    let currentProject: typeof selectedProject | null = null
+    let currentProject: SelectedProjectSession | null = null
     const projectStore = {
       createProject: vi.fn(async () => ({
         projectId: 'local-project-created',
@@ -183,7 +184,7 @@ describe('desktop main bridge registration', () => {
         projectTitle: string
         runtimeMode: 'desktop-local'
       } | undefined,
-      status: 'stopped' as const | 'ready',
+      status: 'stopped' as 'stopped' | 'ready',
     }
     const readyLocalApiSnapshot = {
       lastError: undefined,

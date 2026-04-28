@@ -63,6 +63,7 @@ describe('fixture API server selected local project store', () => {
       configOverrides: {
         currentProject: {
           projectId: 'local-project-alpha',
+          projectMode: 'real-project',
           projectRoot: '/tmp/local-project-alpha',
           projectTitle: 'Local Project Alpha',
         },
@@ -97,6 +98,7 @@ describe('fixture API server selected local project store', () => {
       expect(currentProjectResponse.statusCode).toBe(200)
       expect(currentProjectResponse.json()).toEqual({
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectTitle: 'Local Project Alpha',
       })
 
@@ -240,6 +242,7 @@ describe('fixture API server selected local project store', () => {
       expect(currentProjectAfterReset.statusCode).toBe(200)
       expect(currentProjectAfterReset.json()).toEqual({
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectTitle: 'Local Project Alpha',
       })
 

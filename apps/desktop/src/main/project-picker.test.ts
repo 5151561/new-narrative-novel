@@ -247,6 +247,7 @@ describe('createProjectWithDialog', () => {
     }))
     const readProjectSession = vi.fn(async (selectedRoot: string) => ({
       projectId: 'local-project-created',
+      projectMode: 'real-project' as const,
       projectRoot: selectedRoot,
       projectTitle: 'Created Through Dialog',
     }))
@@ -260,6 +261,7 @@ describe('createProjectWithDialog', () => {
 
     expect(session).toEqual({
       projectId: 'local-project-created',
+      projectMode: 'real-project',
       projectRoot,
       projectTitle: 'Created Through Dialog',
     })

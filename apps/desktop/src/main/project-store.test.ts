@@ -169,7 +169,7 @@ describe('ProjectStore', () => {
       openProjectWithDialog: vi.fn(),
       readExistingProjectSession: vi.fn(async () => ({
         ...demoProject,
-        projectMode: 'real-project',
+        projectMode: 'real-project' as const,
       })),
       readOrInitializeProjectSession: vi.fn(),
       readOrCreateDemoProjectSession: vi.fn(async () => demoProject),
@@ -203,11 +203,11 @@ describe('ProjectStore', () => {
       openProjectWithDialog: vi.fn(),
       readExistingProjectSession: vi.fn(async () => ({
         ...demoProject,
-        projectMode: 'real-project',
+        projectMode: 'real-project' as const,
       })),
       readOrInitializeProjectSession: vi.fn(async () => ({
         ...demoProject,
-        projectMode: 'real-project',
+        projectMode: 'real-project' as const,
       })),
       readOrCreateDemoProjectSession: vi.fn(async () => demoProject),
     }

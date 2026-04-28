@@ -32,6 +32,8 @@ export interface ApiServerConfig {
   modelBindings?: ModelBindings
 }
 
+type CurrentProjectConfig = NonNullable<ApiServerConfig['currentProject']>
+
 function readPort(name: string, fallback: number) {
   const value = process.env[name]
   if (!value) {
@@ -68,7 +70,7 @@ function readOptionalTrimmedEnv(name: string) {
   return value ? value : undefined
 }
 
-function readCurrentProject() {
+function readCurrentProject(): CurrentProjectConfig | undefined {
   const projectRoot = readOptionalTrimmedEnv('NARRATIVE_PROJECT_ROOT')
   const projectId = readOptionalTrimmedEnv('NARRATIVE_PROJECT_ID')
   const projectMode = readOptionalTrimmedEnv('NARRATIVE_PROJECT_MODE')
@@ -82,9 +84,11 @@ function readCurrentProject() {
     throw new Error('NARRATIVE_PROJECT_MODE must be one of: demo-fixture, real-project')
   }
 
+  const resolvedProjectMode: CurrentProjectConfig['projectMode'] = projectMode ?? 'real-project'
+
   return {
     projectId,
-    projectMode: projectMode ?? 'real-project',
+    projectMode: resolvedProjectMode,
     projectRoot,
     projectTitle,
   }

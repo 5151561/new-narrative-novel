@@ -14,30 +14,56 @@
 
 ## 当前状态
 
-截至 2026-04-27，仓库由四个主要 workspace 包组成：
+截至 2026-04-28，仓库由四个主要 workspace 包组成：
 
 - `@narrative-novel/fixture-seed`：canonical prototype seed，统一维护 book / chapter / scene 稳定身份、canonical 顺序，以及 canonical scene 与 `mockOnlyPreviewSceneIds` 的区分。
 - `@narrative-novel/renderer`：React + Vite + Tailwind 的 workbench 前端、Storybook、mock runtime、UI/feature tests。
-- `@narrative-novel/api`：Fastify fixture-backed API server，兑现 `/api/projects/{projectId}/...` 合同，支持 read/write/run/artifact/trace 的产品级接口骨架。
-- `@narrative-novel/desktop`：Electron workbench shell，承载现有 renderer，并在桌面模式下托管本地 fixture API；不选择项目目录、不接 worker。
+- `@narrative-novel/api`：Fastify API server，兑现 `/api/projects/{projectId}/...` 合同，当前既承载 fixture demo，也承载 desktop-local 的真实项目状态落盘与 real-model 调用入口。
+- `@narrative-novel/desktop`：Electron workbench shell，负责项目选择、桌面本地 API 托管、模型设置桥接，以及把当前 project identity 注入 renderer。
 
 当前最准确的理解是：
 
-**这是一个以 renderer / Storybook 为主要评审面、以 fixture API server 验证真实 HTTP runtime 合同的叙事工作台原型。**
+**这是一个已经能跑“首轮真实生成”闭环的 Narrative IDE / Workbench 原型，但 demo path、real-model dogfood path、以及 Storybook/test mock path 仍然共存在同一代码库中。**
 
-已经落地的主线包括：
+### 现在有哪三条体验路径
+
+#### 1. Fixture demo path
+
+用于演示和稳定回归，不依赖真实模型密钥。
+
+- 入口可以是 web API demo，也可以是 desktop 里的 `Open Demo Project`。
+- 固定 project id 是 `book-signal-arc`。
+- 默认验证 route 仍是 `/workbench?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution`。
+- 目标是稳定演示 `run -> review -> prose -> chapter draft -> book draft -> restart/continue` 的工作台闭环，而不是证明真实模型质量。
+
+#### 2. Real model dogfood path
+
+用于真实用户首跑和继续使用。
+
+- 入口是 desktop：启动应用后选择 `Create Real Project` 或 `Open Existing Project`。
+- 通过 `Model Settings` 配置 OpenAI API key、为各角色选择 provider/model，并执行 `Test Connection`。
+- 之后在 Scene Workbench 中执行真实 `Run Scene`，完成 review，再生成 prose，并继续读 Chapter / Book draft。
+- 重启后应继续回到最近项目，而不是回落为 fixture-only demo 心智。
+
+#### 3. Mock / Storybook / test path
+
+用于前端开发、Storybook 预览和自动化测试。
+
+- 未配置 API runtime 时，renderer 会保持 `mock-storybook` fallback。
+- 这条路径服务于 UI 迭代与规范验证，不代表真实 dogfood 环境。
+
+### 已落地的主线能力
 
 - 四个 workbench scope：`scene`、`chapter`、`asset`、`book`。
 - route-first 的 scope/lens/view 状态管理，深链以 `/workbench?...` 查询参数承载。
 - `ProjectRuntime` 前端 client/provider 边界，产品路径收敛到 `createApiProjectRuntime -> /api/projects/...`。
-- `@narrative-novel/fixture-seed` 是 usable prototype path 的 canonical truth source；renderer navigator 与 API chapter/book read model 都应对齐它，而不是依赖 renderer-local mock truth。
-- `mockOnlyPreviewSceneIds` 只允许留在 preview / Storybook / test-only coverage；它们不属于 canonical prototype path，也不能进入 canonical chapter ordering、navigator 或 live assembly。
-- mock runtime 仍用于 Storybook、测试、演示；不再被描述为产品持久化终态。
+- `@narrative-novel/fixture-seed` 是 fixture demo path 的 canonical truth source；renderer navigator 与 API chapter/book read model 需要对齐它，而不是依赖 renderer-local mock truth。
+- `mockOnlyPreviewSceneIds` 只允许留在 preview / Storybook / test-only coverage；它们不属于 canonical demo path，也不能进入 canonical chapter ordering、navigator 或 live assembly。
 - project-level runtime health 边界：`GET /api/projects/{projectId}/runtime-info`。
 - Scene / Orchestrate 的 run 纵切：start run、polling events、waiting review、submit review decision、刷新 scene/chapter read model。
 - Run artifact / trace read surfaces：事件只携带轻量 `refs`，大 payload 通过 artifact/trace 读取。
 - Asset Context Policy / Context Activation Trace 基础：Asset / Knowledge 可以只读展示资产进入上下文的规则；context-packet artifact detail 可以解释某次 run included / excluded / redacted 了哪些 asset context。
-- Scene prose generation 纵切：`accept` / `accept-with-edit` 后，fixture API 从 prose-draft artifact detail materialize scene prose read model，并保留 proposal variant -> canon patch -> prose draft 的 trace。
+- Scene prose generation 纵切：`accept` / `accept-with-edit` 后，API 从 prose-draft artifact detail materialize scene prose read model，并保留 proposal variant -> canon patch -> prose draft 的 trace。
 
 ## 产品模型
 
@@ -159,7 +185,11 @@ constraint -> proposal -> review -> accepted canon -> prose
 pnpm install
 ```
 
-### 启动 fixture API server
+### Fixture demo path
+
+如果你想先跑稳定演示，而不是直接 dogfood 真实模型，优先走这条路径。
+
+#### 启动 fixture API server
 
 ```bash
 pnpm dev:api
@@ -171,7 +201,7 @@ pnpm dev:api
 http://127.0.0.1:4174
 ```
 
-### 配置 renderer 使用 API runtime
+#### 配置 renderer 使用 API runtime
 
 `packages/renderer/.env.example` 提供最小联调变量：
 
@@ -180,31 +210,7 @@ VITE_NARRATIVE_API_BASE_URL=http://localhost:4174
 VITE_NARRATIVE_PROJECT_ID=book-signal-arc
 ```
 
-不配置 `VITE_NARRATIVE_API_BASE_URL` 时，renderer 使用 mock runtime，适合 Storybook、测试和静态演示。
-
-当前仓库刻意保留三类前端 runtime mode：
-
-- `web/mock`：浏览器环境且未配置 `VITE_NARRATIVE_API_BASE_URL`，renderer 保持 mock runtime fallback。
-- `web/api`：浏览器环境且配置 `VITE_NARRATIVE_API_BASE_URL`，renderer 直接消费 `/api/projects/{projectId}/...`。
-- `desktop-local`：Electron preload 通过 `window.narrativeDesktop.getRuntimeConfig()` 注入 `{ runtimeMode, apiBaseUrl, projectId, projectTitle? }`；renderer 用这份 current-project identity 构建 API runtime，header status 只窄展示当前项目身份与健康态，不把项目身份写进 workbench route。
-
-usable prototype demo 的精确启动/演示步骤见：
-
-- [doc/usable-prototype-demo-script.md](/Users/changlepan/new-narrative-novel/doc/usable-prototype-demo-script.md)
-
-如果你要跑 API-backed demo，请直接使用默认验证路由：
-
-```txt
-/workbench?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution
-```
-
-如果顶栏 runtime badge 变成 degraded：
-
-- `Unavailable`：web 路径重启 `pnpm dev:api`；desktop 路径重启 `pnpm dev:desktop`；然后点 `Retry`。
-- `Not found`：确认 `VITE_NARRATIVE_PROJECT_ID=book-signal-arc`，或确认 desktop-local 仍指向 seeded fixture project。
-- 未配置 `VITE_NARRATIVE_API_BASE_URL` 的普通 web 环境会继续保持 mock fallback；这不是 API-backed demo drift，而是当前刻意保留的 fallback 行为。
-
-### 启动 renderer
+#### 启动 renderer
 
 ```bash
 pnpm dev:renderer
@@ -216,11 +222,21 @@ pnpm dev:renderer
 pnpm --filter @narrative-novel/renderer dev --host 127.0.0.1 --port 4173
 ```
 
-### 启动 desktop shell
+Fixture demo 详细步骤见：
 
-Desktop shell 会加载现有 Web Workbench，并自动启动本地 `@narrative-novel/api` fixture server。renderer 仍保持 Web-first，业务流量继续通过 HTTP API contract；桌面端只通过 `window.narrativeDesktop` 暴露 runtime config、local API status / restart / log buffer 等窄桥接能力。
+- [doc/usable-prototype-demo-script.md](/Users/changlepan/new-narrative-novel/doc/usable-prototype-demo-script.md)
 
-默认工作流：
+打开默认验证 route：
+
+```txt
+/workbench?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution
+```
+
+### Real model dogfood path
+
+如果你想验证“真实用户第一次启动并完成一次生成”，优先走 desktop。
+
+#### 启动 desktop shell
 
 ```bash
 pnpm dev:desktop
@@ -234,6 +250,26 @@ pnpm dev:desktop
 - 由 Electron main 自动拉起本地 `@narrative-novel/api`
 
 不需要再手动运行 `pnpm dev:api`。Electron main 会选择可用端口，启动 `packages/api`，并把 `http://127.0.0.1:<port>/api` 连同当前 project identity 作为 `desktop-local` runtime config 提供给 renderer。
+
+#### 在桌面里完成真实首跑
+
+核心顺序是：
+
+1. 启动 desktop。
+2. 选择 `Open Demo Project`、`Create Real Project` 或 `Open Existing Project`。
+3. 如果是 dogfood 真实模型，打开 `Model Settings`。
+4. 保存 OpenAI API key。
+5. 为 `planner`、`sceneProseWriter`、`sceneRevision` 等角色选择 `openai` provider 和对应 model。
+6. 点击 `Test Connection`，确认连接成功。
+7. 进入 Scene Workbench，执行 `Run Scene`。
+8. 完成 review，并继续生成 prose、查看 Chapter Draft、Book Draft。
+9. 重启应用，确认可以继续最近项目。
+
+完整操作脚本见：
+
+- [doc/usable-prototype-demo-script.md](/Users/changlepan/new-narrative-novel/doc/usable-prototype-demo-script.md)
+
+#### Live renderer dev server 模式
 
 如果要显式切到 live renderer dev server 模式，再启动：
 
@@ -252,6 +288,21 @@ NARRATIVE_DESKTOP_LIVE_RENDERER=1 NARRATIVE_RENDERER_DEV_URL=http://127.0.0.1:51
 ```bash
 NARRATIVE_DESKTOP_LIVE_RENDERER=1 NARRATIVE_DESKTOP_REUSE_RENDERER=1 NARRATIVE_RENDERER_DEV_URL=http://127.0.0.1:5173 pnpm dev:desktop
 ```
+
+### Runtime modes 和恢复说明
+
+当前仓库刻意保留三类前端 runtime mode：
+
+- `web/mock`：浏览器环境且未配置 `VITE_NARRATIVE_API_BASE_URL`，renderer 保持 mock runtime fallback。
+- `web/api`：浏览器环境且配置 `VITE_NARRATIVE_API_BASE_URL`，renderer 直接消费 `/api/projects/{projectId}/...`。
+- `desktop-local`：Electron preload 通过 `window.narrativeDesktop.getRuntimeConfig()` 注入 `{ runtimeMode, apiBaseUrl, projectId, projectMode, projectTitle? }`；renderer 用这份 current-project identity 构建 API runtime，header status 只窄展示当前项目身份与健康态，不把项目身份写进 workbench route。
+
+如果顶栏 runtime badge 变成 degraded：
+
+- `Unavailable`：web 路径重启 `pnpm dev:api`；desktop 路径重启 `pnpm dev:desktop`；然后点 `Retry`。
+- `Not found`：确认 `VITE_NARRATIVE_PROJECT_ID=book-signal-arc`，或确认 desktop-local 仍指向 seeded fixture project。
+- `Unauthorized` / `Forbidden`：当前 workbench 会保留上下文，但 auth recovery 不是这一阶段的闭环。
+- 未配置 `VITE_NARRATIVE_API_BASE_URL` 的普通 web 环境会继续保持 mock fallback；这不是 real-model dogfood path。
 
 生产加载路径使用 `packages/renderer/dist/index.html` 或打包后的等价 renderer 资源。当前 desktop 包新增依赖后需要重新执行 `pnpm install` 才会写入 lockfile 并安装 Electron。
 
@@ -359,13 +410,14 @@ book-signal-arc
 - [doc/PR25-backend-orchestration-integration-ui-execution-plan.md](doc/PR25-backend-orchestration-integration-ui-execution-plan.md)：Scene / Orchestrate 接入真实 HTTP run runtime。
 - [doc/PR26-run-artifact-trace-inspector-execution-plan.md](doc/PR26-run-artifact-trace-inspector-execution-plan.md)：renderer artifact inspector / trace panel 接入。
 
-## 当前边界
+## Known limitations
 
 不要把当前仓库误读为已经完成的生产后端或全功能小说编辑器：
 
-- fixture API server 是合同验证和前后端联调骨架，不是真实持久化后端。
-- mock runtime 是 Storybook、测试和演示 fallback，不是产品数据来源终态。
+- fixture API server 仍承担合同验证和 demo 职责；它不是最终的生产持久化后端。
+- real-model dogfood path 已存在，但模型调用、错误恢复和体验文案仍处于原型阶段，不代表 production-ready productization。
+- mock runtime 仍用于 Storybook、测试和静态预览，不是产品数据来源终态。
 - `events/stream` 尚未开放，当前运行事件消费方式是 REST polling/page contract。
 - run artifact / trace 是产品 read surface，不是 raw workflow history、Temporal history 或 LLM token stream。
 - Asset context policy / activation trace 是 read-only 解释层，不是 prompt editor、RAG、policy mutation 或真实 LLM context builder。
-- 目前的重点仍是把 scope/lens/workbench/runtime/API 合同跑稳，再继续扩真实后端、auth、SSE、持久化和更深的编排引擎。
+- 当前重点仍是把首轮真实生成、最近项目恢复、scope/lens/workbench/runtime/API 合同继续跑稳，再扩真实后端、auth、SSE、持久化和更深的编排引擎。

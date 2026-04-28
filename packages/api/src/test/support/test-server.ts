@@ -21,6 +21,8 @@ interface CreateTestServerOptions {
   sceneProseWriterGatewayDependencies?: CreateServerOptions['sceneProseWriterGatewayDependencies']
 }
 
+type CurrentProjectConfig = NonNullable<ApiServerConfig['currentProject']>
+
 function createIsolatedProjectStateFilePath() {
   const directory = mkdtempSync(path.join(tmpdir(), 'narrative-api-test-'))
 
@@ -34,9 +36,10 @@ export function createTestServer(options: CreateTestServerOptions = {}) {
   const explicitStoreFilePath = options.projectStoreFilePath ?? options.projectStateFilePath
   const isolatedState = explicitStoreFilePath ? null : createIsolatedProjectStateFilePath()
   const projectStoreFilePath = explicitStoreFilePath ?? isolatedState!.filePath
-  const defaultCurrentProject = explicitStoreFilePath && !options.configOverrides?.currentProject
+  const defaultCurrentProject: CurrentProjectConfig | undefined = explicitStoreFilePath && !options.configOverrides?.currentProject
     ? {
       projectId: 'book-signal-arc',
+      projectMode: 'demo-fixture',
       projectRoot: '/tmp/narrative-api-test-project',
       projectTitle: 'Signal Arc',
     }

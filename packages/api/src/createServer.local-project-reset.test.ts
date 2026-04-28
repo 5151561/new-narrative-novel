@@ -31,6 +31,7 @@ describe('fixture API server selected local project reset', () => {
       configOverrides: {
         currentProject: {
           projectId: 'local-project-alpha',
+          projectMode: 'real-project',
           projectRoot: '/tmp/local-project-alpha',
           projectTitle: 'Local Project Alpha',
         },

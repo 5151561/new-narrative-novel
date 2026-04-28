@@ -51,7 +51,19 @@ export interface RunModelConnectionTestOptions extends Pick<ApiServerConfig, 'mo
   client?: ModelConnectionTestClientLike
 }
 
-const connectionTestSchema = {
+type ConnectionTestSchema = {
+  type: 'object'
+  additionalProperties: false
+  required: ['ok']
+  properties: {
+    ok: {
+      type: 'string'
+      enum: ['yes']
+    }
+  }
+}
+
+const connectionTestSchema: ConnectionTestSchema = {
   type: 'object',
   additionalProperties: false,
   required: ['ok'],
@@ -61,7 +73,7 @@ const connectionTestSchema = {
       enum: ['yes'],
     },
   },
-} as const
+}
 
 export async function runModelConnectionTest(
   options: RunModelConnectionTestOptions,
