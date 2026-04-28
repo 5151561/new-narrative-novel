@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { app, BrowserWindow, ipcMain } from 'electron'
 
 import { setApplicationMenu } from './app-menu.js'
@@ -8,6 +10,10 @@ import { ModelBindingStore } from './model-binding-store.js'
 import { ProjectStore } from './project-store.js'
 import { resolveWorkspaceRoot } from './runtime-config.js'
 import { createWorkerSupervisor, type WorkerSupervisor } from './worker-supervisor.js'
+import {
+  createProjectBackup,
+  exportProjectArchive,
+} from '../../../../packages/api/src/repositories/project-backup.js'
 import {
   DESKTOP_API_CHANNELS,
   type CurrentProjectSnapshot,
@@ -218,6 +224,31 @@ async function restartLocalApiForProjectSelection(): Promise<void> {
   await localApiSupervisor.restart()
 }
 
+function requireCurrentProjectSession(activeProjectStore: ProjectStore) {
+  const currentProject = activeProjectStore.getCurrentProject()
+  if (!currentProject) {
+    throw new Error('A selected desktop project is required for this action.')
+  }
+
+  return currentProject
+}
+
+async function createManualProjectBackup(activeProjectStore: ProjectStore): Promise<void> {
+  const currentProject = requireCurrentProjectSession(activeProjectStore)
+  await createProjectBackup({
+    projectRoot: currentProject.projectRoot,
+    storeFilePath: path.join(currentProject.projectRoot, '.narrative', 'project-store.json'),
+  })
+}
+
+async function exportManualProjectArchive(activeProjectStore: ProjectStore): Promise<void> {
+  const currentProject = requireCurrentProjectSession(activeProjectStore)
+  await exportProjectArchive({
+    projectRoot: currentProject.projectRoot,
+    storeFilePath: path.join(currentProject.projectRoot, '.narrative', 'project-store.json'),
+  })
+}
+
 function refreshApplicationMenu(): void {
   const activeProjectStore = ensureProjectStore()
 
@@ -257,6 +288,14 @@ function refreshApplicationMenu(): void {
 
   setApplicationMenu({
     isDev,
+    onCreateProject: () => runProjectMenuAction(async () => {
+      const selectedProject = await activeProjectStore.createProject()
+      if (!selectedProject) {
+        return
+      }
+
+      await restartLocalApiForProjectSelection()
+    }),
     onOpenProject: () => runProjectMenuAction(async () => {
       const selectedProject = await activeProjectStore.openProject()
       if (!selectedProject) {
@@ -269,6 +308,12 @@ function refreshApplicationMenu(): void {
       await activeProjectStore.selectProjectRoot(projectRoot)
       await restartLocalApiForProjectSelection()
     }, { invalidProjectRoot: projectRoot }),
+    onCreateProjectBackup: () => runProjectMenuAction(async () => {
+      await createManualProjectBackup(activeProjectStore)
+    }),
+    onExportProjectArchive: () => runProjectMenuAction(async () => {
+      await exportManualProjectArchive(activeProjectStore)
+    }),
     recentProjects: activeProjectStore.getRecentProjects(),
   })
 }

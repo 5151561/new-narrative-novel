@@ -13,7 +13,18 @@ describe('desktop main bridge registration', () => {
     const ipcHandle = vi.fn()
     const appOn = vi.fn()
     const setApplicationMenu = vi.fn()
+    const createProjectBackup = vi.fn(async () => ({
+      filePath: '/tmp/local-project/.narrative/backups/project-backup-2026-04-28T00-00-00-000Z.json',
+    }))
+    const exportProjectArchive = vi.fn(async () => ({
+      filePath: '/tmp/local-project/.narrative/exports/project-archive-2026-04-28T00-00-00-000Z.json',
+    }))
     const projectStore = {
+      createProject: vi.fn(async () => ({
+        projectId: 'local-project-created',
+        projectRoot: '/tmp/project-created',
+        projectTitle: 'Created Project',
+      })),
       forgetProjectRoot: vi.fn(async () => []),
       getCurrentProject: vi.fn(() => ({
         projectId: 'local-project-alpha',
@@ -178,6 +189,10 @@ describe('desktop main bridge registration', () => {
     vi.doMock('./model-binding-store.js', () => ({
       ModelBindingStore: vi.fn(() => modelBindingStore),
     }))
+    vi.doMock('../../../../packages/api/src/repositories/project-backup.js', () => ({
+      createProjectBackup,
+      exportProjectArchive,
+    }))
     vi.doMock('./runtime-config.js', () => ({
       resolveWorkspaceRoot: vi.fn(() => '/tmp/local-project'),
     }))
@@ -188,8 +203,11 @@ describe('desktop main bridge registration', () => {
     await import('./main.js')
 
     const initialMenuOptions = setApplicationMenu.mock.calls.at(-1)?.[0] as {
+      onCreateProject?: () => Promise<void>
       onOpenProject?: () => Promise<void>
       onOpenRecentProject?: (projectRoot: string) => Promise<void>
+      onCreateProjectBackup?: () => Promise<void>
+      onExportProjectArchive?: () => Promise<void>
     } | undefined
 
     const registrations = new Map(
@@ -296,20 +314,43 @@ describe('desktop main bridge registration', () => {
 
     expect(workerSupervisor.stop).toHaveBeenCalledTimes(1)
 
-    projectStore.openProject.mockRejectedValueOnce(new Error('dialog failed'))
-    await expect(initialMenuOptions?.onOpenProject?.()).resolves.toBeUndefined()
-    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(3)
+    expect(initialMenuOptions?.onCreateProject).toBeTypeOf('function')
+    await expect(initialMenuOptions!.onCreateProject!()).resolves.toBeUndefined()
+    expect(projectStore.createProject).toHaveBeenCalledTimes(1)
+    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(4)
     expect(setApplicationMenu).toHaveBeenCalledTimes(2)
 
-    projectStore.selectProjectRoot.mockRejectedValueOnce(new Error('project missing'))
-    await expect(initialMenuOptions?.onOpenRecentProject?.('/tmp/local-project')).resolves.toBeUndefined()
-    expect(projectStore.forgetProjectRoot).toHaveBeenCalledWith('/tmp/local-project')
+    projectStore.openProject.mockRejectedValueOnce(new Error('dialog failed'))
+    expect(initialMenuOptions?.onOpenProject).toBeTypeOf('function')
+    await expect(initialMenuOptions!.onOpenProject!()).resolves.toBeUndefined()
+    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(4)
     expect(setApplicationMenu).toHaveBeenCalledTimes(3)
+
+    projectStore.selectProjectRoot.mockRejectedValueOnce(new Error('project missing'))
+    expect(initialMenuOptions?.onOpenRecentProject).toBeTypeOf('function')
+    await expect(initialMenuOptions!.onOpenRecentProject!('/tmp/local-project')).resolves.toBeUndefined()
+    expect(projectStore.forgetProjectRoot).toHaveBeenCalledWith('/tmp/local-project')
+    expect(setApplicationMenu).toHaveBeenCalledTimes(4)
 
     projectStore.selectProjectRoot.mockRejectedValueOnce(new Error('project missing again'))
     projectStore.forgetProjectRoot.mockRejectedValueOnce(new Error('cleanup failed'))
-    await expect(initialMenuOptions?.onOpenRecentProject?.('/tmp/local-project')).resolves.toBeUndefined()
+    await expect(initialMenuOptions!.onOpenRecentProject!('/tmp/local-project')).resolves.toBeUndefined()
     expect(projectStore.forgetProjectRoot).toHaveBeenCalledWith('/tmp/local-project')
-    expect(setApplicationMenu).toHaveBeenCalledTimes(4)
+    expect(setApplicationMenu).toHaveBeenCalledTimes(5)
+
+    expect(initialMenuOptions?.onCreateProjectBackup).toBeTypeOf('function')
+    await expect(initialMenuOptions!.onCreateProjectBackup!()).resolves.toBeUndefined()
+    expect(createProjectBackup).toHaveBeenCalledWith({
+      projectRoot: '/tmp/local-project',
+      storeFilePath: '/tmp/local-project/.narrative/project-store.json',
+    })
+
+    expect(initialMenuOptions?.onExportProjectArchive).toBeTypeOf('function')
+    await expect(initialMenuOptions!.onExportProjectArchive!()).resolves.toBeUndefined()
+    expect(exportProjectArchive).toHaveBeenCalledWith({
+      projectRoot: '/tmp/local-project',
+      storeFilePath: '/tmp/local-project/.narrative/project-store.json',
+    })
+    expect(setApplicationMenu).toHaveBeenCalledTimes(7)
   })
 })
