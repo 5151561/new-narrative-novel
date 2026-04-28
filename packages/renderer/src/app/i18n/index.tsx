@@ -449,7 +449,9 @@ const dictionaries = {
       assetGroups: {
         characters: 'Characters',
         locations: 'Locations',
-        rules: 'Rules',
+        organizations: 'Organizations',
+        objects: 'Objects',
+        lore: 'Lore',
       },
       assetProfileEyebrow: 'Typed profile',
       assetMentions: 'Mentions',
@@ -587,7 +589,9 @@ const dictionaries = {
       assetGroups: {
         characters: '角色',
         locations: '地点',
-        rules: '规则',
+        organizations: '组织',
+        objects: '物件',
+        lore: 'Lore',
       },
       assetProfileEyebrow: '类型化资料',
       assetMentions: '提及',
@@ -756,7 +760,10 @@ export function getAssetKnowledgeViewLabel(locale: Locale, view: AssetKnowledgeV
   return assetKnowledgeViewLabels[locale][view]
 }
 
-export function getAssetKindLabel(locale: Locale, kind: 'character' | 'location' | 'rule') {
+export function getAssetKindLabel(
+  locale: Locale,
+  kind: 'character' | 'location' | 'organization' | 'object' | 'lore',
+) {
   if (kind === 'character') {
     return locale === 'zh-CN' ? '角色' : 'Character'
   }
@@ -765,7 +772,15 @@ export function getAssetKindLabel(locale: Locale, kind: 'character' | 'location'
     return locale === 'zh-CN' ? '地点' : 'Location'
   }
 
-  return locale === 'zh-CN' ? '规则' : 'Rule'
+  if (kind === 'organization') {
+    return locale === 'zh-CN' ? '组织' : 'Organization'
+  }
+
+  if (kind === 'object') {
+    return locale === 'zh-CN' ? '物件' : 'Object'
+  }
+
+  return locale === 'zh-CN' ? 'Lore' : 'Lore'
 }
 
 export function getSceneTabLabel(locale: Locale, tab: SceneTab) {

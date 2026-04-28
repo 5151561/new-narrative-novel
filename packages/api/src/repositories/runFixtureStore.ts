@@ -1,4 +1,5 @@
 import type {
+  CancelRunInput,
   RunArtifactDetailRecord,
   RunArtifactSummaryRecord,
   RunEventRecord,
@@ -10,6 +11,8 @@ import type {
   RunTraceLinkRecord,
   RunTraceNodeRecord,
   RunTraceResponse,
+  ResumeRunInput,
+  RetryRunInput,
   StartSceneRunInput,
   SubmitRunReviewDecisionInput,
 } from '../contracts/api-records.js'
@@ -46,7 +49,11 @@ import {
   createProseDraftArtifact,
 } from '../orchestration/sceneRun/sceneRunArtifacts.js'
 import { buildRunId } from '../orchestration/sceneRun/sceneRunIds.js'
-import { applySceneRunReviewDecisionTransition } from '../orchestration/sceneRun/sceneRunTransitions.js'
+import {
+  applySceneRunReviewDecisionTransition,
+  createCancelSceneRunTransition,
+  createRetryScheduledSceneRunTransition,
+} from '../orchestration/sceneRun/sceneRunTransitions.js'
 import type { SceneRunArtifactRecord } from '../orchestration/sceneRun/sceneRunRecords.js'
 import {
   buildAcceptedRunTrace,
@@ -242,6 +249,7 @@ function toArtifactSummary(detail: RunArtifactDetailRecord): RunArtifactSummaryR
     statusLabel: detail.statusLabel,
     createdAtLabel: detail.createdAtLabel,
     sourceEventIds: [...detail.sourceEventIds],
+    ...(detail.usage ? { usage: detail.usage } : {}),
   }
 }
 
@@ -357,14 +365,14 @@ function indexRunReadSurfaces(state: RunState) {
   }
 
   const proseDraftArtifact = state.artifacts.find((artifact) => artifact.kind === 'prose-draft')
-  const proseDraftDetail = proseDraftArtifact && canonPatchDetail
+  const proseDraftDetail = proseDraftArtifact
     ? buildProseDraftDetail({
         artifact: proseDraftArtifact,
         sourceEventIds: collectArtifactSourceEventIds(state.events, proseDraftArtifact),
-        sourceCanonPatchId: canonPatchDetail.id,
+        sourceCanonPatchId: canonPatchDetail?.id,
         contextPacketId: contextPacketDetail?.id,
-        sourceProposalIds: canonPatchDetail.acceptedProposalIds,
-        selectedVariants: canonPatchDetail.selectedVariants,
+        sourceProposalIds: canonPatchDetail?.acceptedProposalIds,
+        selectedVariants: canonPatchDetail?.selectedVariants,
       })
     : undefined
 
@@ -522,6 +530,9 @@ export interface RunFixtureStore {
   exportProjectState(projectId: string): PersistedRunStore | undefined
   hydrateProjectState(projectId: string, snapshot: PersistedRunStore): void
   startSceneRun(projectId: string, input: StartSceneRunInput): Promise<RunRecord>
+  retryRun(projectId: string, input: RetryRunInput): Promise<RunRecord>
+  cancelRun(projectId: string, input: CancelRunInput): Promise<RunRecord>
+  resumeRun(projectId: string, input: ResumeRunInput): Promise<RunRecord>
   getRun(projectId: string, runId: string): RunRecord | null
   getRunEvents(projectId: string, input: { runId: string; cursor?: string }): RunEventsPageRecord
   streamRunEvents(projectId: string, input: { runId: string; cursor?: string; signal?: AbortSignal }): AsyncIterable<RunEventsPageRecord>
@@ -705,6 +716,18 @@ export function createRunFixtureStore(options: {
 
   function isAcceptedReviewDecision(decision: RunReviewDecisionKind) {
     return decision === 'accept' || decision === 'accept-with-edit'
+  }
+
+  function publishRunEvents(projectId: string, runId: string, events: RunEventRecord[]) {
+    if (runEventStreamEnabled && events.length > 0) {
+      runEventStreamBroker.publish(toRunStreamKey(projectId, runId), clone(events))
+    }
+  }
+
+  function completeRunStream(projectId: string, runId: string) {
+    if (runEventStreamEnabled) {
+      runEventStreamBroker.complete(toRunStreamKey(projectId, runId))
+    }
   }
 
   function createSceneProseWriterRequest(
@@ -938,9 +961,159 @@ export function createRunFixtureStore(options: {
         }),
       )
       storeRunState(projectId, state)
-      if (runEventStreamEnabled) {
-        runEventStreamBroker.publish(toRunStreamKey(projectId, workflow.run.id), clone(workflow.events))
+      publishRunEvents(projectId, workflow.run.id, workflow.events)
+      return clone(workflow.run)
+    },
+    async retryRun(projectId, input) {
+      const state = requireRunState(projectId, input.runId)
+      const sequenceBucket = getSequenceBucket(projectId, true)
+      const nextSequence = (sequenceBucket?.get(state.run.scopeId) ?? state.sequence) + 1
+      sequenceBucket!.set(state.run.scopeId, nextSequence)
+      const contextPacket = buildPersistedContextPacket({
+        projectId,
+        sceneId: state.run.scopeId,
+        sequence: nextSequence,
+      })
+      const plannerResult = await scenePlannerGateway.generate(createScenePlannerRequest({
+        sceneId: state.run.scopeId,
+        mode: input.mode,
+      }, contextPacket))
+      const workflow = startSceneRunWorkflow({
+        sceneId: state.run.scopeId,
+        mode: input.mode,
+        sequence: nextSequence,
+        plannerOutput: plannerResult.output,
+        plannerProvenance: plannerResult.provenance,
+        contextPacket,
+        retryOfRunId: state.run.id,
+      }, {
+        buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
+      })
+      const transition = createRetryScheduledSceneRunTransition({
+        runId: state.run.id,
+        priorEventCount: state.events.length,
+        nextRunId: workflow.run.id,
+        mode: input.mode,
+      }, {
+        buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
+      })
+
+      state.events.push(...clone(transition.appendedEvents))
+      state.run.latestEventId = state.events.at(-1)?.id
+      state.run.eventCount = state.events.length
+      indexRunReadSurfaces(state)
+      publishRunEvents(projectId, state.run.id, transition.appendedEvents)
+
+      const nextState = createRunState(
+        nextSequence,
+        workflow.run,
+        workflow.events,
+        workflow.artifacts.map((artifact) => artifact.kind === 'context-packet'
+          ? createContextPacketArtifact({
+              runId: workflow.run.id,
+              sceneId: state.run.scopeId,
+              sequence: nextSequence,
+              contextPacket,
+            })
+          : artifact),
+      )
+      storeRunState(projectId, nextState)
+      publishRunEvents(projectId, workflow.run.id, workflow.events)
+      return clone(workflow.run)
+    },
+    async cancelRun(projectId, input) {
+      const state = requireRunState(projectId, input.runId)
+      if (state.run.status !== 'queued' && state.run.status !== 'running' && state.run.status !== 'waiting_review') {
+        throw conflict(`Run ${input.runId} cannot be cancelled from status ${state.run.status}.`, {
+          code: 'RUN_CANCEL_CONFLICT',
+          detail: {
+            projectId,
+            runId: input.runId,
+            status: state.run.status,
+          },
+        })
       }
+
+      const transition = createCancelSceneRunTransition({
+        runId: input.runId,
+        priorEventCount: state.events.length,
+        reason: input.reason,
+      }, {
+        buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
+      })
+      state.events.push(...clone(transition.appendedEvents))
+      state.run.status = transition.nextRun.status
+      state.run.summary = transition.nextRun.summary
+      state.run.completedAtLabel = transition.nextRun.completedAtLabel
+      state.run.pendingReviewId = undefined
+      state.run.latestEventId = state.events.at(-1)?.id
+      state.run.eventCount = state.events.length
+      state.run.cancelRequestedAtLabel = transition.nextRun.cancelRequestedAtLabel
+      state.run.failureClass = transition.nextRun.failureClass
+      state.run.failureMessage = transition.nextRun.failureMessage
+      state.run.resumableFromEventId = transition.nextRun.resumableFromEventId
+      indexRunReadSurfaces(state)
+      publishRunEvents(projectId, input.runId, transition.appendedEvents)
+      completeRunStream(projectId, input.runId)
+      return clone(state.run)
+    },
+    async resumeRun(projectId, input) {
+      const state = requireRunState(projectId, input.runId)
+      if (state.run.status !== 'failed' || !state.run.resumableFromEventId) {
+        throw conflict(`Run ${input.runId} cannot be resumed.`, {
+          code: 'RUN_RESUME_CONFLICT',
+          detail: {
+            projectId,
+            runId: input.runId,
+            status: state.run.status,
+            resumableFromEventId: state.run.resumableFromEventId,
+          },
+        })
+      }
+
+      const sequenceBucket = getSequenceBucket(projectId, true)
+      const nextSequence = (sequenceBucket?.get(state.run.scopeId) ?? state.sequence) + 1
+      sequenceBucket!.set(state.run.scopeId, nextSequence)
+      const contextPacket = buildPersistedContextPacket({
+        projectId,
+        sceneId: state.run.scopeId,
+        sequence: nextSequence,
+      })
+      const plannerResult = await scenePlannerGateway.generate(createScenePlannerRequest({
+        sceneId: state.run.scopeId,
+        mode: 'continue',
+        note: `Resume from ${state.run.resumableFromEventId}`,
+      }, contextPacket))
+      const workflow = startSceneRunWorkflow({
+        sceneId: state.run.scopeId,
+        mode: 'continue',
+        note: `Resume from ${state.run.resumableFromEventId}`,
+        sequence: nextSequence,
+        plannerOutput: plannerResult.output,
+        plannerProvenance: plannerResult.provenance,
+        contextPacket,
+        retryOfRunId: state.run.id,
+        resumableFromEventId: state.run.resumableFromEventId,
+        resumeSourceRunId: state.run.id,
+      }, {
+        buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
+      })
+
+      const nextState = createRunState(
+        nextSequence,
+        workflow.run,
+        workflow.events,
+        workflow.artifacts.map((artifact) => artifact.kind === 'context-packet'
+          ? createContextPacketArtifact({
+              runId: workflow.run.id,
+              sceneId: state.run.scopeId,
+              sequence: nextSequence,
+              contextPacket,
+            })
+          : artifact),
+      )
+      storeRunState(projectId, nextState)
+      publishRunEvents(projectId, workflow.run.id, workflow.events)
       return clone(workflow.run)
     },
     getRun(projectId, runId) {
@@ -1015,6 +1188,9 @@ export function createRunFixtureStore(options: {
         runId,
         nodes: [...state.traceNodesById.values()],
         links: [...state.traceLinksById.values()],
+        ...(state.run.status === 'failed' && state.traceNodesById.size > 0 && state.traceSummary.canonPatchCount === 0 && state.traceSummary.proseDraftCount === 0
+          ? { isPartialFailure: true }
+          : {}),
         summary: state.traceSummary,
       })
     },
@@ -1089,11 +1265,9 @@ export function createRunFixtureStore(options: {
       state.latestReviewDecision = input.decision
       state.selectedVariants = cloneSelectedVariants(input.selectedVariants)
       indexRunReadSurfaces(state)
-      if (runEventStreamEnabled) {
-        runEventStreamBroker.publish(toRunStreamKey(projectId, input.runId), clone(transition.appendedEvents))
-        if (isTerminalRunStatus(state.run.status)) {
-          runEventStreamBroker.complete(toRunStreamKey(projectId, input.runId))
-        }
+      publishRunEvents(projectId, input.runId, transition.appendedEvents)
+      if (isTerminalRunStatus(state.run.status)) {
+        completeRunStream(projectId, input.runId)
       }
 
       return clone(state.run)

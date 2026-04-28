@@ -2,6 +2,10 @@ import type { BookLocalizedText } from './book-records'
 
 export type BookExperimentBranchStatus = 'active' | 'review' | 'archived'
 
+export type BookExperimentBranchAdoptionKind = 'canon_patch' | 'prose_draft'
+
+export type BookExperimentBranchAdoptionStatus = 'pending' | 'adopted' | 'blocked'
+
 export interface BookExperimentBranchSceneRecord {
   sceneId: string
   title: BookLocalizedText
@@ -20,6 +24,19 @@ export interface BookExperimentBranchChapterRecord {
   sceneSnapshots: BookExperimentBranchSceneRecord[]
 }
 
+export interface BookExperimentBranchAdoptionRecord {
+  adoptionId: string
+  branchId: string
+  bookId: string
+  chapterId: string
+  sceneId: string
+  kind: BookExperimentBranchAdoptionKind
+  status: BookExperimentBranchAdoptionStatus
+  summary: BookLocalizedText
+  createdAtLabel: BookLocalizedText
+  sourceSignature: string
+}
+
 export interface BookExperimentBranchRecord {
   branchId: string
   bookId: string
@@ -27,9 +44,40 @@ export interface BookExperimentBranchRecord {
   summary: BookLocalizedText
   rationale: BookLocalizedText
   createdAtLabel: BookLocalizedText
+  createdFromRunId?: string
+  sourceSignature: string
   basedOnCheckpointId?: string
+  selectedChapterId: string
   status: BookExperimentBranchStatus
+  archivedAtLabel?: BookLocalizedText
+  archiveNote?: BookLocalizedText
+  adoptions?: BookExperimentBranchAdoptionRecord[]
   chapterSnapshots: BookExperimentBranchChapterRecord[]
+}
+
+export interface CreateBookExperimentBranchInput {
+  bookId: string
+  title: string
+  summary: string
+  rationale: string
+  basedOnCheckpointId?: string
+  selectedChapterId: string
+}
+
+export interface ArchiveBookExperimentBranchInput {
+  bookId: string
+  branchId: string
+  archiveNote: string
+}
+
+export interface CreateBookExperimentBranchAdoptionInput {
+  bookId: string
+  branchId: string
+  chapterId: string
+  sceneId: string
+  kind: BookExperimentBranchAdoptionKind
+  summary: string
+  sourceSignature: string
 }
 
 function text(en: string, zhCN: string): BookLocalizedText {
@@ -58,7 +106,9 @@ export const mockBookExperimentBranchSeeds: Record<string, BookExperimentBranchR
         '测试一个低冲突收束版本，让站台与水域段落更早放下压力。',
       ),
       createdAtLabel: text('Prepared for quiet-ending review', '为静默收束审阅准备'),
+      sourceSignature: 'checkpoint:checkpoint-book-signal-arc-pr11-baseline',
       basedOnCheckpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      selectedChapterId: 'chapter-open-water-signals',
       status: 'review',
       chapterSnapshots: [
         {
@@ -176,7 +226,9 @@ export const mockBookExperimentBranchSeeds: Record<string, BookExperimentBranchR
         '压测一个更激进的分支，加入新的升级节拍、警告增长，以及一个刻意留空的场景。',
       ),
       createdAtLabel: text('Prepared for escalation review', '为高压升级审阅准备'),
+      sourceSignature: 'checkpoint:checkpoint-book-signal-arc-pr11-baseline',
       basedOnCheckpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      selectedChapterId: 'chapter-signals-in-rain',
       status: 'active',
       chapterSnapshots: [
         {
@@ -296,12 +348,67 @@ export const mockBookExperimentBranchSeeds: Record<string, BookExperimentBranchR
   ],
 }
 
+const mockBookExperimentBranchStore = clone(mockBookExperimentBranchSeeds)
+
+function createMirroredText(value: string): BookLocalizedText {
+  return text(value, value)
+}
+
 export function getMockBookExperimentBranches(bookId: string): BookExperimentBranchRecord[] {
-  return clone(mockBookExperimentBranchSeeds[bookId] ?? [])
+  return clone(mockBookExperimentBranchStore[bookId] ?? [])
 }
 
 export function getMockBookExperimentBranch(bookId: string, branchId: string): BookExperimentBranchRecord | null {
-  const records = mockBookExperimentBranchSeeds[bookId] ?? []
+  const records = mockBookExperimentBranchStore[bookId] ?? []
   const record = records.find((item) => item.branchId === branchId)
   return record ? clone(record) : null
+}
+
+export function createMockBookExperimentBranch(
+  input: CreateBookExperimentBranchInput &
+    Pick<BookExperimentBranchRecord, 'chapterSnapshots'> & { sourceSignature: string; createdFromRunId?: string },
+): BookExperimentBranchRecord {
+  const branches = mockBookExperimentBranchStore[input.bookId] ?? []
+  const record: BookExperimentBranchRecord = {
+    branchId: `branch-${input.bookId}-${String(branches.length + 1).padStart(3, '0')}`,
+    bookId: input.bookId,
+    title: createMirroredText(input.title),
+    summary: createMirroredText(input.summary),
+    rationale: createMirroredText(input.rationale),
+    createdAtLabel: createMirroredText('2026-04-28 10:10'),
+    createdFromRunId: input.createdFromRunId,
+    sourceSignature: input.sourceSignature,
+    basedOnCheckpointId: input.basedOnCheckpointId,
+    selectedChapterId: input.selectedChapterId,
+    status: 'review',
+    chapterSnapshots: clone(input.chapterSnapshots),
+  }
+
+  mockBookExperimentBranchStore[input.bookId] = [...branches, record]
+  return clone(record)
+}
+
+export function archiveMockBookExperimentBranch(input: ArchiveBookExperimentBranchInput): BookExperimentBranchRecord {
+  const branches = mockBookExperimentBranchStore[input.bookId] ?? []
+  const branchIndex = branches.findIndex((item) => item.branchId === input.branchId)
+  if (branchIndex < 0) {
+    throw new Error(`Book experiment branch ${input.branchId} could not be found for "${input.bookId}".`)
+  }
+
+  const updated: BookExperimentBranchRecord = {
+    ...branches[branchIndex]!,
+    status: 'archived',
+    archivedAtLabel: createMirroredText('2026-04-28 10:12'),
+    archiveNote: createMirroredText(input.archiveNote),
+  }
+
+  mockBookExperimentBranchStore[input.bookId] = branches.map((branch, index) => (index === branchIndex ? updated : branch))
+  return clone(updated)
+}
+
+export function resetMockBookExperimentBranchStore() {
+  for (const key of Object.keys(mockBookExperimentBranchStore)) {
+    delete mockBookExperimentBranchStore[key]
+  }
+  Object.assign(mockBookExperimentBranchStore, clone(mockBookExperimentBranchSeeds))
 }

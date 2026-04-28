@@ -51,6 +51,9 @@ export function useSetReviewIssueFixActionMutation({
       targetScope,
       status,
       note,
+      rewriteRequestNote,
+      rewriteTargetSceneId,
+      rewriteRequestId,
     }) =>
       effectiveClient.setReviewIssueFixAction({
         bookId,
@@ -61,6 +64,9 @@ export function useSetReviewIssueFixActionMutation({
         targetScope,
         status,
         note,
+        rewriteRequestNote,
+        rewriteTargetSceneId,
+        rewriteRequestId,
       }),
     onMutate: async ({
       issueId,
@@ -70,6 +76,9 @@ export function useSetReviewIssueFixActionMutation({
       targetScope,
       status,
       note,
+      rewriteRequestNote,
+      rewriteTargetSceneId,
+      rewriteRequestId,
     }) => {
       await queryClient.cancelQueries({ queryKey })
 
@@ -87,6 +96,9 @@ export function useSetReviewIssueFixActionMutation({
         targetScope,
         status,
         note: note?.trim() ? note.trim() : undefined,
+        rewriteRequestNote: rewriteRequestNote?.trim() ? rewriteRequestNote.trim() : undefined,
+        rewriteTargetSceneId: rewriteTargetSceneId?.trim() ? rewriteTargetSceneId.trim() : undefined,
+        rewriteRequestId: rewriteRequestId?.trim() ? rewriteRequestId.trim() : undefined,
         startedAtLabel: previousRecord?.startedAtLabel ?? 'Saving fix action',
         updatedAtLabel: 'Saving fix action',
         updatedByLabel: 'Narrative editor',

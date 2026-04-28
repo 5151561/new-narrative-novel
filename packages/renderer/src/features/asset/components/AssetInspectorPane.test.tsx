@@ -10,8 +10,12 @@ describe('AssetInspectorPane', () => {
     const inspector = {
       kindLabel: 'Character',
       summary: 'Courier-side negotiator who keeps the ledger closed while trying to buy time in public.',
+      visibilityLabel: 'Character-known',
       mentionCount: 3,
       relationCount: 3,
+      canonFactCount: 2,
+      privateFactCount: 1,
+      timelineEntryCount: 2,
       warnings: ['Public witness pressure can flip Ren’s leverage into liability if the ledger slips open.'],
       notes: ['Keep Ren’s refusal legible before any exit bell cue lands.'],
       isOrphan: false,
@@ -43,6 +47,7 @@ describe('AssetInspectorPane', () => {
     expect(consistencySection).not.toBeNull()
     expect(within(summarySection!).getByText('Ren Voss')).toBeInTheDocument()
     expect(within(summarySection!).getAllByText('Character').length).toBeGreaterThan(0)
+    expect(within(summarySection!).getByText('Character-known')).toBeInTheDocument()
     expect(within(consistencySection!).getByText('Public witness pressure can flip Ren’s leverage into liability if the ledger slips open.')).toBeInTheDocument()
     expect(within(consistencySection!).getByText('Canon-backed mentions')).toBeInTheDocument()
     expect(within(consistencySection!).getByText('Draft-context mentions')).toBeInTheDocument()
@@ -64,8 +69,12 @@ describe('AssetInspectorPane', () => {
           inspector={{
             kindLabel: 'Character',
             summary: 'Courier-side negotiator who keeps the ledger closed while trying to buy time in public.',
+            visibilityLabel: 'Character-known',
             mentionCount: 3,
             relationCount: 3,
+            canonFactCount: 1,
+            privateFactCount: 0,
+            timelineEntryCount: 1,
             warnings: [],
             notes: ['Keep Ren’s refusal legible before any exit bell cue lands.'],
             isOrphan: false,

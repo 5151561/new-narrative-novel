@@ -893,6 +893,37 @@ async function handleFakeApiRequest<TResponse, TBody>(
     ) as TResponse
   }
 
+  const runRetryMatch = path.match(new RegExp(`${projectBasePattern}/runs/([^/]+)/retry$`))
+  if (method === 'POST' && runRetryMatch) {
+    const retryBody = body as { mode?: 'continue' | 'rewrite' | 'from-scratch' }
+    return cloneFakeApiResponse(
+      await mockRuntime.runClient.retryRun({
+        runId: decodeSegment(runRetryMatch[1]!),
+        mode: retryBody.mode,
+      }),
+    ) as TResponse
+  }
+
+  const runCancelMatch = path.match(new RegExp(`${projectBasePattern}/runs/([^/]+)/cancel$`))
+  if (method === 'POST' && runCancelMatch) {
+    const cancelBody = body as { reason?: string }
+    return cloneFakeApiResponse(
+      await mockRuntime.runClient.cancelRun({
+        runId: decodeSegment(runCancelMatch[1]!),
+        reason: cancelBody.reason,
+      }),
+    ) as TResponse
+  }
+
+  const runResumeMatch = path.match(new RegExp(`${projectBasePattern}/runs/([^/]+)/resume$`))
+  if (method === 'POST' && runResumeMatch) {
+    return cloneFakeApiResponse(
+      await mockRuntime.runClient.resumeRun({
+        runId: decodeSegment(runResumeMatch[1]!),
+      }),
+    ) as TResponse
+  }
+
   const runReviewDecisionsMatch = path.match(new RegExp(`${projectBasePattern}/runs/([^/]+)/review-decisions$`))
   if (method === 'POST' && runReviewDecisionsMatch) {
     const reviewBody = body as {

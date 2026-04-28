@@ -31,6 +31,37 @@ export interface AssetProfileViewModel {
   sections: AssetProfileSectionViewModel[]
 }
 
+export interface AssetStoryBibleSourceRefViewModel {
+  id: string
+  kind: 'scene' | 'chapter' | 'asset' | 'note'
+  label: string
+}
+
+export interface AssetStoryBibleFactViewModel {
+  id: string
+  label: string
+  value: string
+  visibilityLabel: string
+  sourceRefs: AssetStoryBibleSourceRefViewModel[]
+  lastReviewedAtLabel: string
+}
+
+export interface AssetStateTimelineEntryViewModel {
+  id: string
+  label: string
+  summary: string
+  sceneId: string
+  chapterId: string
+  statusLabel: string
+  sourceRefs: AssetStoryBibleSourceRefViewModel[]
+}
+
+export interface AssetStoryBibleViewModel {
+  canonFacts: AssetStoryBibleFactViewModel[]
+  privateFacts: AssetStoryBibleFactViewModel[]
+  stateTimeline: AssetStateTimelineEntryViewModel[]
+}
+
 export interface AssetTraceabilityStatusViewModel {
   state: 'ready' | 'loading' | 'unavailable'
   title: string
@@ -98,8 +129,27 @@ export interface AssetRelationViewModel {
   targetAssetId: string
   targetTitle: string
   targetKind: AssetKind
+  targetKindLabel: string
+  relationshipScopeLabel: string
+  reciprocalStatusLabel: string
+  narrativeBackingStatusLabel?: string
+  hasReciprocalRelation: boolean
+  hasNarrativeBacking?: boolean
   relationLabel: string
   summary: string
+}
+
+export interface AssetContextParticipationSummaryViewModel {
+  id: string
+  label: string
+  summary: string
+  visibilityLabel: string
+  budgetLabel: string
+  targetAgentLabel: string
+  visibleFacts: string[]
+  redactedFacts: string[]
+  excludedFactCount: number
+  guardrailLabel?: string
 }
 
 export interface AssetContextActivationRuleViewModel {
@@ -127,6 +177,7 @@ export interface AssetContextPolicyViewModel {
   defaultVisibilityLabel: string
   defaultBudgetLabel: string
   activationRules: AssetContextActivationRuleViewModel[]
+  participation: AssetContextParticipationSummaryViewModel[]
   exclusions: AssetContextPolicyNoteViewModel[]
   warnings: string[]
 }
@@ -143,8 +194,12 @@ export interface AssetContextPolicySummaryViewModel {
 export interface AssetInspectorViewModel {
   kindLabel: string
   summary: string
+  visibilityLabel: string
   mentionCount: number
   relationCount: number
+  canonFactCount: number
+  privateFactCount: number
+  timelineEntryCount: number
   warnings: string[]
   notes: string[]
   isOrphan: boolean
@@ -168,6 +223,7 @@ export interface AssetDockSummaryViewModel {
   missingFieldCount: number
   relationCount: number
   mentionCount: number
+  timelineEntryCount: number
   isOrphan: boolean
   mentionsWithoutCanonBackingCount?: number
   mentionsWithMissingSceneTraceCount?: number
@@ -192,12 +248,15 @@ export interface AssetKnowledgeWorkspaceViewModel {
   navigator: {
     characters: AssetNavigatorItemViewModel[]
     locations: AssetNavigatorItemViewModel[]
-    rules: AssetNavigatorItemViewModel[]
+    organizations: AssetNavigatorItemViewModel[]
+    objects: AssetNavigatorItemViewModel[]
+    lore: AssetNavigatorItemViewModel[]
   }
   viewsMeta: {
     availableViews: AssetKnowledgeView[]
   }
   profile: AssetProfileViewModel
+  storyBible: AssetStoryBibleViewModel
   mentions: AssetMentionViewModel[]
   relations: AssetRelationViewModel[]
   contextPolicy: AssetContextPolicyViewModel

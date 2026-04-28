@@ -2,9 +2,16 @@ import type { AssetClient } from '@/features/asset/api/asset-client'
 import type { BookClient } from '@/features/book/api/book-client'
 import type { BookDraftAssemblyRecord } from '@/features/book/api/book-draft-assembly-records'
 import type { BookExportArtifactRecord, BuildBookExportArtifactInput } from '@/features/book/api/book-export-artifact-records'
-import type { BookExperimentBranchRecord } from '@/features/book/api/book-experiment-branches'
+import type {
+  ArchiveBookExperimentBranchInput,
+  BookExperimentBranchRecord,
+  CreateBookExperimentBranchInput,
+} from '@/features/book/api/book-experiment-branches'
 import type { BookExportProfileRecord } from '@/features/book/api/book-export-profiles'
-import type { BookManuscriptCheckpointRecord } from '@/features/book/api/book-manuscript-checkpoints'
+import type {
+  BookManuscriptCheckpointRecord,
+  CreateBookManuscriptCheckpointInput,
+} from '@/features/book/api/book-manuscript-checkpoints'
 import type { BookStructureRecord } from '@/features/book/api/book-records'
 import type { ChapterDraftAssemblyRecord } from '@/features/chapter/api/chapter-draft-assembly-records'
 import type {
@@ -26,7 +33,15 @@ import type { ReviewIssueDecisionRecord } from '@/features/review/api/review-dec
 import type { ReviewIssueFixActionRecord } from '@/features/review/api/review-fix-action-records'
 import type { RunClient } from '@/features/run/api/run-client'
 import type { RunArtifactDetailResponse, RunArtifactListResponse } from '@/features/run/api/run-artifact-records'
-import type { RunEventsPageRecord, RunRecord, StartSceneRunInput, SubmitRunReviewDecisionInput } from '@/features/run/api/run-records'
+import type {
+  CancelRunInput,
+  ResumeRunInput,
+  RetryRunInput,
+  RunEventsPageRecord,
+  RunRecord,
+  StartSceneRunInput,
+  SubmitRunReviewDecisionInput,
+} from '@/features/run/api/run-records'
 import type { RunTraceResponse } from '@/features/run/api/run-trace-records'
 import type { SceneClient } from '@/features/scene/api/scene-client'
 import type {
@@ -82,6 +97,13 @@ function createBookClient(projectId: string, transport: ApiTransport): BookClien
         path: apiRouteContract.bookManuscriptCheckpoint({ projectId, bookId, checkpointId }),
       })
     },
+    async createBookManuscriptCheckpoint(input: CreateBookManuscriptCheckpointInput) {
+      return transport.requestJson<BookManuscriptCheckpointRecord, CreateBookManuscriptCheckpointInput>({
+        method: 'POST',
+        path: apiRouteContract.bookManuscriptCheckpoints({ projectId, bookId: input.bookId }),
+        body: input,
+      })
+    },
     async getBookExportProfiles({ bookId }) {
       return transport.requestJson<BookExportProfileRecord[]>({
         method: 'GET',
@@ -121,6 +143,20 @@ function createBookClient(projectId: string, transport: ApiTransport): BookClien
       return transport.requestJson<BookExperimentBranchRecord | null>({
         method: 'GET',
         path: apiRouteContract.bookExperimentBranch({ projectId, bookId, branchId }),
+      })
+    },
+    async createBookExperimentBranch(input: CreateBookExperimentBranchInput) {
+      return transport.requestJson<BookExperimentBranchRecord, CreateBookExperimentBranchInput>({
+        method: 'POST',
+        path: apiRouteContract.bookExperimentBranches({ projectId, bookId: input.bookId }),
+        body: input,
+      })
+    },
+    async archiveBookExperimentBranch(input: ArchiveBookExperimentBranchInput) {
+      return transport.requestJson<BookExperimentBranchRecord, ArchiveBookExperimentBranchInput>({
+        method: 'POST',
+        path: apiRouteContract.bookExperimentBranchArchive({ projectId, bookId: input.bookId, branchId: input.branchId }),
+        body: input,
       })
     },
   }
@@ -454,6 +490,31 @@ export function createRunClient(projectId: string, transport: ApiTransport): Run
           mode: input.mode,
           note: input.note,
         },
+      })
+    },
+    async retryRun(input) {
+      return transport.requestJson<RunRecord, Omit<RetryRunInput, 'runId'>>({
+        method: 'POST',
+        path: apiRouteContract.runRetry({ projectId, runId: input.runId }),
+        body: {
+          mode: input.mode,
+        },
+      })
+    },
+    async cancelRun(input) {
+      return transport.requestJson<RunRecord, Omit<CancelRunInput, 'runId'>>({
+        method: 'POST',
+        path: apiRouteContract.runCancel({ projectId, runId: input.runId }),
+        body: {
+          reason: input.reason,
+        },
+      })
+    },
+    async resumeRun(input) {
+      return transport.requestJson<RunRecord, Omit<ResumeRunInput, 'runId'>>({
+        method: 'POST',
+        path: apiRouteContract.runResume({ projectId, runId: input.runId }),
+        body: {},
       })
     },
     async getRun({ runId }) {

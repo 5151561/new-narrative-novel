@@ -1428,7 +1428,7 @@ describe('BookDraftWorkspace', () => {
       expect(within(detail!).getAllByText('Fix started').length).toBeGreaterThan(0)
     })
 
-    await user.click(screen.getByRole('button', { name: 'Mark source checked' }))
+    await user.click(screen.getByRole('button', { name: 'Mark fix checked' }))
 
     await waitFor(() => {
       detail = screen.getByRole('heading', { name: 'Scene proposal needs review' }).closest('section')
@@ -1469,10 +1469,10 @@ describe('BookDraftWorkspace', () => {
     window.history.back()
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Mark blocked' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Block fix' })).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole('button', { name: 'Mark blocked' }))
+    await user.click(screen.getByRole('button', { name: 'Block fix' }))
 
     let detail = screen.getByRole('heading', { name: 'Scene proposal needs review' }).closest('section')
     expect(detail).not.toBeNull()
@@ -1582,6 +1582,104 @@ describe('BookDraftWorkspace', () => {
     const detail = screen.getByRole('heading', { name: 'Scene proposal needs review' }).closest('section')
     expect(detail).not.toBeNull()
     expect(within(detail!).queryByText('Fix started')).not.toBeInTheDocument()
+  })
+
+  it('passes rewrite metadata through the real workspace mutation path', async () => {
+    const user = userEvent.setup()
+    const baseReviewClient = createReviewClient()
+    const setReviewIssueFixActionSpy = vi.fn(baseReviewClient.setReviewIssueFixAction)
+    const runtime = createMockProjectRuntime({
+      reviewClient: {
+        ...baseReviewClient,
+        setReviewIssueFixAction: setReviewIssueFixActionSpy,
+      },
+      persistence: createNoopPersistence(),
+    })
+    const InjectedProviders = createInjectedProviders(runtime)
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=scene-proposals&reviewStatusFilter=open&reviewIssueId=scene-proposal-seed-scene-5&selectedChapterId=chapter-open-water-signals',
+    )
+
+    render(
+      <InjectedProviders>
+        <BookRouteHarness />
+      </InjectedProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+
+    await user.type(screen.getByRole('textbox', { name: 'Source fix note' }), 'Please rewrite this scene.')
+    await user.click(screen.getByRole('button', { name: 'Create rewrite request' }))
+
+    await waitFor(() => {
+      expect(setReviewIssueFixActionSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bookId: 'book-signal-arc',
+          issueId: 'scene-proposal-seed-scene-5',
+          sourceHandoffLabel: 'Open scene proposal',
+          targetScope: 'scene',
+          status: 'rewrite_requested',
+          note: 'Please rewrite this scene.',
+          rewriteRequestNote: 'Please rewrite this scene.',
+          rewriteTargetSceneId: 'scene-5',
+          rewriteRequestId: 'rewrite-request-scene-proposal-seed-scene-5',
+        }),
+      )
+    })
+  })
+
+  it('routes continuity rewrite requests through the scene handoff when the primary fix target stays book-scoped', async () => {
+    const user = userEvent.setup()
+    const baseReviewClient = createReviewClient()
+    const setReviewIssueFixActionSpy = vi.fn(baseReviewClient.setReviewIssueFixAction)
+    const runtime = createMockProjectRuntime({
+      reviewClient: {
+        ...baseReviewClient,
+        setReviewIssueFixAction: setReviewIssueFixActionSpy,
+      },
+      persistence: createNoopPersistence(),
+    })
+    const InjectedProviders = createInjectedProviders(runtime)
+
+    window.history.replaceState(
+      {},
+      '',
+      '/workbench?scope=book&id=book-signal-arc&lens=draft&view=signals&draftView=review&reviewFilter=all&reviewStatusFilter=open&reviewIssueId=continuity-conflict-ledger-public-proof&selectedChapterId=chapter-signals-in-rain',
+    )
+
+    render(
+      <InjectedProviders>
+        <BookRouteHarness />
+      </InjectedProviders>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument()
+
+    const rewriteButton = screen.getByRole('button', { name: 'Create rewrite request' })
+    expect(rewriteButton).toBeDisabled()
+
+    await user.type(screen.getByRole('textbox', { name: 'Source fix note' }), 'Rewrite Midnight Platform so the ledger proof stays withheld.')
+    expect(rewriteButton).toBeEnabled()
+    await user.click(rewriteButton)
+
+    await waitFor(() => {
+      expect(setReviewIssueFixActionSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bookId: 'book-signal-arc',
+          issueId: 'continuity-conflict-ledger-public-proof',
+          sourceHandoffLabel: 'Open scene orchestrate',
+          targetScope: 'scene',
+          status: 'rewrite_requested',
+          note: 'Rewrite Midnight Platform so the ledger proof stays withheld.',
+          rewriteRequestNote: 'Rewrite Midnight Platform so the ledger proof stays withheld.',
+          rewriteTargetSceneId: 'scene-midnight-platform',
+          rewriteRequestId: 'rewrite-request-continuity-conflict-ledger-public-proof',
+        }),
+      )
+    })
   })
 
   it('keeps the review surface mounted and the review route stable when an API 409 source fix write fails', async () => {

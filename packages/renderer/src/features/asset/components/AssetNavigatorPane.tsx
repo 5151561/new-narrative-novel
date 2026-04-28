@@ -9,7 +9,9 @@ interface AssetNavigatorPaneProps {
   groups: {
     characters: AssetNavigatorItemViewModel[]
     locations: AssetNavigatorItemViewModel[]
-    rules: AssetNavigatorItemViewModel[]
+    organizations: AssetNavigatorItemViewModel[]
+    objects: AssetNavigatorItemViewModel[]
+    lore: AssetNavigatorItemViewModel[]
   }
   activeAssetId: string
   onSelectAsset: (assetId: string) => void
@@ -72,7 +74,11 @@ function NavigatorGroup({
 
 export function AssetNavigatorPane({ groups, activeAssetId, onSelectAsset }: AssetNavigatorPaneProps) {
   const { dictionary } = useI18n()
-  const hasItems = groups.characters.length + groups.locations.length + groups.rules.length > 0
+  const hasItems = groups.characters.length
+    + groups.locations.length
+    + groups.organizations.length
+    + groups.objects.length
+    + groups.lore.length > 0
 
   return (
     <>
@@ -93,8 +99,20 @@ export function AssetNavigatorPane({ groups, activeAssetId, onSelectAsset }: Ass
               onSelectAsset={onSelectAsset}
             />
             <NavigatorGroup
-              title={dictionary.app.assetGroups.rules}
-              items={groups.rules}
+              title={dictionary.app.assetGroups.organizations}
+              items={groups.organizations}
+              activeAssetId={activeAssetId}
+              onSelectAsset={onSelectAsset}
+            />
+            <NavigatorGroup
+              title={dictionary.app.assetGroups.objects}
+              items={groups.objects}
+              activeAssetId={activeAssetId}
+              onSelectAsset={onSelectAsset}
+            />
+            <NavigatorGroup
+              title={dictionary.app.assetGroups.lore}
+              items={groups.lore}
               activeAssetId={activeAssetId}
               onSelectAsset={onSelectAsset}
             />

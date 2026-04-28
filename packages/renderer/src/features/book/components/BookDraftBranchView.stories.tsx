@@ -12,6 +12,7 @@ interface BookDraftBranchViewStoryProps {
   branchId?: string
   branchBaseline?: 'current' | 'checkpoint'
   checkpointId?: string
+  archived?: boolean
 }
 
 function StoryComponent({
@@ -20,6 +21,7 @@ function StoryComponent({
   branchId,
   branchBaseline = 'current',
   checkpointId,
+  archived = false,
 }: BookDraftBranchViewStoryProps) {
   const { locale } = useI18n()
   const branchData = buildBookDraftBranchStoryData(locale, {
@@ -29,17 +31,34 @@ function StoryComponent({
     branchBaseline,
     checkpointId,
   })
+  const branchWorkspace =
+    archived && branchData.branchWorkspace.branch
+      ? {
+          ...branchData.branchWorkspace,
+          branch: {
+            ...branchData.branchWorkspace.branch,
+            status: 'archived' as const,
+          },
+        }
+      : branchData.branchWorkspace
+  const branches = archived
+    ? branchData.branches.map((branch) =>
+        branch.branchId === branchData.selectedBranch.branchId ? { ...branch, status: 'archived' as const } : branch,
+      )
+    : branchData.branches
 
   return (
     <BookDraftBranchView
-      branchWorkspace={branchData.branchWorkspace}
-      branches={branchData.branches}
+      branchWorkspace={branchWorkspace}
+      branches={branches}
       selectedBranchId={branchData.selectedBranch.branchId}
       branchBaseline={branchBaseline}
       onSelectChapter={() => undefined}
       onOpenChapter={() => undefined}
       onSelectBranch={() => undefined}
       onSelectBranchBaseline={() => undefined}
+      onAdoptScene={() => undefined}
+      onArchiveBranch={() => undefined}
     />
   )
 }
@@ -77,6 +96,22 @@ export const CheckpointBaseline: Story = {
     branchId: 'branch-book-signal-arc-quiet-ending',
     branchBaseline: 'checkpoint',
     checkpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+  },
+}
+
+export const SelectiveAdopt: Story = {
+  args: {
+    branchId: 'branch-book-signal-arc-high-pressure',
+    branchBaseline: 'current',
+    selectedChapterId: 'chapter-signals-in-rain',
+  },
+}
+
+export const ArchivedBranch: Story = {
+  args: {
+    branchId: 'branch-book-signal-arc-quiet-ending',
+    branchBaseline: 'current',
+    archived: true,
   },
 }
 

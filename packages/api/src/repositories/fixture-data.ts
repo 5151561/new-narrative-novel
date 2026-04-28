@@ -80,10 +80,12 @@ function createBookManuscriptCheckpoints(): BookManuscriptCheckpointRecord[] {
       bookId: 'book-signal-arc',
       title: text('PR11 Baseline', 'PR11 基线'),
       createdAtLabel: text('2026-04-17 22:10', '2026-04-17 22:10'),
+      sourceSignature: 'checkpoint:checkpoint-book-signal-arc-pr11-baseline',
       summary: text(
         'Baseline manuscript snapshot captured before compare and review work started.',
         '在 compare 与 review 工作开始前采集的基线稿快照。',
       ),
+      selectedChapterId: 'chapter-signals-in-rain',
       chapters: [
         {
           chapterId: 'chapter-signals-in-rain',
@@ -196,7 +198,9 @@ function createBookExperimentBranches(): BookExperimentBranchRecord[] {
         '测试一个低冲突收束版本，让站台段落更早放下压力。',
       ),
       createdAtLabel: text('Prepared for quiet-ending review', '为静默收束审阅准备'),
+      sourceSignature: 'checkpoint:checkpoint-book-signal-arc-pr11-baseline',
       basedOnCheckpointId: 'checkpoint-book-signal-arc-pr11-baseline',
+      selectedChapterId: 'chapter-signals-in-rain',
       status: 'review',
       chapterSnapshots: [
         {
@@ -663,7 +667,7 @@ function createAssetWorkspace(): Record<string, AssetKnowledgeWorkspaceRecord> {
     },
     {
       id: 'asset-ledger-stays-shut',
-      kind: 'rule',
+      kind: 'lore',
       title: text('Ledger Stays Shut', '账本不得打开'),
       summary: text(
         'Core constraint that keeps the exchange from collapsing into immediate public proof.',
@@ -701,7 +705,7 @@ function createAssetWorkspace(): Record<string, AssetKnowledgeWorkspaceRecord> {
     },
     {
       id: 'asset-departure-bell-timing',
-      kind: 'rule',
+      kind: 'lore',
       title: text('Departure Bell Timing', '发车铃时序'),
       summary: text(
         'Timing rule that decides when the exit can move without draining witness pressure too early.',

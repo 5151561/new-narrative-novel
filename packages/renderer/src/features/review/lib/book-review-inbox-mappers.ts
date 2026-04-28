@@ -44,9 +44,12 @@ const SOURCE_RANK = {
   branch: 1,
   compare: 2,
   traceability: 3,
-  manuscript: 4,
-  'scene-proposal': 5,
-  'chapter-draft': 6,
+  continuity: 4,
+  'asset-consistency': 5,
+  'stale-prose': 6,
+  manuscript: 7,
+  'scene-proposal': 8,
+  'chapter-draft': 9,
 } as const
 
 function createHandoff(id: string, label: string, target: ReviewSourceHandoffViewModel['target']): ReviewSourceHandoffViewModel {
@@ -86,6 +89,10 @@ export function createReviewIssueSignature(issue: Pick<
 
 function findBookDraftHandoff(issue: ReviewIssueViewModel, draftView: 'compare' | 'export' | 'branch') {
   return issue.handoffs.find((handoff) => handoff.target.scope === 'book' && handoff.target.draftView === draftView)
+}
+
+function findBookReviewHandoff(issue: ReviewIssueViewModel) {
+  return issue.handoffs.find((handoff) => handoff.target.scope === 'book' && handoff.target.draftView === 'review')
 }
 
 function findChapterDraftHandoff(issue: ReviewIssueViewModel) {
@@ -128,7 +135,11 @@ export function selectPrimaryReviewFixHandoff(issue: ReviewIssueViewModel): Revi
     return findSceneOrchestrateHandoff(issue) ?? issue.handoffs[0] ?? null
   }
 
-  if (issue.kind === 'trace_gap') {
+  if (issue.source === 'continuity') {
+    return findBookReviewHandoff(issue) ?? issue.handoffs[0] ?? null
+  }
+
+  if (issue.kind === 'trace_gap' || issue.kind === 'missing_trace') {
     return findChapterDraftHandoff(issue) ?? findSceneFixHandoff(issue) ?? issue.handoffs[0] ?? null
   }
 
@@ -174,7 +185,7 @@ function filterReviewIssues(issues: ReviewIssueViewModel[], reviewFilter: BookRe
   }
 
   if (reviewFilter === 'trace-gaps') {
-    return issues.filter((issue) => issue.kind === 'trace_gap')
+    return issues.filter((issue) => issue.kind === 'trace_gap' || issue.kind === 'missing_trace')
   }
 
   if (reviewFilter === 'missing-drafts') {
@@ -273,6 +284,9 @@ export function applyReviewFixActionsToIssues({
           sourceHandoffLabel: fixActionRecord.sourceHandoffLabel,
           targetScope: fixActionRecord.targetScope,
           note: fixActionRecord.note,
+          rewriteRequestNote: fixActionRecord.rewriteRequestNote,
+          rewriteTargetSceneId: fixActionRecord.rewriteTargetSceneId,
+          rewriteRequestId: fixActionRecord.rewriteRequestId,
           startedAtLabel: fixActionRecord.startedAtLabel,
           updatedAtLabel: fixActionRecord.updatedAtLabel,
           updatedByLabel: fixActionRecord.updatedByLabel,
@@ -289,6 +303,9 @@ export function applyReviewFixActionsToIssues({
         sourceHandoffLabel: fixActionRecord.sourceHandoffLabel,
         targetScope: fixActionRecord.targetScope,
         note: fixActionRecord.note,
+        rewriteRequestNote: fixActionRecord.rewriteRequestNote,
+        rewriteTargetSceneId: fixActionRecord.rewriteTargetSceneId,
+        rewriteRequestId: fixActionRecord.rewriteRequestId,
         startedAtLabel: fixActionRecord.startedAtLabel,
         updatedAtLabel: fixActionRecord.updatedAtLabel,
         updatedByLabel: fixActionRecord.updatedByLabel,
@@ -313,6 +330,12 @@ function buildCounts(issues: ReviewIssueViewModel[]): BookReviewInboxCountsViewM
     warnings: issues.filter((issue) => issue.severity === 'warning').length,
     info: issues.filter((issue) => issue.severity === 'info').length,
     traceGaps: issues.filter((issue) => issue.kind === 'trace_gap').length,
+    continuityConflicts: issues.filter((issue) => issue.kind === 'continuity_conflict').length,
+    assetInconsistencies: issues.filter((issue) => issue.kind === 'asset_inconsistency').length,
+    missingTrace: issues.filter((issue) => issue.kind === 'missing_trace').length,
+    staleProse: issues.filter((issue) => issue.kind === 'stale_prose_after_canon_change').length,
+    chapterGaps: issues.filter((issue) => issue.kind === 'chapter_gap').length,
+    rewriteRequests: issues.filter((issue) => issue.kind === 'rewrite_request').length,
     missingDrafts: issues.filter((issue) => issue.kind === 'missing_draft').length,
     compareDeltas: issues.filter((issue) => issue.source === 'compare').length,
     exportReadiness: issues.filter((issue) => issue.source === 'export').length,
@@ -387,8 +410,57 @@ function createCurrentDraftIssue(
 
 function buildDraftIssues(currentDraftWorkspace: BookDraftWorkspaceViewModel): ReviewIssueBase[] {
   const issues: ReviewIssueBase[] = []
+  const readableSections = currentDraftWorkspace.readableManuscript?.sections ?? []
+  const sourceManifest = currentDraftWorkspace.readableManuscript?.sourceManifest ?? []
+  const readableSceneDraftSectionKindsByChapterId = readableSections.reduce<Record<string, number>>(
+    (counts, section) => {
+      if (section.kind === 'scene-draft') {
+        counts[section.chapterId] = (counts[section.chapterId] ?? 0) + 1
+      }
+      return counts
+    },
+    {},
+  )
+  const acceptedFactsBySceneId = sourceManifest.reduce<Record<string, number>>((counts, entry) => {
+    if (!entry.sceneId) {
+      return counts
+    }
+
+    counts[entry.sceneId] = Math.max(counts[entry.sceneId] ?? 0, entry.acceptedFactIds.length)
+    return counts
+  }, {})
 
   for (const chapter of currentDraftWorkspace.chapters) {
+    if ((readableSceneDraftSectionKindsByChapterId[chapter.chapterId] ?? 0) === 0) {
+      const issueId = `chapter-gap-${chapter.chapterId}`
+      issues.push({
+        id: issueId,
+        severity: 'warning',
+        source: 'manuscript',
+        kind: 'chapter_gap',
+        title: 'Readable chapter gap',
+        detail: `${chapter.title} has no readable scene draft sections in the current manuscript assembly.`,
+        recommendation: 'Open chapter structure and the book draft reader to inspect why this chapter still assembles as a gap.',
+        chapterId: chapter.chapterId,
+        chapterTitle: chapter.title,
+        chapterOrder: chapter.order,
+        sourceLabel: 'Readable manuscript',
+        sourceExcerpt: chapter.summary,
+        tags: ['Chapter gap', 'Readable manuscript'],
+        handoffs: [
+          createChapterStructureHandoff(issueId, chapter.chapterId),
+          createHandoff(`${issueId}::book-read`, 'Open book draft read', {
+            scope: 'book',
+            lens: 'draft',
+            view: 'sequence',
+            draftView: 'read',
+            selectedChapterId: chapter.chapterId,
+            reviewIssueId: issueId,
+          }),
+        ],
+      })
+    }
+
     for (const section of chapter.sections) {
       if (section.isMissingDraft) {
         const issueId = `draft-missing-${chapter.chapterId}-${section.sceneId}`
@@ -408,16 +480,24 @@ function buildDraftIssues(currentDraftWorkspace: BookDraftWorkspaceViewModel): R
 
       if (!section.traceReady) {
         const issueId = `trace-gap-${chapter.chapterId}-${section.sceneId}`
+        const hasTraceRefs =
+          section.relatedAssetCount > 0 ||
+          section.sourceProposalCount > 0 ||
+          (acceptedFactsBySceneId[section.sceneId] ?? 0) > 0
         issues.push(
           createCurrentDraftIssue(issueId, chapter, section, {
             severity: 'warning',
             source: 'traceability',
-            kind: 'trace_gap',
-            title: 'Trace gap',
-            detail: `${section.title} still lacks trace coverage in the current draft.`,
-            recommendation: 'Open the chapter draft and add the missing trace coverage for this scene.',
+            kind: hasTraceRefs ? 'trace_gap' : 'missing_trace',
+            title: hasTraceRefs ? 'Trace gap' : 'Trace references missing',
+            detail: hasTraceRefs
+              ? `${section.title} still lacks trace coverage in the current draft.`
+              : `${section.title} currently has no trace references in the current draft.`,
+            recommendation: hasTraceRefs
+              ? 'Open the chapter draft and add the missing trace coverage for this scene.'
+              : 'Open the chapter draft and restore the missing trace references for this scene.',
             sourceLabel: 'Current trace coverage',
-            tags: ['Trace gap', 'Current manuscript'],
+            tags: [hasTraceRefs ? 'Trace gap' : 'Missing trace', 'Current manuscript'],
           }),
         )
       }
@@ -759,10 +839,38 @@ function buildBranchIssues(branchWorkspace: BookExperimentBranchWorkspaceViewMod
 }
 
 function buildSeedIssues(reviewSeeds: BookReviewSeedRecord[]): ReviewIssueBase[] {
-  return reviewSeeds.map((seed) => ({
-    id: seed.id,
-    severity: seed.severity,
-    source: seed.source,
+  return reviewSeeds
+    .filter((seed) => seed.source !== 'continuity' && seed.source !== 'asset-consistency' && seed.source !== 'stale-prose')
+    .map((seed) => ({
+      id: seed.id,
+      severity: seed.severity,
+      source: seed.source,
+      kind: seed.kind,
+      title: seed.title,
+      detail: seed.detail,
+      recommendation: seed.recommendation,
+      chapterId: seed.chapterId,
+      chapterTitle: seed.chapterTitle,
+      chapterOrder: seed.chapterOrder,
+      sceneId: seed.sceneId,
+      sceneTitle: seed.sceneTitle,
+      sceneOrder: seed.sceneOrder,
+      assetId: seed.assetId,
+      assetTitle: seed.assetTitle,
+      sourceLabel: seed.sourceLabel,
+      sourceExcerpt: seed.sourceExcerpt,
+      tags: seed.tags,
+      handoffs: seed.handoffs,
+    }))
+}
+
+function buildContinuitySeedIssues(reviewSeeds: BookReviewSeedRecord[]): ReviewIssueBase[] {
+  return reviewSeeds
+    .filter((seed) => seed.source === 'continuity' || seed.source === 'asset-consistency' || seed.source === 'stale-prose')
+    .map((seed) => ({
+      id: seed.id,
+      severity: seed.severity,
+      source: seed.source,
     kind: seed.kind,
     title: seed.title,
     detail: seed.detail,
@@ -779,7 +887,7 @@ function buildSeedIssues(reviewSeeds: BookReviewSeedRecord[]): ReviewIssueBase[]
     sourceExcerpt: seed.sourceExcerpt,
     tags: seed.tags,
     handoffs: seed.handoffs,
-  }))
+    }))
 }
 
 export function buildBookReviewInboxViewModel({
@@ -800,6 +908,7 @@ export function buildBookReviewInboxViewModel({
     ...buildCompareIssues(compareWorkspace),
     ...buildExportIssues(exportWorkspace),
     ...buildBranchIssues(branchWorkspace),
+    ...buildContinuitySeedIssues(reviewSeeds),
     ...buildSeedIssues(reviewSeeds),
   ]
     .map((issue) => hydrateReviewIssue(issue))

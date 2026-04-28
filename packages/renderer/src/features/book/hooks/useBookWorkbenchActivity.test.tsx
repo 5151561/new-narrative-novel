@@ -903,7 +903,7 @@ describe('useBookWorkbenchActivity', () => {
     )
   })
 
-  it('records source fix started checked blocked and cleared activity copy', () => {
+  it('records source fix started checked blocked rewrite-requested and cleared activity copy', () => {
     const initialProps: ActivityHookProps = {
       activeView: 'sequence',
       activeDraftView: 'review',
@@ -965,6 +965,14 @@ describe('useBookWorkbenchActivity', () => {
         note: 'Proposal owner has not confirmed the source.',
       })
       rememberBookWorkbenchReviewFixAction({
+        id: 'review-fix-rewrite-requested',
+        bookId: 'book-signal-arc',
+        issueTitle: 'Scene proposal needs review',
+        action: 'rewrite_requested',
+        sourceActionLabel: 'Open scene proposal',
+        note: 'Request a rewrite before the next review pass.',
+      })
+      rememberBookWorkbenchReviewFixAction({
         id: 'review-fix-cleared',
         bookId: 'book-signal-arc',
         issueTitle: 'Scene proposal needs review',
@@ -994,11 +1002,15 @@ describe('useBookWorkbenchActivity', () => {
         'Started source fix Scene proposal needs review',
         'Marked source checked Scene proposal needs review',
         'Marked source blocked Scene proposal needs review',
+        'Requested source rewrite Scene proposal needs review',
         'Cleared source fix action Scene proposal needs review',
       ]),
     )
     expect(result.current.find((item) => item.title.includes('Marked source blocked'))?.detail).toBe(
       'Proposal owner has not confirmed the source.',
+    )
+    expect(result.current.find((item) => item.title.includes('Requested source rewrite'))?.detail).toBe(
+      'Request a rewrite before the next review pass.',
     )
   })
 

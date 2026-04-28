@@ -60,6 +60,20 @@ describe('startSceneRunWorkflow legacy deterministic start contract', () => {
       startedAtLabel: '2026-04-23 10:01',
       pendingReviewId: 'review-scene-parity-check-001',
       latestEventId: 'run-event-scene-parity-check-001-009',
+      usage: {
+        inputTokens: 1600,
+        outputTokens: 220,
+        estimatedCostUsd: 0.023,
+        provider: 'fixture',
+        modelId: 'fixture-scene-planner',
+      },
+      runtimeSummary: {
+        health: 'attention',
+        costLabel: '$0.0230 est.',
+        tokenLabel: '1.8k tokens',
+        failureClassLabel: 'No runtime failure recorded',
+        nextActionLabel: 'Review proposals before any retry or prose continuation.',
+      },
       eventCount: 9,
     })
 
@@ -136,6 +150,13 @@ describe('startSceneRunWorkflow legacy deterministic start contract', () => {
             label: 'Planner',
           },
         ],
+        usage: {
+          inputTokens: 1600,
+          outputTokens: 220,
+          estimatedCostUsd: 0.023,
+          provider: 'fixture',
+          modelId: 'fixture-scene-planner',
+        },
       },
       {
         id: 'run-event-scene-parity-check-001-006',

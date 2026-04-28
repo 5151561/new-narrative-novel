@@ -171,7 +171,7 @@ export function buildReviewProblems(reviewInbox: BookReviewInboxViewModel | null
   }
 
   const blockers = reviewInbox.issues.filter((issue) => issue.severity === 'blocker')
-  const traceGaps = reviewInbox.issues.filter((issue) => issue.kind === 'trace_gap')
+  const traceGaps = reviewInbox.issues.filter((issue) => issue.kind === 'trace_gap' || issue.kind === 'missing_trace')
   const missingDrafts = reviewInbox.issues.filter((issue) => issue.kind === 'missing_draft')
   const exportBlockers = reviewInbox.issues.filter((issue) => issue.source === 'export' && issue.severity === 'blocker')
   const branchBlockers = reviewInbox.issues.filter((issue) => issue.source === 'branch' && issue.severity === 'blocker')

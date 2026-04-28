@@ -176,13 +176,18 @@ function createWorkspace(selectedChapterId = 'chapter-open-water-signals'): Book
   return workspace
 }
 
-function buildBranchWorkspace(branchId: string, branchBaseline: 'current' | 'checkpoint' = 'current') {
+function buildBranchWorkspace(
+  branchId: string,
+  branchBaseline: 'current' | 'checkpoint' = 'current',
+  selectedChapterId = 'chapter-open-water-signals',
+) {
   return buildBookExperimentBranchWorkspace({
-    currentDraftWorkspace: createWorkspace(),
+    currentDraftWorkspace: createWorkspace(selectedChapterId),
     branch: mockBookExperimentBranchSeeds['book-signal-arc']!.find((branch) => branch.branchId === branchId)!,
     branches: mockBookExperimentBranchSeeds['book-signal-arc']!,
     checkpoint: branchBaseline === 'checkpoint' ? mockBookManuscriptCheckpointSeeds['book-signal-arc']![0]! : null,
     branchBaseline,
+    selectedChapterId,
     locale: 'en',
   })
 }
@@ -254,6 +259,100 @@ describe('BookDraftBranchView', () => {
 
     expect(onOpenChapter).toHaveBeenNthCalledWith(1, 'chapter-open-water-signals', 'draft')
     expect(onOpenChapter).toHaveBeenNthCalledWith(2, 'chapter-open-water-signals', 'structure')
+  })
+
+  it('renders selective adopt controls with visible disabled reasons and optional action handlers', async () => {
+    const user = userEvent.setup()
+    const onAdoptScene = vi.fn()
+    const branchWorkspace = buildBookExperimentBranchWorkspace({
+      currentDraftWorkspace: createWorkspace('chapter-signals-in-rain'),
+      branch: mockBookExperimentBranchSeeds['book-signal-arc']!.find((branch) => branch.branchId === 'branch-book-signal-arc-high-pressure')!,
+      branches: mockBookExperimentBranchSeeds['book-signal-arc']!,
+      checkpoint: null,
+      branchBaseline: 'current',
+      selectedChapterId: 'chapter-signals-in-rain',
+      locale: 'en',
+    })
+
+    render(
+      <AppProviders>
+        <BookDraftBranchView
+          branchWorkspace={branchWorkspace}
+          branches={branches}
+          selectedBranchId="branch-book-signal-arc-high-pressure"
+          branchBaseline="current"
+          onSelectChapter={vi.fn()}
+          onOpenChapter={vi.fn()}
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
+          onAdoptScene={onAdoptScene}
+        />
+      </AppProviders>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Adopt canon patch: Midnight Platform' }))
+
+    expect(onAdoptScene).toHaveBeenCalledWith({
+      branchId: 'branch-book-signal-arc-high-pressure',
+      bookId: 'book-signal-arc',
+      chapterId: 'chapter-signals-in-rain',
+      sceneId: 'scene-midnight-platform',
+      kind: 'canon_patch',
+    })
+    expect(screen.getByRole('button', { name: 'Adopt prose draft: Departure Bell' })).toBeDisabled()
+    expect(screen.getByText('Branch prose draft is empty for this scene.')).toBeInTheDocument()
+  })
+
+  it('shows trace and source-proposal reasons before canon-patch adoption can run', () => {
+    render(
+      <AppProviders>
+        <BookDraftBranchView
+          branchWorkspace={buildBranchWorkspace('branch-book-signal-arc-high-pressure', 'current', 'chapter-open-water-signals')}
+          branches={branches}
+          selectedBranchId="branch-book-signal-arc-high-pressure"
+          branchBaseline="current"
+          onSelectChapter={vi.fn()}
+          onOpenChapter={vi.fn()}
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
+          onAdoptScene={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByRole('button', { name: 'Adopt canon patch: Warehouse Bridge' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Adopt canon patch: Pressure Slip' })).toBeDisabled()
+    expect(screen.getAllByText('Trace is not ready for this scene.').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/No source proposals are available/).length).toBeGreaterThan(0)
+  })
+
+  it('disables selective adoption when the branch is archived', () => {
+    const branchWorkspace = buildBranchWorkspace('branch-book-signal-arc-quiet-ending')
+    branchWorkspace.branch = {
+      ...branchWorkspace.branch!,
+      status: 'archived',
+    }
+
+    render(
+      <AppProviders>
+        <BookDraftBranchView
+          branchWorkspace={branchWorkspace}
+          branches={branches.map((branch) =>
+            branch.branchId === 'branch-book-signal-arc-quiet-ending' ? { ...branch, status: 'archived' } : branch,
+          )}
+          selectedBranchId="branch-book-signal-arc-quiet-ending"
+          branchBaseline="current"
+          onSelectChapter={vi.fn()}
+          onOpenChapter={vi.fn()}
+          onSelectBranch={vi.fn()}
+          onSelectBranchBaseline={vi.fn()}
+          onAdoptScene={vi.fn()}
+        />
+      </AppProviders>,
+    )
+
+    expect(screen.getByRole('button', { name: 'Adopt canon patch: Warehouse Bridge' })).toBeDisabled()
+    expect(screen.getAllByText('Archived branches cannot adopt into the draft.').length).toBeGreaterThan(0)
   })
 
   it('renders blocked readiness details for the high-pressure branch', () => {

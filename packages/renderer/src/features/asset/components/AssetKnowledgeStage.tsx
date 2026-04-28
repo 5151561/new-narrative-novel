@@ -10,6 +10,7 @@ import type {
   AssetMentionViewModel,
   AssetProfileViewModel,
   AssetRelationViewModel,
+  AssetStoryBibleViewModel,
 } from '../types/asset-view-models'
 import { AssetContextPolicyView } from './AssetContextPolicyView'
 import { AssetMentionsView } from './AssetMentionsView'
@@ -22,6 +23,7 @@ interface AssetKnowledgeStageProps {
   activeView: AssetKnowledgeView
   availableViews: AssetKnowledgeView[]
   profile: AssetProfileViewModel
+  storyBible: AssetStoryBibleViewModel
   mentions: AssetMentionViewModel[]
   relations: AssetRelationViewModel[]
   contextPolicy: AssetContextPolicyViewModel
@@ -37,6 +39,7 @@ export function AssetKnowledgeStage({
   activeView,
   availableViews,
   profile,
+  storyBible,
   mentions,
   relations,
   contextPolicy,
@@ -73,7 +76,14 @@ export function AssetKnowledgeStage({
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
-        {activeView === 'profile' ? <AssetProfileView profile={profile} /> : null}
+        {activeView === 'profile' ? (
+          <AssetProfileView
+            profile={profile}
+            storyBible={storyBible}
+            onOpenScene={onOpenScene}
+            onOpenChapter={onOpenChapter}
+          />
+        ) : null}
         {activeView === 'mentions' ? (
           <AssetMentionsView mentions={mentions} onOpenScene={onOpenScene} onOpenChapter={onOpenChapter} />
         ) : null}

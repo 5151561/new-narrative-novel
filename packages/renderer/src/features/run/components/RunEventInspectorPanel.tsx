@@ -4,6 +4,7 @@ import { useI18n, type Locale } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PaneHeader } from '@/components/ui/PaneHeader'
+import { SectionCard } from '@/components/ui/SectionCard'
 import { cn } from '@/lib/cn'
 
 import type { LocalizedTextRecord, RunArtifactDetailRecord, RunArtifactSummaryRecord } from '../api/run-artifact-records'
@@ -35,6 +36,16 @@ export interface RunEventInspectorPanelProps {
 
 function t(value: LocalizedTextRecord, locale: Locale) {
   return value[locale] ?? value.en
+}
+
+function formatTokenSummary(inputTokens: number, outputTokens: number) {
+  return `${new Intl.NumberFormat('en-US').format(inputTokens)} in / ${new Intl.NumberFormat('en-US').format(outputTokens)} out`
+}
+
+function formatCostSummary(estimatedCostUsd: number, actualCostUsd?: number) {
+  return typeof actualCostUsd === 'number'
+    ? `$${estimatedCostUsd.toFixed(4)} est. / $${actualCostUsd.toFixed(4)} actual`
+    : `$${estimatedCostUsd.toFixed(4)} est.`
 }
 
 function ArtifactList({
@@ -175,6 +186,30 @@ export function RunEventInspectorPanel({
           <RunTracePanel trace={trace} isLoading={isTraceLoading} error={traceError} />
         ) : (
           <div className="grid gap-4">
+            {selectedArtifact && (selectedArtifact.usage || ('failureDetail' in selectedArtifact && selectedArtifact.failureDetail)) ? (
+              <SectionCard eyebrow="Support" title={locale === 'zh-CN' ? '已选产物支持摘要' : 'Selected artifact support summary'}>
+                <div className="grid gap-2 text-sm leading-6 text-text-muted">
+                  {'failureDetail' in selectedArtifact && selectedArtifact.failureDetail ? (
+                    <>
+                      <p>{selectedArtifact.failureDetail.failureClass}</p>
+                      <p>{selectedArtifact.failureDetail.retryable ? (locale === 'zh-CN' ? '可重试' : 'Retryable') : (locale === 'zh-CN' ? '不可重试' : 'Not retryable')}</p>
+                      <p>{selectedArtifact.failureDetail.message}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedArtifact.failureDetail.sourceEventIds.map((sourceEventId) => (
+                          <Badge key={sourceEventId}>{sourceEventId}</Badge>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                  {selectedArtifact.usage ? (
+                    <>
+                      <p>{formatTokenSummary(selectedArtifact.usage.inputTokens, selectedArtifact.usage.outputTokens)}</p>
+                      <p>{formatCostSummary(selectedArtifact.usage.estimatedCostUsd, selectedArtifact.usage.actualCostUsd)}</p>
+                    </>
+                  ) : null}
+                </div>
+              </SectionCard>
+            ) : null}
             <ArtifactList
               artifacts={artifacts}
               isLoading={isArtifactsLoading}

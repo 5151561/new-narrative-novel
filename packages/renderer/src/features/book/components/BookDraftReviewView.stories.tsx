@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 
 import { useI18n } from '@/app/i18n'
+import type { BookReviewInboxViewModel } from '@/features/review/types/review-view-models'
 
 import { BookStoryShell, type BookStoryVariant } from './book-storybook'
 import { BookDraftReviewView } from './BookDraftReviewView'
@@ -9,6 +10,7 @@ import { buildBookDraftReviewStoryData } from './book-draft-storybook'
 interface BookDraftReviewViewStoryProps {
   variant?: BookStoryVariant
   selectedChapterId?: string
+  reviewIssueId?: string
   reviewFilter?: 'all' | 'blockers' | 'trace-gaps' | 'missing-drafts' | 'compare-deltas' | 'export-readiness' | 'branch-readiness' | 'scene-proposals'
   reviewStatusFilter?: 'open' | 'reviewed' | 'deferred' | 'dismissed' | 'all'
   includeReviewSeeds?: boolean
@@ -20,7 +22,7 @@ interface BookDraftReviewViewStoryProps {
   }>
   fixActionStates?: Array<{
     issueId: string
-    status: 'started' | 'checked' | 'blocked'
+    status: 'started' | 'checked' | 'blocked' | 'rewrite_requested'
     note?: string
     stale?: boolean
   }>
@@ -31,6 +33,7 @@ interface BookDraftReviewViewStoryProps {
 function StoryComponent({
   variant = 'default',
   selectedChapterId,
+  reviewIssueId,
   reviewFilter = 'all',
   reviewStatusFilter = 'open',
   includeReviewSeeds = true,
@@ -43,16 +46,32 @@ function StoryComponent({
   const reviewData = buildBookDraftReviewStoryData(locale, {
     variant,
     selectedChapterId,
+    reviewIssueId,
     reviewFilter,
     reviewStatusFilter,
     includeReviewSeeds,
     decisionStates,
     fixActionStates,
   })
+  const forcedSelectedIssue =
+    reviewIssueId != null ? reviewData.reviewInbox.issues.find((issue) => issue.id === reviewIssueId) ?? null : null
+  const continuityInbox =
+    reviewIssueId === 'continuity-conflict-ledger-public-proof'
+      ? buildContinuityQaInbox(reviewData.reviewInbox)
+      : null
+  const inbox =
+    continuityInbox ??
+    (forcedSelectedIssue == null
+      ? reviewData.reviewInbox
+      : {
+          ...reviewData.reviewInbox,
+          selectedIssueId: forcedSelectedIssue.id,
+          selectedIssue: forcedSelectedIssue,
+        })
 
   return (
     <BookDraftReviewView
-      inbox={reviewData.reviewInbox}
+      inbox={inbox}
       decisionErrorMessage={decisionErrorMessage}
       fixActionErrorMessage={fixActionErrorMessage}
       onSelectFilter={() => undefined}
@@ -66,6 +85,95 @@ function StoryComponent({
       onOpenReviewSource={() => undefined}
     />
   )
+}
+
+function buildContinuityQaInbox(baseInbox: BookReviewInboxViewModel): BookReviewInboxViewModel {
+  const continuityIssue = {
+    ...baseInbox.selectedIssue!,
+    id: 'continuity-conflict-ledger-public-proof',
+    severity: 'blocker' as const,
+    source: 'continuity' as const,
+    kind: 'continuity_conflict' as const,
+    title: 'Ledger visibility conflicts with the public-proof beat',
+    detail: 'Midnight Platform prose implies the ledger proof already went public while the continuity ledger still marks it as withheld.',
+    recommendation: 'Open book review, then inspect the ledger profile and the scene execution notes before changing any source material.',
+    chapterId: 'chapter-signals-in-rain',
+    chapterTitle: 'Signals in Rain',
+    chapterOrder: 1,
+    sceneId: 'scene-midnight-platform',
+    sceneTitle: 'Midnight Platform',
+    sceneOrder: 1,
+    assetId: 'asset-ledger',
+    assetTitle: 'Ledger',
+    sourceLabel: 'Continuity QA',
+    sourceExcerpt: 'The current prose treats the ledger proof as public even though the continuity ledger still keeps it private.',
+    tags: ['Continuity conflict', 'Ledger'],
+    issueSignature: 'continuity-conflict-ledger-public-proof::story',
+    handoffs: [
+      {
+        id: 'continuity-story-book-review',
+        label: 'Open book review',
+        target: {
+          scope: 'book' as const,
+          lens: 'draft' as const,
+          view: 'sequence' as const,
+          draftView: 'review' as const,
+          selectedChapterId: 'chapter-signals-in-rain',
+          reviewIssueId: 'continuity-conflict-ledger-public-proof',
+        },
+      },
+      {
+        id: 'continuity-story-asset',
+        label: 'Open asset ledger',
+        target: {
+          scope: 'asset' as const,
+          assetId: 'asset-ledger',
+          lens: 'knowledge' as const,
+          view: 'context' as const,
+        },
+      },
+      {
+        id: 'continuity-story-scene',
+        label: 'Open scene orchestrate',
+        target: {
+          scope: 'scene' as const,
+          sceneId: 'scene-midnight-platform',
+          lens: 'orchestrate' as const,
+          tab: 'execution' as const,
+        },
+      },
+    ],
+    primaryFixHandoff: {
+      id: 'continuity-story-book-review',
+      label: 'Open book review',
+      target: {
+        scope: 'book' as const,
+        lens: 'draft' as const,
+        view: 'sequence' as const,
+        draftView: 'review' as const,
+        selectedChapterId: 'chapter-signals-in-rain',
+        reviewIssueId: 'continuity-conflict-ledger-public-proof',
+      },
+    },
+  }
+
+  const issues = [
+    continuityIssue,
+    ...baseInbox.issues.filter((issue) => issue.id !== continuityIssue.id),
+  ]
+
+  return {
+    ...baseInbox,
+    selectedIssueId: continuityIssue.id,
+    selectedIssue: continuityIssue,
+    issues,
+    filteredIssues: issues,
+    groupedIssues: {
+      blockers: [continuityIssue, ...baseInbox.groupedIssues.blockers.filter((issue) => issue.id !== continuityIssue.id)],
+      warnings: baseInbox.groupedIssues.warnings,
+      info: baseInbox.groupedIssues.info,
+    },
+  }
 }
 
 const meta = {
@@ -216,6 +324,40 @@ export const SourceFixChecked: Story = {
         issueId: 'compare-trace-gap-chapter-open-water-signals-scene-warehouse-bridge',
         status: 'checked',
         note: 'Source checked; review decision remains open.',
+      },
+    ],
+  },
+}
+
+export const ContinuityQaQueue: Story = {
+  args: {
+    reviewFilter: 'all',
+    reviewStatusFilter: 'open',
+    selectedChapterId: 'chapter-signals-in-rain',
+    reviewIssueId: 'continuity-conflict-ledger-public-proof',
+  },
+}
+
+export const StaleAfterCanonChange: Story = {
+  args: {
+    reviewFilter: 'all',
+    reviewStatusFilter: 'open',
+    selectedChapterId: 'chapter-signals-in-rain',
+    reviewIssueId: 'stale-prose-after-canon-midnight-platform',
+  },
+}
+
+export const RewriteRequestAction: Story = {
+  args: {
+    reviewFilter: 'trace-gaps',
+    reviewStatusFilter: 'open',
+    selectedChapterId: 'chapter-open-water-signals',
+    reviewIssueId: 'missing-trace-departure-bell',
+    fixActionStates: [
+      {
+        issueId: 'missing-trace-departure-bell',
+        status: 'rewrite_requested',
+        note: 'Request a prose rewrite from the scene draft surface.',
       },
     ],
   },

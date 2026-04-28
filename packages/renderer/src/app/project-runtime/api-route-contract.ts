@@ -100,6 +100,17 @@ export const apiRouteContract = {
   }) {
     return `${bookExperimentBranchesPath(projectId, bookId)}/${segment(branchId)}`
   },
+  bookExperimentBranchArchive({
+    projectId,
+    bookId,
+    branchId,
+  }: {
+    projectId: string
+    bookId: string
+    branchId: string
+  }) {
+    return `${bookExperimentBranchesPath(projectId, bookId)}/${segment(branchId)}/archive`
+  },
   chapterStructure({ projectId, chapterId }: { projectId: string; chapterId: string }) {
     return `${chapterBase(projectId, chapterId)}/structure`
   },
@@ -272,5 +283,14 @@ export const apiRouteContract = {
   },
   runReviewDecisions({ projectId, runId }: { projectId: string; runId: string }) {
     return `${runBase(projectId, runId)}/review-decisions`
+  },
+  runRetry({ projectId, runId }: { projectId: string; runId: string }) {
+    return `${runBase(projectId, runId)}/retry`
+  },
+  runCancel({ projectId, runId }: { projectId: string; runId: string }) {
+    return `${runBase(projectId, runId)}/cancel`
+  },
+  runResume({ projectId, runId }: { projectId: string; runId: string }) {
+    return `${runBase(projectId, runId)}/resume`
   },
 }

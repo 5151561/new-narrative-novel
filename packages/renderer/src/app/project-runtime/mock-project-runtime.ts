@@ -276,6 +276,9 @@ export function createMockProjectRuntime({
         await ensureHydrated()
         return baseBookClient.getBookManuscriptCheckpoint(input)
       },
+      async createBookManuscriptCheckpoint(input) {
+        return persistAfterMutation(() => baseBookClient.createBookManuscriptCheckpoint(input))
+      },
       async getBookExportProfiles(input) {
         await ensureHydrated()
         return baseBookClient.getBookExportProfiles(input)
@@ -298,6 +301,12 @@ export function createMockProjectRuntime({
       async getBookExperimentBranch(input) {
         await ensureHydrated()
         return baseBookClient.getBookExperimentBranch(input)
+      },
+      async createBookExperimentBranch(input) {
+        return persistAfterMutation(() => baseBookClient.createBookExperimentBranch(input))
+      },
+      async archiveBookExperimentBranch(input) {
+        return persistAfterMutation(() => baseBookClient.archiveBookExperimentBranch(input))
       },
     },
     chapterClient: {
@@ -361,6 +370,15 @@ export function createMockProjectRuntime({
     runClient: {
       async startSceneRun(input) {
         return persistAfterMutation(() => baseRunClient.startSceneRun(input))
+      },
+      async retryRun(input) {
+        return persistAfterMutation(() => baseRunClient.retryRun(input))
+      },
+      async cancelRun(input) {
+        return persistAfterMutation(() => baseRunClient.cancelRun(input))
+      },
+      async resumeRun(input) {
+        return persistAfterMutation(() => baseRunClient.resumeRun(input))
       },
       async getRun(input) {
         await ensureHydrated()

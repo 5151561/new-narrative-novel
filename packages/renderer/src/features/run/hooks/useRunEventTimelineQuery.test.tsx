@@ -284,10 +284,19 @@ describe('useRunEventTimelineQuery', () => {
         )
         signal?.addEventListener('abort', finish, { once: true })
       }))
-    const runClient = {
+    const runClient: RunClient = {
+      startSceneRun: vi.fn(),
+      retryRun: vi.fn(),
+      cancelRun: vi.fn(),
+      resumeRun: vi.fn(),
+      getRun: vi.fn(),
       getRunEvents,
       streamRunEvents,
-    } as RunClient
+      submitRunReviewDecision: vi.fn(),
+      listRunArtifacts: vi.fn(),
+      getRunArtifact: vi.fn(),
+      getRunTrace: vi.fn(),
+    }
 
     const hook = renderHook(
       () => useRunEventTimelineQuery('run-scene-midnight-platform-001'),
@@ -341,10 +350,19 @@ describe('useRunEventTimelineQuery', () => {
         }),
       )
     })
-    const runClient = {
+    const runClient: RunClient = {
+      startSceneRun: vi.fn(),
+      retryRun: vi.fn(),
+      cancelRun: vi.fn(),
+      resumeRun: vi.fn(),
+      getRun: vi.fn(),
       getRunEvents,
       streamRunEvents,
-    } as RunClient
+      submitRunReviewDecision: vi.fn(),
+      listRunArtifacts: vi.fn(),
+      getRunArtifact: vi.fn(),
+      getRunTrace: vi.fn(),
+    }
 
     const hook = renderHook(
       () => useRunEventTimelineQuery('run-scene-midnight-platform-001'),
@@ -382,10 +400,19 @@ describe('useRunEventTimelineQuery', () => {
         }),
       )
     const streamRunEvents = vi.fn()
-    const runClient = {
+    const runClient: RunClient = {
+      startSceneRun: vi.fn(),
+      retryRun: vi.fn(),
+      cancelRun: vi.fn(),
+      resumeRun: vi.fn(),
+      getRun: vi.fn(),
       getRunEvents,
       streamRunEvents,
-    } as RunClient
+      submitRunReviewDecision: vi.fn(),
+      listRunArtifacts: vi.fn(),
+      getRunArtifact: vi.fn(),
+      getRunTrace: vi.fn(),
+    }
 
     const hook = renderHook(
       () => useRunEventTimelineQuery('run-scene-midnight-platform-001'),
@@ -411,10 +438,19 @@ describe('useRunEventTimelineQuery', () => {
     const queryClient = createQueryClient()
     const getRunEvents = vi.fn(async () => createPage({ events: [createEvent(8)] }))
     const streamRunEvents = vi.fn()
-    const runClient = {
+    const runClient: RunClient = {
+      startSceneRun: vi.fn(),
+      retryRun: vi.fn(),
+      cancelRun: vi.fn(),
+      resumeRun: vi.fn(),
+      getRun: vi.fn(),
       getRunEvents,
       streamRunEvents,
-    } as RunClient
+      submitRunReviewDecision: vi.fn(),
+      listRunArtifacts: vi.fn(),
+      getRunArtifact: vi.fn(),
+      getRunTrace: vi.fn(),
+    }
 
     const hook = renderHook(
       () => useRunEventTimelineQuery('run-scene-midnight-platform-001'),
@@ -447,10 +483,19 @@ describe('useRunEventTimelineQuery', () => {
         events: [createEvent(7)],
       }),
     )
-    const runClient = {
+    const runClient: RunClient = {
+      startSceneRun: vi.fn(),
+      retryRun: vi.fn(),
+      cancelRun: vi.fn(),
+      resumeRun: vi.fn(),
+      getRun: vi.fn(),
       getRunEvents,
       streamRunEvents,
-    } as RunClient
+      submitRunReviewDecision: vi.fn(),
+      listRunArtifacts: vi.fn(),
+      getRunArtifact: vi.fn(),
+      getRunTrace: vi.fn(),
+    }
 
     const hook = renderHook(
       () => useRunEventTimelineQuery('run-scene-midnight-platform-001'),
@@ -483,10 +528,19 @@ describe('useRunEventTimelineQuery', () => {
         events: [createEvent(10)],
       }),
     )
-    const runClient = {
+    const runClient: RunClient = {
+      startSceneRun: vi.fn(),
+      retryRun: vi.fn(),
+      cancelRun: vi.fn(),
+      resumeRun: vi.fn(),
+      getRun: vi.fn(),
       getRunEvents,
       streamRunEvents,
-    } as RunClient
+      submitRunReviewDecision: vi.fn(),
+      listRunArtifacts: vi.fn(),
+      getRunArtifact: vi.fn(),
+      getRunTrace: vi.fn(),
+    }
 
     const hook = renderHook(
       () => useRunEventTimelineQuery('run-scene-midnight-platform-001'),

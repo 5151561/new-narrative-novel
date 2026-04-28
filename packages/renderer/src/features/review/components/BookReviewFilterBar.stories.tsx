@@ -9,13 +9,13 @@ import { BookReviewFilterBar } from './BookReviewFilterBar'
 function StoryComponent() {
   const { locale } = useI18n()
   const { reviewInbox } = buildBookDraftReviewStoryData(locale, {
-    reviewFilter: 'export-readiness',
+    reviewFilter: 'trace-gaps',
     selectedChapterId: 'chapter-open-water-signals',
   })
 
   return (
     <BookReviewFilterBar
-      activeFilter="export-readiness"
+      activeFilter="trace-gaps"
       counts={reviewInbox.counts}
       onSelectFilter={() => undefined}
     />
@@ -37,4 +37,4 @@ export default meta
 
 type Story = StoryObj<typeof meta>
 
-export const ReviewExportReadiness: Story = {}
+export const ReviewTraceCoverage: Story = {}

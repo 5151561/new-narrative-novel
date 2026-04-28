@@ -1,7 +1,16 @@
 import { randomUUID } from 'node:crypto'
 
 import type {
+  AssetContextVisibilityRecord,
   AssetKnowledgeWorkspaceRecord,
+  BookReviewIssueSnapshotsRecord,
+  AssetNavigatorGroupsRecord,
+  AssetNavigatorResponseRecord,
+  AssetRecord,
+  AssetStoryBibleFactRecord,
+  AssetStoryBibleSourceRefRecord,
+  AssetSummaryRecord,
+  AssetStateTimelineEntryRecord,
   BookDraftAssemblyChapterHeadingSectionRecord,
   BookDraftAssemblyChapterRecord,
   BookDraftAssemblyManuscriptSectionRecord,
@@ -23,11 +32,17 @@ import type {
   ChapterBacklogPlanningRecord,
   ChapterBacklogProposalSceneRecord,
   BookExperimentBranchRecord,
+  BookExperimentBranchAdoptionRecord,
   BookExportArtifactRecord,
   BookExportProfileRecord,
   BookManuscriptCheckpointRecord,
   BookStructureRecord,
+  CreateBookExperimentBranchAdoptionInput,
+  CreateBookExperimentBranchInput,
+  CreateBookManuscriptCheckpointInput,
+  ArchiveBookExperimentBranchInput,
   BuildBookExportArtifactInput,
+  CancelRunInput,
   ChapterSceneStructurePatch,
   ChapterSceneBacklogStatus,
   ChapterRunNextSceneRecord,
@@ -39,9 +54,17 @@ import type {
   PatchChapterBacklogPlanningInput,
   ProjectRuntimeInfoRecord,
   ProposalActionInput,
+  ReviewIssueAssetLocatorRecord,
+  ReviewIssueCanonLocatorRecord,
   ProposalSetArtifactDetailRecord,
   ReviewIssueDecisionRecord,
   ReviewIssueFixActionRecord,
+  ReviewIssueKindRecord,
+  ReviewIssueProseLocatorRecord,
+  ReviewIssueSceneLocatorRecord,
+  ReviewIssueSeverityRecord,
+  ReviewIssueSnapshotRecord,
+  ReviewIssueSourceRecord,
   CanonPatchArtifactDetailRecord,
   ProseDraftArtifactDetailRecord,
   RunArtifactDetailRecord,
@@ -49,6 +72,8 @@ import type {
   RunEventsPageRecord,
   RunRecord,
   RunTraceResponse,
+  ResumeRunInput,
+  RetryRunInput,
   SceneDockTabId,
   SceneDockViewModel,
   SceneExecutionViewModel,
@@ -149,6 +174,393 @@ function mergeLocalizedText(value: { en: string; 'zh-CN': string }, locale: 'en'
     ...value,
     [locale]: nextValue,
   }
+}
+
+const assetVisibilityRank: Record<AssetContextVisibilityRecord, number> = {
+  public: 0,
+  'character-known': 1,
+  private: 2,
+  spoiler: 3,
+  'editor-only': 4,
+}
+
+function assetText(en: string, zhCN: string): LocalizedTextRecord {
+  return localizedText(en, zhCN)
+}
+
+function assetSourceRef(
+  id: string,
+  kind: AssetStoryBibleSourceRefRecord['kind'],
+  en: string,
+  zhCN: string,
+): AssetStoryBibleSourceRefRecord {
+  return {
+    id,
+    kind,
+    label: assetText(en, zhCN),
+  }
+}
+
+function assetFact(
+  id: string,
+  label: LocalizedTextRecord,
+  value: LocalizedTextRecord,
+  visibility: AssetContextVisibilityRecord,
+  sourceRefs: AssetStoryBibleSourceRefRecord[],
+  lastReviewedAtLabel: string,
+): AssetStoryBibleFactRecord {
+  return {
+    id,
+    label,
+    value,
+    visibility,
+    sourceRefs,
+    lastReviewedAtLabel,
+  }
+}
+
+function assetTimeline(
+  id: string,
+  label: LocalizedTextRecord,
+  summary: LocalizedTextRecord,
+  sceneId: string,
+  chapterId: string,
+  status: AssetStateTimelineEntryRecord['status'],
+  sourceRefs: AssetStoryBibleSourceRefRecord[],
+): AssetStateTimelineEntryRecord {
+  return {
+    id,
+    label,
+    summary,
+    sceneId,
+    chapterId,
+    status,
+    sourceRefs,
+  }
+}
+
+function filterStoryBibleFacts(
+  facts: AssetStoryBibleFactRecord[],
+  visibility?: AssetContextVisibilityRecord,
+) {
+  if (!visibility) {
+    return facts
+  }
+
+  return facts.filter((fact) => assetVisibilityRank[fact.visibility] <= assetVisibilityRank[visibility])
+}
+
+function withAssetDefaults(record: Partial<AssetRecord> & Pick<AssetRecord, 'id' | 'kind' | 'title' | 'summary'>): AssetRecord {
+  return {
+    visibility: 'public',
+    profile: { sections: [] },
+    canonFacts: [],
+    privateFacts: [],
+    stateTimeline: [],
+    mentions: [],
+    relations: [],
+    ...record,
+  }
+}
+
+function buildAugmentedAssetKnowledgeWorkspace(
+  rawWorkspace: AssetKnowledgeWorkspaceRecord,
+  assetId: string,
+  visibility?: AssetContextVisibilityRecord,
+): AssetKnowledgeWorkspaceRecord | null {
+  const baseById = new Map(rawWorkspace.assets.map((asset) => [asset.id, asset]))
+  const platformWitnessLog = assetSourceRef('source-platform-witness-log', 'scene', 'Midnight platform witness log', '午夜站台目击记录')
+  const windowQueueNotes = assetSourceRef('source-window-queue-notes', 'scene', 'Ticket window queue notes', '售票窗队列笔记')
+  const courierSignalNotes = assetSourceRef('source-courier-signal-notes', 'note', 'Courier signal notes', '信使暗号笔记')
+  const courierRoster = assetSourceRef('source-courier-roster', 'asset', 'Courier network roster', '信使网络名册')
+  const ledgerShellBrief = assetSourceRef('source-ledger-shell-brief', 'note', 'Closed ledger shell brief', '闭合账本外壳简报')
+  const witnessProtocol = assetSourceRef('source-witness-protocol', 'note', 'Witness protocol memo', '目击协议备忘')
+
+  const assets: AssetRecord[] = [
+    withAssetDefaults({
+      ...baseById.get('asset-ren-voss'),
+      id: 'asset-ren-voss',
+      kind: 'character',
+      title: assetText('Ren Voss', '任·沃斯'),
+      summary: assetText(
+        'Courier-side negotiator who keeps the ledger closed while trying to buy time in public.',
+        '站在信使一侧的谈判者，在公开压力里一边拖时间，一边坚持账本不能被翻开。',
+      ),
+      visibility: 'character-known',
+      canonFacts: [
+        assetFact(
+          'ren-public-line',
+          assetText('Public line', '公开底线'),
+          assetText('Ren will stall in public before he lets the ledger open.', '只要还在公开场合，Ren 宁可拖延也不会让账本打开。'),
+          'public',
+          [platformWitnessLog],
+          '2026-04-27 22:10',
+        ),
+      ],
+      privateFacts: [
+        assetFact(
+          'ren-courier-key',
+          assetText('Courier signal key', '信使暗号钥匙'),
+          assetText('Ren is still the only person carrying the current signal key for the courier network.', 'Ren 仍是唯一携带当前信使网络暗号钥匙的人。'),
+          'private',
+          [courierSignalNotes, courierRoster],
+          '2026-04-27 22:14',
+        ),
+      ],
+      stateTimeline: [
+        assetTimeline(
+          'ren-midnight-platform',
+          assetText('Midnight Platform standoff', '午夜站台对峙'),
+          assetText('Ren keeps the ledger closed while the witness pressure hardens around him.', 'Ren 在目击压力不断变硬的同时坚持不打开账本。'),
+          'scene-midnight-platform',
+          'chapter-signals-in-rain',
+          'established',
+          [platformWitnessLog],
+        ),
+      ],
+      relations: [
+        {
+          id: 'relation-ren-mei',
+          targetAssetId: 'asset-mei-arden',
+          relationLabel: assetText('Bargains against', '相互谈判'),
+          summary: assetText(
+            'Ren needs Mei’s timing, but refuses the terms that would make the ledger public.',
+            'Ren 需要 Mei 给出时机，但拒绝接受会让账本公开的条件。',
+          ),
+        },
+        {
+          id: 'relation-ren-network',
+          targetAssetId: 'asset-courier-network',
+          relationLabel: assetText('Represents', '代表'),
+          summary: assetText('Ren carries the courier network’s bargaining posture into public view.', 'Ren 把信使网络的谈判姿态带进公开视野。'),
+        },
+        {
+          id: 'relation-ren-ledger',
+          targetAssetId: 'asset-public-witness-rule',
+          relationLabel: assetText('Protects', '保护'),
+          summary: assetText('Ren treats the public witness rule as the non-negotiable line of the exchange.', 'Ren 把公开目击规则当成整场交换里不可退让的底线。'),
+        },
+      ],
+    }),
+    withAssetDefaults({
+      ...baseById.get('asset-mei-arden'),
+      id: 'asset-mei-arden',
+      kind: 'character',
+      title: assetText('Mei Arden', '美伊·阿登'),
+      summary: assetText(
+        'Counterparty who keeps raising the visible cost until Ren gives her a usable commitment.',
+        '不断抬高公开代价的对手，直到 Ren 给出她能用的承诺。',
+      ),
+      visibility: 'public',
+    }),
+    withAssetDefaults({
+      ...baseById.get('asset-midnight-platform'),
+      id: 'asset-midnight-platform',
+      kind: 'location',
+      title: assetText('Midnight Platform', '午夜站台'),
+      summary: assetText(
+        'Open platform where every hesitation turns into public leverage and witness pressure.',
+        '一个公开暴露的站台，任何犹豫都会被放大成目击压力和公开筹码。',
+      ),
+      visibility: 'public',
+      relations: [
+        {
+          id: 'relation-platform-window',
+          targetAssetId: 'asset-ticket-window',
+          relationLabel: assetText('Funnels pressure toward', '把压力导向'),
+          summary: assetText('The platform’s witness pressure flows directly into the ticket window negotiation.', '月台上的目击压力会直接流向售票窗的交换。'),
+        },
+        {
+          id: 'relation-platform-network',
+          targetAssetId: 'asset-courier-network',
+          relationLabel: assetText('Exposes', '暴露'),
+          summary: assetText('The platform strips the courier network of any chance to operate unseen.', '月台会剥夺信使网络在无人察觉中行动的机会。'),
+        },
+      ],
+    }),
+    withAssetDefaults({
+      ...baseById.get('asset-ticket-window'),
+      id: 'asset-ticket-window',
+      kind: 'location',
+      title: assetText('Ticket Window', '售票窗'),
+      summary: assetText(
+        'Narrow exchange point where speed, certainty, and queue pressure all become visible at once.',
+        '一个狭窄的交换节点，速度、确定性和排队压力会在这里同时显形。',
+      ),
+      visibility: 'public',
+    }),
+    withAssetDefaults({
+      id: 'asset-courier-network',
+      kind: 'organization',
+      title: assetText('Courier Network', '信使网络'),
+      summary: assetText('The organization trying to keep witness pressure survivable while preserving the closed-ledger line.', '试图在保住闭合账本底线的同时，让目击压力仍可承受的组织。'),
+      visibility: 'character-known',
+      canonFacts: [
+        assetFact(
+          'network-public-posture',
+          assetText('Public posture', '公开姿态'),
+          assetText('The network prefers delay over exposure when witness pressure spikes.', '当目击压力陡增时，网络宁可拖延也不愿曝光。'),
+          'character-known',
+          [courierRoster],
+          '2026-04-27 22:22',
+        ),
+      ],
+      stateTimeline: [
+        assetTimeline(
+          'network-platform-exposure',
+          assetText('Platform exposure', '月台暴露'),
+          assetText('The network loses its usual shadow cover once the bargain moves onto the platform.', '一旦交易移上月台，网络惯有的阴影掩护就会失效。'),
+          'scene-midnight-platform',
+          'chapter-signals-in-rain',
+          'watch',
+          [platformWitnessLog, courierRoster],
+        ),
+      ],
+      relations: [
+        {
+          id: 'relation-network-ren',
+          targetAssetId: 'asset-ren-voss',
+          relationLabel: assetText('Relies on', '依赖'),
+          summary: assetText('Ren is the network’s visible negotiator when private signaling stops working.', '当私密暗号失灵时，Ren 就是网络在明面上的谈判者。'),
+        },
+      ],
+    }),
+    withAssetDefaults({
+      id: 'asset-closed-ledger',
+      kind: 'object',
+      title: assetText('Closed Ledger', '闭合账本'),
+      summary: assetText('A sealed object whose proof value would end the bargaining game the moment it becomes public.', '一个一旦公开就会立刻终结整场谈判游戏的封存物件。'),
+      visibility: 'character-known',
+      canonFacts: [
+        assetFact(
+          'closed-ledger-shell',
+          assetText('Outer shell', '外层封壳'),
+          assetText('Most witnesses only know the ledger as a sealed object that should not be opened publicly.', '大多数目击者只知道它是一个不该在公开场合打开的封存物件。'),
+          'character-known',
+          [ledgerShellBrief],
+          '2026-04-27 22:24',
+        ),
+        assetFact(
+          'closed-ledger-witness-proof',
+          assetText('Witness proof payload', '目击证明载荷'),
+          assetText('The proof inside the ledger would settle the bargain instantly if revealed to the crowd.', '如果把账本里的证明内容直接暴露给人群，整场交易会被立刻定性。'),
+          'spoiler',
+          [witnessProtocol],
+          '2026-04-27 22:26',
+        ),
+      ],
+      stateTimeline: [
+        assetTimeline(
+          'closed-ledger-platform-lock',
+          assetText('Platform lock', '月台封锁'),
+          assetText('The ledger stays sealed while the platform remains fully witnessed.', '只要月台仍处于被完整目击的状态，账本就必须保持封存。'),
+          'scene-midnight-platform',
+          'chapter-signals-in-rain',
+          'established',
+          [platformWitnessLog, ledgerShellBrief],
+        ),
+      ],
+      relations: [
+        {
+          id: 'relation-closed-ledger-rule',
+          targetAssetId: 'asset-public-witness-rule',
+          relationLabel: assetText('Carries', '承载'),
+          summary: assetText('The object is the concrete container of the public witness rule.', '这个物件是公开目击规则的具体承载体。'),
+        },
+      ],
+    }),
+    withAssetDefaults({
+      id: 'asset-public-witness-rule',
+      kind: 'lore',
+      title: assetText('Public Witness Rule', '公开目击规则'),
+      summary: assetText('Lore-level truth that no witnessed bargain survives once direct proof is placed in public view.', '一条 lore 级真相：一旦直接证明被摆到公开目击面前，任何被围观的交易都无法继续维持原状。'),
+      visibility: 'public',
+      canonFacts: [
+        assetFact(
+          'witness-rule-surface',
+          assetText('Surface rule', '表层规则'),
+          assetText('As long as witnesses remain, the bargain must stay one step away from proof.', '只要目击者还在，交易就必须始终与证明保持一步之遥。'),
+          'public',
+          [witnessProtocol],
+          '2026-04-27 22:28',
+        ),
+      ],
+      relations: [
+        {
+          id: 'relation-witness-rule-ledger',
+          targetAssetId: 'asset-closed-ledger',
+          relationLabel: assetText('Governs', '支配'),
+          summary: assetText('The public witness rule explains why the closed ledger cannot become public proof.', '公开目击规则解释了为什么闭合账本不能成为公开证明。'),
+        },
+      ],
+    }),
+    withAssetDefaults({
+      ...baseById.get('asset-ledger-stays-shut'),
+      id: 'asset-ledger-stays-shut',
+      kind: 'lore',
+      title: assetText('Ledger Stays Shut', '账本不得打开'),
+      summary: assetText(
+        'Deprecated rule seed retained for compatibility with older asset stories and run fixtures.',
+        '为兼容旧版 asset story 和 run fixture 而保留的旧规则种子。',
+      ),
+      visibility: 'spoiler',
+    }),
+    withAssetDefaults({
+      ...baseById.get('asset-departure-bell-timing'),
+      id: 'asset-departure-bell-timing',
+      kind: 'lore',
+      title: assetText('Departure Bell Timing', '发车铃时序'),
+      summary: assetText(
+        'Timing rule that decides when the exit can move without draining witness pressure too early.',
+        '一条时序规则，用来决定何时可以离场，又不至于过早抽干目击压力。',
+      ),
+      visibility: 'editor-only',
+    }),
+  ].map((asset) => ({
+    ...asset,
+    canonFacts: filterStoryBibleFacts(asset.canonFacts ?? [], visibility),
+    privateFacts: filterStoryBibleFacts(asset.privateFacts ?? [], visibility),
+  }))
+
+  if (!assets.find((asset) => asset.id === assetId)) {
+    return null
+  }
+
+  return {
+    assetId,
+    assets,
+    requestedVisibility: visibility,
+    viewsMeta: rawWorkspace.viewsMeta,
+  }
+}
+
+function summarizeAssetsForNavigator(workspace: AssetKnowledgeWorkspaceRecord): AssetNavigatorResponseRecord {
+  const groups: AssetNavigatorGroupsRecord = {
+    character: [],
+    location: [],
+    organization: [],
+    object: [],
+    lore: [],
+  }
+
+  for (const asset of workspace.assets) {
+    groups[asset.kind].push({
+      id: asset.id,
+      kind: asset.kind,
+      title: asset.title,
+      summary: asset.summary,
+      visibility: asset.visibility ?? 'public',
+      mentionCount: asset.mentions.length,
+      relationCount: asset.relations.length,
+      hasWarnings: (asset.warnings?.length ?? 0) > 0,
+    } satisfies AssetSummaryRecord)
+  }
+
+  for (const kind of Object.keys(groups) as Array<keyof AssetNavigatorGroupsRecord>) {
+    groups[kind].sort((left, right) => left.title.en.localeCompare(right.title.en))
+  }
+
+  return { groups }
 }
 
 function normalizeIndex(targetIndex: number, sceneCount: number) {
@@ -434,6 +846,286 @@ function trimNote(note?: string) {
   return value ? value : undefined
 }
 
+interface FixtureReviewIssueSeedRecord {
+  id: string
+  severity: ReviewIssueSeverityRecord
+  source: ReviewIssueSourceRecord
+  kind: ReviewIssueKindRecord
+  title: string
+  detail: string
+  chapterId?: string
+  sceneId?: string
+  assetId?: string
+  sourceExcerpt?: string
+  sceneLocator?: ReviewIssueSceneLocatorRecord
+  assetLocator?: ReviewIssueAssetLocatorRecord
+  canonLocator?: ReviewIssueCanonLocatorRecord
+  proseLocator?: ReviewIssueProseLocatorRecord
+}
+
+const FIXTURE_REVIEW_ISSUE_SEEDS: Record<string, FixtureReviewIssueSeedRecord[]> = {
+  'book-signal-arc': [
+    {
+      id: 'scene-proposal-seed-scene-5',
+      severity: 'warning',
+      source: 'scene-proposal',
+      kind: 'scene_proposal',
+      title: 'Scene proposal needs review',
+      detail: 'Scene Five is still waiting for proposal review before it can settle into the draft.',
+      chapterId: 'chapter-open-water-signals',
+      sceneId: 'scene-5',
+      sourceExcerpt: 'Scene Five still carries an execution proposal that has not been folded back into the manuscript.',
+      sceneLocator: {
+        chapterId: 'chapter-open-water-signals',
+        sceneId: 'scene-5',
+      },
+      proseLocator: {
+        chapterId: 'chapter-open-water-signals',
+        sceneId: 'scene-5',
+        excerpt: 'Scene Five still carries an execution proposal that has not been folded back into the manuscript.',
+      },
+    },
+    {
+      id: 'chapter-annotation-seed-chapter-1',
+      severity: 'warning',
+      source: 'chapter-draft',
+      kind: 'chapter_annotation',
+      title: 'Chapter annotation needs follow-up',
+      detail: 'Chapter One still carries a draft annotation that needs editorial follow-up.',
+      chapterId: 'chapter-1',
+      sourceExcerpt: 'Editorial note: confirm whether the opening pressure beat should stay in Chapter One or move downstream.',
+    },
+    {
+      id: 'trace-gap-seed-asset-ledger',
+      severity: 'warning',
+      source: 'traceability',
+      kind: 'trace_gap',
+      title: 'Asset trace gap noted',
+      detail: 'The Ledger reference still needs a traceability note in Scene Two.',
+      chapterId: 'chapter-1',
+      sceneId: 'scene-2',
+      assetId: 'asset-ledger',
+      sourceExcerpt: 'Ledger appears in Scene Two, but the current manuscript still lacks a matching traceability note.',
+      sceneLocator: {
+        chapterId: 'chapter-1',
+        sceneId: 'scene-2',
+      },
+      assetLocator: {
+        assetId: 'asset-ledger',
+      },
+      proseLocator: {
+        chapterId: 'chapter-1',
+        sceneId: 'scene-2',
+        excerpt: 'Ledger appears in Scene Two, but the current manuscript still lacks a matching traceability note.',
+      },
+    },
+    {
+      id: 'continuity-conflict-ledger-public-proof',
+      severity: 'blocker',
+      source: 'continuity',
+      kind: 'continuity_conflict',
+      title: 'Ledger visibility conflicts with the public-proof beat',
+      detail: 'Midnight Platform prose implies the ledger proof already went public while the continuity ledger still marks it as withheld.',
+      chapterId: 'chapter-signals-in-rain',
+      sceneId: 'scene-midnight-platform',
+      assetId: 'asset-ledger',
+      sourceExcerpt: 'The current prose treats the ledger proof as public even though the continuity ledger still keeps it private.',
+      sceneLocator: {
+        chapterId: 'chapter-signals-in-rain',
+        sceneId: 'scene-midnight-platform',
+      },
+      assetLocator: {
+        assetId: 'asset-ledger',
+      },
+      canonLocator: {
+        entityId: 'asset-ledger',
+        factIds: ['canon-ledger-public-proof'],
+      },
+      proseLocator: {
+        chapterId: 'chapter-signals-in-rain',
+        sceneId: 'scene-midnight-platform',
+        excerpt: 'Ren treats the proof as already public on the midnight platform.',
+      },
+    },
+    {
+      id: 'missing-trace-departure-bell',
+      severity: 'warning',
+      source: 'traceability',
+      kind: 'missing_trace',
+      title: 'Departure Bell has no trace references',
+      detail: 'Departure Bell currently reads as draft prose, but it carries no scene-level trace references back to canon or proposals.',
+      chapterId: 'chapter-open-water-signals',
+      sceneId: 'scene-departure-bell',
+      sourceExcerpt: 'Departure Bell prose is readable, yet the trace chain is blank.',
+      sceneLocator: {
+        chapterId: 'chapter-open-water-signals',
+        sceneId: 'scene-departure-bell',
+      },
+      proseLocator: {
+        chapterId: 'chapter-open-water-signals',
+        sceneId: 'scene-departure-bell',
+        excerpt: 'The departure bell lands as prose, but no trace references survive in the current draft.',
+      },
+    },
+    {
+      id: 'stale-prose-after-canon-midnight-platform',
+      severity: 'warning',
+      source: 'stale-prose',
+      kind: 'stale_prose_after_canon_change',
+      title: 'Midnight Platform prose is stale after canon changed',
+      detail: 'The accepted canon facts moved after the last draft pass, but Midnight Platform prose still reflects the earlier ledger phrasing.',
+      chapterId: 'chapter-signals-in-rain',
+      sceneId: 'scene-midnight-platform',
+      sourceExcerpt: 'Current prose still uses the pre-change ledger wording.',
+      sceneLocator: {
+        chapterId: 'chapter-signals-in-rain',
+        sceneId: 'scene-midnight-platform',
+      },
+      canonLocator: {
+        entityId: 'asset-ledger',
+        factIds: ['canon-ledger-public-proof'],
+      },
+      proseLocator: {
+        chapterId: 'chapter-signals-in-rain',
+        sceneId: 'scene-midnight-platform',
+        excerpt: 'The prose still uses the older ledger wording.',
+      },
+    },
+    {
+      id: 'chapter-gap-open-water-bridge',
+      severity: 'warning',
+      source: 'manuscript',
+      kind: 'chapter_gap',
+      title: 'Open Water Signals is missing a readable bridge section',
+      detail: 'The chapter still assembles without a readable bridge passage between its current scene drafts.',
+      chapterId: 'chapter-open-water-signals',
+      sourceExcerpt: 'The assembled draft jumps across Open Water Signals without a readable bridge section.',
+    },
+    {
+      id: 'asset-inconsistency-ledger-rule',
+      severity: 'warning',
+      source: 'asset-consistency',
+      kind: 'asset_inconsistency',
+      title: 'Ledger rule conflicts with current asset usage',
+      detail: 'The ledger rule still marks the proof path as sealed, but the latest review trail references an already-open ledger exchange.',
+      chapterId: 'chapter-signals-in-rain',
+      assetId: 'asset-ledger-rule',
+      sourceExcerpt: 'Ledger rule and current review notes disagree about whether the proof can surface in public.',
+      assetLocator: {
+        assetId: 'asset-ledger-rule',
+      },
+      canonLocator: {
+        entityId: 'asset-ledger-rule',
+        factIds: ['canon-ledger-rule-visibility'],
+      },
+    },
+  ],
+}
+
+function createFixtureReviewIssueSignature(seed: FixtureReviewIssueSeedRecord) {
+  return [
+    seed.id,
+    seed.kind,
+    seed.source,
+    seed.chapterId ?? '',
+    seed.sceneId ?? '',
+    seed.assetId ?? '',
+    seed.title,
+    seed.detail,
+    seed.sourceExcerpt ?? '',
+  ].join('::')
+}
+
+function buildReviewIssueSnapshotsRecord(
+  bookId: string,
+  reviewDecisions: ReviewIssueDecisionRecord[],
+  reviewFixActions: ReviewIssueFixActionRecord[],
+): BookReviewIssueSnapshotsRecord {
+  const decisionsByIssueId = new Map(reviewDecisions.map((record) => [record.issueId, record]))
+  const fixActionsByIssueId = new Map(reviewFixActions.map((record) => [record.issueId, record]))
+  const seeds = FIXTURE_REVIEW_ISSUE_SEEDS[bookId] ?? []
+
+  return {
+    bookId,
+    issues: seeds.map((seed): ReviewIssueSnapshotRecord => {
+      const issueSignature = createFixtureReviewIssueSignature(seed)
+      const decisionRecord = decisionsByIssueId.get(seed.id)
+      const fixActionRecord = fixActionsByIssueId.get(seed.id)
+
+      return {
+        id: seed.id,
+        severity: seed.severity,
+        source: seed.source,
+        kind: seed.kind,
+        title: seed.title,
+        detail: seed.detail,
+        issueSignature,
+        chapterId: seed.chapterId,
+        sceneId: seed.sceneId,
+        assetId: seed.assetId,
+        sceneLocator: seed.sceneLocator,
+        assetLocator: seed.assetLocator,
+        canonLocator: seed.canonLocator,
+        proseLocator: seed.proseLocator,
+        decision: decisionRecord
+          ? decisionRecord.issueSignature === issueSignature
+            ? {
+                status: decisionRecord.status,
+                note: decisionRecord.note,
+                updatedAtLabel: decisionRecord.updatedAtLabel,
+                updatedByLabel: decisionRecord.updatedByLabel,
+                isStale: false,
+              }
+            : {
+                status: 'stale',
+                note: decisionRecord.note,
+                updatedAtLabel: decisionRecord.updatedAtLabel,
+                updatedByLabel: decisionRecord.updatedByLabel,
+                isStale: true,
+              }
+          : {
+              status: 'open',
+              isStale: false,
+            },
+        fixAction: fixActionRecord
+          ? fixActionRecord.issueSignature === issueSignature
+            ? {
+                status: fixActionRecord.status,
+                sourceHandoffId: fixActionRecord.sourceHandoffId,
+                sourceHandoffLabel: fixActionRecord.sourceHandoffLabel,
+                targetScope: fixActionRecord.targetScope,
+                note: fixActionRecord.note,
+                rewriteRequestNote: fixActionRecord.rewriteRequestNote,
+                rewriteTargetSceneId: fixActionRecord.rewriteTargetSceneId,
+                rewriteRequestId: fixActionRecord.rewriteRequestId,
+                startedAtLabel: fixActionRecord.startedAtLabel,
+                updatedAtLabel: fixActionRecord.updatedAtLabel,
+                updatedByLabel: fixActionRecord.updatedByLabel,
+                isStale: false,
+              }
+            : {
+                status: 'stale',
+                sourceHandoffId: fixActionRecord.sourceHandoffId,
+                sourceHandoffLabel: fixActionRecord.sourceHandoffLabel,
+                targetScope: fixActionRecord.targetScope,
+                note: fixActionRecord.note,
+                rewriteRequestNote: fixActionRecord.rewriteRequestNote,
+                rewriteTargetSceneId: fixActionRecord.rewriteTargetSceneId,
+                rewriteRequestId: fixActionRecord.rewriteRequestId,
+                startedAtLabel: fixActionRecord.startedAtLabel,
+                updatedAtLabel: fixActionRecord.updatedAtLabel,
+                updatedByLabel: fixActionRecord.updatedByLabel,
+                isStale: true,
+              }
+          : {
+              status: 'not_started',
+              isStale: false,
+            },
+      }
+    }),
+  }
+}
+
 function mapRunStatusToSceneRunStatus(status: RunRecord['status']): SceneWorkspaceViewModel['runStatus'] {
   switch (status) {
     case 'queued':
@@ -576,12 +1268,16 @@ export interface FixtureRepository {
   getChapterDraftAssembly(projectId: string, chapterId: string): ChapterDraftAssemblyRecord | null
   getBookManuscriptCheckpoints(projectId: string, bookId: string): BookManuscriptCheckpointRecord[]
   getBookManuscriptCheckpoint(projectId: string, bookId: string, checkpointId: string): BookManuscriptCheckpointRecord | null
+  createBookManuscriptCheckpoint(projectId: string, input: CreateBookManuscriptCheckpointInput): Promise<BookManuscriptCheckpointRecord>
   getBookExportProfiles(projectId: string, bookId: string): BookExportProfileRecord[]
   getBookExportProfile(projectId: string, bookId: string, exportProfileId: string): BookExportProfileRecord | null
   getBookExportArtifacts(projectId: string, input: { bookId: string; exportProfileId?: string; checkpointId?: string }): BookExportArtifactRecord[]
   createBookExportArtifact(projectId: string, input: BuildBookExportArtifactInput): Promise<BookExportArtifactRecord>
   getBookExperimentBranches(projectId: string, bookId: string): BookExperimentBranchRecord[]
   getBookExperimentBranch(projectId: string, bookId: string, branchId: string): BookExperimentBranchRecord | null
+  createBookExperimentBranch(projectId: string, input: CreateBookExperimentBranchInput): Promise<BookExperimentBranchRecord>
+  adoptBookExperimentBranch(projectId: string, input: CreateBookExperimentBranchAdoptionInput): Promise<BookExperimentBranchAdoptionRecord>
+  archiveBookExperimentBranch(projectId: string, input: ArchiveBookExperimentBranchInput): Promise<BookExperimentBranchRecord>
   getChapterStructure(projectId: string, chapterId: string): ChapterStructureWorkspaceRecord | null
   updateChapterBacklogPlanningInput(projectId: string, chapterId: string, input: PatchChapterBacklogPlanningInput): Promise<ChapterStructureWorkspaceRecord | null>
   generateChapterBacklogProposal(projectId: string, chapterId: string): Promise<ChapterStructureWorkspaceRecord | null>
@@ -605,8 +1301,14 @@ export interface FixtureRepository {
   ): Promise<StartNextChapterSceneRunRecord | null>
   reorderChapterScene(projectId: string, input: { chapterId: string; sceneId: string; targetIndex: number }): Promise<ChapterStructureWorkspaceRecord | null>
   updateChapterSceneStructure(projectId: string, input: { chapterId: string; sceneId: string; locale: 'en' | 'zh-CN'; patch: ChapterSceneStructurePatch }): Promise<ChapterStructureWorkspaceRecord | null>
-  getAssetKnowledge(projectId: string, assetId: string): AssetKnowledgeWorkspaceRecord | null
+  listAssets(projectId: string): AssetNavigatorResponseRecord
+  getAssetKnowledge(
+    projectId: string,
+    assetId: string,
+    options?: { visibility?: AssetContextVisibilityRecord },
+  ): AssetKnowledgeWorkspaceRecord | null
   getReviewDecisions(projectId: string, bookId: string): ReviewIssueDecisionRecord[]
+  getReviewIssueSnapshots(projectId: string, bookId: string): BookReviewIssueSnapshotsRecord
   setReviewDecision(projectId: string, input: SetReviewIssueDecisionInput): Promise<ReviewIssueDecisionRecord>
   clearReviewDecision(projectId: string, input: { bookId: string; issueId: string }): Promise<void>
   getReviewFixActions(projectId: string, bookId: string): ReviewIssueFixActionRecord[]
@@ -635,6 +1337,9 @@ export interface FixtureRepository {
   switchSceneThread(projectId: string, sceneId: string, threadId: string): Promise<void>
   applySceneProposalAction(projectId: string, sceneId: string, action: 'accept' | 'edit-accept' | 'request-rewrite' | 'reject', input: ProposalActionInput): void
   startSceneRun(projectId: string, input: StartSceneRunInput): Promise<RunRecord>
+  retryRun(projectId: string, input: RetryRunInput): Promise<RunRecord>
+  cancelRun(projectId: string, input: CancelRunInput): Promise<RunRecord>
+  resumeRun(projectId: string, input: ResumeRunInput): Promise<RunRecord>
   getRun(projectId: string, runId: string): RunRecord | null
   listRunArtifacts(projectId: string, runId: string): RunArtifactSummaryRecord[] | null
   getRunArtifact(projectId: string, runId: string, artifactId: string): RunArtifactDetailRecord | null
@@ -654,9 +1359,11 @@ export interface FixtureRepositoryProjectStatePersistence {
     seedVersion: string
     projects: Record<string, {
       updatedAt: string
+      manuscriptCheckpoints?: Record<string, unknown>
       reviewDecisions?: Record<string, unknown>
       reviewFixActions?: Record<string, unknown>
       exportArtifacts?: Record<string, unknown>
+      experimentBranches?: Record<string, unknown>
       chapters?: Record<string, unknown>
       scenes?: Record<string, unknown>
       runStore?: PersistedRunStore
@@ -664,9 +1371,11 @@ export interface FixtureRepositoryProjectStatePersistence {
   }>
   saveProjectOverlay(projectId: string, overlay: {
     updatedAt: string
+    manuscriptCheckpoints?: Record<string, unknown>
     reviewDecisions?: Record<string, unknown>
     reviewFixActions?: Record<string, unknown>
     exportArtifacts?: Record<string, unknown>
+    experimentBranches?: Record<string, unknown>
     chapters?: Record<string, unknown>
     scenes?: Record<string, unknown>
     runStore?: PersistedRunStore
@@ -780,6 +1489,9 @@ export function createFixtureRepository(options: {
   ) {
     const project = getProject(projectId)
 
+    if (overlay.manuscriptCheckpoints) {
+      project.manuscriptCheckpoints = clone(overlay.manuscriptCheckpoints as unknown as FixtureProjectData['manuscriptCheckpoints'])
+    }
     if (overlay.reviewDecisions) {
       project.reviewDecisions = clone(overlay.reviewDecisions as unknown as FixtureProjectData['reviewDecisions'])
     }
@@ -788,6 +1500,9 @@ export function createFixtureRepository(options: {
     }
     if (overlay.exportArtifacts) {
       project.exportArtifacts = clone(overlay.exportArtifacts as unknown as FixtureProjectData['exportArtifacts'])
+    }
+    if (overlay.experimentBranches) {
+      project.experimentBranches = clone(overlay.experimentBranches as unknown as FixtureProjectData['experimentBranches'])
     }
     if (overlay.chapters) {
       project.chapters = clone(overlay.chapters as unknown as FixtureProjectData['chapters'])
@@ -809,6 +1524,11 @@ export function createFixtureRepository(options: {
       updatedAt: new Date().toISOString(),
     }
 
+    if (!seedProject || !jsonEquals(project.manuscriptCheckpoints, seedProject.manuscriptCheckpoints)) {
+      overlay.manuscriptCheckpoints = toJsonClone(
+        project.manuscriptCheckpoints as unknown as NonNullable<typeof overlay.manuscriptCheckpoints>,
+      )
+    }
     if (!seedProject || !jsonEquals(project.reviewDecisions, seedProject.reviewDecisions)) {
       overlay.reviewDecisions = toJsonClone(project.reviewDecisions as unknown as NonNullable<typeof overlay.reviewDecisions>)
     }
@@ -817,6 +1537,11 @@ export function createFixtureRepository(options: {
     }
     if (!seedProject || !jsonEquals(project.exportArtifacts, seedProject.exportArtifacts)) {
       overlay.exportArtifacts = toJsonClone(project.exportArtifacts as unknown as NonNullable<typeof overlay.exportArtifacts>)
+    }
+    if (!seedProject || !jsonEquals(project.experimentBranches, seedProject.experimentBranches)) {
+      overlay.experimentBranches = toJsonClone(
+        project.experimentBranches as unknown as NonNullable<typeof overlay.experimentBranches>,
+      )
     }
     if (!seedProject || !jsonEquals(project.chapters, seedProject.chapters)) {
       overlay.chapters = toJsonClone(project.chapters as unknown as NonNullable<typeof overlay.chapters>)
@@ -1628,6 +2353,122 @@ export function createFixtureRepository(options: {
     }
   }
 
+  function buildBookDraftAssemblyRecordForBook(project: FixtureProjectData, bookId: string): BookDraftAssemblyRecord | null {
+    const book = project.books[bookId]
+    if (!book) {
+      return null
+    }
+
+    const chapterAssemblies = book.chapterIds.flatMap((chapterId, index) => {
+      const assembly = buildChapterDraftAssemblyRecord({
+        chapterId,
+        project,
+      })
+
+      return assembly ? [{ order: index + 1, assembly }] : []
+    })
+    const chapters = chapterAssemblies.map(({ order, assembly }) =>
+      buildBookDraftAssemblyChapterRecordFromChapterAssembly({
+        chapterAssembly: assembly,
+        order,
+      }))
+    const sceneCount = chapterAssemblies.reduce((total, chapter) => total + chapter.assembly.sceneCount, 0)
+    const draftedSceneCount = chapterAssemblies.reduce((total, chapter) => total + chapter.assembly.draftedSceneCount, 0)
+    const assembledWordCount = chapterAssemblies.reduce(
+      (total, chapter) => total + chapter.assembly.assembledWordCount,
+      0,
+    )
+    const readableManuscript = buildBookDraftReadableManuscript({
+      book,
+      chapters: chapterAssemblies,
+    })
+
+    return {
+      bookId: book.bookId,
+      title: book.title,
+      summary: book.summary,
+      chapterCount: chapters.length,
+      sceneCount,
+      draftedSceneCount,
+      missingDraftSceneCount: sceneCount - draftedSceneCount,
+      assembledWordCount,
+      chapters,
+      readableManuscript,
+    }
+  }
+
+  function createMirroredLocalizedText(value: string) {
+    return localizedText(value, value)
+  }
+
+  function findBookExperimentBranchScene(
+    branch: BookExperimentBranchRecord,
+    chapterId: string,
+    sceneId: string,
+  ) {
+    const chapter = branch.chapterSnapshots.find((item) => item.chapterId === chapterId)
+    if (!chapter) {
+      return null
+    }
+
+    return chapter.sceneSnapshots.find((item) => item.sceneId === sceneId) ?? null
+  }
+
+  function buildBookCheckpointChaptersFromAssembly(record: BookDraftAssemblyRecord) {
+    return record.chapters.map((chapter) => ({
+      chapterId: chapter.chapterId,
+      order: chapter.order,
+      title: clone(chapter.title),
+      summary: clone(chapter.summary),
+      scenes: chapter.scenes.map((scene) => ({
+        sceneId: scene.sceneId,
+        order: scene.order,
+        title: clone(scene.title),
+        summary: clone(scene.summary),
+        proseDraft: scene.kind === 'draft' ? scene.proseDraft : undefined,
+        draftWordCount: scene.draftWordCount,
+        warningsCount: scene.warningsCount,
+        traceReady: scene.traceReady,
+      })),
+    }))
+  }
+
+  function buildBranchChaptersFromCheckpoint(record: BookManuscriptCheckpointRecord) {
+    return record.chapters.map((chapter) => ({
+      chapterId: chapter.chapterId,
+      title: clone(chapter.title),
+      summary: clone(chapter.summary),
+      sceneSnapshots: chapter.scenes.map((scene) => ({
+        sceneId: scene.sceneId,
+        title: clone(scene.title),
+        summary: clone(scene.summary),
+        proseDraft: scene.proseDraft ? createMirroredLocalizedText(scene.proseDraft) : undefined,
+        draftWordCount: scene.draftWordCount,
+        traceReady: scene.traceReady,
+        warningsCount: scene.warningsCount,
+        sourceProposalCount: 0,
+      })),
+    }))
+  }
+
+  function buildBranchChaptersFromAssembly(record: BookDraftAssemblyRecord) {
+    return record.chapters.map((chapter) => ({
+      chapterId: chapter.chapterId,
+      title: clone(chapter.title),
+      summary: clone(chapter.summary),
+      sceneSnapshots: chapter.scenes.map((scene) => ({
+        sceneId: scene.sceneId,
+        title: clone(scene.title),
+        summary: clone(scene.summary),
+        proseDraft: scene.kind === 'draft' ? createMirroredLocalizedText(scene.proseDraft) : undefined,
+        draftWordCount: scene.draftWordCount,
+        traceReady: scene.traceReady,
+        warningsCount: scene.warningsCount,
+        sourceProposalCount: scene.traceRollup.sourceProposalCount,
+      })),
+    }))
+  }
+
   return {
     whenReady() {
       return readyPromise
@@ -1642,48 +2483,8 @@ export function createFixtureRepository(options: {
       return record ? clone(record) : null
     },
     getBookDraftAssembly(projectId, bookId) {
-      const project = getProject(projectId)
-      const book = project.books[bookId]
-      if (!book) {
-        return null
-      }
-
-      const chapterAssemblies = book.chapterIds.flatMap((chapterId, index) => {
-        const assembly = buildChapterDraftAssemblyRecord({
-          chapterId,
-          project,
-        })
-
-        return assembly ? [{ order: index + 1, assembly }] : []
-      })
-      const chapters = chapterAssemblies.map(({ order, assembly }) =>
-        buildBookDraftAssemblyChapterRecordFromChapterAssembly({
-          chapterAssembly: assembly,
-          order,
-        }))
-      const sceneCount = chapterAssemblies.reduce((total, chapter) => total + chapter.assembly.sceneCount, 0)
-      const draftedSceneCount = chapterAssemblies.reduce((total, chapter) => total + chapter.assembly.draftedSceneCount, 0)
-      const assembledWordCount = chapterAssemblies.reduce(
-        (total, chapter) => total + chapter.assembly.assembledWordCount,
-        0,
-      )
-      const readableManuscript = buildBookDraftReadableManuscript({
-        book,
-        chapters: chapterAssemblies,
-      })
-
-      return clone({
-        bookId: book.bookId,
-        title: book.title,
-        summary: book.summary,
-        chapterCount: chapters.length,
-        sceneCount,
-        draftedSceneCount,
-        missingDraftSceneCount: sceneCount - draftedSceneCount,
-        assembledWordCount,
-        chapters,
-        readableManuscript,
-      })
+      const record = buildBookDraftAssemblyRecordForBook(getProject(projectId), bookId)
+      return record ? clone(record) : null
     },
     getChapterDraftAssembly(projectId, chapterId) {
       return clone(buildChapterDraftAssemblyRecord({
@@ -1697,6 +2498,32 @@ export function createFixtureRepository(options: {
     getBookManuscriptCheckpoint(projectId, bookId, checkpointId) {
       const record = (getProject(projectId).manuscriptCheckpoints[bookId] ?? []).find((item) => item.checkpointId === checkpointId)
       return record ? clone(record) : null
+    },
+    async createBookManuscriptCheckpoint(projectId, input) {
+      const project = getProject(projectId)
+      const checkpoints = project.manuscriptCheckpoints[input.bookId] ?? []
+      const draftAssembly = buildBookDraftAssemblyRecordForBook(project, input.bookId)
+      if (!draftAssembly) {
+        throw notFound(`Book draft assembly ${input.bookId} was not found.`, {
+          code: 'BOOK_DRAFT_ASSEMBLY_NOT_FOUND',
+          detail: { bookId: input.bookId },
+        })
+      }
+
+      const record: BookManuscriptCheckpointRecord = {
+        checkpointId: `checkpoint-${input.bookId}-${String(checkpoints.length + 1).padStart(3, '0')}`,
+        bookId: input.bookId,
+        title: createMirroredLocalizedText(input.title),
+        createdAtLabel: createMirroredLocalizedText('2026-04-28 10:00'),
+        sourceSignature: input.sourceSignature,
+        summary: createMirroredLocalizedText(input.summary),
+        selectedChapterId: input.selectedChapterId,
+        chapters: buildBookCheckpointChaptersFromAssembly(draftAssembly),
+      }
+
+      project.manuscriptCheckpoints[input.bookId] = [...checkpoints, record]
+      await persistProjectOverlay(projectId)
+      return clone(record)
     },
     getBookExportProfiles(projectId, bookId) {
       return clone(getProject(projectId).exportProfiles[bookId] ?? [])
@@ -1755,6 +2582,129 @@ export function createFixtureRepository(options: {
     getBookExperimentBranch(projectId, bookId, branchId) {
       const record = (getProject(projectId).experimentBranches[bookId] ?? []).find((item) => item.branchId === branchId)
       return record ? clone(record) : null
+    },
+    async createBookExperimentBranch(projectId, input) {
+      const project = getProject(projectId)
+      const branches = project.experimentBranches[input.bookId] ?? []
+      const checkpoint = input.basedOnCheckpointId
+        ? (project.manuscriptCheckpoints[input.bookId] ?? []).find((item) => item.checkpointId === input.basedOnCheckpointId) ?? null
+        : null
+      const draftAssembly = checkpoint ? null : buildBookDraftAssemblyRecordForBook(project, input.bookId)
+
+      if (input.basedOnCheckpointId && !checkpoint) {
+        throw notFound(`Book manuscript checkpoint ${input.basedOnCheckpointId} was not found.`, {
+          code: 'BOOK_MANUSCRIPT_CHECKPOINT_NOT_FOUND',
+          detail: { bookId: input.bookId, checkpointId: input.basedOnCheckpointId },
+        })
+      }
+
+      if (!checkpoint && !draftAssembly) {
+        throw notFound(`Book draft assembly ${input.bookId} was not found.`, {
+          code: 'BOOK_DRAFT_ASSEMBLY_NOT_FOUND',
+          detail: { bookId: input.bookId },
+        })
+      }
+
+      const record: BookExperimentBranchRecord = {
+        branchId: `branch-${input.bookId}-${String(branches.length + 1).padStart(3, '0')}`,
+        bookId: input.bookId,
+        title: createMirroredLocalizedText(input.title),
+        summary: createMirroredLocalizedText(input.summary),
+        rationale: createMirroredLocalizedText(input.rationale),
+        createdAtLabel: createMirroredLocalizedText('2026-04-28 10:10'),
+        sourceSignature: input.basedOnCheckpointId
+          ? `checkpoint:${input.basedOnCheckpointId}`
+          : `draft-assembly:${input.bookId}:selected:${input.selectedChapterId}`,
+        basedOnCheckpointId: input.basedOnCheckpointId,
+        selectedChapterId: input.selectedChapterId,
+        status: 'review',
+        adoptions: [],
+        chapterSnapshots: checkpoint
+          ? buildBranchChaptersFromCheckpoint(checkpoint)
+          : buildBranchChaptersFromAssembly(draftAssembly!),
+      }
+
+      project.experimentBranches[input.bookId] = [...branches, record]
+      await persistProjectOverlay(projectId)
+      return clone(record)
+    },
+    async adoptBookExperimentBranch(projectId, input) {
+      const project = getProject(projectId)
+      const branches = project.experimentBranches[input.bookId] ?? []
+      const branchIndex = branches.findIndex((item) => item.branchId === input.branchId)
+      if (branchIndex < 0) {
+        throw notFound(`Book experiment branch ${input.branchId} was not found.`, {
+          code: 'BOOK_EXPERIMENT_BRANCH_NOT_FOUND',
+          detail: { bookId: input.bookId, branchId: input.branchId },
+        })
+      }
+
+      const current = branches[branchIndex]!
+      const branchScene = findBookExperimentBranchScene(current, input.chapterId, input.sceneId)
+      if (!branchScene) {
+        throw notFound(`Book experiment branch scene ${input.sceneId} was not found.`, {
+          code: 'BOOK_EXPERIMENT_BRANCH_SCENE_NOT_FOUND',
+          detail: {
+            bookId: input.bookId,
+            branchId: input.branchId,
+            chapterId: input.chapterId,
+            sceneId: input.sceneId,
+          },
+        })
+      }
+
+      const adoption: BookExperimentBranchAdoptionRecord = {
+        adoptionId: `adoption-${input.bookId}-${String((current.adoptions?.length ?? 0) + 1).padStart(3, '0')}`,
+        branchId: input.branchId,
+        bookId: input.bookId,
+        chapterId: input.chapterId,
+        sceneId: input.sceneId,
+        kind: input.kind,
+        status: 'adopted',
+        summary: createMirroredLocalizedText(input.summary),
+        createdAtLabel: createMirroredLocalizedText('2026-04-28 10:15'),
+        sourceSignature: input.sourceSignature,
+      }
+
+      if (current.status === 'archived') {
+        adoption.status = 'blocked'
+      } else if (input.kind === 'canon_patch' && branchScene.sourceProposalCount <= 0) {
+        adoption.status = 'blocked'
+      } else if (input.kind === 'prose_draft' && !hasConcreteProseDraft(branchScene.proseDraft?.en)) {
+        adoption.status = 'blocked'
+      }
+
+      const updated: BookExperimentBranchRecord = {
+        ...current,
+        adoptions: [...(current.adoptions ?? []), adoption],
+      }
+
+      project.experimentBranches[input.bookId] = branches.map((branch, index) => (index === branchIndex ? updated : branch))
+      await persistProjectOverlay(projectId)
+      return clone(adoption)
+    },
+    async archiveBookExperimentBranch(projectId, input) {
+      const project = getProject(projectId)
+      const branches = project.experimentBranches[input.bookId] ?? []
+      const branchIndex = branches.findIndex((item) => item.branchId === input.branchId)
+      if (branchIndex < 0) {
+        throw notFound(`Book experiment branch ${input.branchId} was not found.`, {
+          code: 'BOOK_EXPERIMENT_BRANCH_NOT_FOUND',
+          detail: { bookId: input.bookId, branchId: input.branchId },
+        })
+      }
+
+      const current = branches[branchIndex]!
+      const updated: BookExperimentBranchRecord = {
+        ...current,
+        status: 'archived',
+        archivedAtLabel: createMirroredLocalizedText('2026-04-28 10:12'),
+        archiveNote: createMirroredLocalizedText(input.archiveNote),
+      }
+
+      project.experimentBranches[input.bookId] = branches.map((branch, index) => (index === branchIndex ? updated : branch))
+      await persistProjectOverlay(projectId)
+      return clone(updated)
     },
     getChapterStructure(projectId, chapterId) {
       const record = getChapter(projectId, chapterId)
@@ -1881,12 +2831,43 @@ export function createFixtureRepository(options: {
       await persistProjectOverlay(projectId)
       return clone(nextRecord)
     },
-    getAssetKnowledge(projectId, assetId) {
-      const record = getAsset(projectId, assetId)
-      return record ? clone(record) : null
+    listAssets(projectId) {
+      const firstWorkspace = Object.values(getProject(projectId).assets)[0] ?? null
+      if (!firstWorkspace) {
+        return { groups: { character: [], location: [], organization: [], object: [], lore: [] } }
+      }
+
+      const workspace = buildAugmentedAssetKnowledgeWorkspace(firstWorkspace, firstWorkspace.assetId)
+      return workspace ? summarizeAssetsForNavigator(workspace) : { groups: { character: [], location: [], organization: [], object: [], lore: [] } }
+    },
+    getAssetKnowledge(projectId, assetId, options) {
+      const projectAssets = getProject(projectId).assets
+      const record = projectAssets[assetId] ?? Object.values(projectAssets)[0] ?? null
+      if (!record) {
+        return null
+      }
+
+      const augmented = buildAugmentedAssetKnowledgeWorkspace(record, assetId, options?.visibility)
+      return augmented ? clone(augmented) : null
     },
     getReviewDecisions(projectId, bookId) {
       return clone(getProject(projectId).reviewDecisions[bookId] ?? [])
+    },
+    getReviewIssueSnapshots(projectId, bookId) {
+      if (!getBook(projectId, bookId)) {
+        return {
+          bookId,
+          issues: [],
+        }
+      }
+
+      return clone(
+        buildReviewIssueSnapshotsRecord(
+          bookId,
+          getProject(projectId).reviewDecisions[bookId] ?? [],
+          getProject(projectId).reviewFixActions[bookId] ?? [],
+        ),
+      )
     },
     async setReviewDecision(projectId, input) {
       const project = getProject(projectId)
@@ -1928,6 +2909,9 @@ export function createFixtureRepository(options: {
         targetScope: input.targetScope,
         status: input.status,
         note: trimNote(input.note),
+        rewriteRequestNote: trimNote(input.rewriteRequestNote),
+        rewriteTargetSceneId: input.rewriteTargetSceneId?.trim() ? input.rewriteTargetSceneId.trim() : undefined,
+        rewriteRequestId: input.rewriteRequestId?.trim() ? input.rewriteRequestId.trim() : undefined,
         startedAtLabel: existing?.startedAtLabel ?? '2026-04-23 10:06',
         updatedAtLabel: '2026-04-23 10:07',
         updatedByLabel: 'Fixture API server',
@@ -2103,6 +3087,24 @@ export function createFixtureRepository(options: {
     async startSceneRun(projectId, input) {
       getScene(projectId, input.sceneId)
       const run = await runStore.startSceneRun(projectId, input)
+      syncRunMutations(projectId, run)
+      await persistProjectOverlay(projectId)
+      return run
+    },
+    async retryRun(projectId, input) {
+      const run = await runStore.retryRun(projectId, input)
+      syncRunMutations(projectId, run)
+      await persistProjectOverlay(projectId)
+      return run
+    },
+    async cancelRun(projectId, input) {
+      const run = await runStore.cancelRun(projectId, input)
+      syncRunMutations(projectId, run)
+      await persistProjectOverlay(projectId)
+      return run
+    },
+    async resumeRun(projectId, input) {
+      const run = await runStore.resumeRun(projectId, input)
       syncRunMutations(projectId, run)
       await persistProjectOverlay(projectId)
       return run

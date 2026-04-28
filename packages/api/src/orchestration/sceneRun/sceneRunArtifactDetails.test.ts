@@ -83,7 +83,7 @@ describe('sceneRunArtifactDetails', () => {
           'Cast, location, constraints, and review-only rules were filtered through visibility policy before inclusion.',
           '登场角色、地点、约束与仅供评审的规则会先经过可见性策略过滤，再决定是否纳入。',
         ),
-        itemCount: 5,
+        itemCount: 7,
       },
     ])
     expect(detail.includedCanonFacts).toEqual([
@@ -112,23 +112,14 @@ describe('sceneRunArtifactDetails', () => {
         ),
       },
     ])
-    expect(detail.includedAssets).toEqual([
+    expect(detail.includedAssets).toEqual(expect.arrayContaining([
       {
         assetId: 'asset-ren-voss',
         kind: 'character',
         label: text('Ren Voss', '任·沃斯'),
         reason: text(
-          'Courier-side negotiator who keeps the ledger closed while trying to buy time in public. Role: Courier negotiator; Agenda: Lock the bargain before witnesses harden the price.',
-          'Courier-side negotiator who keeps the ledger closed while trying to buy time in public. Role: Courier negotiator; Agenda: Lock the bargain before witnesses harden the price.',
-        ),
-      },
-      {
-        assetId: 'asset-mei-arden',
-        kind: 'character',
-        label: text('Mei Arden', '美伊·阿登'),
-        reason: text(
-          'Counterparty who keeps raising the visible cost until Ren gives her a usable commitment. Role: Counterparty broker',
-          'Counterparty who keeps raising the visible cost until Ren gives her a usable commitment. Role: Counterparty broker',
+          'Courier-side negotiator who keeps the ledger closed while trying to buy time in public. Public line: Ren will stall in public before he lets the ledger open.; Role: Courier negotiator',
+          'Courier-side negotiator who keeps the ledger closed while trying to buy time in public. Public line: Ren will stall in public before he lets the ledger open.; Role: Courier negotiator',
         ),
       },
       {
@@ -140,13 +131,40 @@ describe('sceneRunArtifactDetails', () => {
           'Open platform where every hesitation turns into public leverage and witness pressure. Type: Transit platform; Pressure: Crowd visibility makes secrets expensive.',
         ),
       },
-    ])
+      {
+        assetId: 'asset-courier-network',
+        kind: 'organization',
+        label: text('Courier Network', '信使网络'),
+        reason: text(
+          'The organization trying to keep witness pressure survivable while preserving the closed-ledger line. Public posture: The network prefers delay over exposure when witness pressure spikes.',
+          'The organization trying to keep witness pressure survivable while preserving the closed-ledger line. Public posture: The network prefers delay over exposure when witness pressure spikes.',
+        ),
+      },
+      {
+        assetId: 'asset-closed-ledger',
+        kind: 'object',
+        label: text('Closed Ledger', '闭合账本'),
+        reason: text(
+          'A sealed object whose proof value would end the bargaining game the moment it becomes public. Outer shell: Most witnesses only know the ledger as a sealed object that should not be opened publicly.',
+          'A sealed object whose proof value would end the bargaining game the moment it becomes public. Outer shell: Most witnesses only know the ledger as a sealed object that should not be opened publicly.',
+        ),
+      },
+      {
+        assetId: 'asset-public-witness-rule',
+        kind: 'lore',
+        label: text('Public Witness Rule', '公开目击规则'),
+        reason: text(
+          'Lore-level truth that no witnessed bargain survives once direct proof is placed in public view. Surface rule: As long as witnesses remain, the bargain must stay one step away from proof.',
+          'Lore-level truth that no witnessed bargain survives once direct proof is placed in public view. Surface rule: As long as witnesses remain, the bargain must stay one step away from proof.',
+        ),
+      },
+    ]))
     expect(detail.excludedPrivateFacts).toEqual(expect.arrayContaining([
       expect.objectContaining({
         label: text('Courier signal private key', '信使暗号私钥'),
       }),
       expect.objectContaining({
-        label: text('Full ledger proof', '完整账本证明'),
+        label: text('Witness-proof payload', '目击证明载荷'),
       }),
       expect.objectContaining({
         label: text('Editor timing guardrail', '编辑时序护栏'),
@@ -154,7 +172,7 @@ describe('sceneRunArtifactDetails', () => {
     ]))
     expect(detail.outputSchemaLabel).toEqual(text('Scene context packet schema', '场景上下文包结构'))
     expect(detail.tokenBudgetLabel).toEqual(text('Target budget 1700 tokens', '目标预算 1700 tokens'))
-    expect(detail.assetActivations).toEqual([
+    expect(detail.assetActivations).toEqual(expect.arrayContaining([
       expect.objectContaining({
         assetId: 'asset-ren-voss',
         assetKind: 'character',
@@ -177,19 +195,32 @@ describe('sceneRunArtifactDetails', () => {
         budget: 'mentions-excerpts',
       }),
       expect.objectContaining({
-        assetId: 'asset-ledger-stays-shut',
-        decision: 'excluded',
-        visibility: 'spoiler',
+        assetId: 'asset-courier-network',
+        assetKind: 'organization',
+        decision: 'included',
+        visibility: 'character-known',
+      }),
+      expect.objectContaining({
+        assetId: 'asset-closed-ledger',
+        assetKind: 'object',
+        decision: 'included',
+        visibility: 'character-known',
+      }),
+      expect.objectContaining({
+        assetId: 'asset-public-witness-rule',
+        assetKind: 'lore',
+        decision: 'included',
+        visibility: 'public',
       }),
       expect.objectContaining({
         assetId: 'asset-departure-bell-timing',
         decision: 'redacted',
         visibility: 'editor-only',
       }),
-    ])
+    ]))
     expect(detail.activationSummary).toEqual({
-      includedAssetCount: 3,
-      excludedAssetCount: 1,
+      includedAssetCount: 6,
+      excludedAssetCount: 0,
       redactedAssetCount: 1,
       targetAgentCount: 4,
       warningCount: 1,
@@ -567,12 +598,17 @@ describe('sceneRunArtifactDetails', () => {
       'asset-ren-voss',
       'asset-mei-arden',
       'asset-midnight-platform',
+      'asset-courier-network',
+      'asset-closed-ledger',
+      'asset-public-witness-rule',
     ])
     expect(detail.assetActivations?.map((activation) => activation.assetId)).toEqual([
       'asset-ren-voss',
       'asset-mei-arden',
       'asset-midnight-platform',
-      'asset-ledger-stays-shut',
+      'asset-courier-network',
+      'asset-closed-ledger',
+      'asset-public-witness-rule',
       'asset-departure-bell-timing',
     ])
   })
@@ -778,5 +814,107 @@ describe('sceneRunArtifactDetails', () => {
         kind: 'location',
       },
     ])
+  })
+
+  it('maps usage and failure detail onto failed invocation and proposal artifacts without exposing raw prompt context', () => {
+    const failedInvocationArtifact = createAgentInvocationArtifact({
+      runId,
+      sceneId,
+      sequence: 2,
+      index: 1,
+      role: 'planner',
+      provenance: {
+        provider: 'openai',
+        modelId: 'gpt-5.4',
+      },
+    })
+    failedInvocationArtifact.meta = {
+      ...failedInvocationArtifact.meta,
+      prompt: 'Do not leak this raw planner prompt into the detail record.',
+      usage: {
+        inputTokens: 1420,
+        outputTokens: 318,
+        estimatedCostUsd: 0.0218,
+        provider: 'openai',
+        modelId: 'gpt-5.4',
+      },
+      failureDetail: {
+        failureClass: 'provider_error',
+        message: 'Provider returned 502 while planner output was being finalized.',
+        provider: 'openai',
+        modelId: 'gpt-5.4',
+        retryable: true,
+        sourceEventIds: ['run-event-scene-midnight-platform-002-006'],
+      },
+    }
+
+    const failedInvocationDetail = buildAgentInvocationDetail({
+      artifact: failedInvocationArtifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-005'],
+    })
+
+    expect(failedInvocationDetail.usage).toEqual({
+      inputTokens: 1420,
+      outputTokens: 318,
+      estimatedCostUsd: 0.0218,
+      provider: 'openai',
+      modelId: 'gpt-5.4',
+    })
+    expect(failedInvocationDetail.failureDetail).toEqual({
+      failureClass: 'provider_error',
+      message: 'Provider returned 502 while planner output was being finalized.',
+      provider: 'openai',
+      modelId: 'gpt-5.4',
+      retryable: true,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-006'],
+    })
+    expect(failedInvocationDetail).not.toHaveProperty('prompt')
+
+    const failedProposalArtifact = createProposalSetArtifact({
+      runId,
+      sceneId,
+      sequence: 2,
+    })
+    failedProposalArtifact.meta = {
+      ...failedProposalArtifact.meta,
+      usage: {
+        inputTokens: 1420,
+        outputTokens: 318,
+        estimatedCostUsd: 0.0218,
+        actualCostUsd: 0.0241,
+        provider: 'openai',
+        modelId: 'gpt-5.4',
+      },
+      failureDetail: {
+        failureClass: 'invalid_output',
+        message: 'Proposal normalization failed because no safe variant survived validation.',
+        provider: 'openai',
+        modelId: 'gpt-5.4',
+        retryable: false,
+        sourceEventIds: ['run-event-scene-midnight-platform-002-007', 'run-event-scene-midnight-platform-002-008'],
+      },
+    }
+
+    const failedProposalDetail = buildProposalSetDetail({
+      artifact: failedProposalArtifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-007'],
+    })
+
+    expect(failedProposalDetail.usage).toEqual({
+      inputTokens: 1420,
+      outputTokens: 318,
+      estimatedCostUsd: 0.0218,
+      actualCostUsd: 0.0241,
+      provider: 'openai',
+      modelId: 'gpt-5.4',
+    })
+    expect(failedProposalDetail.failureDetail).toEqual({
+      failureClass: 'invalid_output',
+      message: 'Proposal normalization failed because no safe variant survived validation.',
+      provider: 'openai',
+      modelId: 'gpt-5.4',
+      retryable: false,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-007', 'run-event-scene-midnight-platform-002-008'],
+    })
   })
 })

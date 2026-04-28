@@ -79,6 +79,9 @@ export function AssetMentionsView({ mentions, onOpenScene, onOpenChapter }: Asse
               <Badge tone={getBackingTone(backingKind)}>
                 {getBackingLabel(locale, backingKind)}
               </Badge>
+              {traceDetail?.sceneTraceMissing ? (
+                <Badge tone="warn">{locale === 'zh-CN' ? '缺少场景来源链' : 'Missing scene trace'}</Badge>
+              ) : null}
             </>
           }
         >
@@ -133,7 +136,10 @@ export function AssetMentionsView({ mentions, onOpenScene, onOpenChapter }: Asse
                 }}
                 className="rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-surface-2 hover:text-text-main"
               >
-                {action.label}
+                <span className="inline-flex items-center gap-2">
+                  {action.label}
+                  {action.recommended ? <Badge tone="accent">{locale === 'zh-CN' ? '推荐' : 'Recommended'}</Badge> : null}
+                </span>
               </button>
             ))}
           </div>

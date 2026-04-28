@@ -42,6 +42,37 @@ function createContextPacketEventMetadata(contextPacket?: SceneRunWorkflowStartI
   }
 }
 
+function createPlannerUsage(input: SceneRunWorkflowStartInput): NonNullable<RunRecord['usage']> {
+  const inputTokens = 1500 + input.sequence * 100
+  const outputTokens = 200 + input.sequence * 20
+  const estimatedCostUsd = Number((inputTokens * 0.00001 + outputTokens * 0.0000316666667).toFixed(4))
+
+  return {
+    inputTokens,
+    outputTokens,
+    estimatedCostUsd,
+    provider: input.plannerProvenance.provider,
+    modelId: input.plannerProvenance.modelId,
+  }
+}
+
+function formatTokenLabel(usage: NonNullable<RunRecord['usage']>) {
+  const totalTokens = usage.inputTokens + usage.outputTokens
+  return totalTokens >= 1000
+    ? `${Number((totalTokens / 1000).toFixed(1))}k tokens`
+    : `${totalTokens} tokens`
+}
+
+function createRuntimeSummary(usage: NonNullable<RunRecord['usage']>): NonNullable<RunRecord['runtimeSummary']> {
+  return {
+    health: 'attention',
+    costLabel: `$${usage.estimatedCostUsd.toFixed(4)} est.`,
+    tokenLabel: formatTokenLabel(usage),
+    failureClassLabel: 'No runtime failure recorded',
+    nextActionLabel: 'Review proposals before any retry or prose continuation.',
+  }
+}
+
 export function startSceneRunWorkflow(
   input: SceneRunWorkflowStartInput,
   options?: SceneRunWorkflowStartOptions,
@@ -50,6 +81,8 @@ export function startSceneRunWorkflow(
   const reviewId = buildReviewId(input.sceneId, input.sequence)
   const note = trimNote(input.note)
   const modeLabel = input.mode ?? 'continue'
+  const plannerUsage = createPlannerUsage(input)
+  const runtimeSummary = createRuntimeSummary(plannerUsage)
   const eventOptions = {
     buildTimelineLabel: options?.buildTimelineLabel ?? buildDefaultSceneRunTimelineLabel,
   }
@@ -103,7 +136,10 @@ export function startSceneRunWorkflow(
   ], eventOptions)
   appendRunEvent(events, runId, 'agent_invocation_completed', 'Planner invocation completed', 'Planning agent returned proposal candidates.', [
     createArtifactRef(plannerInvocationArtifact, 'Planner'),
-  ], eventOptions)
+  ], {
+    ...eventOptions,
+    usage: plannerUsage,
+  })
   appendRunEvent(events, runId, 'agent_invocation_started', 'Writer invocation started', 'Writer agent invocation started.', [
     createArtifactRef(writerInvocationArtifact, 'Writer'),
   ], eventOptions)
@@ -120,6 +156,17 @@ export function startSceneRunWorkflow(
       label: 'Editorial review',
     },
   ], eventOptions)
+  if (input.resumeSourceRunId && input.resumableFromEventId) {
+    appendRunEvent(
+      events,
+      runId,
+      'run_resumed',
+      'Run resumed',
+      `Run resumed from ${input.resumeSourceRunId} at event ${input.resumableFromEventId}.`,
+      undefined,
+      eventOptions,
+    )
+  }
 
   const run: RunRecord = {
     id: runId,
@@ -131,6 +178,10 @@ export function startSceneRunWorkflow(
     startedAtLabel: events[0]?.createdAtLabel,
     pendingReviewId: reviewId,
     latestEventId: events.at(-1)?.id,
+    retryOfRunId: input.retryOfRunId,
+    resumableFromEventId: input.resumableFromEventId,
+    usage: plannerUsage,
+    runtimeSummary,
     eventCount: events.length,
   }
 

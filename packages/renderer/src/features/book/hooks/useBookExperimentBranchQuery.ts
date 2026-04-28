@@ -49,6 +49,9 @@ export function useBookExperimentBranchQuery(
   const checkpointEnabled = branchBaseline === 'checkpoint'
   const branchQueriesEnabled =
     currentDraftWorkspace !== undefined && currentDraftWorkspace !== null
+  const branchesQueryKey = bookQueryKeys.branches(bookId, locale)
+  const selectedBranchQueryKey = bookQueryKeys.branch(bookId, effectiveBranchId, locale)
+  const selectedCheckpointQueryKey = bookQueryKeys.checkpoint(bookId, effectiveCheckpointId, locale)
   const effectiveBookClient = resolveProjectRuntimeDependency(
     customBookClient,
     runtime?.bookClient,
@@ -57,19 +60,19 @@ export function useBookExperimentBranchQuery(
   )
 
   const branchesQuery = useQuery({
-    queryKey: bookQueryKeys.branches(bookId, locale),
+    queryKey: branchesQueryKey,
     queryFn: () => effectiveBookClient.getBookExperimentBranches({ bookId }),
     enabled: branchQueriesEnabled,
   })
 
   const selectedBranchQuery = useQuery({
-    queryKey: bookQueryKeys.branch(bookId, effectiveBranchId, locale),
+    queryKey: selectedBranchQueryKey,
     queryFn: () => effectiveBookClient.getBookExperimentBranch({ bookId, branchId: effectiveBranchId }),
     enabled: branchQueriesEnabled,
   })
 
   const selectedCheckpointQuery = useQuery({
-    queryKey: bookQueryKeys.checkpoint(bookId, effectiveCheckpointId, locale),
+    queryKey: selectedCheckpointQueryKey,
     queryFn: () => effectiveBookClient.getBookManuscriptCheckpoint({ bookId, checkpointId: effectiveCheckpointId }),
     enabled: branchQueriesEnabled && checkpointEnabled,
   })

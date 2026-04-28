@@ -118,6 +118,66 @@ export function AssetContextPolicyView({ policy }: AssetContextPolicyViewProps) 
         />
       </SectionCard>
 
+      <SectionCard title={locale === 'zh-CN' ? '上下文参与' : 'Context Participation'} eyebrow={locale === 'zh-CN' ? '按规则预览' : 'Rule Preview'}>
+        {policy.participation.length > 0 ? (
+          <div className="space-y-3">
+            {policy.participation.map((entry) => (
+              <article key={entry.id} className="rounded-md border border-line-soft bg-surface-2 p-3">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="text-sm font-medium text-text-main">{entry.label}</h4>
+                    <Badge tone="neutral">{entry.visibilityLabel}</Badge>
+                    <Badge tone="accent">{entry.budgetLabel}</Badge>
+                  </div>
+                  <p className="text-sm leading-6 text-text-muted">{entry.summary}</p>
+                </div>
+                <div className="mt-3">
+                  <FactList
+                    items={[
+                      {
+                        id: `${entry.id}-agent`,
+                        label: locale === 'zh-CN' ? '目标代理' : 'Target agent',
+                        value: entry.targetAgentLabel || emptyLabel,
+                      },
+                      {
+                        id: `${entry.id}-visible`,
+                        label: locale === 'zh-CN' ? '可直接读取' : 'Visible facts',
+                        value: entry.visibleFacts.length > 0 ? entry.visibleFacts.join(', ') : emptyLabel,
+                      },
+                      {
+                        id: `${entry.id}-redacted`,
+                        label: locale === 'zh-CN' ? '遮蔽引用' : 'Redacted references',
+                        value: entry.redactedFacts.length > 0 ? entry.redactedFacts.join(', ') : emptyLabel,
+                      },
+                      {
+                        id: `${entry.id}-excluded`,
+                        label: locale === 'zh-CN' ? '排除计数' : 'Excluded facts',
+                        value: `${entry.excludedFactCount}`,
+                      },
+                    ]}
+                  />
+                </div>
+                {entry.guardrailLabel ? (
+                  <p className="mt-3 rounded-md border border-line-soft bg-surface-1 px-3 py-2 text-sm leading-6 text-text-muted">
+                    {entry.guardrailLabel}
+                  </p>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title={locale === 'zh-CN' ? '没有参与预览' : 'No participation preview'}
+            message={
+              locale === 'zh-CN'
+                ? '缺少激活规则时，这里不会生成上下文参与预览。'
+                : 'No context participation preview is generated when activation rules are absent.'
+            }
+            className="min-h-0"
+          />
+        )}
+      </SectionCard>
+
       <SectionCard title={locale === 'zh-CN' ? '护栏 / 排除项' : 'Guardrails / Exclusions'} eyebrow={locale === 'zh-CN' ? '不要带入' : 'Excluded Context'}>
         {policy.exclusions.length > 0 ? (
           <ul className="space-y-3">

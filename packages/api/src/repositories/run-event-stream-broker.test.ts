@@ -58,4 +58,22 @@ describe('runEventStreamBroker', () => {
       value: [createEvent('run-event-004')],
     })
   })
+
+  it('delivers the final batch before cancellation closes the stream', async () => {
+    const broker = createRunEventStreamBroker()
+    const iterator = broker.subscribe('run-stream-001')[Symbol.asyncIterator]()
+
+    const firstBatchPromise = iterator.next()
+    broker.publish('run-stream-001', [createEvent('run-event-005')])
+    broker.complete('run-stream-001')
+
+    await expect(firstBatchPromise).resolves.toEqual({
+      done: false,
+      value: [createEvent('run-event-005')],
+    })
+    await expect(iterator.next()).resolves.toEqual({
+      done: true,
+      value: undefined,
+    })
+  })
 })

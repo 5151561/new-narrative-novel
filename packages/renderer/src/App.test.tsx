@@ -787,7 +787,7 @@ describe('App scene workbench', () => {
     expect(screen.getByRole('button', { name: 'Mentions' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Relations' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Open in Draft: Midnight Platform' }))
+    await user.click(screen.getByRole('button', { name: /Open in Draft: Midnight Platform/ }))
 
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search)

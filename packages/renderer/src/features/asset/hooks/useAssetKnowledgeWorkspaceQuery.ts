@@ -13,17 +13,22 @@ import {
 import {
   getAssetKindOrder,
   readLocalizedAssetText,
+  type CanonicalAssetKind,
   type AssetChapterMentionRecord,
   type AssetContextActivationReasonKindRecord,
   type AssetContextBudgetRecord,
+  type AssetContextActivationRuleRecord,
   type AssetContextPolicyRecord,
   type AssetContextTargetAgentRecord,
   type AssetContextVisibilityRecord,
+  type AssetKind,
   type AssetKnowledgeWorkspaceRecord,
-  type AssetSceneMentionRecord,
   type AssetProfileFactRecord,
   type AssetProfileSectionRecord,
   type AssetRecord,
+  type AssetSceneMentionRecord,
+  type AssetStateTimelineEntryRecord,
+  type AssetStoryBibleFactRecord,
 } from '../api/asset-records'
 import type {
   AssetDockActivityItem,
@@ -32,6 +37,7 @@ import type {
   AssetInspectorViewModel,
   AssetChapterMentionViewModel,
   AssetContextActivationRuleViewModel,
+  AssetContextParticipationSummaryViewModel,
   AssetContextPolicySummaryViewModel,
   AssetContextPolicyViewModel,
   AssetKnowledgeWorkspaceViewModel,
@@ -41,6 +47,9 @@ import type {
   AssetProfileSectionViewModel,
   AssetRelationViewModel,
   AssetSceneMentionViewModel,
+  AssetStateTimelineEntryViewModel,
+  AssetStoryBibleFactViewModel,
+  AssetStoryBibleViewModel,
 } from '../types/asset-view-models'
 import { assetQueryKeys } from './asset-query-keys'
 
@@ -90,6 +99,63 @@ function getContextVisibilityLabel(visibility: AssetContextVisibilityRecord | 'm
   }
 
   return labels[locale][visibility]
+}
+
+function getAssetKindLabel(kind: CanonicalAssetKind, locale: 'en' | 'zh-CN') {
+  const labels: Record<'en' | 'zh-CN', Record<CanonicalAssetKind, string>> = {
+    en: {
+      character: 'Character',
+      location: 'Location',
+      organization: 'Organization',
+      object: 'Object',
+      lore: 'Lore',
+    },
+    'zh-CN': {
+      character: '角色',
+      location: '地点',
+      organization: '组织',
+      object: '物件',
+      lore: 'Lore',
+    },
+  }
+
+  return labels[locale][kind]
+}
+
+function getTimelineStatusLabel(status: AssetStateTimelineEntryRecord['status'], locale: 'en' | 'zh-CN') {
+  const labels: Record<'en' | 'zh-CN', Record<AssetStateTimelineEntryRecord['status'], string>> = {
+    en: {
+      established: 'Established',
+      watch: 'Watch',
+      'at-risk': 'At risk',
+      spoiler: 'Spoiler',
+    },
+    'zh-CN': {
+      established: '已建立',
+      watch: '持续观察',
+      'at-risk': '有风险',
+      spoiler: '剧透',
+    },
+  }
+
+  return labels[locale][status]
+}
+
+const visibilityRank: Record<AssetContextVisibilityRecord, number> = {
+  public: 0,
+  'character-known': 1,
+  private: 2,
+  spoiler: 3,
+  'editor-only': 4,
+}
+
+const canonicalVisibleVisibilityRank = visibilityRank['character-known']
+
+function canReadFactVisibility(
+  factVisibility: AssetContextVisibilityRecord,
+  requestedVisibility: AssetContextVisibilityRecord,
+) {
+  return visibilityRank[factVisibility] <= visibilityRank[requestedVisibility]
 }
 
 function getContextBudgetLabel(budget: AssetContextBudgetRecord | 'missing', locale: 'en' | 'zh-CN') {
@@ -157,6 +223,37 @@ function getContextReasonKindLabel(reasonKind: AssetContextActivationReasonKindR
   return labels[locale][reasonKind]
 }
 
+function getRelationScopeLabel(
+  currentKind: AssetKind,
+  targetKind: AssetKind,
+  locale: 'en' | 'zh-CN',
+) {
+  if (currentKind === targetKind) {
+    return locale === 'zh-CN' ? '同类关系' : 'Same-kind relation'
+  }
+
+  return locale === 'zh-CN' ? '跨类关系' : 'Cross-kind relation'
+}
+
+function getReciprocalStatusLabel(hasReciprocalRelation: boolean, locale: 'en' | 'zh-CN') {
+  return hasReciprocalRelation
+    ? locale === 'zh-CN' ? '双向可读' : 'Reciprocal'
+    : locale === 'zh-CN' ? '单向关系' : 'One-way'
+}
+
+function getNarrativeBackingStatusLabel(
+  hasNarrativeBacking: boolean | undefined,
+  locale: 'en' | 'zh-CN',
+) {
+  if (hasNarrativeBacking === undefined) {
+    return locale === 'zh-CN' ? '来源链待加载' : 'Traceability pending'
+  }
+
+  return hasNarrativeBacking
+    ? locale === 'zh-CN' ? '已有叙事支撑' : 'Narrative-backed'
+    : locale === 'zh-CN' ? '缺少叙事支撑' : 'Missing narrative backing'
+}
+
 function emptyContextPolicy(locale: 'en' | 'zh-CN'): AssetContextPolicyViewModel {
   return {
     hasContextPolicy: false,
@@ -168,6 +265,7 @@ function emptyContextPolicy(locale: 'en' | 'zh-CN'): AssetContextPolicyViewModel
     defaultVisibilityLabel: getContextVisibilityLabel('missing', locale),
     defaultBudgetLabel: getContextBudgetLabel('missing', locale),
     activationRules: [],
+    participation: [],
     exclusions: [],
     warnings: [],
   }
@@ -190,7 +288,47 @@ function mapContextActivationRule(
   }
 }
 
-function mapContextPolicy(policy: AssetContextPolicyRecord | undefined, locale: 'en' | 'zh-CN'): AssetContextPolicyViewModel {
+function buildContextParticipation(
+  record: AssetRecord,
+  policy: AssetContextPolicyRecord,
+  locale: 'en' | 'zh-CN',
+): AssetContextParticipationSummaryViewModel[] {
+  const allFacts = [...record.canonFacts, ...record.privateFacts]
+
+  return policy.activationRules.flatMap((rule: AssetContextActivationRuleRecord) =>
+    rule.targetAgents.map((agent) => {
+      const allowedFacts = allFacts.filter((fact) => canReadFactVisibility(fact.visibility, rule.visibility))
+      const visibleFacts = allowedFacts
+        .filter((fact) => visibilityRank[fact.visibility] <= canonicalVisibleVisibilityRank)
+        .map((fact) => localizeText(fact.label, locale))
+      const redactedFacts = agent === 'continuity-reviewer'
+        ? allowedFacts
+          .filter((fact) => visibilityRank[fact.visibility] > canonicalVisibleVisibilityRank)
+          .map((fact) => localizeText(fact.label, locale))
+        : []
+      const excludedFactCount = allFacts.length - visibleFacts.length - redactedFacts.length
+
+      return {
+        id: `${rule.id}-${agent}`,
+        label: localizeText(rule.label, locale),
+        summary: localizeText(rule.summary, locale),
+        visibilityLabel: getContextVisibilityLabel(rule.visibility, locale),
+        budgetLabel: getContextBudgetLabel(rule.budget, locale),
+        targetAgentLabel: getContextAgentLabel(agent, locale),
+        visibleFacts,
+        redactedFacts,
+        excludedFactCount,
+        guardrailLabel: rule.guardrailLabel ? localizeText(rule.guardrailLabel, locale) : undefined,
+      }
+    }),
+  )
+}
+
+function mapContextPolicy(
+  record: AssetRecord,
+  policy: AssetContextPolicyRecord | undefined,
+  locale: 'en' | 'zh-CN',
+): AssetContextPolicyViewModel {
   if (!policy) {
     return emptyContextPolicy(locale)
   }
@@ -202,6 +340,7 @@ function mapContextPolicy(policy: AssetContextPolicyRecord | undefined, locale: 
     defaultVisibilityLabel: getContextVisibilityLabel(policy.defaultVisibility, locale),
     defaultBudgetLabel: getContextBudgetLabel(policy.defaultBudget, locale),
     activationRules: policy.activationRules.map((rule) => mapContextActivationRule(rule, locale)),
+    participation: buildContextParticipation(record, policy, locale),
     exclusions: (policy.exclusions ?? []).map((exclusion) => ({
       id: exclusion.id,
       label: localizeText(exclusion.label, locale),
@@ -236,6 +375,58 @@ function mapProfileSection(
         value: localizeText(fact.value, locale).trim(),
       }))
       .filter((fact) => fact.value.length > 0),
+  }
+}
+
+function mapStoryBibleFact(
+  fact: AssetStoryBibleFactRecord,
+  locale: 'en' | 'zh-CN',
+): AssetStoryBibleFactViewModel {
+  return {
+    id: fact.id,
+    label: localizeText(fact.label, locale),
+    value: localizeText(fact.value, locale),
+    visibilityLabel: getContextVisibilityLabel(fact.visibility, locale),
+    sourceRefs: fact.sourceRefs.map((sourceRef) => ({
+      id: sourceRef.id,
+      kind: sourceRef.kind,
+      label: localizeText(sourceRef.label, locale),
+    })),
+    lastReviewedAtLabel: fact.lastReviewedAtLabel,
+  }
+}
+
+function mapTimelineEntry(
+  entry: AssetStateTimelineEntryRecord,
+  locale: 'en' | 'zh-CN',
+): AssetStateTimelineEntryViewModel {
+  return {
+    id: entry.id,
+    label: localizeText(entry.label, locale),
+    summary: localizeText(entry.summary, locale),
+    sceneId: entry.sceneId,
+    chapterId: entry.chapterId,
+    statusLabel: getTimelineStatusLabel(entry.status, locale),
+    sourceRefs: entry.sourceRefs.map((sourceRef) => ({
+      id: sourceRef.id,
+      kind: sourceRef.kind,
+      label: localizeText(sourceRef.label, locale),
+    })),
+  }
+}
+
+function mapStoryBible(
+  record: AssetRecord,
+  locale: 'en' | 'zh-CN',
+  requestedVisibility?: AssetContextVisibilityRecord,
+): AssetStoryBibleViewModel {
+  const canRead = (visibility: AssetContextVisibilityRecord) =>
+    requestedVisibility === undefined || canReadFactVisibility(visibility, requestedVisibility)
+
+  return {
+    canonFacts: record.canonFacts.filter((fact) => canRead(fact.visibility)).map((fact) => mapStoryBibleFact(fact, locale)),
+    privateFacts: record.privateFacts.filter((fact) => canRead(fact.visibility)).map((fact) => mapStoryBibleFact(fact, locale)),
+    stateTimeline: record.stateTimeline.map((entry) => mapTimelineEntry(entry, locale)),
   }
 }
 
@@ -361,7 +552,14 @@ function mapRelations(
       id: relation.id,
       targetAssetId: relation.targetAssetId,
       targetTitle: target ? localizeText(target.title, locale) : relation.targetAssetId,
-      targetKind: target?.kind ?? 'rule',
+      targetKind: target?.kind ?? 'lore',
+      targetKindLabel: getAssetKindLabel(target?.kind ?? 'lore', locale),
+      relationshipScopeLabel: getRelationScopeLabel(record.kind, target?.kind ?? 'lore', locale),
+      reciprocalStatusLabel: getReciprocalStatusLabel(
+        Boolean(target?.relations.some((candidate) => candidate.targetAssetId === record.id)),
+        locale,
+      ),
+      hasReciprocalRelation: Boolean(target?.relations.some((candidate) => candidate.targetAssetId === record.id)),
       relationLabel: localizeText(relation.relationLabel, locale),
       summary: localizeText(relation.summary, locale),
     }
@@ -544,27 +742,21 @@ function buildAssetKnowledgeWorkspaceModel(
   }
 
   const profileSections = selected.profile.sections.map((section) => mapProfileSection(section, locale))
+  const storyBible = mapStoryBible(selected, locale, record.requestedVisibility)
   const warnings = (selected.warnings ?? []).map((warning) => localizeText(warning, locale))
   const notes = (selected.notes ?? []).map((note) => localizeText(note, locale))
   const missingFields = buildMissingFields(profileSections)
-  const contextPolicy = mapContextPolicy(selected.contextPolicy, locale)
+  const contextPolicy = mapContextPolicy(selected, selected.contextPolicy, locale)
   const contextPolicySummary = summarizeContextPolicy(contextPolicy)
   const inspector: AssetInspectorViewModel = {
-    kindLabel:
-      selected.kind === 'character'
-        ? locale === 'zh-CN'
-          ? '角色'
-          : 'Character'
-        : selected.kind === 'location'
-          ? locale === 'zh-CN'
-            ? '地点'
-            : 'Location'
-          : locale === 'zh-CN'
-            ? '规则'
-            : 'Rule',
+    kindLabel: getAssetKindLabel(selected.kind, locale),
     summary: localizeText(selected.summary, locale),
+    visibilityLabel: getContextVisibilityLabel(selected.visibility, locale),
     mentionCount: selected.mentions.length,
     relationCount: selected.relations.length,
+    canonFactCount: storyBible.canonFacts.length,
+    privateFactCount: storyBible.privateFacts.length,
+    timelineEntryCount: storyBible.stateTimeline.length,
     warnings,
     notes,
     isOrphan: selected.mentions.length === 0 && selected.relations.length === 0,
@@ -573,12 +765,13 @@ function buildAssetKnowledgeWorkspaceModel(
   }
   const dockSummary: AssetDockSummaryViewModel = {
     problemItems: buildProblemItems(selected, inspector, selected.contextPolicy, contextPolicy, locale),
-    warningCount: warnings.length,
-    missingFieldCount: missingFields.length,
-    relationCount: selected.relations.length,
-    mentionCount: selected.mentions.length,
-    isOrphan: inspector.isOrphan,
-    contextPolicy: contextPolicySummary,
+      warningCount: warnings.length,
+      missingFieldCount: missingFields.length,
+      relationCount: selected.relations.length,
+      mentionCount: selected.mentions.length,
+      timelineEntryCount: storyBible.stateTimeline.length,
+      isOrphan: inspector.isOrphan,
+      contextPolicy: contextPolicySummary,
   }
 
   const navigatorItems = assets.map((asset) => mapNavigatorItem(asset, locale))
@@ -591,12 +784,15 @@ function buildAssetKnowledgeWorkspaceModel(
     navigator: {
       characters: sortNavigatorItems(navigatorItems.filter((item) => item.kind === 'character')),
       locations: sortNavigatorItems(navigatorItems.filter((item) => item.kind === 'location')),
-      rules: sortNavigatorItems(navigatorItems.filter((item) => item.kind === 'rule')),
+      organizations: sortNavigatorItems(navigatorItems.filter((item) => item.kind === 'organization')),
+      objects: sortNavigatorItems(navigatorItems.filter((item) => item.kind === 'object')),
+      lore: sortNavigatorItems(navigatorItems.filter((item) => item.kind === 'lore')),
     },
     viewsMeta: record.viewsMeta,
     profile: {
       sections: profileSections,
     },
+    storyBible,
     mentions: mapMention(selected, locale),
     relations: mapRelations(selected, assetsById, locale),
     contextPolicy,

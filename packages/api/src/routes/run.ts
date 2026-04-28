@@ -125,6 +125,44 @@ export function registerRunRoutes({ app, apiBasePath, repository }: ApiRouteCont
     }
   })
 
+  app.post(`${projectBase}/runs/:runId/retry`, async (request) => {
+    const { projectId, runId } = request.params as { projectId: string; runId: string }
+    const body = request.body as { mode?: unknown } | undefined
+    const mode = body?.mode === undefined
+      ? undefined
+      : assertEnumValue(body.mode, 'mode', RUN_MODES, {
+          code: 'INVALID_RUN_MODE',
+          detail: { body },
+          allowedValuesDetailKey: 'allowedModes',
+        })
+
+    return repository.retryRun(projectId, {
+      runId,
+      mode,
+    })
+  })
+
+  app.post(`${projectBase}/runs/:runId/cancel`, async (request) => {
+    const { projectId, runId } = request.params as { projectId: string; runId: string }
+    const body = request.body as { reason?: unknown } | undefined
+    const reason = assertOptionalString(body?.reason, 'reason', {
+      code: 'INVALID_RUN_CANCEL_REASON',
+      detail: { body },
+    })
+
+    return repository.cancelRun(projectId, {
+      runId,
+      reason,
+    })
+  })
+
+  app.post(`${projectBase}/runs/:runId/resume`, async (request) => {
+    const { projectId, runId } = request.params as { projectId: string; runId: string }
+    return repository.resumeRun(projectId, {
+      runId,
+    })
+  })
+
   app.post(`${projectBase}/runs/:runId/review-decisions`, async (request) => {
     const { projectId, runId } = request.params as { projectId: string; runId: string }
     const body = request.body as {

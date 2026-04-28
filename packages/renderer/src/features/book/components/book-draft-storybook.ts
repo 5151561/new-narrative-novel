@@ -756,6 +756,7 @@ export function buildBookDraftReviewStoryData(
     exportProfileId?: string
     branchId?: string
     branchBaseline?: 'current' | 'checkpoint'
+    reviewSeedBookId?: string
     reviewFilter?: BookReviewFilter
     reviewStatusFilter?: BookReviewStatusFilter
     reviewIssueId?: string
@@ -768,7 +769,7 @@ export function buildBookDraftReviewStoryData(
     }>
     fixActionStates?: Array<{
       issueId: string
-      status: 'started' | 'checked' | 'blocked'
+      status: 'started' | 'checked' | 'blocked' | 'rewrite_requested'
       note?: string
       stale?: boolean
     }>
@@ -804,7 +805,10 @@ export function buildBookDraftReviewStoryData(
     compareWorkspace: compareData.compare,
     exportWorkspace: exportData.exportWorkspace,
     branchWorkspace: branchData.branchWorkspace,
-    reviewSeeds: options?.includeReviewSeeds === false ? [] : getBookReviewSeeds(exportData.workspace.bookId),
+    reviewSeeds:
+      options?.includeReviewSeeds === false
+        ? []
+        : getBookReviewSeeds(options?.reviewSeedBookId ?? exportData.workspace.bookId),
     reviewFilter: options?.reviewFilter ?? 'all',
     reviewIssueId: options?.reviewIssueId,
   })
@@ -853,6 +857,16 @@ export function buildBookDraftReviewStoryData(
           targetScope: handoff.target.scope,
           status: fixActionState.status,
           note: fixActionState.note,
+          rewriteRequestNote: fixActionState.status === 'rewrite_requested' ? fixActionState.note : undefined,
+          rewriteTargetSceneId:
+            fixActionState.status === 'rewrite_requested'
+              ? handoff.target.scope === 'scene'
+                ? handoff.target.sceneId
+                : handoff.target.scope === 'chapter'
+                  ? handoff.target.sceneId
+                  : undefined
+              : undefined,
+          rewriteRequestId: fixActionState.status === 'rewrite_requested' ? `story-rewrite-${issue.id}` : undefined,
           startedAtLabel: 'Story source fix started',
           updatedAtLabel: 'Story source fix updated',
           updatedByLabel: 'Story reviewer',
@@ -865,7 +879,10 @@ export function buildBookDraftReviewStoryData(
     compareWorkspace: compareData.compare,
     exportWorkspace: exportData.exportWorkspace,
     branchWorkspace: branchData.branchWorkspace,
-    reviewSeeds: options?.includeReviewSeeds === false ? [] : getBookReviewSeeds(exportData.workspace.bookId),
+    reviewSeeds:
+      options?.includeReviewSeeds === false
+        ? []
+        : getBookReviewSeeds(options?.reviewSeedBookId ?? exportData.workspace.bookId),
     reviewFilter: options?.reviewFilter ?? 'all',
     reviewStatusFilter: options?.reviewStatusFilter ?? 'open',
     reviewIssueId: options?.reviewIssueId,

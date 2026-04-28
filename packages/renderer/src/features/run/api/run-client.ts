@@ -1,14 +1,20 @@
 import {
+  cancelMockRun,
   getMockRunArtifact,
   getMockRunArtifacts,
   getMockRun,
   getMockRunEvents,
   getMockRunTrace,
+  resumeMockRun,
+  retryMockRun,
   startMockSceneRun,
   submitMockRunReviewDecision,
 } from './mock-run-db'
 import type { RunArtifactDetailResponse, RunArtifactListResponse } from './run-artifact-records'
 import type {
+  CancelRunInput,
+  ResumeRunInput,
+  RetryRunInput,
   RunEventsPageRecord,
   RunRecord,
   StartSceneRunInput,
@@ -48,6 +54,9 @@ export interface GetRunTraceInput {
 
 export interface RunClient {
   startSceneRun(input: StartSceneRunInput): Promise<RunRecord>
+  retryRun(input: RetryRunInput): Promise<RunRecord>
+  cancelRun(input: CancelRunInput): Promise<RunRecord>
+  resumeRun(input: ResumeRunInput): Promise<RunRecord>
   getRun(input: GetRunInput): Promise<RunRecord | null>
   getRunEvents(input: GetRunEventsInput): Promise<RunEventsPageRecord>
   streamRunEvents?(input: StreamRunEventsInput): Promise<void>
@@ -60,6 +69,9 @@ export interface RunClient {
 interface CreateRunClientOptions {
   projectId?: string
   startSceneRunRecord?: (input: StartSceneRunInput) => RunRecord
+  retryRunRecord?: (input: RetryRunInput) => RunRecord
+  cancelRunRecord?: (input: CancelRunInput) => RunRecord
+  resumeRunRecord?: (input: ResumeRunInput) => RunRecord
   getRunRecord?: (runId: string) => RunRecord | null
   getRunEventsPage?: (input: GetRunEventsInput) => RunEventsPageRecord
   submitRunReviewDecisionRecord?: (input: SubmitRunReviewDecisionInput) => RunRecord
@@ -75,6 +87,9 @@ function clone<T>(value: T): T {
 export function createRunClient({
   projectId,
   startSceneRunRecord = (input) => startMockSceneRun(input, projectId),
+  retryRunRecord = (input) => retryMockRun(input, projectId),
+  cancelRunRecord = (input) => cancelMockRun(input, projectId),
+  resumeRunRecord = (input) => resumeMockRun(input, projectId),
   getRunRecord = (runId) => getMockRun(runId, projectId),
   getRunEventsPage = (input) => getMockRunEvents(input, projectId),
   submitRunReviewDecisionRecord = (input) => submitMockRunReviewDecision(input, projectId),
@@ -85,6 +100,15 @@ export function createRunClient({
   return {
     async startSceneRun(input) {
       return clone(startSceneRunRecord(input))
+    },
+    async retryRun(input) {
+      return clone(retryRunRecord(input))
+    },
+    async cancelRun(input) {
+      return clone(cancelRunRecord(input))
+    },
+    async resumeRun(input) {
+      return clone(resumeRunRecord(input))
     },
     async getRun({ runId }) {
       return clone(getRunRecord(runId))

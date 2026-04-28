@@ -58,7 +58,7 @@ describe('AssetKnowledgeWorkspace', () => {
       </AppProviders>,
     )
 
-    const sceneDraftHandoff = await screen.findByRole('button', { name: 'Open in Draft: Midnight Platform' })
+    const sceneDraftHandoff = await screen.findByRole('button', { name: /Open in Draft: Midnight Platform/ })
     const navigatorRen = screen.getByRole('button', { name: /Ren Voss/i })
     const inspectorSummary = screen.getByRole('heading', { name: 'Summary' }).closest('section')
     const dockRegion = screen.getByRole('region', { name: 'Asset bottom dock' })
@@ -93,7 +93,7 @@ describe('AssetKnowledgeWorkspace', () => {
 
     window.history.back()
 
-    await screen.findByRole('button', { name: 'Open in Draft: Midnight Platform' })
+    await screen.findByRole('button', { name: /Open in Draft: Midnight Platform/ })
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search)
       expect(params.get('scope')).toBe('asset')
@@ -101,7 +101,7 @@ describe('AssetKnowledgeWorkspace', () => {
       expect(params.get('view')).toBe('mentions')
     })
 
-    await user.click(screen.getByRole('button', { name: 'Open in Structure: Signals in Rain' }))
+    await user.click(screen.getByRole('button', { name: /Open in Structure: Signals in Rain/ }))
 
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search)
@@ -115,7 +115,7 @@ describe('AssetKnowledgeWorkspace', () => {
 
     window.history.back()
 
-    await screen.findByRole('button', { name: 'Open in Draft: Midnight Platform' })
+    await screen.findByRole('button', { name: /Open in Draft: Midnight Platform/ })
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search)
       expect(params.get('scope')).toBe('asset')
@@ -137,7 +137,7 @@ describe('AssetKnowledgeWorkspace', () => {
       </AppProviders>,
     )
 
-    const draftHandoff = await screen.findByRole('button', { name: 'Open in Draft: Midnight Platform' })
+    const draftHandoff = await screen.findByRole('button', { name: /Open in Draft: Midnight Platform/ })
     const navigatorRen = screen.getByRole('button', { name: /Ren Voss/i })
     const inspectorSummary = screen.getByRole('heading', { name: 'Summary' }).closest('section')
     const inspectorConsistency = screen.getByRole('heading', { name: 'Consistency' }).closest('section')
@@ -172,7 +172,7 @@ describe('AssetKnowledgeWorkspace', () => {
 
     window.history.back()
 
-    await screen.findByRole('button', { name: 'Open in Draft: Midnight Platform' })
+    await screen.findByRole('button', { name: /Open in Draft: Midnight Platform/ })
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search)
       expect(params.get('scope')).toBe('asset')
@@ -227,7 +227,7 @@ describe('AssetKnowledgeWorkspace', () => {
       expect(params.get('view')).toBe('mentions')
     })
 
-    expect(screen.getByRole('button', { name: 'Open in Draft: Midnight Platform' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open in Draft: Midnight Platform/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Ren Voss/i })).toHaveClass('border-line-strong')
     expect(screen.getByText('Canon-backed')).toBeInTheDocument()
   })
@@ -251,8 +251,11 @@ describe('AssetKnowledgeWorkspace', () => {
     expect(contextButton).toHaveAttribute('aria-pressed', 'true')
     expect(navigatorRen).toHaveClass('border-line-strong')
     expect(screen.getAllByText('Ren may enter run context when he is in cast or explicitly linked to a proposal.').length).toBeGreaterThan(0)
-    expect(screen.getByText('Cast member')).toBeInTheDocument()
+    expect(screen.getAllByText('Cast member').length).toBeGreaterThan(0)
     expect(screen.getByText('Primary POV context')).toBeInTheDocument()
+    expect(screen.getAllByText('Proposal variant link').length).toBeGreaterThan(0)
+    expect(screen.getByText('Courier signal private key')).toBeInTheDocument()
+    expect(screen.queryByText('Ren is still the only person carrying the current signal key for the courier network.')).not.toBeInTheDocument()
     expect(inspectorPolicy).not.toBeNull()
     expect(within(inspectorPolicy!).getByText('Active')).toBeInTheDocument()
     expect(within(dockRegion).getByText('Private/spoiler policy requires caution')).toBeInTheDocument()
@@ -266,7 +269,7 @@ describe('AssetKnowledgeWorkspace', () => {
       expect(new URLSearchParams(window.location.search).get('view')).toBe('mentions')
     })
 
-    expect(await screen.findByRole('button', { name: 'Open in Draft: Midnight Platform' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Open in Draft: Midnight Platform/ })).toBeInTheDocument()
 
     window.history.back()
 
@@ -275,7 +278,23 @@ describe('AssetKnowledgeWorkspace', () => {
     })
 
     expect(screen.getByRole('button', { name: 'Context' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByText('Cast member')).toBeInTheDocument()
+    expect(screen.getAllByText('Cast member').length).toBeGreaterThan(0)
+  })
+
+  it('keeps timeline inside the existing profile route without adding new route fields', async () => {
+    window.history.replaceState({}, '', '/workbench?scope=asset&id=asset-ren-voss&lens=knowledge&view=profile')
+
+    render(
+      <AppProviders>
+        <AssetRouteHarness />
+      </AppProviders>,
+    )
+
+    await screen.findByRole('button', { name: 'Profile' })
+    expect(screen.getByText('Public line')).toBeInTheDocument()
+    expect(screen.getByText('Courier signal key')).toBeInTheDocument()
+    expect(screen.getByText('Midnight Platform standoff')).toBeInTheDocument()
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('profile')
   })
 
   it('renders a quiet missing-policy context route without crashing', async () => {

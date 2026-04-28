@@ -4,8 +4,11 @@ import { QueryClient } from '@tanstack/react-query'
 import type { Meta, StoryObj } from '@storybook/react'
 
 import { AppProviders } from '@/app/providers'
-import { ApiRequestError, apiRouteContract } from '@/app/project-runtime'
+import { ApiRequestError, apiRouteContract, createStoryProjectRuntimeEnvironment } from '@/app/project-runtime'
 import { createFakeApiRuntime } from '@/app/project-runtime/fake-api-runtime.test-utils'
+import { createAssetClient } from '@/features/asset/api/asset-client'
+import type { AssetContextVisibilityRecord } from '@/features/asset/api/asset-records'
+import { getMockAssetKnowledgeWorkspace, listMockAssetNavigatorGroups } from '@/features/asset/api/mock-asset-db'
 
 import { AssetKnowledgeWorkspace } from './AssetKnowledgeWorkspace'
 import { withAssetStoryShell } from './asset-storybook'
@@ -24,6 +27,37 @@ function createStoryQueryClient() {
       },
     },
   })
+}
+
+function AssetKnowledgeWorkspaceVisibilityStory({
+  search,
+  visibility,
+}: {
+  search: string
+  visibility: AssetContextVisibilityRecord
+}) {
+  if (typeof window !== 'undefined' && window.location.search !== search) {
+    window.history.replaceState({}, '', `${window.location.pathname}${search}${window.location.hash}`)
+  }
+
+  const storyEnvironment = useMemo(
+    () =>
+      createStoryProjectRuntimeEnvironment({
+        assetClient: createAssetClient({
+          getAssetKnowledgeWorkspace(assetId) {
+            return getMockAssetKnowledgeWorkspace(assetId, { visibility })
+          },
+          getAssetNavigatorGroups: listMockAssetNavigatorGroups,
+        }),
+      }),
+    [visibility],
+  )
+
+  return (
+    <AppProviders runtime={storyEnvironment.runtime} queryClient={storyEnvironment.queryClient}>
+      <AssetKnowledgeWorkspace />
+    </AppProviders>
+  )
 }
 
 function AssetApiNotFoundStory() {
@@ -110,6 +144,31 @@ export const ContextPolicy: Story = {
   },
 }
 
+export const StoryBibleCharacter: Story = {
+  parameters: {
+    assetStory: {
+      search: getAssetStorySearch('character', 'profile'),
+    },
+  },
+}
+
+export const StoryBiblePrivateFactsRedacted: Story = {
+  render: () => (
+    <AssetKnowledgeWorkspaceVisibilityStory
+      search={getAssetStorySearch('character', 'context')}
+      visibility="character-known"
+    />
+  ),
+}
+
+export const StoryBibleTimeline: Story = {
+  parameters: {
+    assetStory: {
+      search: getAssetStorySearch('character', 'profile'),
+    },
+  },
+}
+
 export const MissingPolicy: Story = {
   parameters: {
     assetStory: {
@@ -125,4 +184,13 @@ export const AssetNotFound: Story = {
     },
   },
   render: () => <AssetApiNotFoundStory />,
+}
+
+export const GateDContextVisibility: Story = {
+  render: () => (
+    <AssetKnowledgeWorkspaceVisibilityStory
+      search='?scope=asset&id=asset-closed-ledger&lens=knowledge&view=context'
+      visibility='character-known'
+    />
+  ),
 }

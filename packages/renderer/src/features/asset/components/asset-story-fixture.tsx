@@ -18,7 +18,7 @@ export function getAssetStoryVariantAssetId(variant: AssetStoryVariant) {
     case 'location':
       return 'asset-midnight-platform'
     case 'rule':
-      return 'asset-ledger-stays-shut'
+      return 'asset-public-witness-rule'
     case 'warnings-heavy':
       return 'asset-departure-bell-timing'
     case 'missing-policy':
@@ -30,12 +30,12 @@ export function getAssetStoryVariantAssetId(variant: AssetStoryVariant) {
   }
 }
 
-function withSelectedRule(
-  rules: AssetNavigatorItemViewModel[],
+function withSelectedLore(
+  items: AssetNavigatorItemViewModel[],
   item: AssetNavigatorItemViewModel,
   selectedId: string,
 ) {
-  return [item, ...rules.filter((rule) => rule.id !== item.id && rule.id !== selectedId)]
+  return [item, ...items.filter((candidate) => candidate.id !== item.id && candidate.id !== selectedId)]
 }
 
 function applyOrphanVariant(
@@ -62,16 +62,16 @@ function applyOrphanVariant(
   return {
     ...workspace,
     assetId: 'asset-unmapped-handoff',
-    kind: 'rule',
+    kind: 'lore',
     title,
     summary,
     navigator: {
       ...workspace.navigator,
-      rules: withSelectedRule(
-        workspace.navigator.rules,
+      lore: withSelectedLore(
+        workspace.navigator.lore,
         {
           id: 'asset-unmapped-handoff',
-          kind: 'rule',
+          kind: 'lore',
           title,
           summary,
           mentionCount: 0,
@@ -97,6 +97,11 @@ function applyOrphanVariant(
         },
       ],
     },
+    storyBible: {
+      canonFacts: [],
+      privateFacts: [],
+      stateTimeline: [],
+    },
     mentions: [],
     relations: [],
     contextPolicy: {
@@ -109,14 +114,19 @@ function applyOrphanVariant(
       defaultVisibilityLabel: text(locale, { en: 'None', 'zh-CN': '无' }),
       defaultBudgetLabel: text(locale, { en: 'None', 'zh-CN': '无' }),
       activationRules: [],
+      participation: [],
       exclusions: [],
       warnings: [],
     },
     inspector: {
-      kindLabel: text(locale, { en: 'Rule', 'zh-CN': '规则' }),
+      kindLabel: text(locale, { en: 'Lore', 'zh-CN': 'Lore' }),
       summary,
+      visibilityLabel: text(locale, { en: 'Public', 'zh-CN': '公开' }),
       mentionCount: 0,
       relationCount: 0,
+      canonFactCount: 0,
+      privateFactCount: 0,
+      timelineEntryCount: 0,
       warnings: [warning],
       notes: [text(locale, { en: 'Keep it parked in the sidebar until a real scene uses it.', 'zh-CN': '在真实场景使用它之前，先把它停留在辅助面板里。' })],
       isOrphan: true,
@@ -155,6 +165,7 @@ function applyOrphanVariant(
       missingFieldCount: 1,
       relationCount: 0,
       mentionCount: 0,
+      timelineEntryCount: 0,
       isOrphan: true,
       contextPolicy: {
         hasContextPolicy: false,

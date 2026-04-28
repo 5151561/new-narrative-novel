@@ -9,6 +9,32 @@ import { createRunFixtureStore } from './runFixtureStore.js'
 import { createFixtureDataSnapshot } from './fixture-data.js'
 import { createTestServer } from '../test/support/test-server.js'
 
+interface MutablePersistedRunState {
+  run: {
+    id: string
+    status: string
+    summary?: string
+    failureClass?: string
+    failureMessage?: string
+    resumableFromEventId?: string
+    pendingReviewId?: string
+    completedAtLabel?: string
+    latestEventId?: string
+    eventCount?: number
+  }
+  events: Array<{
+    id: string
+    runId: string
+    order: number
+    kind: string
+    label: string
+    summary: string
+    createdAtLabel: string
+    severity?: 'info' | 'warning' | 'error'
+    metadata?: Record<string, string | number | boolean | null>
+  }>
+}
+
 describe('runFixtureStore', () => {
   function createProjectContextPacketBuilder() {
     const snapshot = createFixtureDataSnapshot('http://127.0.0.1:4174/api')
@@ -35,10 +61,10 @@ describe('runFixtureStore', () => {
             id: `${packet.packetId}-activation-extra-excluded`,
             assetId: 'asset-extra-excluded',
             assetTitle: { en: 'Extra excluded', 'zh-CN': '额外排除项' },
-            assetKind: 'rule' as const,
+            assetKind: 'lore' as const,
             decision: 'excluded' as const,
             reasonKind: 'rule-dependency' as const,
-            reasonLabel: { en: 'Extra excluded rule', 'zh-CN': '额外排除规则' },
+            reasonLabel: { en: 'Extra excluded lore', 'zh-CN': '额外排除 lore' },
             visibility: 'spoiler' as const,
             budget: 'summary-only' as const,
             targetAgents: ['scene-manager'],
@@ -47,10 +73,10 @@ describe('runFixtureStore', () => {
             id: `${packet.packetId}-activation-extra-redacted`,
             assetId: 'asset-extra-redacted',
             assetTitle: { en: 'Extra redacted', 'zh-CN': '额外遮蔽项' },
-            assetKind: 'rule' as const,
+            assetKind: 'lore' as const,
             decision: 'redacted' as const,
             reasonKind: 'review-issue' as const,
-            reasonLabel: { en: 'Extra redacted rule', 'zh-CN': '额外遮蔽规则' },
+            reasonLabel: { en: 'Extra redacted lore', 'zh-CN': '额外遮蔽 lore' },
             visibility: 'editor-only' as const,
             budget: 'summary-only' as const,
             targetAgents: ['continuity-reviewer'],
@@ -326,6 +352,129 @@ describe('runFixtureStore', () => {
     })
   })
 
+  it('creates a follow-up run on retry and records the source linkage without mutating canon or prose', async () => {
+    const store = createRunFixtureStore()
+    const run = await store.startSceneRun('project-retry-run', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+      note: 'First pass.',
+    })
+
+    const retriedRun = await store.retryRun('project-retry-run', {
+      runId: run.id,
+      mode: 'from-scratch',
+    })
+
+    expect(retriedRun).toMatchObject({
+      id: 'run-scene-midnight-platform-002',
+      retryOfRunId: run.id,
+      status: 'waiting_review',
+    })
+    expect(store.getRun('project-retry-run', run.id)).toMatchObject({
+      id: run.id,
+      status: 'waiting_review',
+      latestEventId: 'run-event-scene-midnight-platform-001-010',
+      eventCount: 10,
+    })
+    expect(listAllEventPages(store, 'project-retry-run', run.id).at(-1)).toMatchObject({
+      kind: 'run_retry_scheduled',
+      summary: 'Retry scheduled in from-scratch mode as run-scene-midnight-platform-002.',
+    })
+  })
+
+  it('cancels an active run, publishes cancellation events, and closes the stream', async () => {
+    const store = createRunFixtureStore()
+    const run = await store.startSceneRun('project-cancel-run', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+    })
+    const iterator = store.streamRunEvents('project-cancel-run', {
+      runId: run.id,
+      cursor: run.latestEventId,
+    })[Symbol.asyncIterator]()
+    const tailPromise = iterator.next()
+
+    const cancelledRun = await store.cancelRun('project-cancel-run', {
+      runId: run.id,
+      reason: 'Operator stopped the run.',
+    })
+
+    expect(cancelledRun).toMatchObject({
+      id: run.id,
+      status: 'cancelled',
+      failureClass: 'cancelled',
+      failureMessage: 'Operator stopped the run.',
+      cancelRequestedAtLabel: '2026-04-23 10:10',
+      completedAtLabel: '2026-04-23 10:11',
+    })
+    await expect(tailPromise).resolves.toEqual({
+      done: false,
+      value: {
+        runId: run.id,
+        events: [
+          expect.objectContaining({ kind: 'run_cancel_requested' }),
+          expect.objectContaining({ kind: 'run_cancelled' }),
+        ],
+      },
+    })
+    await expect(iterator.next()).resolves.toEqual({
+      done: true,
+      value: undefined,
+    })
+  })
+
+  it('resumes a failed run from its resumable event into a new active run id', async () => {
+    const store = createRunFixtureStore()
+    const seededRun = await store.startSceneRun('project-resume-run', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+    })
+    const snapshot = store.exportProjectState('project-resume-run')! as unknown as {
+      runStates: MutablePersistedRunState[]
+      sceneSequences: Record<string, number>
+    }
+    const persistedRunState = snapshot.runStates.find((entry) => entry.run.id === seededRun.id)!
+    persistedRunState.run.status = 'failed'
+    persistedRunState.run.summary = 'Run failed after a provider timeout.'
+    persistedRunState.run.failureClass = 'model_timeout'
+    persistedRunState.run.failureMessage = 'Planner call timed out.'
+    persistedRunState.run.resumableFromEventId = persistedRunState.run.latestEventId
+    persistedRunState.run.pendingReviewId = undefined
+    persistedRunState.run.completedAtLabel = '2026-04-23 10:10'
+    persistedRunState.events.push({
+      id: 'run-event-scene-midnight-platform-001-010',
+      runId: seededRun.id,
+      order: 10,
+      kind: 'run_failed',
+      label: 'Run failed',
+      summary: 'Planner call timed out.',
+      createdAtLabel: '2026-04-23 10:10',
+      severity: 'error',
+      metadata: {
+        failureClass: 'model_timeout',
+      },
+    })
+    persistedRunState.run.latestEventId = 'run-event-scene-midnight-platform-001-010'
+    persistedRunState.run.eventCount = 10
+    store.hydrateProjectState('project-resume-run', snapshot as unknown as import('./project-state-persistence.js').PersistedRunStore)
+
+    const resumedRun = await store.resumeRun('project-resume-run', {
+      runId: seededRun.id,
+    })
+
+    expect(resumedRun).toMatchObject({
+      id: 'run-scene-midnight-platform-002',
+      retryOfRunId: seededRun.id,
+      resumableFromEventId: 'run-event-scene-midnight-platform-001-009',
+      latestEventId: 'run-event-scene-midnight-platform-002-010',
+      eventCount: 10,
+    })
+    expect(listAllEventPages(store, 'project-resume-run', resumedRun.id).at(-1)).toMatchObject({
+      kind: 'run_resumed',
+      summary: 'Run resumed from run-scene-midnight-platform-001 at event run-event-scene-midnight-platform-001-009.',
+    })
+  })
+
   it('exports and hydrates a completed non-fixture project run with event pages and artifacts intact', async () => {
     const store = createRunFixtureStore({
       scenePlannerGateway: {
@@ -513,16 +662,16 @@ describe('runFixtureStore', () => {
     const allEvents = listAllEventPages(store, 'book-signal-arc', run.id)
     expect(allEvents.find((event) => event.kind === 'context_packet_built')).toMatchObject({
       metadata: {
-        includedAssetCount: 3,
-        excludedAssetCount: 2,
+        includedAssetCount: 6,
+        excludedAssetCount: 1,
         redactedAssetCount: 2,
       },
     })
     expect(store.getRunArtifact('book-signal-arc', run.id, 'ctx-scene-midnight-platform-run-002')).toMatchObject({
       kind: 'context-packet',
       activationSummary: {
-        includedAssetCount: 3,
-        excludedAssetCount: 2,
+        includedAssetCount: 6,
+        excludedAssetCount: 1,
         redactedAssetCount: 2,
       },
     })

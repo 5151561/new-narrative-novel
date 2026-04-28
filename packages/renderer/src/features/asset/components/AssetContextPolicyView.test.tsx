@@ -34,6 +34,43 @@ const activePolicy: AssetContextPolicyViewModel = {
       guardrailLabel: 'Do not expose private courier signal notes.',
     },
   ],
+  participation: [
+    {
+      id: 'ren-scene-cast-scene-manager',
+      label: 'Cast member',
+      summary: 'Include selected Ren facts when he is active in the scene cast.',
+      visibilityLabel: 'Character-known',
+      budgetLabel: 'Selected facts',
+      targetAgentLabel: 'Scene manager',
+      visibleFacts: ['Public line', 'Platform debt'],
+      redactedFacts: [],
+      excludedFactCount: 1,
+    },
+    {
+      id: 'ren-proposal-link-scene-manager',
+      label: 'Proposal variant link',
+      summary: 'Attach only the facts needed to evaluate a Ren-facing variant.',
+      visibilityLabel: 'Private',
+      budgetLabel: 'Summary only',
+      targetAgentLabel: 'Scene manager',
+      visibleFacts: ['Public line', 'Platform debt'],
+      redactedFacts: [],
+      excludedFactCount: 1,
+      guardrailLabel: 'Do not expose private courier signal notes.',
+    },
+    {
+      id: 'ren-proposal-link-continuity-reviewer',
+      label: 'Proposal variant link',
+      summary: 'Attach only the facts needed to evaluate a Ren-facing variant.',
+      visibilityLabel: 'Private',
+      budgetLabel: 'Summary only',
+      targetAgentLabel: 'Continuity reviewer',
+      visibleFacts: ['Public line', 'Platform debt'],
+      redactedFacts: ['Courier signal private key'],
+      excludedFactCount: 0,
+      guardrailLabel: 'Do not expose private courier signal notes.',
+    },
+  ],
   exclusions: [
     {
       id: 'ren-private-signal',
@@ -86,6 +123,28 @@ describe('AssetContextPolicyView', () => {
     expect(within(warnings!).getByText('Exact bell placement remains unresolved.')).toBeInTheDocument()
   })
 
+  it('shows redacted participation references without leaking raw private or spoiler values', () => {
+    render(
+      <I18nProvider>
+        <AssetContextPolicyView policy={activePolicy} />
+      </I18nProvider>,
+    )
+
+    const participation = screen.getByRole('heading', { name: 'Context Participation' }).closest('section')
+
+    expect(participation).not.toBeNull()
+    expect(within(participation!).getAllByText('Proposal variant link').length).toBeGreaterThan(0)
+    const reviewerCard = within(participation!).getByText('Continuity reviewer').closest('article')
+    const sceneManagerCards = within(participation!).getAllByText('Scene manager')
+    expect(reviewerCard).not.toBeNull()
+    expect(within(reviewerCard!).getByText('Courier signal private key')).toBeInTheDocument()
+    const sceneManagerPrivateCard = sceneManagerCards[1]?.closest('article')
+    expect(sceneManagerPrivateCard).not.toBeNull()
+    expect(within(sceneManagerPrivateCard!).queryByText('Courier signal private key')).not.toBeInTheDocument()
+    expect(within(participation!).queryByText('Ren is still the only person carrying the current signal key for the courier network.')).not.toBeInTheDocument()
+    expect(within(participation!).queryByText('The proof inside the ledger would settle the bargain instantly if revealed to the crowd.')).not.toBeInTheDocument()
+  })
+
   it('renders a quiet no-policy empty state', () => {
     render(
       <I18nProvider>
@@ -97,6 +156,7 @@ describe('AssetContextPolicyView', () => {
             defaultVisibilityLabel: 'None',
             defaultBudgetLabel: 'None',
             activationRules: [],
+            participation: [],
             exclusions: [],
             warnings: [],
           }}

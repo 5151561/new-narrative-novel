@@ -651,6 +651,52 @@ describe('api project runtime', () => {
     })
   })
 
+  it('uses POST to create manuscript checkpoints and experiment branches, and to archive branches', async () => {
+    const transport = createTransportMock()
+    const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })
+
+    const checkpointInput = {
+      bookId: 'book-1',
+      title: 'Checkpoint',
+      summary: 'Checkpoint summary',
+      sourceSignature: 'draft-assembly:book-1:selected:chapter-1',
+      selectedChapterId: 'chapter-1',
+    }
+    const branchInput = {
+      bookId: 'book-1',
+      title: 'Branch',
+      summary: 'Branch summary',
+      rationale: 'Branch rationale',
+      basedOnCheckpointId: 'checkpoint-1',
+      selectedChapterId: 'chapter-1',
+    }
+    const archiveInput = {
+      bookId: 'book-1',
+      branchId: 'branch-1',
+      archiveNote: 'Archive note',
+    }
+
+    await runtime.bookClient.createBookManuscriptCheckpoint(checkpointInput)
+    await runtime.bookClient.createBookExperimentBranch(branchInput)
+    await runtime.bookClient.archiveBookExperimentBranch(archiveInput)
+
+    expect(transport).toHaveBeenNthCalledWith(1, {
+      method: 'POST',
+      path: '/api/projects/project-1/books/book-1/manuscript-checkpoints',
+      body: checkpointInput,
+    })
+    expect(transport).toHaveBeenNthCalledWith(2, {
+      method: 'POST',
+      path: '/api/projects/project-1/books/book-1/experiment-branches',
+      body: branchInput,
+    })
+    expect(transport).toHaveBeenNthCalledWith(3, {
+      method: 'POST',
+      path: '/api/projects/project-1/books/book-1/experiment-branches/branch-1/archive',
+      body: archiveInput,
+    })
+  })
+
   it('uses POST to reorder a chapter scene', async () => {
     const transport = createTransportMock()
     const runtime = createApiProjectRuntime({ projectId: 'project-1', transport: { requestJson: transport } })

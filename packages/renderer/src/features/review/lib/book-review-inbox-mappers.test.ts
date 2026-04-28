@@ -44,6 +44,83 @@ function createCurrentDraftWorkspace(): BookDraftWorkspaceViewModel {
       warningsChapters: [],
       queuedRevisionChapters: [],
     },
+    readableManuscript: {
+      formatVersion: 'book-manuscript-assembly-v1',
+      markdown: '# Signal Arc',
+      plainText: 'Signal Arc',
+      sections: [
+        {
+          kind: 'chapter-heading',
+          chapterId: 'chapter-1',
+          chapterOrder: 1,
+          chapterTitle: 'Chapter One',
+          summary: 'Opening chapter',
+          assembledWordCount: 900,
+          missingDraftCount: 1,
+        },
+        {
+          kind: 'scene-gap',
+          chapterId: 'chapter-1',
+          chapterOrder: 1,
+          chapterTitle: 'Chapter One',
+          sceneId: 'scene-1',
+          sceneOrder: 1,
+          sceneTitle: 'Scene One',
+          sceneSummary: 'Missing prose',
+          gapReason: 'No prose artifact yet.',
+          traceReady: true,
+        },
+        {
+          kind: 'scene-draft',
+          chapterId: 'chapter-1',
+          chapterOrder: 1,
+          chapterTitle: 'Chapter One',
+          sceneId: 'scene-2',
+          sceneOrder: 2,
+          sceneTitle: 'Scene Two',
+          sceneSummary: 'Trace gap scene',
+          proseDraft: 'Draft text.',
+          draftWordCount: 2,
+          traceReady: false,
+        },
+        {
+          kind: 'chapter-heading',
+          chapterId: 'chapter-2',
+          chapterOrder: 2,
+          chapterTitle: 'Chapter Two',
+          summary: 'Middle chapter',
+          assembledWordCount: 900,
+          missingDraftCount: 0,
+        },
+        {
+          kind: 'scene-draft',
+          chapterId: 'chapter-2',
+          chapterOrder: 2,
+          chapterTitle: 'Chapter Two',
+          sceneId: 'scene-3',
+          sceneOrder: 1,
+          sceneTitle: 'Scene Three',
+          sceneSummary: 'Compare change scene',
+          proseDraft: 'Draft text.',
+          draftWordCount: 2,
+          traceReady: true,
+        },
+        {
+          kind: 'scene-draft',
+          chapterId: 'chapter-2',
+          chapterOrder: 2,
+          chapterTitle: 'Chapter Two',
+          sceneId: 'scene-4',
+          sceneOrder: 2,
+          sceneTitle: 'Scene Four',
+          sceneSummary: 'Branch warning scene',
+          proseDraft: 'Draft text.',
+          draftWordCount: 2,
+          traceReady: true,
+        },
+      ],
+      sourceManifest: [],
+    },
     chapters: [
       {
         chapterId: 'chapter-1',
@@ -644,6 +721,97 @@ describe('buildBookReviewInboxViewModel', () => {
     })
   })
 
+  it('maps a missing trace reference into a missing_trace warning issue', () => {
+    const currentDraftWorkspace = createCurrentDraftWorkspace()
+    currentDraftWorkspace.chapters[1]!.sections[0] = {
+      ...currentDraftWorkspace.chapters[1]!.sections[0]!,
+      traceReady: false,
+      relatedAssetCount: 0,
+      sourceProposalCount: 0,
+    }
+
+    const inbox = buildBookReviewInboxViewModel({
+      bookId: 'book-signal-arc',
+      currentDraftWorkspace,
+      compareWorkspace: createCompareWorkspace(),
+      exportWorkspace: createExportWorkspace(),
+      branchWorkspace: createBranchWorkspace(),
+      reviewSeeds: getBookReviewSeeds('book-signal-arc'),
+    })
+
+    expect(inbox.issues.find((item) => item.id === 'trace-gap-chapter-2-scene-3')).toMatchObject({
+      kind: 'missing_trace',
+      severity: 'warning',
+      source: 'traceability',
+      chapterId: 'chapter-2',
+      sceneId: 'scene-3',
+    })
+  })
+
+  it('keeps accepted-facts-only trace coverage in the partial trace_gap bucket', () => {
+    const currentDraftWorkspace = createCurrentDraftWorkspace()
+    currentDraftWorkspace.chapters[1]!.sections[0] = {
+      ...currentDraftWorkspace.chapters[1]!.sections[0]!,
+      traceReady: false,
+      relatedAssetCount: 0,
+      sourceProposalCount: 0,
+    }
+    currentDraftWorkspace.readableManuscript.sourceManifest = [
+      {
+        kind: 'scene-draft',
+        chapterId: 'chapter-2',
+        chapterOrder: 2,
+        chapterTitle: 'Chapter Two',
+        sceneId: 'scene-3',
+        sceneOrder: 1,
+        sceneTitle: 'Scene Three',
+        sourceProposalIds: [],
+        acceptedFactIds: ['fact-accepted-only'],
+        traceReady: false,
+      },
+    ]
+
+    const inbox = buildBookReviewInboxViewModel({
+      bookId: 'book-signal-arc',
+      currentDraftWorkspace,
+      compareWorkspace: createCompareWorkspace(),
+      exportWorkspace: createExportWorkspace(),
+      branchWorkspace: createBranchWorkspace(),
+      reviewSeeds: getBookReviewSeeds('book-signal-arc'),
+    })
+
+    expect(inbox.issues.find((item) => item.id === 'trace-gap-chapter-2-scene-3')).toMatchObject({
+      kind: 'trace_gap',
+      severity: 'warning',
+      source: 'traceability',
+      chapterId: 'chapter-2',
+      sceneId: 'scene-3',
+    })
+  })
+
+  it('maps a chapter with no readable scene draft sections into a chapter_gap issue', () => {
+    const currentDraftWorkspace = createCurrentDraftWorkspace()
+    currentDraftWorkspace.readableManuscript.sections = currentDraftWorkspace.readableManuscript.sections.filter(
+      (section) => !(section.chapterId === 'chapter-2' && section.kind === 'scene-draft'),
+    )
+
+    const inbox = buildBookReviewInboxViewModel({
+      bookId: 'book-signal-arc',
+      currentDraftWorkspace,
+      compareWorkspace: createCompareWorkspace(),
+      exportWorkspace: createExportWorkspace(),
+      branchWorkspace: createBranchWorkspace(),
+      reviewSeeds: getBookReviewSeeds('book-signal-arc'),
+    })
+
+    expect(inbox.issues.find((item) => item.id === 'chapter-gap-chapter-2')).toMatchObject({
+      kind: 'chapter_gap',
+      source: 'manuscript',
+      chapterId: 'chapter-2',
+      severity: 'warning',
+    })
+  })
+
   it('maps a compare changed scene into a compare_delta issue', () => {
     const issue = buildInbox().issues.find((item) => item.id === 'compare-delta-chapter-2-scene-3')
 
@@ -833,6 +1001,37 @@ describe('buildBookReviewInboxViewModel', () => {
     })
   })
 
+  it('includes seeded continuity qa issues with stable ids and locator handoffs', () => {
+    const inbox = buildInbox()
+
+    expect(inbox.issues.find((item) => item.id === 'continuity-conflict-ledger-public-proof')).toMatchObject({
+      source: 'continuity',
+      kind: 'continuity_conflict',
+      sceneId: 'scene-midnight-platform',
+      assetId: 'asset-ledger',
+    })
+    expect(inbox.issues.find((item) => item.id === 'missing-trace-departure-bell')).toMatchObject({
+      source: 'traceability',
+      kind: 'missing_trace',
+      sceneId: 'scene-departure-bell',
+    })
+    expect(inbox.issues.find((item) => item.id === 'stale-prose-after-canon-midnight-platform')).toMatchObject({
+      source: 'stale-prose',
+      kind: 'stale_prose_after_canon_change',
+      sceneId: 'scene-midnight-platform',
+    })
+    expect(inbox.issues.find((item) => item.id === 'chapter-gap-open-water-bridge')).toMatchObject({
+      source: 'manuscript',
+      kind: 'chapter_gap',
+      chapterId: 'chapter-open-water-signals',
+    })
+    expect(inbox.issues.find((item) => item.id === 'asset-inconsistency-ledger-rule')).toMatchObject({
+      source: 'asset-consistency',
+      kind: 'asset_inconsistency',
+      assetId: 'asset-ledger-rule',
+    })
+  })
+
   it('maps source handoffs toward real routing targets for later stage wiring', () => {
     const inbox = buildInbox()
 
@@ -953,6 +1152,12 @@ describe('buildBookReviewInboxViewModel', () => {
       target: {
         scope: 'chapter',
         lens: 'draft',
+      },
+    })
+    expect(inbox.issues.find((item) => item.id === 'continuity-conflict-ledger-public-proof')?.primaryFixHandoff).toMatchObject({
+      target: {
+        scope: 'book',
+        draftView: 'review',
       },
     })
 
@@ -1410,9 +1615,9 @@ describe('buildBookReviewInboxViewModel', () => {
       'export-blocker-scene-1',
       'branch-blocker-scene-2',
       'compare-draft-missing-chapter-1-scene-1',
+      'continuity-conflict-ledger-public-proof',
       'draft-missing-chapter-1-scene-1',
       'export-warning-chapter-2',
-      'branch-warning-scene-4',
     ])
   })
 
@@ -1424,6 +1629,12 @@ describe('buildBookReviewInboxViewModel', () => {
     expect(inbox.counts.total).toBe(inbox.issues.length)
     expect(inbox.counts.blockers).toBeGreaterThan(0)
     expect(inbox.counts.traceGaps).toBeGreaterThan(0)
+    expect(inbox.counts.continuityConflicts).toBeGreaterThan(0)
+    expect(inbox.counts.assetInconsistencies).toBeGreaterThan(0)
+    expect(inbox.counts.missingTrace).toBeGreaterThan(0)
+    expect(inbox.counts.staleProse).toBeGreaterThan(0)
+    expect(inbox.counts.chapterGaps).toBeGreaterThan(0)
+    expect(inbox.counts.rewriteRequests).toBe(0)
     expect(inbox.counts.compareDeltas).toBeGreaterThan(0)
     expect(inbox.counts.exportReadiness).toBeGreaterThan(0)
     expect(inbox.counts.branchReadiness).toBeGreaterThan(0)

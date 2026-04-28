@@ -9,6 +9,7 @@ import type {
   BookBranchChapterDeltaViewModel,
   BookBranchDeltaKind,
   BookBranchSceneDeltaViewModel,
+  BookExperimentBranchAdoptionRecord,
   BookExperimentBranchBaselineSnapshotViewModel,
   BookExperimentBranchComparisonViewModel,
   BookExperimentBranchReadinessIssueViewModel,
@@ -125,6 +126,24 @@ function normalizeBranchScene(
   }
 }
 
+function normalizeBranchAdoption(
+  adoption: NonNullable<BookExperimentBranchRecord['adoptions']>[number],
+  locale: Locale,
+): BookExperimentBranchAdoptionRecord {
+  return {
+    adoptionId: adoption.adoptionId,
+    branchId: adoption.branchId,
+    bookId: adoption.bookId,
+    chapterId: adoption.chapterId,
+    sceneId: adoption.sceneId,
+    kind: adoption.kind,
+    status: adoption.status,
+    summary: readLocalizedBookText(adoption.summary, locale),
+    createdAtLabel: readLocalizedBookText(adoption.createdAtLabel, locale),
+    sourceSignature: adoption.sourceSignature,
+  }
+}
+
 function isTraceRegression(scene: BookBranchSceneDeltaViewModel) {
   return Boolean(scene.branchScene && scene.baselineScene && scene.baselineScene.traceReady && !scene.branchScene.traceReady)
 }
@@ -136,6 +155,7 @@ function isTraceImprovement(scene: BookBranchSceneDeltaViewModel) {
 function computeSceneDelta(
   branchScene?: BookExperimentBranchSnapshotSceneViewModel,
   baselineScene?: BookExperimentBranchSnapshotSceneViewModel,
+  adoptions: BookExperimentBranchAdoptionRecord[] = [],
 ): BookBranchSceneDeltaViewModel {
   const branchTrimmed = trimText(branchScene?.proseDraft)
   const baselineTrimmed = trimText(baselineScene?.proseDraft)
@@ -190,6 +210,7 @@ function computeSceneDelta(
     sourceProposalDelta,
     branchSourceProposalCount: branchScene?.sourceProposalCount,
     baselineSourceProposalCount: baselineScene?.sourceProposalCount,
+    adoptions,
   }
 }
 
@@ -212,6 +233,7 @@ function getChapterReadinessStatus(chapter: BookBranchChapterDeltaViewModel): Bo
 function compareChapter(
   branchChapter: BookExperimentBranchSnapshotChapterViewModel | undefined,
   baselineChapter: BookExperimentBranchSnapshotChapterViewModel | undefined,
+  adoptions: BookExperimentBranchAdoptionRecord[],
 ): BookBranchChapterDeltaViewModel {
   const orderedSceneIds = [
     ...(branchChapter?.scenes.map((scene) => scene.sceneId) ?? []),
@@ -224,6 +246,10 @@ function compareChapter(
     computeSceneDelta(
       branchChapter?.scenes.find((scene) => scene.sceneId === sceneId),
       baselineChapter?.scenes.find((scene) => scene.sceneId === sceneId),
+      adoptions.filter(
+        (adoption) =>
+          adoption.chapterId === (branchChapter?.chapterId ?? baselineChapter?.chapterId) && adoption.sceneId === sceneId,
+      ),
     ),
   )
 
@@ -262,6 +288,7 @@ export function normalizeBookExperimentBranch(
     createdAtLabel: record.createdAtLabel ? readLocalizedBookText(record.createdAtLabel, locale) : buildBranchLabel(locale, record.status),
     basedOnCheckpointId: record.basedOnCheckpointId,
     status: record.status,
+    adoptions: (record.adoptions ?? []).map((adoption) => normalizeBranchAdoption(adoption, locale)),
   }
 }
 
@@ -448,6 +475,7 @@ export function compareBookExperimentBranchToBaseline({
     compareChapter(
       branchSnapshot.chapters.find((chapter) => chapter.chapterId === chapterId),
       baselineSnapshot.chapters.find((chapter) => chapter.chapterId === chapterId),
+      branchSnapshot.adoptions,
     ),
   )
 
@@ -537,6 +565,7 @@ export function buildBookExperimentBranchWorkspace({
       selectedChapter: null,
       branch: null,
       branches: normalizedBranches,
+      adoptions: [],
       baseline: {
         kind: baselineSnapshot.kind,
         label: baselineSnapshot.label,
@@ -570,6 +599,7 @@ export function buildBookExperimentBranchWorkspace({
     summary: currentDraftWorkspace.summary,
     branch: normalizedBranch,
     branches: normalizedBranches,
+    adoptions: branchSnapshot.adoptions,
     readiness,
   }
 }

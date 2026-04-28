@@ -17,6 +17,7 @@ import { RunEventInspectorPanel } from './RunEventInspectorPanel'
 const runId = 'run-scene-midnight-platform-001'
 const reviewId = 'review-scene-midnight-platform-001'
 const contextPacketId = 'ctx-scene-midnight-platform-run-001'
+const proposalSetId = 'proposal-set-scene-midnight-platform-run-001'
 
 describe('RunEventInspectorPanel', () => {
   beforeEach(() => {
@@ -139,5 +140,46 @@ describe('RunEventInspectorPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Open asset context for Ren Voss' }))
 
     expect(onOpenAssetContext).toHaveBeenCalledWith('asset-ren-voss')
+  })
+
+  it('surfaces failure class, retryability, usage summary, and source refs from the selected artifact detail', () => {
+    const artifacts = getMockRunArtifacts({ runId }).artifacts
+    const trace = getMockRunTrace({ runId })
+    const failedArtifact = {
+      ...getMockRunArtifact({ runId, artifactId: proposalSetId }).artifact,
+      usage: {
+        inputTokens: 1420,
+        outputTokens: 318,
+        estimatedCostUsd: 0.0218,
+        provider: 'openai',
+        modelId: 'gpt-5.4',
+      },
+      failureDetail: {
+        failureClass: 'provider_error' as const,
+        message: 'Provider returned 502 while proposal packaging was being finalized.',
+        provider: 'openai',
+        modelId: 'gpt-5.4',
+        retryable: true,
+        sourceEventIds: ['run-event-scene-midnight-platform-001-007'],
+      },
+    }
+
+    render(
+      <I18nProvider>
+        <RunEventInspectorPanel
+          artifacts={artifacts}
+          selectedArtifactId={proposalSetId}
+          selectedArtifact={failedArtifact}
+          trace={trace}
+        />
+      </I18nProvider>,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Selected artifact support summary' })).toBeInTheDocument()
+    expect(screen.getAllByText('provider_error').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Retryable').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('1,420 in / 318 out').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('$0.0218 est.').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('run-event-scene-midnight-platform-001-007').length).toBeGreaterThan(0)
   })
 })

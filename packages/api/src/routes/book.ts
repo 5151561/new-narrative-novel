@@ -4,6 +4,28 @@ import type { ApiRouteContext } from './route-context.js'
 
 export function registerBookRoutes({ app, apiBasePath, repository }: ApiRouteContext) {
   const projectBase = `${apiBasePath}/projects/:projectId`
+  const adoptionKinds = new Set(['canon_patch', 'prose_draft'])
+
+  function assertRouteBookId(routeBookId: string, bodyBookId: string) {
+    if (bodyBookId !== routeBookId) {
+      throw badRequest(`Body bookId ${bodyBookId} does not match route bookId ${routeBookId}.`, {
+        code: 'BOOK_ID_MISMATCH',
+        detail: { bookId: routeBookId, bodyBookId },
+      })
+    }
+  }
+
+  function assertAdoptionKind(kind: string): asserts kind is 'canon_patch' | 'prose_draft' {
+    if (!adoptionKinds.has(kind)) {
+      throw badRequest(`Adoption kind ${kind} is invalid.`, {
+        code: 'BOOK_EXPERIMENT_BRANCH_ADOPTION_KIND_INVALID',
+        detail: {
+          kind,
+          allowedKinds: [...adoptionKinds],
+        },
+      })
+    }
+  }
 
   app.get(`${projectBase}/books/:bookId/structure`, async (request) => {
     const { projectId, bookId } = request.params as { projectId: string; bookId: string }
@@ -27,6 +49,20 @@ export function registerBookRoutes({ app, apiBasePath, repository }: ApiRouteCon
       checkpointId: string
     }
     return repository.getBookManuscriptCheckpoint(projectId, bookId, checkpointId)
+  })
+
+  app.post(`${projectBase}/books/:bookId/manuscript-checkpoints`, async (request) => {
+    const { projectId, bookId } = request.params as { projectId: string; bookId: string }
+    const body = request.body as {
+      bookId: string
+      title: string
+      summary: string
+      sourceSignature: string
+      selectedChapterId: string
+    }
+
+    assertRouteBookId(bookId, body.bookId)
+    return repository.createBookManuscriptCheckpoint(projectId, body)
   })
 
   app.get(`${projectBase}/books/:bookId/export-profiles`, async (request) => {
@@ -108,5 +144,63 @@ export function registerBookRoutes({ app, apiBasePath, repository }: ApiRouteCon
       branchId: string
     }
     return repository.getBookExperimentBranch(projectId, bookId, branchId)
+  })
+
+  app.post(`${projectBase}/books/:bookId/experiment-branches`, async (request) => {
+    const { projectId, bookId } = request.params as { projectId: string; bookId: string }
+    const body = request.body as {
+      bookId: string
+      title: string
+      summary: string
+      rationale: string
+      basedOnCheckpointId?: string
+      selectedChapterId: string
+    }
+
+    assertRouteBookId(bookId, body.bookId)
+    return repository.createBookExperimentBranch(projectId, body)
+  })
+
+  app.post(`${projectBase}/books/:bookId/experiment-branches/:branchId/archive`, async (request) => {
+    const { projectId, bookId, branchId } = request.params as {
+      projectId: string
+      bookId: string
+      branchId: string
+    }
+    const body = request.body as {
+      bookId: string
+      branchId: string
+      archiveNote: string
+    }
+
+    assertRouteBookId(bookId, body.bookId)
+    return repository.archiveBookExperimentBranch(projectId, {
+      ...body,
+      branchId,
+    })
+  })
+
+  app.post(`${projectBase}/books/:bookId/experiment-branches/:branchId/adoptions`, async (request) => {
+    const { projectId, bookId, branchId } = request.params as {
+      projectId: string
+      bookId: string
+      branchId: string
+    }
+    const body = request.body as {
+      bookId: string
+      branchId: string
+      chapterId: string
+      sceneId: string
+      kind: 'canon_patch' | 'prose_draft'
+      summary: string
+      sourceSignature: string
+    }
+
+    assertRouteBookId(bookId, body.bookId)
+    assertAdoptionKind(body.kind)
+    return repository.adoptBookExperimentBranch(projectId, {
+      ...body,
+      branchId,
+    })
   })
 }

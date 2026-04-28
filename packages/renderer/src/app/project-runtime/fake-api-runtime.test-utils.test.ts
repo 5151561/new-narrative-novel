@@ -892,6 +892,9 @@ describe('createFakeApiRuntime override matching', () => {
 
     const runClient: RunClient = {
       startSceneRun,
+      retryRun: vi.fn(),
+      cancelRun: vi.fn(),
+      resumeRun: vi.fn(),
       getRun,
       getRunEvents,
       submitRunReviewDecision,
@@ -1113,9 +1116,15 @@ describe('createFakeApiRuntime override matching', () => {
         projectId: 'project-1',
         runClient: {
           startSceneRun,
+          retryRun: vi.fn(),
+          cancelRun: vi.fn(),
+          resumeRun: vi.fn(),
           getRun,
           getRunEvents,
           submitRunReviewDecision,
+          listRunArtifacts: vi.fn(),
+          getRunArtifact: vi.fn(),
+          getRunTrace: vi.fn(),
         },
       },
     })

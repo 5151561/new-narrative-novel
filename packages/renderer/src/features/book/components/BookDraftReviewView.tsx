@@ -34,9 +34,12 @@ interface BookDraftReviewViewProps {
   onSetFixStatus?: (input: {
     issueId: string
     issueSignature: string
-    status: 'checked' | 'blocked'
+    status: 'checked' | 'blocked' | 'rewrite_requested'
     handoff: ReviewSourceHandoffViewModel
     note?: string
+    rewriteRequestNote?: string
+    rewriteTargetSceneId?: string
+    rewriteRequestId?: string
   }) => void
   onClearFix?: (issueId: string) => void
   isFixActionSaving?: boolean

@@ -8,6 +8,7 @@ import type {
   AssetContextPolicyViewModel,
   AssetProfileViewModel,
   AssetRelationViewModel,
+  AssetStoryBibleViewModel,
 } from '../types/asset-view-models'
 
 import { AssetKnowledgeStage } from './AssetKnowledgeStage'
@@ -63,10 +64,41 @@ const relations: AssetRelationViewModel[] = [
     targetAssetId: 'asset-mei-arden',
     targetTitle: 'Mei Arden',
     targetKind: 'character',
+    targetKindLabel: 'Character',
+    relationshipScopeLabel: 'Same-kind relation',
+    reciprocalStatusLabel: 'Reciprocal',
+    narrativeBackingStatusLabel: 'Narrative-backed',
+    hasReciprocalRelation: true,
+    hasNarrativeBacking: true,
     relationLabel: 'Bargains against',
     summary: 'Ren needs Mei’s timing without accepting her public terms.',
   },
 ]
+
+const storyBible: AssetStoryBibleViewModel = {
+  canonFacts: [
+    {
+      id: 'ren-public-line',
+      label: 'Public line',
+      value: 'Ren will stall in public before he lets the ledger open.',
+      visibilityLabel: 'Public',
+      sourceRefs: [{ id: 'platform-log', kind: 'scene', label: 'Midnight platform witness log' }],
+      lastReviewedAtLabel: '2026-04-27 22:10',
+    },
+  ],
+  privateFacts: [],
+  stateTimeline: [
+    {
+      id: 'ren-midnight-platform',
+      label: 'Midnight Platform standoff',
+      summary: 'Ren keeps the ledger closed while witness pressure hardens.',
+      sceneId: 'scene-midnight-platform',
+      chapterId: 'chapter-signals-in-rain',
+      statusLabel: 'Established',
+      sourceRefs: [{ id: 'platform-log', kind: 'scene', label: 'Midnight platform witness log' }],
+    },
+  ],
+}
 
 const contextPolicy: AssetContextPolicyViewModel = {
   hasContextPolicy: true,
@@ -86,6 +118,7 @@ const contextPolicy: AssetContextPolicyViewModel = {
       priorityLabel: 'Primary POV context',
     },
   ],
+  participation: [],
   exclusions: [],
   warnings: [],
 }
@@ -103,6 +136,7 @@ describe('AssetKnowledgeStage', () => {
           activeView="profile"
           availableViews={['profile', 'mentions', 'relations', 'context']}
           profile={profile}
+          storyBible={storyBible}
           mentions={mentions}
           relations={relations}
           contextPolicy={contextPolicy}
@@ -119,6 +153,8 @@ describe('AssetKnowledgeStage', () => {
     expect(screen.getByRole('button', { name: 'Relations' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Context' })).toBeInTheDocument()
     expect(screen.getByText('Courier negotiator')).toBeInTheDocument()
+    expect(screen.getByText('Public line')).toBeInTheDocument()
+    expect(screen.getByText('Midnight Platform standoff')).toBeInTheDocument()
     expect(screen.queryByText('Ren refuses to let the ledger become a public prop.')).not.toBeInTheDocument()
     expect(screen.queryByText('Ren needs Mei’s timing without accepting her public terms.')).not.toBeInTheDocument()
 
@@ -133,6 +169,7 @@ describe('AssetKnowledgeStage', () => {
           activeView="mentions"
           availableViews={['profile', 'mentions', 'relations', 'context']}
           profile={profile}
+          storyBible={storyBible}
           mentions={mentions}
           relations={relations}
           contextPolicy={contextPolicy}
@@ -145,7 +182,7 @@ describe('AssetKnowledgeStage', () => {
     )
 
     expect(screen.getByText('Ren refuses to let the ledger become a public prop.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Open in Draft: Midnight Platform' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open in Draft: Midnight Platform/ })).toBeInTheDocument()
     expect(screen.queryByText('Courier negotiator')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Relations' }))
@@ -159,6 +196,7 @@ describe('AssetKnowledgeStage', () => {
           activeView="relations"
           availableViews={['profile', 'mentions', 'relations', 'context']}
           profile={profile}
+          storyBible={storyBible}
           mentions={mentions}
           relations={relations}
           contextPolicy={contextPolicy}
@@ -185,6 +223,7 @@ describe('AssetKnowledgeStage', () => {
           activeView="context"
           availableViews={['profile', 'mentions', 'relations', 'context']}
           profile={profile}
+          storyBible={storyBible}
           mentions={mentions}
           relations={relations}
           contextPolicy={contextPolicy}
@@ -197,7 +236,7 @@ describe('AssetKnowledgeStage', () => {
     )
 
     expect(screen.getByText('Ren may enter run context when he is in cast or explicitly linked to a proposal.')).toBeInTheDocument()
-    expect(screen.getByText('Cast member')).toBeInTheDocument()
+    expect(screen.getAllByText('Cast member').length).toBeGreaterThan(0)
     expect(screen.queryByText('Bargains against')).not.toBeInTheDocument()
   })
 })

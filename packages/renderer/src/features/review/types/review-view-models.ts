@@ -16,11 +16,20 @@ export type ReviewIssueSource =
   | 'export'
   | 'branch'
   | 'traceability'
+  | 'continuity'
+  | 'asset-consistency'
+  | 'stale-prose'
   | 'scene-proposal'
   | 'chapter-draft'
 export type ReviewIssueKind =
   | 'missing_draft'
   | 'trace_gap'
+  | 'continuity_conflict'
+  | 'asset_inconsistency'
+  | 'missing_trace'
+  | 'stale_prose_after_canon_change'
+  | 'chapter_gap'
+  | 'rewrite_request'
   | 'compare_delta'
   | 'export_blocker'
   | 'export_warning'
@@ -70,7 +79,7 @@ export interface ReviewSourceHandoffViewModel {
 
 export type ReviewOptionalSourceStatus = 'idle' | 'loading' | 'ready'
 export type ReviewDecisionStatus = 'open' | 'reviewed' | 'deferred' | 'dismissed' | 'stale'
-export type ReviewFixActionViewStatus = 'not_started' | 'started' | 'checked' | 'blocked' | 'stale'
+export type ReviewFixActionViewStatus = 'not_started' | 'started' | 'checked' | 'blocked' | 'rewrite_requested' | 'stale'
 
 export interface ReviewIssueDecisionViewModel {
   status: ReviewDecisionStatus
@@ -86,6 +95,9 @@ export interface ReviewIssueFixActionViewModel {
   sourceHandoffLabel?: string
   targetScope?: ReviewSourceHandoffTarget['scope']
   note?: string
+  rewriteRequestNote?: string
+  rewriteTargetSceneId?: string
+  rewriteRequestId?: string
   startedAtLabel?: string
   updatedAtLabel?: string
   updatedByLabel?: string
@@ -130,6 +142,12 @@ export interface BookReviewInboxCountsViewModel {
   warnings: number
   info: number
   traceGaps: number
+  continuityConflicts: number
+  assetInconsistencies: number
+  missingTrace: number
+  staleProse: number
+  chapterGaps: number
+  rewriteRequests: number
   missingDrafts: number
   compareDeltas: number
   exportReadiness: number

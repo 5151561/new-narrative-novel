@@ -36,6 +36,20 @@ const activeRun: RunRecord = {
   startedAtLabel: '2026-04-23 10:00',
   pendingReviewId: 'review-scene-midnight-platform-002',
   latestEventId: 'run-event-scene-midnight-platform-002-009',
+  usage: {
+    inputTokens: 8200,
+    outputTokens: 1100,
+    estimatedCostUsd: 0.19,
+    provider: 'openai',
+    modelId: 'gpt-5.4',
+  },
+  runtimeSummary: {
+    health: 'attention',
+    tokenLabel: '8.2k tokens',
+    costLabel: '$0.19 est.',
+    failureClassLabel: 'Watching provider retries',
+    nextActionLabel: 'Review proposals before retrying the writer path.',
+  },
   eventCount: 3,
 }
 
@@ -279,5 +293,33 @@ describe('SceneBottomDock', () => {
     expect(screen.getAllByText('Artifacts unavailable').length).toBeGreaterThan(0)
     expect(screen.getByRole('heading', { name: 'Scene context packet' })).toBeInTheDocument()
     expect(screen.queryByText('Artifact not found')).not.toBeInTheDocument()
+  })
+
+  it('shows runtime summary metrics as support context inside the dock', () => {
+    render(
+      createElement(SceneBottomDock as unknown as typeof SceneBottomDock, {
+        data: dockData,
+        activeTab: 'events',
+        onTabChange: vi.fn(),
+        runSupport: {
+          run: activeRun,
+          events: activeRunEvents,
+          isLoading: false,
+          error: null,
+          isReviewPending: true,
+          artifacts: [],
+          selectedArtifactId: null,
+          selectedArtifact: null,
+          trace: null,
+        },
+      }),
+    )
+
+    expect(screen.getByRole('heading', { name: 'Runtime summary' })).toBeInTheDocument()
+    expect(screen.getByText('8.2k tokens')).toBeInTheDocument()
+    expect(screen.getByText('$0.19 est.')).toBeInTheDocument()
+    expect(screen.getByText('Watching provider retries')).toBeInTheDocument()
+    expect(screen.getByText('Review proposals before retrying the writer path.')).toBeInTheDocument()
+    expect(screen.queryByText('Run Dashboard')).not.toBeInTheDocument()
   })
 })

@@ -532,7 +532,7 @@ describe('BookDraftInspectorPane', () => {
     expect(screen.getByRole('button', { name: 'Inspector source action Open export readiness' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Inspector source action Open chapter draft' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Start source fix' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Mark source checked' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Mark fix checked' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Clear fix action' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Inspector source action Open export readiness' }))

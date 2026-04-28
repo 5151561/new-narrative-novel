@@ -222,6 +222,7 @@ export function AssetKnowledgeWorkspace() {
           activeView={route.view}
           availableViews={traceAwareWorkspace.viewsMeta.availableViews}
           profile={traceAwareWorkspace.profile}
+          storyBible={traceAwareWorkspace.storyBible}
           mentions={traceAwareWorkspace.mentions}
           relations={traceAwareWorkspace.relations}
           contextPolicy={traceAwareWorkspace.contextPolicy}

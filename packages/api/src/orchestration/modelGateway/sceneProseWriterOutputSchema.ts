@@ -10,7 +10,7 @@ export interface SceneProseWriterOutput {
   relatedAssets: RunArtifactRelatedAssetRecord[]
 }
 
-const assetKinds = ['character', 'location', 'rule'] as const satisfies readonly RunArtifactAssetKind[]
+const assetKinds = ['character', 'location', 'organization', 'object', 'lore'] as const satisfies readonly RunArtifactAssetKind[]
 
 const nonEmptyTrimmedStringSchema = {
   type: 'string',

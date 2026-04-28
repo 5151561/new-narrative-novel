@@ -1,4 +1,5 @@
 import type {
+  RunFailureClass,
   RunArtifactGeneratedRefRecord,
   RunEventRecord,
   RunRecord,
@@ -68,6 +69,9 @@ export interface SceneRunWorkflowStartInput extends StartSceneRunInput {
   plannerOutput: ScenePlannerOutput
   plannerProvenance: ScenePlannerGatewayProvenance
   contextPacket?: SceneContextPacketRecord
+  retryOfRunId?: string
+  resumableFromEventId?: string
+  resumeSourceRunId?: string
 }
 
 export type SceneRunTimelineLabelBuilder = (order: number) => string
@@ -107,10 +111,27 @@ export interface SceneRunReviewTransitionNextRunState {
   summary: string
   completedAtLabel?: string
   pendingReviewId?: string
+  cancelRequestedAtLabel?: string
+  failureClass?: RunFailureClass
+  failureMessage?: string
+  resumableFromEventId?: string
 }
 
 export interface SceneRunReviewTransitionState {
   appendedEvents: RunEventRecord[]
   generatedArtifacts: SceneRunArtifactRecord[]
   nextRun: SceneRunReviewTransitionNextRunState
+}
+
+export interface SceneRunRetryTransitionInput {
+  runId: string
+  priorEventCount: number
+  nextRunId: string
+  mode: StartSceneRunInput['mode']
+}
+
+export interface SceneRunCancelTransitionInput {
+  runId: string
+  priorEventCount: number
+  reason?: string
 }

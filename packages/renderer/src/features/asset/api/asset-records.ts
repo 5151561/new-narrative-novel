@@ -5,7 +5,8 @@ import type {
   SceneLens,
 } from '@/features/workbench/types/workbench-route'
 
-export type AssetKind = 'character' | 'location' | 'rule'
+export type CanonicalAssetKind = 'character' | 'location' | 'organization' | 'object' | 'lore'
+export type AssetKind = CanonicalAssetKind
 export type AssetContextVisibilityRecord =
   | 'public'
   | 'character-known'
@@ -75,6 +76,31 @@ export interface AssetProfileRecord {
   sections: AssetProfileSectionRecord[]
 }
 
+export interface AssetStoryBibleSourceRefRecord {
+  id: string
+  kind: 'scene' | 'chapter' | 'asset' | 'note'
+  label: AssetLocalizedText
+}
+
+export interface AssetStoryBibleFactRecord {
+  id: string
+  label: AssetLocalizedText
+  value: AssetLocalizedText
+  visibility: AssetContextVisibilityRecord
+  sourceRefs: AssetStoryBibleSourceRefRecord[]
+  lastReviewedAtLabel: string
+}
+
+export interface AssetStateTimelineEntryRecord {
+  id: string
+  label: AssetLocalizedText
+  summary: AssetLocalizedText
+  sceneId: string
+  chapterId: string
+  status: 'established' | 'watch' | 'at-risk' | 'spoiler'
+  sourceRefs: AssetStoryBibleSourceRefRecord[]
+}
+
 export type AssetMentionBackingKind = 'canon' | 'draft_context' | 'unlinked'
 
 export interface AssetMentionBackingRecord {
@@ -123,7 +149,11 @@ export interface AssetRecord {
   kind: AssetKind
   title: AssetLocalizedText
   summary: AssetLocalizedText
+  visibility: AssetContextVisibilityRecord
   profile: AssetProfileRecord
+  canonFacts: AssetStoryBibleFactRecord[]
+  privateFacts: AssetStoryBibleFactRecord[]
+  stateTimeline: AssetStateTimelineEntryRecord[]
   mentions: AssetMentionRecord[]
   relations: AssetRelationRecord[]
   contextPolicy?: AssetContextPolicyRecord
@@ -131,16 +161,44 @@ export interface AssetRecord {
   notes?: AssetLocalizedText[]
 }
 
+export interface AssetSummaryRecord {
+  id: string
+  kind: CanonicalAssetKind
+  title: AssetLocalizedText
+  summary: AssetLocalizedText
+  visibility: AssetContextVisibilityRecord
+  mentionCount: number
+  relationCount: number
+  hasWarnings: boolean
+}
+
+export interface AssetNavigatorGroupsRecord {
+  character: AssetSummaryRecord[]
+  location: AssetSummaryRecord[]
+  organization: AssetSummaryRecord[]
+  object: AssetSummaryRecord[]
+  lore: AssetSummaryRecord[]
+}
+
 export interface AssetKnowledgeWorkspaceRecord {
   assetId: string
   assets: AssetRecord[]
+  requestedVisibility?: AssetContextVisibilityRecord
   viewsMeta: {
     availableViews: AssetKnowledgeView[]
   }
 }
 
 export function getAssetKindOrder(kind: AssetKind) {
-  return kind === 'character' ? 0 : kind === 'location' ? 1 : 2
+  return kind === 'character'
+    ? 0
+    : kind === 'location'
+      ? 1
+      : kind === 'organization'
+        ? 2
+        : kind === 'object'
+          ? 3
+          : 4
 }
 
 export function readLocalizedAssetText(value: AssetLocalizedText, locale: Locale): string {

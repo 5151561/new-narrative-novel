@@ -4,7 +4,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createProjectRuntimeTestWrapper, createTestProjectRuntime } from '@/app/project-runtime'
 import type { RunClient } from '@/features/run/api/run-client'
-import type { RunEventsPageRecord, RunRecord, StartSceneRunInput, SubmitRunReviewDecisionInput } from '@/features/run/api/run-records'
+import type {
+  CancelRunInput,
+  RetryRunInput,
+  RunEventsPageRecord,
+  RunRecord,
+  ResumeRunInput,
+  StartSceneRunInput,
+  SubmitRunReviewDecisionInput,
+} from '@/features/run/api/run-records'
 import type { SceneClient } from '@/features/scene/api/scene-client'
 import { sceneQueryKeys } from '@/features/scene/hooks/scene-query-keys'
 
@@ -50,6 +58,9 @@ function createRunClient(overrides: Partial<RunClient> = {}): RunClient {
     startSceneRun: vi.fn(async (_input: StartSceneRunInput) => createRun()),
     getRun: vi.fn(async () => createRun()),
     getRunEvents: vi.fn(async () => createEventsPage()),
+    retryRun: vi.fn(async (_input: RetryRunInput) => createRun({ id: 'run-scene-midnight-platform-002', status: 'running' })),
+    cancelRun: vi.fn(async (_input: CancelRunInput) => createRun({ status: 'cancelled', pendingReviewId: undefined })),
+    resumeRun: vi.fn(async (_input: ResumeRunInput) => createRun({ id: 'run-scene-midnight-platform-003', status: 'running' })),
     submitRunReviewDecision: vi.fn(async (_input: SubmitRunReviewDecisionInput) => createRun({ status: 'completed' })),
     listRunArtifacts: vi.fn(),
     getRunArtifact: vi.fn(),
@@ -164,6 +175,161 @@ describe('useSceneRunSession', () => {
     })
     expect(hook.result.current.activeRunId).toBe('run-from-execution-surface')
     expect(hook.result.current.pendingReviewId).toBe('review-scene-midnight-platform-001')
+  })
+
+  it('disables submit decisions after cancelling the active waiting-review run', async () => {
+    const queryClient = createQueryClient()
+    const runId = 'run-scene-midnight-platform-001'
+    const runClient = createRunClient({
+      getRun: vi.fn(async ({ runId: currentRunId }) =>
+        createRun({
+          id: currentRunId,
+          status: 'waiting_review',
+          pendingReviewId: 'review-scene-midnight-platform-001',
+          summary: 'Waiting for review.',
+        }),
+      ),
+      cancelRun: vi.fn(async () =>
+        createRun({
+          id: runId,
+          status: 'cancelled',
+          pendingReviewId: undefined,
+          summary: 'Cancelled before review.',
+          failureClass: 'cancelled',
+        }),
+      ),
+    })
+
+    const hook = renderHook(
+      () => useSceneRunSession({ sceneId: 'scene-midnight-platform', runId }),
+      { wrapper: createWrapper(runClient, queryClient) },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.canSubmitDecision).toBe(true)
+    })
+
+    await act(async () => {
+      await hook.result.current.cancel({ reason: 'Stop it.' })
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.run?.status).toBe('cancelled')
+    })
+
+    expect(hook.result.current.canSubmitDecision).toBe(false)
+  })
+
+  it('switches to the new active run id after retrying a failed run', async () => {
+    const queryClient = createQueryClient()
+    const failedRun = createRun({
+      id: 'run-scene-midnight-platform-001',
+      status: 'failed',
+      summary: 'Provider timeout.',
+      failureClass: 'model_timeout',
+      pendingReviewId: undefined,
+      latestEventId: 'run-event-009',
+      eventCount: 9,
+    })
+    const retriedRun = createRun({
+      id: 'run-scene-midnight-platform-002',
+      status: 'running',
+      summary: 'Retry running.',
+      retryOfRunId: failedRun.id,
+    })
+    const runClient = createRunClient({
+      getRun: vi.fn(async ({ runId }) => (runId === failedRun.id ? failedRun : retriedRun)),
+      getRunEvents: vi.fn(async ({ runId }) => createEventsPage({ runId })),
+      retryRun: vi.fn(async () => retriedRun),
+    })
+
+    const hook = renderHook(
+      () => useSceneRunSession({ sceneId: 'scene-midnight-platform', runId: failedRun.id }),
+      { wrapper: createWrapper(runClient, queryClient) },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.activeRunId).toBe(failedRun.id)
+    })
+
+    await act(async () => {
+      await hook.result.current.retry({ mode: 'rewrite' })
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.activeRunId).toBe(retriedRun.id)
+    })
+  })
+
+  it('refreshes the previous run detail and events caches when retry schedules a follow-up run', async () => {
+    const queryClient = createQueryClient()
+    const failedRun = createRun({
+      id: 'run-scene-midnight-platform-001',
+      status: 'failed',
+      summary: 'Provider timeout.',
+      latestEventId: 'run-event-009',
+      eventCount: 9,
+    })
+    const retriedRun = createRun({
+      id: 'run-scene-midnight-platform-002',
+      status: 'running',
+      summary: 'Retry running.',
+      retryOfRunId: failedRun.id,
+    })
+    const getRun = vi.fn(async ({ runId }) => (runId === failedRun.id ? failedRun : retriedRun))
+    const getRunEvents = vi.fn(async ({ runId }) => createEventsPage({ runId }))
+    const retryRun = vi.fn(async () => retriedRun)
+    const runClient = createRunClient({
+      getRun,
+      getRunEvents,
+      retryRun,
+    })
+
+    queryClient.setQueryData(sceneQueryKeys.workspace('scene-midnight-platform', 'en'), {
+      id: 'scene-midnight-platform',
+      title: 'Midnight platform',
+      chapterId: 'chapter-signals-in-rain',
+      chapterTitle: 'Signals in Rain',
+      status: 'draft' as const,
+      runStatus: 'failed' as const,
+      objective: 'Keep the ledger closed.',
+      castIds: ['ren', 'mei'],
+      latestRunId: failedRun.id,
+      pendingProposalCount: 0,
+      warningCount: 1,
+      currentVersionLabel: 'Run 07',
+      activeThreadId: 'thread-main',
+      availableThreads: [{ id: 'thread-main', label: 'Mainline' }],
+    })
+
+    const hook = renderHook(
+      () => useSceneRunSession({ sceneId: 'scene-midnight-platform', runId: failedRun.id }),
+      { wrapper: createWrapper(runClient, queryClient) },
+    )
+
+    await waitFor(() => {
+      expect(hook.result.current.activeRunId).toBe(failedRun.id)
+    })
+
+    await act(async () => {
+      await hook.result.current.retry({ mode: 'rewrite' })
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.activeRunId).toBe(retriedRun.id)
+    })
+
+    expect(retryRun).toHaveBeenCalledWith({
+      runId: failedRun.id,
+      mode: 'rewrite',
+    })
+    expect(getRun).toHaveBeenCalledWith({
+      runId: failedRun.id,
+    })
+    expect(getRunEvents).toHaveBeenCalledWith({
+      runId: failedRun.id,
+      cursor: undefined,
+    })
   })
 
   it('falls back to the newly started run id when the scene has no active run yet', async () => {

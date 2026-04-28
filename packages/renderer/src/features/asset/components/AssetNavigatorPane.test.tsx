@@ -10,7 +10,9 @@ import { AssetNavigatorPane } from './AssetNavigatorPane'
 const groups: {
   characters: AssetNavigatorItemViewModel[]
   locations: AssetNavigatorItemViewModel[]
-  rules: AssetNavigatorItemViewModel[]
+  organizations: AssetNavigatorItemViewModel[]
+  objects: AssetNavigatorItemViewModel[]
+  lore: AssetNavigatorItemViewModel[]
 } = {
   characters: [
     {
@@ -46,12 +48,14 @@ const groups: {
       isOrphan: false,
     },
   ],
-  rules: [
+  organizations: [],
+  objects: [],
+  lore: [
     {
-      id: 'asset-ledger-stays-shut',
-      kind: 'rule',
-      title: 'Ledger Stays Shut',
-      summary: 'The exchange cannot collapse into public proof.',
+      id: 'asset-public-witness-rule',
+      kind: 'lore',
+      title: 'Public Witness Rule',
+      summary: 'The bargain must stay one step away from public proof.',
       mentionCount: 2,
       relationCount: 2,
       hasWarnings: true,

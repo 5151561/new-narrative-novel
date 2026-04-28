@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { applySceneRunReviewDecisionTransition } from './sceneRunTransitions.js'
+import {
+  applySceneRunReviewDecisionTransition,
+  createCancelSceneRunTransition,
+  createRetryScheduledSceneRunTransition,
+} from './sceneRunTransitions.js'
 
 describe('applySceneRunReviewDecisionTransition', () => {
   const baseInput = {
@@ -179,5 +183,52 @@ describe('applySceneRunReviewDecisionTransition', () => {
 
     const eventIds = transition.appendedEvents.map((event) => event.id)
     expect(new Set(eventIds).size).toBe(eventIds.length)
+  })
+
+  it('builds a retry-scheduled transition that points to the follow-up run', () => {
+    const transition = createRetryScheduledSceneRunTransition({
+      runId: baseInput.runId,
+      priorEventCount: 9,
+      nextRunId: 'run-scene-midnight-platform-003',
+      mode: 'rewrite',
+    }, {
+      buildTimelineLabel: (order) => `step-${String(order).padStart(3, '0')}`,
+    })
+
+    expect(transition.appendedEvents).toEqual([
+      expect.objectContaining({
+        id: 'run-event-scene-midnight-platform-002-010',
+        kind: 'run_retry_scheduled',
+        summary: 'Retry scheduled in rewrite mode as run-scene-midnight-platform-003.',
+        metadata: {
+          mode: 'rewrite',
+        },
+      }),
+    ])
+  })
+
+  it('builds a cancel transition that closes the run without changing canon or prose', () => {
+    const transition = createCancelSceneRunTransition({
+      runId: baseInput.runId,
+      priorEventCount: 9,
+      reason: 'Operator aborted after a provider stall.',
+    }, {
+      buildTimelineLabel: (order) => `step-${String(order).padStart(3, '0')}`,
+    })
+
+    expect(transition.appendedEvents.map((event) => event.kind)).toEqual([
+      'run_cancel_requested',
+      'run_cancelled',
+    ])
+    expect(transition.nextRun).toEqual({
+      status: 'cancelled',
+      summary: 'Run cancelled before canon or prose changed.',
+      completedAtLabel: 'step-011',
+      pendingReviewId: undefined,
+      cancelRequestedAtLabel: 'step-010',
+      failureClass: 'cancelled',
+      failureMessage: 'Operator aborted after a provider stall.',
+      resumableFromEventId: undefined,
+    })
   })
 })

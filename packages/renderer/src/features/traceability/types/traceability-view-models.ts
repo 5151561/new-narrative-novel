@@ -108,5 +108,7 @@ export interface AssetTraceabilitySummaryViewModel {
   unlinkedMentions: number
   mentionsWithMissingSceneTrace: number
   relationsWithoutNarrativeBackingCount: number
+  relationTargetAssetIdsWithNarrativeBacking: string[]
+  relationTargetAssetIdsWithoutNarrativeBacking: string[]
   mentionSummaries: AssetTraceabilityMentionSummaryViewModel[]
 }

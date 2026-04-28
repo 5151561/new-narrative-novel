@@ -11,13 +11,20 @@ const workspace: AssetKnowledgeWorkspaceViewModel = {
   navigator: {
     characters: [],
     locations: [],
-    rules: [],
+    organizations: [],
+    objects: [],
+    lore: [],
   },
   viewsMeta: {
     availableViews: ['profile', 'mentions', 'relations', 'context'],
   },
   profile: {
     sections: [],
+  },
+  storyBible: {
+    canonFacts: [],
+    privateFacts: [],
+    stateTimeline: [],
   },
   mentions: [
     {
@@ -56,14 +63,22 @@ const workspace: AssetKnowledgeWorkspaceViewModel = {
       targetAssetId: 'asset-mei-arden',
       targetTitle: 'Mei Arden',
       targetKind: 'character',
+      targetKindLabel: 'Character',
+      relationshipScopeLabel: 'Same-kind relation',
+      reciprocalStatusLabel: 'Reciprocal',
+      hasReciprocalRelation: true,
       relationLabel: 'Bargains against',
       summary: 'Ren needs Mei’s timing.',
     },
     {
       id: 'relation-ren-ledger',
-      targetAssetId: 'asset-ledger-stays-shut',
-      targetTitle: 'Ledger stays shut',
-      targetKind: 'rule',
+      targetAssetId: 'asset-public-witness-rule',
+      targetTitle: 'Public witness rule',
+      targetKind: 'lore',
+      targetKindLabel: 'Lore',
+      relationshipScopeLabel: 'Cross-kind relation',
+      reciprocalStatusLabel: 'One-way',
+      hasReciprocalRelation: false,
       relationLabel: 'Protects',
       summary: 'Ren keeps the ledger closed.',
     },
@@ -75,14 +90,19 @@ const workspace: AssetKnowledgeWorkspaceViewModel = {
     defaultVisibilityLabel: 'Character-known',
     defaultBudgetLabel: 'Selected facts',
     activationRules: [],
+    participation: [],
     exclusions: [],
     warnings: [],
   },
   inspector: {
     kindLabel: 'Character',
     summary: 'Courier-side negotiator who keeps the ledger closed while trying to buy time in public.',
+    visibilityLabel: 'Character-known',
     mentionCount: 2,
     relationCount: 2,
+    canonFactCount: 0,
+    privateFactCount: 0,
+    timelineEntryCount: 0,
     warnings: [],
     notes: ['Keep Ren’s refusal legible before any exit bell cue lands.'],
     isOrphan: false,
@@ -108,6 +128,7 @@ const workspace: AssetKnowledgeWorkspaceViewModel = {
     missingFieldCount: 1,
     relationCount: 2,
     mentionCount: 2,
+    timelineEntryCount: 0,
     isOrphan: false,
     contextPolicy: {
       hasContextPolicy: true,
@@ -133,6 +154,8 @@ describe('mergeAssetTraceabilityIntoWorkspace', () => {
           unlinkedMentions: 0,
           mentionsWithMissingSceneTrace: 0,
           relationsWithoutNarrativeBackingCount: 1,
+          relationTargetAssetIdsWithNarrativeBacking: ['asset-mei-arden'],
+          relationTargetAssetIdsWithoutNarrativeBacking: ['asset-public-witness-rule'],
           mentionSummaries: [
             {
               mentionId: 'mention-ren-midnight-platform',
@@ -171,6 +194,20 @@ describe('mergeAssetTraceabilityIntoWorkspace', () => {
       draftContextMentionCount: 1,
       unlinkedMentionCount: 0,
     })
+    expect(merged.relations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          targetAssetId: 'asset-mei-arden',
+          hasNarrativeBacking: true,
+          narrativeBackingStatusLabel: 'Narrative-backed',
+        }),
+        expect.objectContaining({
+          targetAssetId: 'asset-public-witness-rule',
+          hasNarrativeBacking: false,
+          narrativeBackingStatusLabel: 'Missing narrative backing',
+        }),
+      ]),
+    )
     expect(merged.dockSummary).toMatchObject({
       mentionsWithoutCanonBackingCount: 1,
       mentionsWithMissingSceneTraceCount: 0,

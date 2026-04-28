@@ -166,6 +166,20 @@ describe('startSceneRunWorkflow', () => {
       summary: 'Waiting for review: Tighten the ending beat.',
       pendingReviewId: 'review-scene-midnight-platform-002',
       latestEventId: 'run-event-scene-midnight-platform-002-009',
+      usage: {
+        inputTokens: 1700,
+        outputTokens: 240,
+        estimatedCostUsd: 0.0246,
+        provider: 'fixture',
+        modelId: 'fixture-scene-planner',
+      },
+      runtimeSummary: {
+        health: 'attention',
+        tokenLabel: '1.9k tokens',
+        costLabel: '$0.0246 est.',
+        failureClassLabel: 'No runtime failure recorded',
+        nextActionLabel: 'Review proposals before any retry or prose continuation.',
+      },
       eventCount: 9,
     })
     expect(workflow.run.startedAtLabel).toBe('step-001')
@@ -214,6 +228,16 @@ describe('startSceneRunWorkflow', () => {
     })
     expect(JSON.stringify(workflow.events[2])).not.toContain('activation-ren-voss')
     expect(JSON.stringify(workflow.events[2])).not.toContain('ren-scene-cast')
+    expect(workflow.events[4]).toMatchObject({
+      kind: 'agent_invocation_completed',
+      usage: {
+        inputTokens: 1700,
+        outputTokens: 240,
+        estimatedCostUsd: 0.0246,
+        provider: 'fixture',
+        modelId: 'fixture-scene-planner',
+      },
+    })
 
     expect(workflow.artifacts).toEqual([
       expect.objectContaining({
@@ -307,6 +331,45 @@ describe('startSceneRunWorkflow', () => {
     expect(refIds.every((id) => artifactIds.has(id))).toBe(true)
   })
 
+  it('carries retry and resumable metadata into resumed follow-up runs', () => {
+    const workflow = startSceneRunWorkflow({
+      sceneId: 'scene-midnight-platform',
+      sequence: 3,
+      mode: 'continue',
+      retryOfRunId: 'run-scene-midnight-platform-002',
+      resumableFromEventId: 'run-event-scene-midnight-platform-002-009',
+      resumeSourceRunId: 'run-scene-midnight-platform-002',
+      plannerOutput: {
+        proposals: [
+          {
+            title: 'Resume from the failed writer beat',
+            summary: 'Pick up from the last stable event without rewriting canon.',
+            changeKind: 'action',
+            riskLabel: 'Low continuity risk',
+          },
+        ],
+      },
+      plannerProvenance: {
+        provider: 'fixture',
+        modelId: 'fixture-scene-planner',
+      },
+    }, {
+      buildTimelineLabel: (order) => `step-${String(order).padStart(3, '0')}`,
+    })
+
+    expect(workflow.run).toMatchObject({
+      id: 'run-scene-midnight-platform-003',
+      retryOfRunId: 'run-scene-midnight-platform-002',
+      resumableFromEventId: 'run-event-scene-midnight-platform-002-009',
+      latestEventId: 'run-event-scene-midnight-platform-003-010',
+      eventCount: 10,
+    })
+    expect(workflow.events.at(-1)).toMatchObject({
+      kind: 'run_resumed',
+      summary: 'Run resumed from run-scene-midnight-platform-002 at event run-event-scene-midnight-platform-002-009.',
+    })
+  })
+
   it('derives context packet event metadata counts from the persisted packet instead of hard-coded defaults', () => {
     const snapshot = createFixtureDataSnapshot('http://127.0.0.1:4174/api')
     const basePacket = buildSceneContextPacket({
@@ -322,10 +385,10 @@ describe('startSceneRunWorkflow', () => {
           id: `${basePacket.packetId}-activation-extra-excluded`,
           assetId: 'asset-extra-excluded',
           assetTitle: { en: 'Extra excluded', 'zh-CN': '额外排除项' },
-          assetKind: 'rule' as const,
+          assetKind: 'lore' as const,
           decision: 'excluded' as const,
           reasonKind: 'rule-dependency' as const,
-          reasonLabel: { en: 'Extra excluded rule', 'zh-CN': '额外排除规则' },
+          reasonLabel: { en: 'Extra excluded lore', 'zh-CN': '额外排除 lore' },
           visibility: 'spoiler' as const,
           budget: 'summary-only' as const,
           targetAgents: ['scene-manager'],
@@ -334,10 +397,10 @@ describe('startSceneRunWorkflow', () => {
           id: `${basePacket.packetId}-activation-extra-redacted`,
           assetId: 'asset-extra-redacted',
           assetTitle: { en: 'Extra redacted', 'zh-CN': '额外遮蔽项' },
-          assetKind: 'rule' as const,
+          assetKind: 'lore' as const,
           decision: 'redacted' as const,
           reasonKind: 'review-issue' as const,
-          reasonLabel: { en: 'Extra redacted rule', 'zh-CN': '额外遮蔽规则' },
+          reasonLabel: { en: 'Extra redacted lore', 'zh-CN': '额外遮蔽 lore' },
           visibility: 'editor-only' as const,
           budget: 'summary-only' as const,
           targetAgents: ['continuity-reviewer'],
@@ -373,8 +436,8 @@ describe('startSceneRunWorkflow', () => {
     expect(workflow.events[2]).toMatchObject({
       kind: 'context_packet_built',
       metadata: {
-        includedAssetCount: 3,
-        excludedAssetCount: 2,
+        includedAssetCount: 6,
+        excludedAssetCount: 1,
         redactedAssetCount: 2,
       },
     })
@@ -383,8 +446,8 @@ describe('startSceneRunWorkflow', () => {
       meta: {
         contextPacket: {
           activationSummary: {
-            includedAssetCount: 3,
-            excludedAssetCount: 2,
+            includedAssetCount: 6,
+            excludedAssetCount: 1,
             redactedAssetCount: 2,
           },
         },

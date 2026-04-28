@@ -75,4 +75,33 @@ describe('RunTracePanel', () => {
     expect(screen.getByText('Nodes referenced by Used context')).toBeInTheDocument()
     expect(screen.getByText('Scene context packet')).toBeInTheDocument()
   })
+
+  it('does not mark waiting-review traces as partial failure recovery by default', () => {
+    resetMockRunDb()
+    const pendingTrace = getMockRunTrace({ runId })
+
+    render(
+      <I18nProvider>
+        <RunTracePanel trace={pendingTrace} isLoading={false} error={null} />
+      </I18nProvider>,
+    )
+
+    expect(screen.queryByRole('heading', { name: 'Partial failure trace' })).not.toBeInTheDocument()
+  })
+
+  it('marks partial failure traces as support-only and avoids implying accepted canon', () => {
+    const partialTrace = getMockRunTrace({ runId })
+    partialTrace.summary.canonPatchCount = 0
+    partialTrace.summary.proseDraftCount = 0
+    partialTrace.isPartialFailure = true
+
+    render(
+      <I18nProvider>
+        <RunTracePanel trace={partialTrace} isLoading={false} error={null} />
+      </I18nProvider>,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Partial failure trace' })).toBeInTheDocument()
+    expect(screen.getByText('This trace only shows the nodes that existed before the run stopped. It does not imply accepted canon or prose.')).toBeInTheDocument()
+  })
 })

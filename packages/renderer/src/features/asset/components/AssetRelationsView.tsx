@@ -34,9 +34,18 @@ export function AssetRelationsView({ relations, onSelectAsset }: AssetRelationsV
           <SectionCard
             title={relation.targetTitle}
             eyebrow={relation.relationLabel}
-            actions={<Badge tone="neutral">{relation.targetKind}</Badge>}
+            actions={
+              <div className="flex flex-wrap gap-2">
+                <Badge tone="neutral">{relation.targetKindLabel}</Badge>
+                <Badge tone={relation.hasReciprocalRelation ? 'success' : 'neutral'}>{relation.reciprocalStatusLabel}</Badge>
+                <Badge tone={relation.hasNarrativeBacking === false ? 'warn' : relation.hasNarrativeBacking ? 'success' : 'accent'}>
+                  {relation.narrativeBackingStatusLabel ?? (locale === 'zh-CN' ? '来源链待加载' : 'Traceability pending')}
+                </Badge>
+              </div>
+            }
             className="border-none bg-transparent shadow-none"
           >
+            <p className="mb-2 text-xs uppercase tracking-[0.05em] text-text-soft">{relation.relationshipScopeLabel}</p>
             <p className="text-sm leading-6 text-text-muted">{relation.summary}</p>
           </SectionCard>
         </button>
