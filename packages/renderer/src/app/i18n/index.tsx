@@ -499,6 +499,25 @@ const dictionaries = {
         openInDraft: 'Open in Draft',
       },
     },
+    launcher: {
+      eyebrow: 'Desktop Startup',
+      title: 'Choose how this Narrative IDE session should begin.',
+      description:
+        'Launcher stays outside the WorkbenchShell until a project session is explicit. Demo, real-project creation, and existing-project open all converge on the same desktop runtime seam.',
+      openDemoProject: 'Open Demo Project',
+      openDemoDescription: 'Start with the dedicated Signal Arc demo session stored under desktop user data.',
+      createRealProject: 'Create Real Project',
+      createRealDescription: 'Create a fresh narrative project folder through the native directory picker.',
+      openExistingProject: 'Open Existing Project',
+      openExistingDescription: 'Reconnect to an existing narrative project without leaking launcher state into the route.',
+      workspaceTitle: 'Before the workbench',
+      workspaceDescription:
+        'This surface decides the session first. Navigator, inspector, dock, and the main stage only mount after a current project exists.',
+      currentStateLabel: 'Current State',
+      idleHint: 'No project is selected yet.',
+      loading: 'Opening project…',
+      actionFailedTitle: 'Launcher action failed',
+    },
     shell: {
       navigatorTitle: 'Navigator',
       inspectorTitle: 'Inspector',
@@ -661,6 +680,25 @@ const dictionaries = {
         openInOrchestrate: '在 Orchestrate 中打开',
         openInDraft: '在 Draft 中打开',
       },
+    },
+    launcher: {
+      eyebrow: '桌面启动',
+      title: '先明确这次 Narrative IDE 会话要如何开始。',
+      description:
+        'Launcher 会停在 WorkbenchShell 之外，直到项目会话被明确选定。演示、创建真实项目、打开已有项目都会汇入同一条 desktop runtime seam。',
+      openDemoProject: '打开演示项目',
+      openDemoDescription: '使用保存在桌面 userData 下的独立 Signal Arc 演示会话启动。',
+      createRealProject: '创建真实项目',
+      createRealDescription: '通过原生目录选择器创建一个新的叙事项目文件夹。',
+      openExistingProject: '打开已有项目',
+      openExistingDescription: '重新连接已有叙事项目，并且不把 launcher 状态泄漏进 route。',
+      workspaceTitle: '进入工作台之前',
+      workspaceDescription:
+        '这个全局表面先决定会话身份。只有当前项目存在之后，导航栏、检查器、底部面板和主舞台才会挂载。',
+      currentStateLabel: '当前状态',
+      idleHint: '当前还没有选中的项目。',
+      loading: '正在打开项目…',
+      actionFailedTitle: 'Launcher 操作失败',
     },
     shell: {
       navigatorTitle: '导航栏',

@@ -19,6 +19,7 @@ export interface ApiServerConfig {
   corsOrigin: string | true
   currentProject?: {
     projectId: string
+    projectMode: 'demo-fixture' | 'real-project'
     projectRoot: string
     projectTitle: string
   }
@@ -70,14 +71,20 @@ function readOptionalTrimmedEnv(name: string) {
 function readCurrentProject() {
   const projectRoot = readOptionalTrimmedEnv('NARRATIVE_PROJECT_ROOT')
   const projectId = readOptionalTrimmedEnv('NARRATIVE_PROJECT_ID')
+  const projectMode = readOptionalTrimmedEnv('NARRATIVE_PROJECT_MODE')
   const projectTitle = readOptionalTrimmedEnv('NARRATIVE_PROJECT_TITLE')
 
   if (!projectRoot || !projectId || !projectTitle) {
     return undefined
   }
 
+  if (projectMode !== undefined && projectMode !== 'demo-fixture' && projectMode !== 'real-project') {
+    throw new Error('NARRATIVE_PROJECT_MODE must be one of: demo-fixture, real-project')
+  }
+
   return {
     projectId,
+    projectMode: projectMode ?? 'real-project',
     projectRoot,
     projectTitle,
   }

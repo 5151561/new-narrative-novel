@@ -72,6 +72,27 @@ describe('ProjectRuntimeStatusBadge', () => {
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Healthy')
   })
 
+  it('keeps demo-fixture badge wording accurate for the dedicated desktop demo session', () => {
+    renderBadge({
+      info: createProjectRuntimeInfoRecord({
+        projectId: 'book-signal-arc',
+        projectTitle: 'Signal Arc Demo',
+        runtimeKind: 'fixture-demo',
+        source: 'api',
+        status: 'healthy',
+        summary: 'Connected to fixture API runtime.',
+        capabilities: {
+          read: true,
+          write: true,
+        },
+      }),
+    })
+
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Signal Arc Demo')
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Demo Fixture Project')
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).not.toHaveTextContent('Real Project')
+  })
+
   it('renders the real-local-project healthy state in the shared storybook status surface', () => {
     const wrapper = createProjectRuntimeTestWrapper()
 

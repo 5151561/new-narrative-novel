@@ -9,6 +9,7 @@ describe('createLocalApiProcessConfig', () => {
     expect(createDesktopRuntimeConfig(4888, {
       currentProject: {
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectTitle: 'Local Alpha',
       },
     })).toEqual({
@@ -16,6 +17,7 @@ describe('createLocalApiProcessConfig', () => {
       apiHealthUrl: 'http://127.0.0.1:4888/api/health',
       port: 4888,
       projectId: 'local-project-alpha',
+      projectMode: 'real-project',
       projectTitle: 'Local Alpha',
       runtimeMode: 'desktop-local',
     })
@@ -25,6 +27,7 @@ describe('createLocalApiProcessConfig', () => {
     const config = createLocalApiProcessConfig({
       currentProject: {
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectRoot: '/repo/projects/local-alpha',
         projectTitle: 'Local Alpha',
       },
@@ -66,6 +69,7 @@ describe('createLocalApiProcessConfig', () => {
       HOST: '127.0.0.1',
       NARRATIVE_PROJECT_ARTIFACT_DIR: path.resolve('/repo/projects/local-alpha/.narrative/artifacts'),
       NARRATIVE_PROJECT_ID: 'local-project-alpha',
+      NARRATIVE_PROJECT_MODE: 'real-project',
       NARRATIVE_PROJECT_ROOT: '/repo/projects/local-alpha',
       NARRATIVE_PROJECT_STORE_FILE: path.resolve('/repo/projects/local-alpha/.narrative/project-store.json'),
       NARRATIVE_PROJECT_TITLE: 'Local Alpha',

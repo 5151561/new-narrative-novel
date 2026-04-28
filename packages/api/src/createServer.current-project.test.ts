@@ -13,12 +13,14 @@ describe('fixture API server current project bootstrap route', () => {
       expect(response.statusCode).toBe(200)
       expect(response.json()).toEqual({
         projectId: 'book-signal-arc',
+        projectMode: 'demo-fixture',
         projectTitle: 'Desktop Local Prototype',
       })
     }, {
       configOverrides: {
         currentProject: {
           projectId: 'book-signal-arc',
+          projectMode: 'demo-fixture',
           projectRoot: '/tmp/desktop-local-prototype',
           projectTitle: 'Desktop Local Prototype',
         },

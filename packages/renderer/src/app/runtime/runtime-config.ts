@@ -1,4 +1,5 @@
 export type RuntimeMode = 'web' | 'desktop-local'
+export type ProjectMode = 'demo-fixture' | 'real-project'
 export type RuntimeKind = 'fixture-demo' | 'mock-storybook' | 'real-local-project'
 
 export interface WebRuntimeConfig {
@@ -10,6 +11,7 @@ export interface DesktopLocalRuntimeConfig {
   runtimeMode: 'desktop-local'
   apiBaseUrl: string
   projectId: string
+  projectMode: ProjectMode
   projectTitle?: string
 }
 
@@ -50,6 +52,7 @@ function isRuntimeConfig(value: unknown): value is RuntimeConfig {
     candidate.runtimeMode === 'desktop-local'
     && typeof candidate.projectId === 'string'
     && candidate.projectId.length > 0
+    && (candidate.projectMode === 'demo-fixture' || candidate.projectMode === 'real-project')
     && (candidate.projectTitle === undefined || typeof candidate.projectTitle === 'string')
   )
 }
@@ -81,5 +84,9 @@ export async function resolveRuntimeConfig({
 }
 
 export function getRuntimeKindFromRuntimeConfig(runtimeConfig: RuntimeConfig): Exclude<RuntimeKind, 'mock-storybook'> {
-  return runtimeConfig.runtimeMode === 'desktop-local' ? 'real-local-project' : 'fixture-demo'
+  if (runtimeConfig.runtimeMode !== 'desktop-local') {
+    return 'fixture-demo'
+  }
+
+  return runtimeConfig.projectMode === 'demo-fixture' ? 'fixture-demo' : 'real-local-project'
 }

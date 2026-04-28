@@ -10,6 +10,12 @@ interface PersistedRecentProjectsRecord {
   projects: RecentProjectRecord[]
 }
 
+interface LegacyRecentProjectRecord {
+  projectId: string
+  projectRoot: string
+  projectTitle: string
+}
+
 const RECENT_PROJECTS_FILE = 'recent-projects.json'
 const MAX_RECENT_PROJECTS = 10
 const require = createRequire(import.meta.url)
@@ -28,6 +34,23 @@ function isRecentProjectRecord(value: unknown): value is RecentProjectRecord {
   return (
     typeof candidate.projectId === 'string'
     && candidate.projectId.length > 0
+    && (candidate.projectMode === 'demo-fixture' || candidate.projectMode === 'real-project')
+    && typeof candidate.projectRoot === 'string'
+    && candidate.projectRoot.length > 0
+    && typeof candidate.projectTitle === 'string'
+    && candidate.projectTitle.length > 0
+  )
+}
+
+function isLegacyRecentProjectRecord(value: unknown): value is LegacyRecentProjectRecord {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const candidate = value as Partial<LegacyRecentProjectRecord>
+  return (
+    typeof candidate.projectId === 'string'
+    && candidate.projectId.length > 0
     && typeof candidate.projectRoot === 'string'
     && candidate.projectRoot.length > 0
     && typeof candidate.projectTitle === 'string'
@@ -38,6 +61,16 @@ function isRecentProjectRecord(value: unknown): value is RecentProjectRecord {
 function sanitizeRecentProjectRecord(value: RecentProjectRecord): RecentProjectRecord {
   return {
     projectId: value.projectId,
+    projectMode: value.projectMode,
+    projectRoot: value.projectRoot,
+    projectTitle: value.projectTitle,
+  }
+}
+
+function migrateLegacyRecentProjectRecord(value: LegacyRecentProjectRecord): RecentProjectRecord {
+  return {
+    projectId: value.projectId,
+    projectMode: 'real-project',
     projectRoot: value.projectRoot,
     projectTitle: value.projectTitle,
   }
@@ -53,7 +86,17 @@ function normalizeRecentProjects(value: unknown): RecentProjectRecord[] {
     return []
   }
 
-  return projects.filter(isRecentProjectRecord).map(sanitizeRecentProjectRecord)
+  return projects.flatMap((project) => {
+    if (isRecentProjectRecord(project)) {
+      return [sanitizeRecentProjectRecord(project)]
+    }
+
+    if (isLegacyRecentProjectRecord(project)) {
+      return [migrateLegacyRecentProjectRecord(project)]
+    }
+
+    return []
+  })
 }
 
 function isPersistedRecentProjectsRecord(value: unknown): value is PersistedRecentProjectsRecord {
@@ -62,7 +105,7 @@ function isPersistedRecentProjectsRecord(value: unknown): value is PersistedRece
   }
 
   const projects = (value as Partial<PersistedRecentProjectsRecord>).projects
-  return Array.isArray(projects) && projects.every(isRecentProjectRecord)
+  return Array.isArray(projects) && projects.every((project) => isRecentProjectRecord(project) || isLegacyRecentProjectRecord(project))
 }
 
 export class RecentProjectsStore {
@@ -103,7 +146,23 @@ export class RecentProjectsStore {
         return []
       }
 
-      return normalizeRecentProjects(parsed)
+      const normalizedProjects = normalizeRecentProjects(parsed)
+      const storedProjects = (parsed as PersistedRecentProjectsRecord | { projects: unknown[] }).projects
+      const needsMigration = storedProjects.length !== normalizedProjects.length
+        || storedProjects.some((project, index) => {
+          if (!isRecentProjectRecord(project)) {
+            return true
+          }
+
+          const normalizedProject = normalizedProjects[index]
+          return !normalizedProject || project.projectMode !== normalizedProject.projectMode
+        })
+
+      if (needsMigration) {
+        await this.writeProjects(normalizedProjects)
+      }
+
+      return normalizedProjects
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         return []

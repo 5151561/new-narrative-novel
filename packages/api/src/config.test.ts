@@ -75,11 +75,13 @@ describe('getApiServerConfig', () => {
   it('reads selected desktop project bootstrap metadata when present', () => {
     process.env.NARRATIVE_PROJECT_ROOT = '/tmp/local-project'
     process.env.NARRATIVE_PROJECT_ID = 'book-signal-arc'
+    process.env.NARRATIVE_PROJECT_MODE = 'demo-fixture'
     process.env.NARRATIVE_PROJECT_TITLE = 'Desktop Local Prototype'
 
     expect(getApiServerConfig()).toMatchObject({
       currentProject: {
         projectId: 'book-signal-arc',
+        projectMode: 'demo-fixture',
         projectRoot: '/tmp/local-project',
         projectTitle: 'Desktop Local Prototype',
       },

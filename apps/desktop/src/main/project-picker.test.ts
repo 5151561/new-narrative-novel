@@ -33,6 +33,7 @@ describe('readOrInitializeProjectSession', () => {
       now: () => '2026-04-28T00:00:00.000Z',
     })).resolves.toEqual({
       projectId: 'local-project-alpha',
+      projectMode: 'real-project',
       projectRoot,
       projectTitle: path.basename(projectRoot),
     })
@@ -79,6 +80,7 @@ describe('readOrInitializeProjectSession', () => {
       now: () => '2026-04-28T00:00:00.000Z',
     })).resolves.toEqual({
       projectId: 'local-existing-project',
+      projectMode: 'real-project',
       projectRoot,
       projectTitle: 'Existing Local Project',
     })
@@ -114,6 +116,7 @@ describe('readOrInitializeProjectSession', () => {
 
     expect(session).toEqual({
       projectId: 'local-project-beta',
+      projectMode: 'real-project',
       projectRoot,
       projectTitle: 'Prototype Folder',
     })
@@ -177,6 +180,7 @@ describe('readExistingProjectSession', () => {
 
     await expect(readExistingProjectSession(projectRoot)).resolves.toEqual({
       projectId: 'local-existing-project',
+      projectMode: 'real-project',
       projectRoot,
       projectTitle: 'Existing Local Project',
     })
@@ -223,6 +227,7 @@ describe('openProjectWithDialog', () => {
 
     expect(session).toEqual({
       projectId: 'local-project-dialog',
+      projectMode: 'real-project',
       projectRoot,
       projectTitle: 'Opened Through Dialog',
     })

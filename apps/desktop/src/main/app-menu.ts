@@ -6,7 +6,7 @@ export interface ApplicationMenuOptions {
   isDev: boolean
   onCreateProject?: () => Promise<void> | void
   onOpenProject?: () => Promise<void> | void
-  onOpenRecentProject?: (projectRoot: string) => Promise<void> | void
+  onOpenRecentProject?: (project: RecentProjectRecord) => Promise<void> | void
   onCreateProjectBackup?: () => Promise<void> | void
   onExportProjectArchive?: () => Promise<void> | void
   onRestartLocalApi?: () => Promise<void> | void
@@ -30,7 +30,7 @@ export function buildApplicationMenuTemplate({
   const recentProjectsSubmenu: MenuItemConstructorOptions[] = recentProjects.length > 0
     ? recentProjects.map((project) => ({
       click: () => {
-        void onOpenRecentProject?.(project.projectRoot)
+        void onOpenRecentProject?.(project)
       },
       label: `${project.projectTitle} (${project.projectRoot})`,
     }))

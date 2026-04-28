@@ -54,6 +54,7 @@ describe('runtime config', () => {
     const desktopConfig: RuntimeConfig = {
       apiBaseUrl: 'http://127.0.0.1:4888/api',
       projectId: 'desktop-project-signal-arc',
+      projectMode: 'real-project',
       projectTitle: 'Signal Arc Desktop',
       runtimeMode: 'desktop-local',
     }
@@ -76,6 +77,7 @@ describe('runtime config', () => {
       value: {
         getRuntimeConfig: vi.fn(async () => ({
           apiBaseUrl: 'http://127.0.0.1:4888/api',
+          projectMode: 'real-project',
           runtimeMode: 'desktop-local',
         })),
       },
@@ -90,6 +92,7 @@ describe('runtime config', () => {
       value: {
         getRuntimeConfig: vi.fn(async () => ({
           apiBaseUrl: '',
+          projectMode: 'real-project',
           runtimeMode: 'desktop-local',
         })),
       },
@@ -102,6 +105,7 @@ describe('runtime config', () => {
     const desktopConfig: RuntimeConfig = {
       apiBaseUrl: 'http://127.0.0.1:4888/api',
       projectId: 'desktop-project-signal-arc',
+      projectMode: 'real-project',
       projectTitle: 'Signal Arc Desktop',
       runtimeMode: 'desktop-local',
     }
@@ -128,12 +132,34 @@ describe('runtime config', () => {
     )
   })
 
+  it('maps demo-fixture desktop runtime config back to fixture-demo instead of real-local-project', async () => {
+    const desktopConfig: RuntimeConfig = {
+      apiBaseUrl: 'http://127.0.0.1:4888/api',
+      projectId: 'book-signal-arc',
+      projectMode: 'demo-fixture',
+      projectTitle: 'Signal Arc Demo',
+      runtimeMode: 'desktop-local',
+    }
+    Object.defineProperty(window, 'narrativeDesktop', {
+      configurable: true,
+      value: {
+        getRuntimeConfig: vi.fn(async () => desktopConfig),
+      },
+    })
+
+    const runtimeConfig = await resolveRuntimeConfig()
+
+    expect(runtimeConfig).toEqual(desktopConfig)
+    expect(getRuntimeKindFromRuntimeConfig(runtimeConfig)).toBe('fixture-demo')
+  })
+
   it('useRuntimeConfig surfaces invalid desktop runtime config errors instead of silently falling back', async () => {
     Object.defineProperty(window, 'narrativeDesktop', {
       configurable: true,
       value: {
         getRuntimeConfig: vi.fn(async () => ({
           apiBaseUrl: '',
+          projectMode: 'real-project',
           runtimeMode: 'desktop-local',
         })),
       },

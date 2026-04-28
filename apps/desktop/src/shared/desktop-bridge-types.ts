@@ -1,6 +1,7 @@
 export type DesktopPlatform = 'darwin' | 'win32' | 'linux'
 export type DesktopRuntimeMode = 'web' | 'desktop'
 export type DesktopLocalRuntimeMode = 'desktop-local'
+export type DesktopProjectMode = 'demo-fixture' | 'real-project'
 export type LocalApiStatus = 'stopped' | 'starting' | 'ready' | 'failed'
 export type WorkerStatus = 'disabled' | 'starting' | 'ready' | 'failed' | 'stopped'
 export type ProviderCredentialProvider = 'openai'
@@ -20,6 +21,7 @@ export interface DesktopRuntimeConfig {
   apiHealthUrl: string
   port: number
   projectId: string
+  projectMode: DesktopProjectMode
   projectTitle: string
 }
 
@@ -31,6 +33,7 @@ export interface LocalApiStatusSnapshot {
 
 export interface CurrentProjectSnapshot {
   projectId: string
+  projectMode: DesktopProjectMode
   projectTitle: string
 }
 
@@ -86,6 +89,9 @@ export interface DesktopModelSettingsSnapshot {
 
 export interface NarrativeDesktopApi {
   getAppVersion(): Promise<string>
+  openDemoProject(): Promise<CurrentProjectSnapshot>
+  createRealProject(): Promise<CurrentProjectSnapshot | null>
+  openExistingProject(): Promise<CurrentProjectSnapshot | null>
   getCurrentProject(): Promise<CurrentProjectSnapshot | null>
   getPlatform(): Promise<DesktopPlatform>
   getRuntimeMode(): Promise<DesktopRuntimeMode>
@@ -106,6 +112,9 @@ export interface NarrativeDesktopApi {
 
 export const DESKTOP_API_CHANNELS = {
   getAppVersion: 'narrativeDesktop:getAppVersion',
+  openDemoProject: 'narrativeDesktop:openDemoProject',
+  createRealProject: 'narrativeDesktop:createRealProject',
+  openExistingProject: 'narrativeDesktop:openExistingProject',
   getCurrentProject: 'narrativeDesktop:getCurrentProject',
   getPlatform: 'narrativeDesktop:getPlatform',
   getRuntimeMode: 'narrativeDesktop:getRuntimeMode',

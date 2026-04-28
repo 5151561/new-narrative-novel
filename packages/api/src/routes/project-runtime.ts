@@ -8,6 +8,7 @@ export function registerProjectRuntimeRoutes({
 }: ApiRouteContext & {
   currentProject?: {
     projectId: string
+    projectMode: 'demo-fixture' | 'real-project'
     projectRoot: string
     projectTitle: string
   }
@@ -19,6 +20,7 @@ export function registerProjectRuntimeRoutes({
 
     return {
       projectId: currentProject.projectId,
+      projectMode: currentProject.projectMode,
       projectTitle: currentProject.projectTitle,
     }
   })
@@ -31,6 +33,7 @@ export function registerProjectRuntimeRoutes({
       return {
         ...runtimeInfo,
         projectTitle: currentProject.projectTitle,
+        runtimeKind: currentProject.projectMode === 'demo-fixture' ? 'fixture-demo' : runtimeInfo.runtimeKind,
       }
     }
 

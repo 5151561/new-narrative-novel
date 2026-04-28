@@ -8,7 +8,6 @@ import { createMainWindow } from './create-window.js'
 import { createLocalApiSupervisor, type LocalApiSupervisor } from './local-api-supervisor.js'
 import { ModelBindingStore } from './model-binding-store.js'
 import { ProjectStore } from './project-store.js'
-import { resolveWorkspaceRoot } from './runtime-config.js'
 import { createWorkerSupervisor, type WorkerSupervisor } from './worker-supervisor.js'
 import {
   createProjectBackup,
@@ -176,13 +175,57 @@ export function registerDesktopBridgeHandlers(
 
     return {
       projectId: currentProject.projectId,
+      projectMode: currentProject.projectMode,
+      projectTitle: currentProject.projectTitle,
+    }
+  })
+  ipcMain.handle(DESKTOP_API_CHANNELS.openDemoProject, async (): Promise<CurrentProjectSnapshot> => {
+    const currentProject = await ensureProjectStore().selectDemoProject()
+    await restartLocalApiForProjectSelection()
+    refreshApplicationMenu()
+
+    return {
+      projectId: currentProject.projectId,
+      projectMode: currentProject.projectMode,
+      projectTitle: currentProject.projectTitle,
+    }
+  })
+  ipcMain.handle(DESKTOP_API_CHANNELS.createRealProject, async (): Promise<CurrentProjectSnapshot | null> => {
+    const currentProject = await ensureProjectStore().createProject()
+    if (!currentProject) {
+      refreshApplicationMenu()
+      return null
+    }
+
+    await restartLocalApiForProjectSelection()
+    refreshApplicationMenu()
+
+    return {
+      projectId: currentProject.projectId,
+      projectMode: currentProject.projectMode,
+      projectTitle: currentProject.projectTitle,
+    }
+  })
+  ipcMain.handle(DESKTOP_API_CHANNELS.openExistingProject, async (): Promise<CurrentProjectSnapshot | null> => {
+    const currentProject = await ensureProjectStore().openProject()
+    if (!currentProject) {
+      refreshApplicationMenu()
+      return null
+    }
+
+    await restartLocalApiForProjectSelection()
+    refreshApplicationMenu()
+
+    return {
+      projectId: currentProject.projectId,
+      projectMode: currentProject.projectMode,
       projectTitle: currentProject.projectTitle,
     }
   })
   ipcMain.handle(DESKTOP_API_CHANNELS.getPlatform, () => getDesktopPlatform())
   ipcMain.handle(DESKTOP_API_CHANNELS.getRuntimeMode, (): DesktopRuntimeMode => 'desktop')
   ipcMain.handle(DESKTOP_API_CHANNELS.getRuntimeConfig, async () => {
-    const snapshot = supervisor.getSnapshot().runtimeConfig ? supervisor.getSnapshot() : await supervisor.start()
+    const snapshot = supervisor.getSnapshot()
 
     if (!snapshot.runtimeConfig) {
       throw new Error(snapshot.lastError ?? 'Local API runtime config is unavailable.')
@@ -253,11 +296,13 @@ function ensureProjectStore(): ProjectStore {
 
 async function restartLocalApiForProjectSelection(): Promise<void> {
   const snapshot = localApiSupervisor.getSnapshot()
-  if (snapshot.status === 'stopped') {
-    return
-  }
+  const nextSnapshot = snapshot.status === 'stopped'
+    ? await localApiSupervisor.start()
+    : await localApiSupervisor.restart()
 
-  await localApiSupervisor.restart()
+  if (!nextSnapshot.runtimeConfig) {
+    throw new Error(nextSnapshot.lastError ?? 'Local API runtime config is unavailable.')
+  }
 }
 
 function requireCurrentProjectSession(activeProjectStore: ProjectStore) {
@@ -340,10 +385,10 @@ function refreshApplicationMenu(): void {
 
       await restartLocalApiForProjectSelection()
     }),
-    onOpenRecentProject: (projectRoot) => runProjectMenuAction(async () => {
-      await activeProjectStore.selectProjectRoot(projectRoot)
+    onOpenRecentProject: (project) => runProjectMenuAction(async () => {
+      await activeProjectStore.openRecentProject(project)
       await restartLocalApiForProjectSelection()
-    }, { invalidProjectRoot: projectRoot }),
+    }, { invalidProjectRoot: project.projectRoot }),
     onCreateProjectBackup: () => runProjectMenuAction(async () => {
       await createManualProjectBackup(activeProjectStore)
     }),
@@ -363,12 +408,11 @@ function refreshApplicationMenu(): void {
 app.whenReady().then(async () => {
   const activeProjectStore = ensureProjectStore()
   await activeProjectStore.restoreLastProject()
-  if (!activeProjectStore.getCurrentProject()) {
-    await activeProjectStore.selectProjectRoot(resolveWorkspaceRoot())
-  }
 
   refreshApplicationMenu()
-  await localApiSupervisor.start()
+  if (activeProjectStore.getCurrentProject()) {
+    await localApiSupervisor.start()
+  }
   await createMainWindow()
 
   app.on('activate', async () => {

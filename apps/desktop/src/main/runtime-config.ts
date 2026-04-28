@@ -17,6 +17,7 @@ export interface DesktopRuntimeConfig {
   apiHealthUrl: string
   port: number
   projectId: string
+  projectMode: 'demo-fixture' | 'real-project'
   projectTitle: string
 }
 
@@ -38,7 +39,7 @@ const ROLE_ENV_PREFIXES: Record<DesktopModelBindingRole, string> = {
 export interface CreateDesktopRuntimeConfigOptions {
   host?: string
   apiBasePath?: string
-  currentProject: Pick<SelectedProjectSession, 'projectId' | 'projectTitle'>
+  currentProject: Pick<SelectedProjectSession, 'projectId' | 'projectMode' | 'projectTitle'>
 }
 
 export function createDesktopRuntimeConfig(
@@ -57,6 +58,7 @@ export function createDesktopRuntimeConfig(
     apiHealthUrl: `${apiBaseUrl}/health`,
     port,
     projectId: currentProject.projectId,
+    projectMode: currentProject.projectMode,
     projectTitle: currentProject.projectTitle,
     runtimeMode: 'desktop-local',
   }
@@ -132,6 +134,7 @@ export function createLocalApiProcessConfig({
       ...bindingEnv,
       NARRATIVE_PROJECT_ARTIFACT_DIR: projectArtifactDirPath,
       NARRATIVE_PROJECT_ID: currentProject.projectId,
+      NARRATIVE_PROJECT_MODE: currentProject.projectMode,
       NARRATIVE_PROJECT_ROOT: currentProject.projectRoot,
       NARRATIVE_PROJECT_STORE_FILE: projectStoreFilePath,
       NARRATIVE_PROJECT_TITLE: currentProject.projectTitle,

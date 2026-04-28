@@ -24,6 +24,9 @@ export type DesktopIpcInvoke = <T>(channel: DesktopApiChannel, ...args: unknown[
 export function createNarrativeDesktopApi(invoke: DesktopIpcInvoke): NarrativeDesktopApi {
   return {
     getAppVersion: () => invoke<string>(DESKTOP_API_CHANNELS.getAppVersion),
+    openDemoProject: () => invoke<CurrentProjectSnapshot>(DESKTOP_API_CHANNELS.openDemoProject),
+    createRealProject: () => invoke<CurrentProjectSnapshot | null>(DESKTOP_API_CHANNELS.createRealProject),
+    openExistingProject: () => invoke<CurrentProjectSnapshot | null>(DESKTOP_API_CHANNELS.openExistingProject),
     getCurrentProject: () => invoke<CurrentProjectSnapshot | null>(DESKTOP_API_CHANNELS.getCurrentProject),
     getPlatform: () => invoke<DesktopPlatform>(DESKTOP_API_CHANNELS.getPlatform),
     getRuntimeMode: () => invoke<DesktopRuntimeMode>(DESKTOP_API_CHANNELS.getRuntimeMode),

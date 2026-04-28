@@ -1,11 +1,9 @@
-import path from 'node:path'
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { LocalApiSupervisor, type LocalApiChildProcess, type LocalApiSpawnConfig } from './local-api-supervisor.js'
-import { resolveWorkspaceRoot } from './runtime-config.js'
 
 class FakeLocalApiChild extends EventEmitter implements LocalApiChildProcess {
   stdout = new PassThrough()
@@ -77,6 +75,7 @@ describe('LocalApiSupervisor', () => {
       getProviderCredential: async () => 'sk-secret-value',
       getCurrentProject: () => ({
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectRoot: '/tmp/local-project',
         projectTitle: 'Desktop Local Project',
       }),
@@ -101,6 +100,7 @@ describe('LocalApiSupervisor', () => {
       apiHealthUrl: 'http://127.0.0.1:4888/api/health',
       port: 4888,
       projectId: 'local-project-alpha',
+      projectMode: 'real-project',
       projectTitle: 'Desktop Local Project',
       runtimeMode: 'desktop-local',
     })
@@ -108,6 +108,7 @@ describe('LocalApiSupervisor', () => {
     expect(spawnConfigs[0]?.env).toMatchObject({
       NARRATIVE_PROJECT_ARTIFACT_DIR: '/tmp/local-project/.narrative/artifacts',
       NARRATIVE_PROJECT_ID: 'local-project-alpha',
+      NARRATIVE_PROJECT_MODE: 'real-project',
       NARRATIVE_PROJECT_ROOT: '/tmp/local-project',
       NARRATIVE_PROJECT_STORE_FILE: '/tmp/local-project/.narrative/project-store.json',
       NARRATIVE_PROJECT_TITLE: 'Desktop Local Project',
@@ -136,34 +137,21 @@ describe('LocalApiSupervisor', () => {
     expect(child.killed).toBe(true)
   })
 
-  it('uses a non-fixture default current project identity when no override is provided', async () => {
-    const child = new FakeLocalApiChild()
-    const spawnConfigs: LocalApiSpawnConfig[] = []
-    const workspaceRoot = resolveWorkspaceRoot()
-    const expectedTitle = path.basename(workspaceRoot)
-    const expectedProjectId = `local-project-${expectedTitle}`
+  it('fails startup when no current desktop project is selected yet', async () => {
     const supervisor = new LocalApiSupervisor({
       fetch: async () => okResponse(),
       findAvailablePort: async () => 4888,
       sleep: async () => {},
       spawnLocalApi: (config) => {
-        spawnConfigs.push(config)
-        return child
+        throw new Error(`should not spawn local API without a selected project: ${JSON.stringify(config)}`)
       },
     })
 
-    const snapshot = await supervisor.start()
-
-    expect(snapshot.runtimeConfig).toMatchObject({
-      projectId: expectedProjectId,
-      projectTitle: expectedTitle,
+    await expect(supervisor.start()).resolves.toMatchObject({
+      lastError: 'No desktop project is selected.',
+      status: 'failed',
     })
-    expect(spawnConfigs[0]?.env).toMatchObject({
-      NARRATIVE_PROJECT_ID: expectedProjectId,
-      NARRATIVE_PROJECT_ROOT: workspaceRoot,
-      NARRATIVE_PROJECT_TITLE: expectedTitle,
-    })
-    expect(spawnConfigs[0]?.env.NARRATIVE_PROJECT_ID).not.toBe('book-signal-arc')
+    expect(supervisor.getSnapshot().runtimeConfig).toBeUndefined()
   })
 
   it('marks startup failed when health never becomes ready', async () => {
@@ -171,6 +159,12 @@ describe('LocalApiSupervisor', () => {
     const supervisor = new LocalApiSupervisor({
       fetch: async () => ({ ok: false, status: 503 }) as Response,
       findAvailablePort: async () => 4999,
+      getCurrentProject: () => ({
+        projectId: 'local-project-alpha',
+        projectMode: 'real-project',
+        projectRoot: '/tmp/local-project',
+        projectTitle: 'Desktop Local Project',
+      }),
       healthPollIntervalMs: 1,
       healthTimeoutMs: 1,
       sleep: async () => {},
@@ -191,6 +185,12 @@ describe('LocalApiSupervisor', () => {
     const supervisor = new LocalApiSupervisor({
       fetch: vi.fn(() => new Promise<Response>(() => {})),
       findAvailablePort: async () => 4999,
+      getCurrentProject: () => ({
+        projectId: 'local-project-alpha',
+        projectMode: 'real-project',
+        projectRoot: '/tmp/local-project',
+        projectTitle: 'Desktop Local Project',
+      }),
       healthPollIntervalMs: 2,
       healthTimeoutMs: 5,
       sleep: (ms) => new Promise((resolve) => {
@@ -233,6 +233,12 @@ describe('LocalApiSupervisor', () => {
   it('marks startup failed instead of throwing when process spawn fails before health polling', async () => {
     const supervisor = new LocalApiSupervisor({
       findAvailablePort: async () => 4888,
+      getCurrentProject: () => ({
+        projectId: 'local-project-alpha',
+        projectMode: 'real-project',
+        projectRoot: '/tmp/local-project',
+        projectTitle: 'Desktop Local Project',
+      }),
       sleep: async () => {},
       spawnLocalApi: () => {
         throw new Error('pnpm executable not found')
@@ -255,6 +261,12 @@ describe('LocalApiSupervisor', () => {
     const supervisor = new LocalApiSupervisor({
       fetch,
       findAvailablePort: async () => 4888,
+      getCurrentProject: () => ({
+        projectId: 'local-project-alpha',
+        projectMode: 'real-project',
+        projectRoot: '/tmp/local-project',
+        projectTitle: 'Desktop Local Project',
+      }),
       healthPollIntervalMs: 1,
       healthTimeoutMs: 50,
       sleep,
@@ -283,6 +295,7 @@ describe('LocalApiSupervisor', () => {
       findAvailablePort,
       getCurrentProject: () => ({
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectRoot: '/tmp/local-project',
         projectTitle: 'Desktop Local Project',
       }),
@@ -317,6 +330,7 @@ describe('LocalApiSupervisor', () => {
       findAvailablePort: async () => 4888,
       getCurrentProject: () => ({
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectRoot: '/tmp/local-project',
         projectTitle: 'Desktop Local Project',
       }),
@@ -373,6 +387,7 @@ describe('LocalApiSupervisor', () => {
       findAvailablePort: async () => 4888,
       getCurrentProject: () => ({
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectRoot: '/tmp/local-project',
         projectTitle: 'Desktop Local Project',
       }),
@@ -403,6 +418,7 @@ describe('LocalApiSupervisor', () => {
       findAvailablePort: async () => 4888,
       getCurrentProject: () => ({
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectRoot: '/tmp/local-project',
         projectTitle: 'Desktop Local Project',
       }),
@@ -433,6 +449,7 @@ describe('LocalApiSupervisor', () => {
         apiHealthUrl: 'http://127.0.0.1:4888/api/health',
         port: 4888,
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectTitle: 'Desktop Local Project',
         runtimeMode: 'desktop-local',
       },
@@ -450,6 +467,12 @@ describe('LocalApiSupervisor', () => {
     const supervisor = new LocalApiSupervisor({
       fetch: async () => okResponse(),
       findAvailablePort: async () => ports.shift() ?? 4890,
+      getCurrentProject: () => ({
+        projectId: 'local-project-alpha',
+        projectMode: 'real-project',
+        projectRoot: '/tmp/local-project',
+        projectTitle: 'Desktop Local Project',
+      }),
       sleep: async () => {},
       spawnLocalApi: () => children.shift() ?? new FakeLocalApiChild(),
     })

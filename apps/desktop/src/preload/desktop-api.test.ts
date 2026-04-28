@@ -26,7 +26,20 @@ describe('createNarrativeDesktopApi', () => {
       if (channel === DESKTOP_API_CHANNELS.getCurrentProject) {
         return {
           projectId: 'local-project-alpha',
+          projectMode: 'real-project',
           projectTitle: 'Selected Project',
+        } as T
+      }
+
+      if (
+        channel === DESKTOP_API_CHANNELS.openDemoProject
+        || channel === DESKTOP_API_CHANNELS.createRealProject
+        || channel === DESKTOP_API_CHANNELS.openExistingProject
+      ) {
+        return {
+          projectId: channel === DESKTOP_API_CHANNELS.openDemoProject ? 'book-signal-arc' : 'local-project-alpha',
+          projectMode: channel === DESKTOP_API_CHANNELS.openDemoProject ? 'demo-fixture' : 'real-project',
+          projectTitle: channel === DESKTOP_API_CHANNELS.openDemoProject ? 'Signal Arc Demo' : 'Selected Project',
         } as T
       }
 
@@ -36,6 +49,7 @@ describe('createNarrativeDesktopApi', () => {
           apiHealthUrl: 'http://127.0.0.1:4888/api/health',
           port: 4888,
           projectId: 'local-project-alpha',
+          projectMode: 'real-project',
           projectTitle: 'Selected Project',
           runtimeMode: 'desktop-local',
         } as T
@@ -49,6 +63,7 @@ describe('createNarrativeDesktopApi', () => {
             apiHealthUrl: 'http://127.0.0.1:4888/api/health',
             port: 4888,
             projectId: 'local-project-alpha',
+            projectMode: 'real-project',
             projectTitle: 'Selected Project',
             runtimeMode: 'desktop-local',
           },
@@ -121,6 +136,7 @@ describe('createNarrativeDesktopApi', () => {
     const api = createNarrativeDesktopApi(invoke)
 
     expect(Object.keys(api).sort()).toEqual([
+      'createRealProject',
       'deleteProviderCredential',
       'getAppVersion',
       'getCurrentProject',
@@ -133,6 +149,8 @@ describe('createNarrativeDesktopApi', () => {
       'getRuntimeConfig',
       'getRuntimeMode',
       'getWorkerStatus',
+      'openDemoProject',
+      'openExistingProject',
       'restartLocalApi',
       'restartWorker',
       'saveProviderCredential',
@@ -149,6 +167,22 @@ describe('createNarrativeDesktopApi', () => {
     await expect(api.getAppVersion()).resolves.toBe('0.1.0')
     await expect(api.getCurrentProject()).resolves.toEqual({
       projectId: 'local-project-alpha',
+      projectMode: 'real-project',
+      projectTitle: 'Selected Project',
+    })
+    await expect(api.openDemoProject()).resolves.toEqual({
+      projectId: 'book-signal-arc',
+      projectMode: 'demo-fixture',
+      projectTitle: 'Signal Arc Demo',
+    })
+    await expect(api.createRealProject()).resolves.toEqual({
+      projectId: 'local-project-alpha',
+      projectMode: 'real-project',
+      projectTitle: 'Selected Project',
+    })
+    await expect(api.openExistingProject()).resolves.toEqual({
+      projectId: 'local-project-alpha',
+      projectMode: 'real-project',
       projectTitle: 'Selected Project',
     })
     await expect(api.getPlatform()).resolves.toBe('darwin')
@@ -158,6 +192,7 @@ describe('createNarrativeDesktopApi', () => {
       apiHealthUrl: 'http://127.0.0.1:4888/api/health',
       port: 4888,
       projectId: 'local-project-alpha',
+      projectMode: 'real-project',
       projectTitle: 'Selected Project',
       runtimeMode: 'desktop-local',
     })
@@ -168,6 +203,7 @@ describe('createNarrativeDesktopApi', () => {
         apiHealthUrl: 'http://127.0.0.1:4888/api/health',
         port: 4888,
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectTitle: 'Selected Project',
         runtimeMode: 'desktop-local',
       },
@@ -180,6 +216,7 @@ describe('createNarrativeDesktopApi', () => {
         apiHealthUrl: 'http://127.0.0.1:4888/api/health',
         port: 4888,
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectTitle: 'Selected Project',
         runtimeMode: 'desktop-local',
       },
@@ -254,6 +291,9 @@ describe('createNarrativeDesktopApi', () => {
     expect(calls).toEqual([
       { channel: DESKTOP_API_CHANNELS.getAppVersion, payload: [] },
       { channel: DESKTOP_API_CHANNELS.getCurrentProject, payload: [] },
+      { channel: DESKTOP_API_CHANNELS.openDemoProject, payload: [] },
+      { channel: DESKTOP_API_CHANNELS.createRealProject, payload: [] },
+      { channel: DESKTOP_API_CHANNELS.openExistingProject, payload: [] },
       { channel: DESKTOP_API_CHANNELS.getPlatform, payload: [] },
       { channel: DESKTOP_API_CHANNELS.getRuntimeMode, payload: [] },
       { channel: DESKTOP_API_CHANNELS.getRuntimeConfig, payload: [] },
@@ -338,6 +378,7 @@ describe('createNarrativeDesktopApi', () => {
 
     expect(key).toBe('narrativeDesktop')
     expect(Object.keys(api).sort()).toEqual([
+      'createRealProject',
       'deleteProviderCredential',
       'getAppVersion',
       'getCurrentProject',
@@ -350,6 +391,8 @@ describe('createNarrativeDesktopApi', () => {
       'getRuntimeConfig',
       'getRuntimeMode',
       'getWorkerStatus',
+      'openDemoProject',
+      'openExistingProject',
       'restartLocalApi',
       'restartWorker',
       'saveProviderCredential',

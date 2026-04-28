@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { DESKTOP_API_CHANNELS } from '../shared/desktop-bridge-types.js'
+import type { RecentProjectRecord } from './recent-projects.js'
 
 afterEach(() => {
   vi.resetModules()
@@ -16,6 +17,7 @@ describe('desktop main bridge registration', () => {
     const setApplicationMenu = vi.fn()
     const selectedProject = {
       projectId: 'local-project-alpha',
+      projectMode: 'real-project' as const,
       projectRoot: '/tmp/local-project',
       projectTitle: 'Desktop Local Project',
     }
@@ -29,12 +31,36 @@ describe('desktop main bridge registration', () => {
     const projectStore = {
       createProject: vi.fn(async () => ({
         projectId: 'local-project-created',
+        projectMode: 'real-project' as const,
         projectRoot: '/tmp/project-created',
         projectTitle: 'Created Project',
       })),
       forgetProjectRoot: vi.fn(async () => []),
       getCurrentProject: vi.fn(() => currentProject),
       getRecentProjects: vi.fn(() => []),
+      openRecentProject: vi.fn(async (project: RecentProjectRecord) => {
+        if (project.projectMode === 'demo-fixture') {
+          currentProject = {
+            projectId: 'book-signal-arc',
+            projectMode: 'demo-fixture',
+            projectRoot: '/tmp/user-data/demo-projects/book-signal-arc',
+            projectTitle: 'Signal Arc Demo',
+          }
+          return currentProject
+        }
+
+        currentProject = selectedProject
+        return selectedProject
+      }),
+      selectDemoProject: vi.fn(async () => {
+        currentProject = {
+          projectId: 'book-signal-arc',
+          projectMode: 'demo-fixture',
+          projectRoot: '/tmp/user-data/demo-projects/book-signal-arc',
+          projectTitle: 'Signal Arc Demo',
+        }
+        return currentProject
+      }),
       openProject: vi.fn(async () => null),
       restoreLastProject: vi.fn(async () => null),
       selectProjectRoot: vi.fn(async () => {
@@ -145,53 +171,58 @@ describe('desktop main bridge registration', () => {
         summary: 'OpenAI API key is missing.',
       })),
     }
+    let localApiSnapshot = {
+      lastError: undefined as string | undefined,
+      logs: [] as string[],
+      runtimeConfig: undefined as {
+        apiBaseUrl: string
+        apiHealthUrl: string
+        port: number
+        projectId: string
+        projectMode: 'real-project'
+        projectTitle: string
+        runtimeMode: 'desktop-local'
+      } | undefined,
+      status: 'stopped' as const | 'ready',
+    }
+    const readyLocalApiSnapshot = {
+      lastError: undefined,
+      logs: [],
+      runtimeConfig: {
+        apiBaseUrl: 'http://127.0.0.1:4888/api',
+        apiHealthUrl: 'http://127.0.0.1:4888/api/health',
+        port: 4888,
+        projectId: 'local-project-alpha',
+        projectMode: 'real-project' as const,
+        projectTitle: 'Desktop Local Project',
+        runtimeMode: 'desktop-local' as const,
+      },
+      status: 'ready' as const,
+    }
     const localApiSupervisor = {
       getLogs: vi.fn(() => []),
-      getSnapshot: vi.fn(() => ({
-        lastError: undefined,
-        logs: [],
-        runtimeConfig: {
-          apiBaseUrl: 'http://127.0.0.1:4888/api',
-          apiHealthUrl: 'http://127.0.0.1:4888/api/health',
-          port: 4888,
-          projectId: 'local-project-alpha',
-          projectTitle: 'Desktop Local Project',
-          runtimeMode: 'desktop-local' as const,
-        },
-        status: 'ready' as const,
-      })),
-      restart: vi.fn(async () => ({
-        lastError: undefined,
-        logs: [],
-        runtimeConfig: {
-          apiBaseUrl: 'http://127.0.0.1:4888/api',
-          apiHealthUrl: 'http://127.0.0.1:4888/api/health',
-          port: 4888,
-          projectId: 'local-project-alpha',
-          projectTitle: 'Desktop Local Project',
-          runtimeMode: 'desktop-local' as const,
-        },
-        status: 'ready' as const,
-      })),
+      getSnapshot: vi.fn(() => localApiSnapshot),
+      restart: vi.fn(async () => {
+        localApiSnapshot = readyLocalApiSnapshot
+        return readyLocalApiSnapshot
+      }),
       testModelSettings: vi.fn(async () => ({
         errorCode: 'missing_key' as const,
         status: 'failed' as const,
         summary: 'OpenAI API key is missing.',
       })),
-      start: vi.fn(async () => ({
-        lastError: undefined,
-        logs: [],
-        runtimeConfig: {
-          apiBaseUrl: 'http://127.0.0.1:4888/api',
-          apiHealthUrl: 'http://127.0.0.1:4888/api/health',
-          port: 4888,
-          projectId: 'local-project-alpha',
-          projectTitle: 'Desktop Local Project',
-          runtimeMode: 'desktop-local' as const,
-        },
-        status: 'ready' as const,
-      })),
-      stop: vi.fn(),
+      start: vi.fn(async () => {
+        localApiSnapshot = readyLocalApiSnapshot
+        return readyLocalApiSnapshot
+      }),
+      stop: vi.fn(() => {
+        localApiSnapshot = {
+          lastError: undefined,
+          logs: [],
+          runtimeConfig: undefined,
+          status: 'stopped',
+        }
+      }),
     }
 
     vi.doMock('electron', () => ({
@@ -234,9 +265,6 @@ describe('desktop main bridge registration', () => {
       createProjectBackup,
       exportProjectArchive,
     }))
-    vi.doMock('./runtime-config.js', () => ({
-      resolveWorkspaceRoot: vi.fn(() => '/tmp/local-project'),
-    }))
     vi.doMock('./worker-supervisor.js', () => ({
       createWorkerSupervisor: vi.fn(() => workerSupervisor),
     }))
@@ -246,7 +274,7 @@ describe('desktop main bridge registration', () => {
     const initialMenuOptions = setApplicationMenu.mock.calls.at(-1)?.[0] as {
       onCreateProject?: () => Promise<void>
       onOpenProject?: () => Promise<void>
-      onOpenRecentProject?: (projectRoot: string) => Promise<void>
+      onOpenRecentProject?: (project: RecentProjectRecord) => Promise<void>
       onCreateProjectBackup?: () => Promise<void>
       onExportProjectArchive?: () => Promise<void>
       onRestartLocalApi?: () => Promise<void>
@@ -258,8 +286,8 @@ describe('desktop main bridge registration', () => {
     )
 
     expect(projectStore.restoreLastProject).toHaveBeenCalledTimes(1)
-    expect(projectStore.selectProjectRoot).toHaveBeenCalledWith('/tmp/local-project')
-    expect(localApiSupervisor.start).toHaveBeenCalledTimes(1)
+    expect(projectStore.selectProjectRoot).not.toHaveBeenCalled()
+    expect(localApiSupervisor.start).not.toHaveBeenCalled()
     expect(createMainWindow).toHaveBeenCalledTimes(1)
 
     expect(registrations.has(DESKTOP_API_CHANNELS.getWorkerStatus)).toBe(true)
@@ -268,6 +296,9 @@ describe('desktop main bridge registration', () => {
     expect(registrations.has(DESKTOP_API_CHANNELS.restartLocalApi)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.getLocalApiLogs)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.getCurrentProject)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.openDemoProject)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.createRealProject)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.openExistingProject)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.getRuntimeConfig)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.getProviderCredentialStatus)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.saveProviderCredential)).toBe(true)
@@ -278,15 +309,30 @@ describe('desktop main bridge registration', () => {
     expect(registrations.has(DESKTOP_API_CHANNELS.updateModelBinding)).toBe(true)
     expect(Array.from(registrations.keys())).not.toContain('narrativeDesktop:getRawCredential')
 
-    expect(registrations.get(DESKTOP_API_CHANNELS.getCurrentProject)?.()).toEqual({
-      projectId: selectedProject.projectId,
-      projectTitle: selectedProject.projectTitle,
+    expect(registrations.get(DESKTOP_API_CHANNELS.getCurrentProject)?.()).toBeNull()
+    await expect(registrations.get(DESKTOP_API_CHANNELS.getRuntimeConfig)?.()).rejects.toThrow(
+      'Local API runtime config is unavailable.',
+    )
+    await expect(registrations.get(DESKTOP_API_CHANNELS.openDemoProject)?.()).resolves.toEqual({
+      projectId: 'book-signal-arc',
+      projectMode: 'demo-fixture',
+      projectTitle: 'Signal Arc Demo',
     })
+    expect(projectStore.selectDemoProject).toHaveBeenCalledTimes(1)
+    expect(localApiSupervisor.start).toHaveBeenCalledTimes(1)
+    currentProject = selectedProject
+    await expect(registrations.get(DESKTOP_API_CHANNELS.createRealProject)?.()).resolves.toEqual({
+      projectId: 'local-project-created',
+      projectMode: 'real-project',
+      projectTitle: 'Created Project',
+    })
+    await expect(registrations.get(DESKTOP_API_CHANNELS.openExistingProject)?.()).resolves.toBeNull()
     await expect(registrations.get(DESKTOP_API_CHANNELS.getRuntimeConfig)?.()).resolves.toEqual({
       apiBaseUrl: 'http://127.0.0.1:4888/api',
       apiHealthUrl: 'http://127.0.0.1:4888/api/health',
       port: 4888,
       projectId: 'local-project-alpha',
+      projectMode: 'real-project',
       projectTitle: 'Desktop Local Project',
       runtimeMode: 'desktop-local',
     })
@@ -297,6 +343,7 @@ describe('desktop main bridge registration', () => {
         apiHealthUrl: 'http://127.0.0.1:4888/api/health',
         port: 4888,
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectTitle: 'Desktop Local Project',
         runtimeMode: 'desktop-local',
       },
@@ -309,6 +356,7 @@ describe('desktop main bridge registration', () => {
         apiHealthUrl: 'http://127.0.0.1:4888/api/health',
         port: 4888,
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectTitle: 'Desktop Local Project',
         runtimeMode: 'desktop-local',
       },
@@ -423,7 +471,7 @@ describe('desktop main bridge registration', () => {
       status: 'failed',
       summary: 'OpenAI API key is missing.',
     })
-    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(4)
+    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(5)
     expect(localApiSupervisor.testModelSettings).toHaveBeenCalledTimes(1)
 
     const beforeQuitHandler = appOn.mock.calls.find(([event]) => event === 'before-quit')?.[1] as (() => void) | undefined
@@ -435,27 +483,53 @@ describe('desktop main bridge registration', () => {
 
     expect(initialMenuOptions?.onCreateProject).toBeTypeOf('function')
     await expect(initialMenuOptions!.onCreateProject!()).resolves.toBeUndefined()
-    expect(projectStore.createProject).toHaveBeenCalledTimes(1)
+    expect(projectStore.createProject).toHaveBeenCalledTimes(2)
     expect(localApiSupervisor.restart).toHaveBeenCalledTimes(5)
-    expect(setApplicationMenu).toHaveBeenCalledTimes(2)
+    expect(setApplicationMenu).toHaveBeenCalledTimes(5)
 
     projectStore.openProject.mockRejectedValueOnce(new Error('dialog failed'))
     expect(initialMenuOptions?.onOpenProject).toBeTypeOf('function')
     await expect(initialMenuOptions!.onOpenProject!()).resolves.toBeUndefined()
     expect(localApiSupervisor.restart).toHaveBeenCalledTimes(5)
-    expect(setApplicationMenu).toHaveBeenCalledTimes(3)
+    expect(setApplicationMenu).toHaveBeenCalledTimes(6)
 
-    projectStore.selectProjectRoot.mockRejectedValueOnce(new Error('project missing'))
+    projectStore.openRecentProject.mockRejectedValueOnce(new Error('project missing'))
     expect(initialMenuOptions?.onOpenRecentProject).toBeTypeOf('function')
-    await expect(initialMenuOptions!.onOpenRecentProject!('/tmp/local-project')).resolves.toBeUndefined()
+    await expect(initialMenuOptions!.onOpenRecentProject!({
+      projectId: 'local-project-alpha',
+      projectMode: 'real-project',
+      projectRoot: '/tmp/local-project',
+      projectTitle: 'Desktop Local Project',
+    })).resolves.toBeUndefined()
     expect(projectStore.forgetProjectRoot).toHaveBeenCalledWith('/tmp/local-project')
-    expect(setApplicationMenu).toHaveBeenCalledTimes(4)
+    expect(setApplicationMenu).toHaveBeenCalledTimes(7)
 
-    projectStore.selectProjectRoot.mockRejectedValueOnce(new Error('project missing again'))
+    projectStore.openRecentProject.mockRejectedValueOnce(new Error('project missing again'))
     projectStore.forgetProjectRoot.mockRejectedValueOnce(new Error('cleanup failed'))
-    await expect(initialMenuOptions!.onOpenRecentProject!('/tmp/local-project')).resolves.toBeUndefined()
+    await expect(initialMenuOptions!.onOpenRecentProject!({
+      projectId: 'local-project-alpha',
+      projectMode: 'real-project',
+      projectRoot: '/tmp/local-project',
+      projectTitle: 'Desktop Local Project',
+    })).resolves.toBeUndefined()
     expect(projectStore.forgetProjectRoot).toHaveBeenCalledWith('/tmp/local-project')
-    expect(setApplicationMenu).toHaveBeenCalledTimes(5)
+    expect(setApplicationMenu).toHaveBeenCalledTimes(8)
+
+    await expect(initialMenuOptions!.onOpenRecentProject!({
+      projectId: 'book-signal-arc',
+      projectMode: 'demo-fixture',
+      projectRoot: '/tmp/user-data/demo-projects/book-signal-arc',
+      projectTitle: 'Signal Arc Demo',
+    })).resolves.toBeUndefined()
+    expect(projectStore.openRecentProject).toHaveBeenCalledWith({
+      projectId: 'book-signal-arc',
+      projectMode: 'demo-fixture',
+      projectRoot: '/tmp/user-data/demo-projects/book-signal-arc',
+      projectTitle: 'Signal Arc Demo',
+    })
+    expect(projectStore.selectProjectRoot).not.toHaveBeenCalled()
+
+    currentProject = selectedProject
 
     expect(initialMenuOptions?.onCreateProjectBackup).toBeTypeOf('function')
     await expect(initialMenuOptions!.onCreateProjectBackup!()).resolves.toBeUndefined()
@@ -466,7 +540,7 @@ describe('desktop main bridge registration', () => {
 
     expect(initialMenuOptions?.onRestartLocalApi).toBeTypeOf('function')
     await expect(initialMenuOptions!.onRestartLocalApi!()).resolves.toBeUndefined()
-    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(6)
+    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(7)
 
     expect(initialMenuOptions?.onRestartWorker).toBeTypeOf('function')
     await expect(initialMenuOptions!.onRestartWorker!()).resolves.toBeUndefined()
@@ -478,7 +552,7 @@ describe('desktop main bridge registration', () => {
       projectRoot: '/tmp/local-project',
       storeFilePath: '/tmp/local-project/.narrative/project-store.json',
     })
-    expect(setApplicationMenu).toHaveBeenCalledTimes(9)
+    expect(setApplicationMenu).toHaveBeenCalledTimes(13)
 
     const runtimeMenuTemplate = buildApplicationMenuTemplate({
       isDev: false,
@@ -497,5 +571,135 @@ describe('desktop main bridge registration', () => {
       'Restart Local API',
       'Restart Worker',
     ])
+  })
+
+  it('keeps launcher actions rejected until local API startup is actually ready', async () => {
+    const ipcHandle = vi.fn()
+    const appOn = vi.fn()
+    const createMainWindow = vi.fn(async () => undefined)
+    const setApplicationMenu = vi.fn()
+    const projectStore = {
+      createProject: vi.fn(async () => ({
+        projectId: 'local-project-created',
+        projectMode: 'real-project' as const,
+        projectRoot: '/tmp/project-created',
+        projectTitle: 'Created Project',
+      })),
+      forgetProjectRoot: vi.fn(async () => []),
+      getCurrentProject: vi.fn(() => null),
+      getRecentProjects: vi.fn(() => []),
+      selectDemoProject: vi.fn(async () => ({
+        projectId: 'book-signal-arc',
+        projectMode: 'demo-fixture' as const,
+        projectRoot: '/tmp/user-data/demo-projects/book-signal-arc',
+        projectTitle: 'Signal Arc Demo',
+      })),
+      openProject: vi.fn(async () => ({
+        projectId: 'local-project-opened',
+        projectMode: 'real-project' as const,
+        projectRoot: '/tmp/project-opened',
+        projectTitle: 'Opened Project',
+      })),
+      restoreLastProject: vi.fn(async () => null),
+      selectProjectRoot: vi.fn(async () => null),
+    }
+    const localApiSupervisor = {
+      getLogs: vi.fn(() => []),
+      getSnapshot: vi.fn(() => ({
+        lastError: undefined,
+        logs: [],
+        runtimeConfig: undefined,
+        status: 'stopped' as const,
+      })),
+      restart: vi.fn(async () => ({
+        lastError: 'Local API health check failed with HTTP 503.',
+        logs: [],
+        runtimeConfig: undefined,
+        status: 'failed' as const,
+      })),
+      start: vi.fn(async () => ({
+        lastError: 'Local API health check failed with HTTP 503.',
+        logs: [],
+        runtimeConfig: undefined,
+        status: 'failed' as const,
+      })),
+      stop: vi.fn(),
+      testModelSettings: vi.fn(),
+    }
+
+    vi.doMock('electron', () => ({
+      BrowserWindow: {
+        getAllWindows: vi.fn(() => []),
+      },
+      app: {
+        name: 'Narrative Desktop',
+        getVersion: vi.fn(() => '0.1.0'),
+        isPackaged: false,
+        on: appOn,
+        quit: vi.fn(),
+        whenReady: vi.fn(() => Promise.resolve()),
+      },
+      ipcMain: {
+        handle: ipcHandle,
+      },
+    }))
+    vi.doMock('./app-menu.js', () => ({
+      setApplicationMenu,
+    }))
+    vi.doMock('./create-window.js', () => ({
+      createMainWindow,
+    }))
+    vi.doMock('./local-api-supervisor.js', () => ({
+      createLocalApiSupervisor: vi.fn(() => localApiSupervisor),
+    }))
+    vi.doMock('./project-store.js', () => ({
+      ProjectStore: vi.fn(() => projectStore),
+    }))
+    vi.doMock('./credential-store.js', () => ({
+      CredentialStore: vi.fn(() => ({
+        deleteCredential: vi.fn(),
+        getCredentialStatus: vi.fn(),
+        saveCredential: vi.fn(),
+      })),
+    }))
+    vi.doMock('./model-binding-store.js', () => ({
+      ModelBindingStore: vi.fn(() => ({
+        readBindings: vi.fn(),
+        readModelSettingsRecord: vi.fn(),
+        resetConnectionTest: vi.fn(),
+        updateBinding: vi.fn(),
+        writeConnectionTest: vi.fn(),
+      })),
+    }))
+    vi.doMock('../../../../packages/api/src/repositories/project-backup.js', () => ({
+      createProjectBackup: vi.fn(),
+      exportProjectArchive: vi.fn(),
+    }))
+    vi.doMock('./worker-supervisor.js', () => ({
+      createWorkerSupervisor: vi.fn(() => ({
+        getSnapshot: vi.fn(() => ({
+          implementation: 'placeholder',
+          status: 'disabled',
+        })),
+        restart: vi.fn(),
+        stop: vi.fn(),
+      })),
+    }))
+
+    await import('./main.js')
+
+    const registrations = new Map(
+      ipcHandle.mock.calls.map(([channel, handler]) => [channel as string, handler as (...args: unknown[]) => unknown]),
+    )
+
+    await expect(registrations.get(DESKTOP_API_CHANNELS.openDemoProject)?.()).rejects.toThrow(
+      'Local API health check failed with HTTP 503.',
+    )
+    await expect(registrations.get(DESKTOP_API_CHANNELS.createRealProject)?.()).rejects.toThrow(
+      'Local API health check failed with HTTP 503.',
+    )
+    await expect(registrations.get(DESKTOP_API_CHANNELS.openExistingProject)?.()).rejects.toThrow(
+      'Local API health check failed with HTTP 503.',
+    )
   })
 })

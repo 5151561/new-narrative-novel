@@ -26,6 +26,7 @@ describe('RecentProjectsStore', () => {
 
     await store.add({
       projectId: 'local-project-alpha',
+      projectMode: 'real-project',
       projectRoot: '/tmp/workbench-alpha',
       projectTitle: 'Workbench Alpha',
     })
@@ -37,6 +38,7 @@ describe('RecentProjectsStore', () => {
     expect(persisted).toEqual({
       projects: [{
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectRoot: '/tmp/workbench-alpha',
         projectTitle: 'Workbench Alpha',
       }],
@@ -49,16 +51,19 @@ describe('RecentProjectsStore', () => {
 
     await store.add({
       projectId: 'local-project-alpha',
+      projectMode: 'real-project',
       projectRoot: '/tmp/workbench-alpha',
       projectTitle: 'Workbench Alpha',
     })
     await store.add({
       projectId: 'local-project-beta',
+      projectMode: 'real-project',
       projectRoot: '/tmp/workbench-beta',
       projectTitle: 'Workbench Beta',
     })
     await store.add({
       projectId: 'local-project-alpha',
+      projectMode: 'real-project',
       projectRoot: '/tmp/workbench-alpha',
       projectTitle: 'Workbench Alpha',
     })
@@ -68,11 +73,13 @@ describe('RecentProjectsStore', () => {
     await expect(restored.list()).resolves.toEqual([
       {
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectRoot: '/tmp/workbench-alpha',
         projectTitle: 'Workbench Alpha',
       },
       {
         projectId: 'local-project-beta',
+        projectMode: 'real-project',
         projectRoot: '/tmp/workbench-beta',
         projectTitle: 'Workbench Beta',
       },
@@ -96,6 +103,7 @@ describe('RecentProjectsStore', () => {
         {
           lastOpenedAt: '2026-04-28T00:00:00.000Z',
           projectId: 'local-project-alpha',
+          projectMode: 'real-project',
           projectRoot: '/tmp/workbench-alpha',
           projectTitle: 'Workbench Alpha',
         },
@@ -107,9 +115,35 @@ describe('RecentProjectsStore', () => {
     await expect(store.list()).resolves.toEqual([
       {
         projectId: 'local-project-alpha',
+        projectMode: 'real-project',
         projectRoot: '/tmp/workbench-alpha',
         projectTitle: 'Workbench Alpha',
       },
     ])
+  })
+
+  it('migrates legacy recent-project records that did not yet persist projectMode', async () => {
+    const userDataPath = createUserDataPath()
+    writeFileSync(path.join(userDataPath, 'recent-projects.json'), JSON.stringify({
+      projects: [
+        {
+          projectId: 'legacy-project-alpha',
+          projectRoot: '/tmp/legacy-alpha',
+          projectTitle: 'Legacy Alpha',
+        },
+      ],
+    }), 'utf8')
+
+    const store = new RecentProjectsStore({ userDataPath })
+
+    await expect(store.list()).resolves.toEqual([
+      {
+        projectId: 'legacy-project-alpha',
+        projectMode: 'real-project',
+        projectRoot: '/tmp/legacy-alpha',
+        projectTitle: 'Legacy Alpha',
+      },
+    ])
+    await expect(readFile(path.join(userDataPath, 'recent-projects.json'), 'utf8')).resolves.toContain('"projectMode": "real-project"')
   })
 })
