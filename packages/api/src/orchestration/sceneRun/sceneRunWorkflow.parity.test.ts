@@ -45,6 +45,8 @@ describe('startSceneRunWorkflow legacy deterministic start contract', () => {
       plannerProvenance: {
         provider: 'fixture',
         modelId: 'fixture-scene-planner',
+        projectMode: 'demo-fixture',
+        fallbackUsed: false,
       },
     }, {
       buildTimelineLabel: buildFixtureSceneRunTimelineLabel,
@@ -66,6 +68,8 @@ describe('startSceneRunWorkflow legacy deterministic start contract', () => {
         estimatedCostUsd: 0.023,
         provider: 'fixture',
         modelId: 'fixture-scene-planner',
+        projectMode: 'demo-fixture',
+        fallbackUsed: false,
       },
       runtimeSummary: {
         health: 'attention',
@@ -156,6 +160,8 @@ describe('startSceneRunWorkflow legacy deterministic start contract', () => {
           estimatedCostUsd: 0.023,
           provider: 'fixture',
           modelId: 'fixture-scene-planner',
+          projectMode: 'demo-fixture',
+          fallbackUsed: false,
         },
       },
       {
@@ -246,8 +252,10 @@ describe('startSceneRunWorkflow legacy deterministic start contract', () => {
           role: 'planner',
           index: 1,
           provenance: {
+            fallbackUsed: false,
             provider: 'fixture',
             modelId: 'fixture-scene-planner',
+            projectMode: 'demo-fixture',
           },
         },
       },
@@ -273,6 +281,12 @@ describe('startSceneRunWorkflow legacy deterministic start contract', () => {
         summary: 'Combined planner and writer output is ready for editorial review.',
         status: 'ready',
         meta: {
+          provenance: {
+            fallbackUsed: false,
+            provider: 'fixture',
+            modelId: 'fixture-scene-planner',
+            projectMode: 'demo-fixture',
+          },
           proposals: [
             {
               id: 'proposal-set-scene-parity-check-run-001-proposal-001',

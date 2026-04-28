@@ -37,6 +37,8 @@ export interface ApiRuntimeModelSettingsPayload {
   bindings: Record<ModelBindingRole, ModelBindingInput>
 }
 
+export type ModelGatewayProjectMode = 'demo-fixture' | 'real-project'
+
 export type ResolvedModelBinding =
   | {
       provider: 'fixture'
@@ -221,6 +223,14 @@ export function resolveModelBindingForRole(config: LegacyModelConfig, role: Mode
   }
 
   return createModelBindingsFromLegacyConfig(config)[role]
+}
+
+export function resolveModelGatewayProjectMode(config: {
+  currentProject?: {
+    projectMode: ModelGatewayProjectMode
+  }
+}): ModelGatewayProjectMode {
+  return config.currentProject?.projectMode ?? 'demo-fixture'
 }
 
 export function serializeModelBindings(bindings: Partial<Record<ModelBindingRole, ResolvedModelBinding>>) {

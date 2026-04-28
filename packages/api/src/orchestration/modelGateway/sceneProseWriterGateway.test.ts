@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { DEFAULT_MODEL_BINDINGS } from './model-binding.js'
 import {
+  ModelGatewayBindingNotAllowedError,
   ModelGatewayExecutionError,
   ModelGatewayMissingConfigError,
 } from './modelGatewayErrors.js'
@@ -52,10 +53,29 @@ describe('createSceneProseWriterGateway', () => {
 
     await expect(gateway.generate(createRequest())).resolves.toMatchObject({
       provenance: {
+        fallbackUsed: false,
         provider: 'fixture',
         modelId: 'fixture-scene-prose-writer',
+        projectMode: 'demo-fixture',
       },
     })
+  })
+
+  it('rejects real-project fixture prose bindings before generation starts', async () => {
+    const gateway = createSceneProseWriterGateway({
+      currentProject: {
+        projectId: 'local-project-alpha',
+        projectMode: 'real-project',
+        projectRoot: '/tmp/local-project-alpha',
+        projectTitle: 'Local Project Alpha',
+      },
+      modelProvider: 'fixture',
+    })
+
+    await expect(gateway.generate(createRequest())).rejects.toEqual(new ModelGatewayBindingNotAllowedError({
+      projectMode: 'real-project',
+      role: 'sceneProseWriter',
+    }))
   })
 
   it('rejects with missing-config when provider=openai-compatible but model config is incomplete', async () => {
@@ -81,6 +101,7 @@ describe('createSceneProseWriterGateway', () => {
 
     await expect(gateway.generate(createRequest())).rejects.toEqual(new ModelGatewayMissingConfigError({
       provider: 'openai-compatible',
+      projectMode: 'demo-fixture',
       role: 'sceneProseWriter',
     }))
     expect(openAiProviderFactory).not.toHaveBeenCalled()
@@ -156,10 +177,12 @@ describe('createSceneProseWriterGateway', () => {
         ],
       },
       provenance: {
+        fallbackUsed: false,
         provider: 'openai-compatible',
         providerId: 'deepseek',
         providerLabel: 'DeepSeek',
         modelId: 'deepseek-chat',
+        projectMode: 'demo-fixture',
       },
     })
     expect(openAiProvider.generate).toHaveBeenCalledWith(createRequest())
@@ -246,10 +269,12 @@ describe('createSceneProseWriterGateway', () => {
 
     await expect(gateway.generate(createRequest())).resolves.toMatchObject({
       provenance: {
+        fallbackUsed: false,
         modelId: 'deepseek-chat',
         provider: 'openai-compatible',
         providerId: 'deepseek',
         providerLabel: 'DeepSeek',
+        projectMode: 'demo-fixture',
       },
     })
     await expect(gateway.generate(createRequest({
@@ -258,10 +283,12 @@ describe('createSceneProseWriterGateway', () => {
       task: 'revision',
     }))).resolves.toMatchObject({
       provenance: {
+        fallbackUsed: false,
         modelId: 'deepseek-reasoner',
         provider: 'openai-compatible',
         providerId: 'deepseek',
         providerLabel: 'DeepSeek',
+        projectMode: 'demo-fixture',
       },
     })
 
@@ -299,8 +326,10 @@ describe('createSceneProseWriterGateway', () => {
         diffSummary: 'Expanded witness-facing beats while preserving accepted provenance.',
       }),
       provenance: {
+        fallbackUsed: false,
         provider: 'fixture',
         modelId: 'fixture-scene-prose-writer',
+        projectMode: 'demo-fixture',
       },
     })
   })
@@ -332,8 +361,10 @@ describe('createSceneProseWriterGateway', () => {
     await expect(gateway.generate(createRequest())).rejects.toMatchObject({
       name: ModelGatewayExecutionError.name,
       failureClass: 'provider_error',
+      fallbackUsed: false,
       modelId: 'deepseek-chat',
       provider: 'openai-compatible',
+      projectMode: 'demo-fixture',
       role: 'sceneProseWriter',
     })
   })
@@ -367,8 +398,10 @@ describe('createSceneProseWriterGateway', () => {
     await expect(gateway.generate(createRequest())).rejects.toMatchObject({
       name: ModelGatewayExecutionError.name,
       failureClass: 'invalid_output',
+      fallbackUsed: false,
       modelId: 'deepseek-chat',
       provider: 'openai-compatible',
+      projectMode: 'demo-fixture',
       role: 'sceneProseWriter',
     })
   })

@@ -1,11 +1,15 @@
 import type { ApiServerConfig } from '../../config.js'
-import { resolveModelBindingForRole } from './model-binding.js'
+import {
+  resolveModelBindingForRole,
+  resolveModelGatewayProjectMode,
+} from './model-binding.js'
 import { createScenePlannerFixtureProvider, FIXTURE_SCENE_PLANNER_MODEL_ID } from './scenePlannerFixtureProvider.js'
 import {
   createScenePlannerOpenAiResponsesProvider,
   type ScenePlannerOpenAiResponsesProviderOptions,
 } from './scenePlannerOpenAiResponsesProvider.js'
 import {
+  ModelGatewayBindingNotAllowedError,
   ModelGatewayExecutionError,
   ModelGatewayMissingConfigError,
 } from './modelGatewayErrors.js'
@@ -27,15 +31,19 @@ export type ScenePlannerGatewayFallbackReason =
 
 export type ScenePlannerGatewayProvenance =
   | {
+      fallbackUsed: boolean
       provider: 'fixture'
       modelId: string
+      projectMode: 'demo-fixture' | 'real-project'
       fallbackReason?: ScenePlannerGatewayFallbackReason
     }
   | {
+      fallbackUsed: boolean
       provider: 'openai-compatible'
       providerId: string
       providerLabel: string
       modelId: string
+      projectMode: 'demo-fixture' | 'real-project'
       fallbackReason?: ScenePlannerGatewayFallbackReason
     }
 
@@ -49,7 +57,7 @@ export interface ScenePlannerProvider {
 }
 
 export interface ScenePlannerGatewayConfig
-  extends Pick<ApiServerConfig, 'modelBindings' | 'modelProvider' | 'openAiModel' | 'openAiApiKey'> {}
+  extends Pick<ApiServerConfig, 'currentProject' | 'modelBindings' | 'modelProvider' | 'openAiModel' | 'openAiApiKey'> {}
 
 export interface ScenePlannerGatewayDependencies {
   fixtureProvider?: ScenePlannerProvider
@@ -67,11 +75,14 @@ export function createScenePlannerGateway(
   async function renderFixtureResult(
     request: ScenePlannerGatewayRequest,
   ): Promise<ScenePlannerGatewayResult> {
+    const projectMode = resolveModelGatewayProjectMode(config)
     return {
       output: parseScenePlannerOutput(await fixtureProvider.generate(request)),
       provenance: {
+        fallbackUsed: false,
         provider: 'fixture',
         modelId: FIXTURE_SCENE_PLANNER_MODEL_ID,
+        projectMode,
       },
     }
   }
@@ -79,14 +90,23 @@ export function createScenePlannerGateway(
   return {
     async generate(request: ScenePlannerGatewayRequest): Promise<ScenePlannerGatewayResult> {
       const binding = resolveModelBindingForRole(config, 'planner')
+      const projectMode = resolveModelGatewayProjectMode(config)
 
       if (binding.provider !== 'openai-compatible') {
+        if (projectMode === 'real-project') {
+          throw new ModelGatewayBindingNotAllowedError({
+            projectMode,
+            role: 'planner',
+          })
+        }
+
         return renderFixtureResult(request)
       }
 
       if (!binding.modelId || !binding.apiKey) {
         throw new ModelGatewayMissingConfigError({
           provider: 'openai-compatible',
+          projectMode,
           role: 'planner',
         })
       }
@@ -108,6 +128,8 @@ export function createScenePlannerGateway(
           provider: 'openai-compatible',
           providerId: binding.providerId,
           providerLabel: binding.providerLabel,
+          projectMode,
+          fallbackUsed: false,
           retryable: true,
           role: 'planner',
         })
@@ -117,10 +139,12 @@ export function createScenePlannerGateway(
         return {
           output: parseScenePlannerOutput(payload),
           provenance: {
+            fallbackUsed: false,
             provider: 'openai-compatible',
             providerId: binding.providerId,
             providerLabel: binding.providerLabel,
             modelId: binding.modelId,
+            projectMode,
           },
         }
       } catch {
@@ -131,6 +155,8 @@ export function createScenePlannerGateway(
           provider: 'openai-compatible',
           providerId: binding.providerId,
           providerLabel: binding.providerLabel,
+          projectMode,
+          fallbackUsed: false,
           retryable: true,
           role: 'planner',
         })

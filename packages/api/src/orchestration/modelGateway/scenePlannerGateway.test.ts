@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { DEFAULT_MODEL_BINDINGS } from './model-binding.js'
 import {
+  ModelGatewayBindingNotAllowedError,
   ModelGatewayExecutionError,
   ModelGatewayMissingConfigError,
 } from './modelGatewayErrors.js'
@@ -37,10 +38,29 @@ describe('createScenePlannerGateway', () => {
         proposals: expect.any(Array),
       }),
       provenance: {
+        fallbackUsed: false,
         provider: 'fixture',
         modelId: 'fixture-scene-planner',
+        projectMode: 'demo-fixture',
       },
     })
+  })
+
+  it('rejects real-project fixture planner bindings before generation starts', async () => {
+    const gateway = createScenePlannerGateway({
+      currentProject: {
+        projectId: 'local-project-alpha',
+        projectMode: 'real-project',
+        projectRoot: '/tmp/local-project-alpha',
+        projectTitle: 'Local Project Alpha',
+      },
+      modelProvider: 'fixture',
+    })
+
+    await expect(gateway.generate(createRequest())).rejects.toEqual(new ModelGatewayBindingNotAllowedError({
+      projectMode: 'real-project',
+      role: 'planner',
+    }))
   })
 
   it('rejects with missing-config when provider=openai-compatible but model config is incomplete', async () => {
@@ -67,6 +87,7 @@ describe('createScenePlannerGateway', () => {
 
     await expect(gateway.generate(createRequest())).rejects.toEqual(new ModelGatewayMissingConfigError({
       provider: 'openai-compatible',
+      projectMode: 'demo-fixture',
       role: 'planner',
     }))
     expect(openAiProviderFactory).not.toHaveBeenCalled()
@@ -119,10 +140,12 @@ describe('createScenePlannerGateway', () => {
         ],
       },
       provenance: {
+        fallbackUsed: false,
         provider: 'openai-compatible',
         providerId: 'deepseek',
         providerLabel: 'DeepSeek',
         modelId: 'deepseek-chat',
+        projectMode: 'demo-fixture',
       },
     })
     expect(openAiProvider.generate).toHaveBeenCalledWith(createRequest())
@@ -173,10 +196,12 @@ describe('createScenePlannerGateway', () => {
       modelId: 'deepseek-chat',
     })
     expect(result.provenance).toEqual({
+      fallbackUsed: false,
       modelId: 'deepseek-chat',
       provider: 'openai-compatible',
       providerId: 'deepseek',
       providerLabel: 'DeepSeek',
+      projectMode: 'demo-fixture',
     })
   })
 
@@ -208,7 +233,9 @@ describe('createScenePlannerGateway', () => {
       name: ModelGatewayExecutionError.name,
       failureClass: 'provider_error',
       modelId: 'deepseek-chat',
+      fallbackUsed: false,
       provider: 'openai-compatible',
+      projectMode: 'demo-fixture',
       role: 'planner',
     })
   })
@@ -242,8 +269,10 @@ describe('createScenePlannerGateway', () => {
     await expect(gateway.generate(createRequest())).rejects.toMatchObject({
       name: ModelGatewayExecutionError.name,
       failureClass: 'invalid_output',
+      fallbackUsed: false,
       modelId: 'deepseek-chat',
       provider: 'openai-compatible',
+      projectMode: 'demo-fixture',
       role: 'planner',
     })
   })

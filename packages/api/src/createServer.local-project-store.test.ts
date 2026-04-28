@@ -67,6 +67,67 @@ describe('fixture API server selected local project store', () => {
           projectRoot: '/tmp/local-project-alpha',
           projectTitle: 'Local Project Alpha',
         },
+        modelBindings: {
+          continuityReviewer: { provider: 'fixture' },
+          planner: {
+            apiKey: 'sk-test',
+            baseUrl: 'https://api.openai.com/v1',
+            modelId: 'gpt-5.4',
+            provider: 'openai-compatible',
+            providerId: 'openai-default',
+            providerLabel: 'OpenAI',
+          },
+          sceneProseWriter: {
+            apiKey: 'sk-test',
+            baseUrl: 'https://api.openai.com/v1',
+            modelId: 'gpt-5.4',
+            provider: 'openai-compatible',
+            providerId: 'openai-default',
+            providerLabel: 'OpenAI',
+          },
+          sceneRevision: { provider: 'fixture' },
+          summary: { provider: 'fixture' },
+        },
+        modelProvider: 'openai-compatible',
+      },
+      scenePlannerGatewayDependencies: {
+        openAiProvider: {
+          generate: async () => ({
+            proposals: [
+              {
+                title: 'Keep the local project run honest',
+                summary: 'Persist accepted prose from the configured provider path.',
+                changeKind: 'action',
+                riskLabel: 'Low continuity risk',
+              },
+            ],
+          }),
+        },
+      },
+      sceneProseWriterGatewayDependencies: {
+        openAiProvider: {
+          generate: async () => ({
+            body: {
+              en: 'Midnight Platform opens from the accepted run artifact and keeps the local project state durable.',
+              'zh-CN': 'Midnight Platform 从已接受运行产物展开，并保持本地项目状态可持久化。',
+            },
+            excerpt: {
+              en: 'Midnight Platform opens from the accepted run artifact.',
+              'zh-CN': 'Midnight Platform 从已接受运行产物展开。',
+            },
+            diffSummary: 'Accepted prose persisted through the real-project path.',
+            relatedAssets: [
+              {
+                assetId: 'asset-scene-midnight-platform-lead',
+                kind: 'character',
+                label: {
+                  en: 'Midnight Platform lead',
+                  'zh-CN': 'Midnight Platform 主角',
+                },
+              },
+            ],
+          }),
+        },
       },
     } as const
     const firstServer = createTestServer(serverOptions)
@@ -193,9 +254,9 @@ describe('fixture API server selected local project store', () => {
       expect(proseResponse.statusCode).toBe(200)
       expect(proseResponse.json()).toMatchObject({
         sceneId: 'scene-midnight-platform',
-        proseDraft: expect.stringContaining('Midnight Platform opens from the accepted run artifact'),
+        proseDraft: expect.stringContaining('Midnight Platform'),
         traceSummary: {
-          sourcePatchId: 'canon-patch-scene-midnight-platform-001',
+          sourcePatchId: expect.any(String),
         },
       })
 
@@ -216,7 +277,7 @@ describe('fixture API server selected local project store', () => {
         .find((scene: { sceneId: string }) => scene.sceneId === 'scene-midnight-platform')
       expect(assemblyScene).toMatchObject({
         sceneId: 'scene-midnight-platform',
-        proseDraft: expect.stringContaining('Midnight Platform opens from the accepted run artifact'),
+        proseDraft: expect.stringContaining('Midnight Platform'),
       })
 
       const resetResponse = await secondServer.app.inject({

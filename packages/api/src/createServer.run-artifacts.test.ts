@@ -158,6 +158,12 @@ describe('fixture API server run artifact read surfaces', () => {
           id: proposalSetRef!.id,
           kind: 'proposal-set',
           sourceInvocationIds: ['agent-invocation-scene-midnight-platform-run-002-001'],
+          provenance: {
+            provider: 'fixture',
+            modelId: 'fixture-scene-planner',
+            projectMode: 'demo-fixture',
+            fallbackUsed: false,
+          },
           proposals: expect.arrayContaining([
             expect.objectContaining({
               id: selectedVariant.proposalId,
@@ -259,6 +265,12 @@ describe('fixture API server run artifact read surfaces', () => {
           id: writerInvocationRef!.id,
           kind: 'agent-invocation',
           agentRole: 'scene-writer',
+          provenance: {
+            provider: 'fixture',
+            modelId: 'fixture-scene-prose-writer',
+            projectMode: 'demo-fixture',
+            fallbackUsed: false,
+          },
           modelLabel: {
             en: 'Fixture writer profile (fixture-scene-prose-writer)',
           },
@@ -282,6 +294,12 @@ describe('fixture API server run artifact read surfaces', () => {
           kind: 'prose-draft',
           sourceCanonPatchId: canonPatchRef!.id,
           contextPacketId: contextPacketRef!.id,
+          provenance: {
+            provider: 'fixture',
+            modelId: 'fixture-scene-prose-writer',
+            projectMode: 'demo-fixture',
+            fallbackUsed: false,
+          },
           sourceProposalIds: ['proposal-set-scene-midnight-platform-run-002-proposal-001'],
           selectedVariants: [selectedVariant],
           body: {
@@ -923,10 +941,20 @@ describe('fixture API server run artifact read surfaces', () => {
         artifact: {
           id: 'agent-invocation-scene-midnight-platform-run-001-003',
           kind: 'agent-invocation',
+          statusLabel: {
+            en: 'Failed',
+            'zh-CN': '已失败',
+          },
+          summary: {
+            en: 'Writer invocation failed for Midnight Platform.',
+            'zh-CN': 'Midnight Platform 的写作调用失败。',
+          },
           failureDetail: {
             failureClass: 'provider_error',
             provider: 'openai-compatible',
             modelId: 'gpt-5.4',
+            projectMode: 'real-project',
+            fallbackUsed: false,
             retryable: true,
           },
         },
@@ -941,7 +969,14 @@ describe('fixture API server run artifact read surfaces', () => {
         },
         modelBindings: {
           continuityReviewer: { provider: 'fixture' },
-          planner: { provider: 'fixture' },
+          planner: {
+            apiKey: 'sk-test',
+            modelId: 'gpt-5.4',
+            provider: 'openai-compatible',
+            providerId: 'openai-default',
+            providerLabel: 'OpenAI',
+            baseUrl: 'https://api.openai.com/v1',
+          },
           sceneProseWriter: {
             apiKey: 'sk-test',
             modelId: 'gpt-5.4',
@@ -960,6 +995,20 @@ describe('fixture API server run artifact read surfaces', () => {
           generate: async () => {
             throw new Error('upstream failed')
           },
+        },
+      },
+      scenePlannerGatewayDependencies: {
+        openAiProvider: {
+          generate: async () => ({
+            proposals: [
+              {
+                title: 'Keep the real planner honest',
+                summary: 'Use the configured provider before accepted prose generation.',
+                changeKind: 'action',
+                riskLabel: 'Low continuity risk',
+              },
+            ],
+          }),
         },
       },
     })

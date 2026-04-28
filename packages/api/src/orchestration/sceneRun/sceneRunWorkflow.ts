@@ -53,6 +53,8 @@ function createPlannerUsage(input: SceneRunWorkflowStartInput): NonNullable<RunR
     estimatedCostUsd,
     provider: input.plannerProvenance.provider,
     modelId: input.plannerProvenance.modelId,
+    projectMode: input.plannerProvenance.projectMode,
+    fallbackUsed: input.plannerProvenance.fallbackUsed,
   }
 }
 
@@ -113,6 +115,7 @@ export function startSceneRunWorkflow(
     sceneId: input.sceneId,
     sequence: input.sequence,
     plannerOutput: input.plannerOutput,
+    provenance: input.plannerProvenance,
   })
 
   const artifacts = [

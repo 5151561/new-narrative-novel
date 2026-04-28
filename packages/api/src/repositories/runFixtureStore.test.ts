@@ -108,6 +108,8 @@ describe('runFixtureStore', () => {
   function createPlannerResult(overrides?: Partial<{
     provider: 'fixture' | 'openai-compatible'
     modelId: string
+    projectMode: 'demo-fixture' | 'real-project'
+    fallbackUsed: boolean
     fallbackReason: 'missing-config' | 'provider-error' | 'invalid-output'
     proposals: Array<{
       title: string
@@ -148,8 +150,10 @@ describe('runFixtureStore', () => {
         ],
       },
       provenance: {
+        fallbackUsed: overrides?.fallbackUsed ?? false,
         provider: overrides?.provider ?? 'openai-compatible',
         modelId: overrides?.modelId ?? 'gpt-5.4',
+        projectMode: overrides?.projectMode ?? 'real-project',
         ...((overrides?.provider ?? 'openai-compatible') === 'openai-compatible'
           ? {
               providerId: 'openai-default',
@@ -260,6 +264,7 @@ describe('runFixtureStore', () => {
       scenePlannerGateway: {
         generate: vi.fn().mockRejectedValue(new ModelGatewayMissingConfigError({
           provider: 'openai-compatible',
+          projectMode: 'real-project',
           role: 'planner',
         })),
       },
@@ -286,9 +291,11 @@ describe('runFixtureStore', () => {
       scenePlannerGateway: {
         generate: vi.fn().mockRejectedValue(new ModelGatewayExecutionError({
           failureClass: 'provider_error',
+          fallbackUsed: false,
           message: 'OpenAI provider request failed.',
           modelId: 'gpt-5.4',
           provider: 'openai-compatible',
+          projectMode: 'real-project',
           retryable: true,
           role: 'planner',
         })),
@@ -308,6 +315,8 @@ describe('runFixtureStore', () => {
       usage: {
         provider: 'openai-compatible',
         modelId: 'gpt-5.4',
+        projectMode: 'real-project',
+        fallbackUsed: false,
       },
       runtimeSummary: {
         health: 'failed',
@@ -315,6 +324,35 @@ describe('runFixtureStore', () => {
       },
     })
     expect(listAllEventPages(store, 'project-provider-error', run.id).map((event) => event.kind)).toContain('run_failed')
+  })
+
+  it('preserves demo-fixture projectMode in failed run usage when a demo path provider attempt fails', async () => {
+    const store = createRunFixtureStore({
+      scenePlannerGateway: {
+        generate: vi.fn().mockRejectedValue(new ModelGatewayExecutionError({
+          failureClass: 'provider_error',
+          fallbackUsed: false,
+          message: 'Configured provider request failed.',
+          modelId: 'demo-planner-model',
+          provider: 'openai-compatible',
+          projectMode: 'demo-fixture',
+          retryable: true,
+          role: 'planner',
+        })),
+      },
+    })
+
+    const run = await store.startSceneRun('project-demo-provider-error', {
+      sceneId: 'scene-midnight-platform',
+      mode: 'rewrite',
+    })
+
+    expect(run.usage).toMatchObject({
+      provider: 'openai-compatible',
+      modelId: 'demo-planner-model',
+      projectMode: 'demo-fixture',
+      fallbackUsed: false,
+    })
   })
 
   it('replays events after an optional cursor and then tails later review-transition publications without changing event records', async () => {
@@ -944,6 +982,12 @@ describe('runFixtureStore', () => {
     })
     expect(plannerInvocation).toMatchObject({
       kind: 'agent-invocation',
+      provenance: {
+        provider: 'openai-compatible',
+        modelId: 'gpt-5.4',
+        projectMode: 'real-project',
+        fallbackUsed: false,
+      },
       modelLabel: {
         en: 'OpenAI planner profile (gpt-5.4)',
       },
@@ -1007,6 +1051,12 @@ describe('runFixtureStore', () => {
     )
     expect(plannerInvocation).toMatchObject({
       kind: 'agent-invocation',
+      provenance: {
+        provider: 'openai-compatible',
+        modelId: 'gpt-5.4-mini',
+        projectMode: 'real-project',
+        fallbackUsed: false,
+      },
       modelLabel: {
         en: 'OpenAI planner profile (gpt-5.4-mini)',
       },
@@ -1075,6 +1125,8 @@ describe('runFixtureStore', () => {
           provenance: {
             provider: 'fixture',
             modelId: 'fixture-scene-planner',
+            projectMode: 'demo-fixture',
+            fallbackUsed: false,
           },
         },
       })
@@ -1509,8 +1561,10 @@ describe('runFixtureStore', () => {
         ],
       },
       provenance: {
+        fallbackUsed: false,
         provider: 'fixture',
         modelId: 'fixture-scene-prose-writer',
+        projectMode: 'demo-fixture',
       },
     })
     const store = createRunFixtureStore({
@@ -1554,9 +1608,11 @@ describe('runFixtureStore', () => {
       sceneProseWriterGateway: {
         generate: vi.fn().mockRejectedValue(new ModelGatewayExecutionError({
           failureClass: 'provider_error',
+          fallbackUsed: false,
           message: 'OpenAI provider request failed.',
           modelId: 'gpt-5.4',
           provider: 'openai-compatible',
+          projectMode: 'real-project',
           retryable: true,
           role: 'sceneProseWriter',
         })),
@@ -1587,6 +1643,8 @@ describe('runFixtureStore', () => {
       usage: {
         provider: 'openai-compatible',
         modelId: 'gpt-5.4',
+        projectMode: 'real-project',
+        fallbackUsed: false,
       },
     })
     expect(listAllEventPages(store, 'project-review-writer-error', run.id).map((event) => event.kind)).toContain('run_failed')
@@ -1604,9 +1662,11 @@ describe('runFixtureStore', () => {
       sceneProseWriterGateway: {
         generate: vi.fn().mockRejectedValue(new ModelGatewayExecutionError({
           failureClass: 'provider_error',
+          fallbackUsed: false,
           message: 'OpenAI provider request failed.',
           modelId: 'gpt-5.4',
           provider: 'openai-compatible',
+          projectMode: 'real-project',
           retryable: true,
           role: 'sceneProseWriter',
         })),

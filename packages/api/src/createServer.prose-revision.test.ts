@@ -164,7 +164,14 @@ describe('fixture API server scene prose revision', () => {
         },
         modelBindings: {
           continuityReviewer: { provider: 'fixture' },
-          planner: { provider: 'fixture' },
+          planner: {
+            apiKey: 'sk-test',
+            baseUrl: 'https://api.openai.com/v1',
+            modelId: 'gpt-5.4',
+            provider: 'openai-compatible',
+            providerId: 'openai-default',
+            providerLabel: 'OpenAI',
+          },
           sceneProseWriter: {
             apiKey: 'sk-test',
             baseUrl: 'https://api.openai.com/v1',
@@ -183,6 +190,20 @@ describe('fixture API server scene prose revision', () => {
           generate: async () => {
             throw new Error('upstream failed')
           },
+        },
+      },
+      scenePlannerGatewayDependencies: {
+        openAiProvider: {
+          generate: async () => ({
+            proposals: [
+              {
+                title: 'Keep the accepted run real',
+                summary: 'Use the configured planner binding before prose generation fails.',
+                changeKind: 'action',
+                riskLabel: 'Low continuity risk',
+              },
+            ],
+          }),
         },
       },
     })

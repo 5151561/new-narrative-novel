@@ -1397,6 +1397,8 @@ export interface RunUsageRecord {
   actualCostUsd?: number
   provider: string
   modelId: string
+  projectMode?: ProjectRuntimeProjectMode
+  fallbackUsed?: boolean
 }
 
 export interface RunRuntimeSummaryRecord {
@@ -1412,8 +1414,20 @@ export interface RunFailureDetailRecord {
   message: string
   provider?: string
   modelId?: string
+  projectMode?: ProjectRuntimeProjectMode
+  fallbackUsed?: boolean
   retryable: boolean
   sourceEventIds: string[]
+}
+
+export interface RunArtifactProvenanceRecord {
+  provider: string
+  modelId: string
+  projectMode: ProjectRuntimeProjectMode
+  fallbackUsed: boolean
+  providerId?: string
+  providerLabel?: string
+  fallbackReason?: string
 }
 
 export type RunArtifactKind =
@@ -1559,6 +1573,7 @@ export interface AgentInvocationArtifactDetailRecord extends RunArtifactSummaryR
   contextPacketId?: string
   outputSchemaLabel: LocalizedTextRecord
   generatedRefs: RunArtifactGeneratedRefRecord[]
+  provenance?: RunArtifactProvenanceRecord
   failureDetail?: RunFailureDetailRecord
 }
 
@@ -1568,6 +1583,7 @@ export interface ProposalSetArtifactDetailRecord extends RunArtifactSummaryRecor
   sourceInvocationIds: string[]
   proposals: ProposalSetArtifactProposalRecord[]
   reviewOptions: ProposalSetReviewOptionRecord[]
+  provenance?: RunArtifactProvenanceRecord
   failureDetail?: RunFailureDetailRecord
 }
 
@@ -1592,6 +1608,7 @@ export interface ProseDraftArtifactDetailRecord extends RunArtifactSummaryRecord
   wordCount: number
   relatedAssets: RunArtifactRelatedAssetRecord[]
   traceLinkIds: string[]
+  provenance?: RunArtifactProvenanceRecord
   failureDetail?: RunFailureDetailRecord
 }
 
