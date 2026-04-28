@@ -14,6 +14,7 @@ describe('fixture API server current project bootstrap route', () => {
       expect(response.json()).toEqual({
         projectId: 'book-signal-arc',
         projectMode: 'demo-fixture',
+        runtimeKind: 'fixture-demo',
         projectTitle: 'Desktop Local Prototype',
       })
     }, {

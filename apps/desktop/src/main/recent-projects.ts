@@ -35,6 +35,7 @@ function isRecentProjectRecord(value: unknown): value is RecentProjectRecord {
     typeof candidate.projectId === 'string'
     && candidate.projectId.length > 0
     && (candidate.projectMode === 'demo-fixture' || candidate.projectMode === 'real-project')
+    && (candidate.runtimeKind === 'fixture-demo' || candidate.runtimeKind === 'real-local-project')
     && typeof candidate.projectRoot === 'string'
     && candidate.projectRoot.length > 0
     && typeof candidate.projectTitle === 'string'
@@ -62,6 +63,7 @@ function sanitizeRecentProjectRecord(value: RecentProjectRecord): RecentProjectR
   return {
     projectId: value.projectId,
     projectMode: value.projectMode,
+    runtimeKind: value.runtimeKind,
     projectRoot: value.projectRoot,
     projectTitle: value.projectTitle,
   }
@@ -71,6 +73,7 @@ function migrateLegacyRecentProjectRecord(value: LegacyRecentProjectRecord): Rec
   return {
     projectId: value.projectId,
     projectMode: 'real-project',
+    runtimeKind: 'real-local-project',
     projectRoot: value.projectRoot,
     projectTitle: value.projectTitle,
   }
@@ -156,6 +159,7 @@ export class RecentProjectsStore {
 
           const normalizedProject = normalizedProjects[index]
           return !normalizedProject || project.projectMode !== normalizedProject.projectMode
+            || project.runtimeKind !== normalizedProject.runtimeKind
         })
 
       if (needsMigration) {

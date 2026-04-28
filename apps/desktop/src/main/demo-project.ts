@@ -39,6 +39,7 @@ export async function readOrCreateDemoProjectSession({
     ...session,
     projectId: DEMO_PROJECT_ID,
     projectMode: 'demo-fixture',
+    runtimeKind: 'fixture-demo',
     projectTitle: DEMO_PROJECT_TITLE,
   }
 }

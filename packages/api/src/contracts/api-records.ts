@@ -6,6 +6,7 @@ export interface ApiErrorResponse {
 }
 
 export type ProjectRuntimeKind = 'fixture-demo' | 'mock-storybook' | 'real-local-project'
+export type ProjectRuntimeProjectMode = 'demo-fixture' | 'real-project'
 export type ProjectRuntimeSource = 'mock' | 'api'
 
 export type ProjectRuntimeHealthStatus =
@@ -31,6 +32,7 @@ export interface ProjectRuntimeCapabilitiesRecord {
 export interface ProjectRuntimeInfoRecord {
   projectId: string
   projectTitle: string
+  projectMode: ProjectRuntimeProjectMode
   runtimeKind: ProjectRuntimeKind
   source: ProjectRuntimeSource
   status: ProjectRuntimeHealthStatus
@@ -38,6 +40,9 @@ export interface ProjectRuntimeInfoRecord {
   checkedAtLabel?: string
   apiBaseUrl?: string
   versionLabel?: string
+  modelBindings: {
+    usable: boolean
+  }
   capabilities: ProjectRuntimeCapabilitiesRecord
 }
 

@@ -34,6 +34,7 @@ describe('readOrInitializeProjectSession', () => {
     })).resolves.toEqual({
       projectId: 'local-project-alpha',
       projectMode: 'real-project',
+      runtimeKind: 'real-local-project',
       projectRoot,
       projectTitle: path.basename(projectRoot),
     })
@@ -81,6 +82,7 @@ describe('readOrInitializeProjectSession', () => {
     })).resolves.toEqual({
       projectId: 'local-existing-project',
       projectMode: 'real-project',
+      runtimeKind: 'real-local-project',
       projectRoot,
       projectTitle: 'Existing Local Project',
     })
@@ -117,6 +119,7 @@ describe('readOrInitializeProjectSession', () => {
     expect(session).toEqual({
       projectId: 'local-project-beta',
       projectMode: 'real-project',
+      runtimeKind: 'real-local-project',
       projectRoot,
       projectTitle: 'Prototype Folder',
     })
@@ -181,6 +184,7 @@ describe('readExistingProjectSession', () => {
     await expect(readExistingProjectSession(projectRoot)).resolves.toEqual({
       projectId: 'local-existing-project',
       projectMode: 'real-project',
+      runtimeKind: 'real-local-project',
       projectRoot,
       projectTitle: 'Existing Local Project',
     })
@@ -228,6 +232,7 @@ describe('openProjectWithDialog', () => {
     expect(session).toEqual({
       projectId: 'local-project-dialog',
       projectMode: 'real-project',
+      runtimeKind: 'real-local-project',
       projectRoot,
       projectTitle: 'Opened Through Dialog',
     })
@@ -248,6 +253,7 @@ describe('createProjectWithDialog', () => {
     const readProjectSession = vi.fn(async (selectedRoot: string) => ({
       projectId: 'local-project-created',
       projectMode: 'real-project' as const,
+      runtimeKind: 'real-local-project' as const,
       projectRoot: selectedRoot,
       projectTitle: 'Created Through Dialog',
     }))
@@ -262,6 +268,7 @@ describe('createProjectWithDialog', () => {
     expect(session).toEqual({
       projectId: 'local-project-created',
       projectMode: 'real-project',
+      runtimeKind: 'real-local-project',
       projectRoot,
       projectTitle: 'Created Through Dialog',
     })

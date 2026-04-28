@@ -1,6 +1,7 @@
 import type { RuntimeKind } from '@/app/runtime'
 
 export type ProjectRuntimeKind = RuntimeKind
+export type ProjectRuntimeProjectMode = 'demo-fixture' | 'real-project'
 export type ProjectRuntimeSource = 'mock' | 'api'
 
 export type ProjectRuntimeHealthStatus =
@@ -26,6 +27,7 @@ export interface ProjectRuntimeCapabilitiesRecord {
 export interface ProjectRuntimeInfoRecord {
   projectId: string
   projectTitle: string
+  projectMode: ProjectRuntimeProjectMode
   runtimeKind: ProjectRuntimeKind
   source: ProjectRuntimeSource
   status: ProjectRuntimeHealthStatus
@@ -33,6 +35,9 @@ export interface ProjectRuntimeInfoRecord {
   checkedAtLabel?: string
   apiBaseUrl?: string
   versionLabel?: string
+  modelBindings: {
+    usable: boolean
+  }
   capabilities: ProjectRuntimeCapabilitiesRecord
 }
 
@@ -63,6 +68,7 @@ export function createProjectRuntimeCapabilitiesRecord(
 export function createProjectRuntimeInfoRecord({
   projectId,
   projectTitle = projectId,
+  projectMode,
   source,
   runtimeKind,
   status,
@@ -70,10 +76,12 @@ export function createProjectRuntimeInfoRecord({
   checkedAtLabel,
   apiBaseUrl,
   versionLabel,
+  modelBindings,
   capabilities,
 }: {
   projectId: string
   projectTitle?: string
+  projectMode?: ProjectRuntimeProjectMode
   runtimeKind?: ProjectRuntimeKind
   source: ProjectRuntimeSource
   status: ProjectRuntimeHealthStatus
@@ -81,13 +89,18 @@ export function createProjectRuntimeInfoRecord({
   checkedAtLabel?: string
   apiBaseUrl?: string
   versionLabel?: string
+  modelBindings?: {
+    usable: boolean
+  }
   capabilities?: Partial<ProjectRuntimeCapabilitiesRecord>
 }): ProjectRuntimeInfoRecord {
   const resolvedRuntimeKind = runtimeKind ?? (source === 'mock' ? 'mock-storybook' : 'fixture-demo')
+  const resolvedProjectMode = projectMode ?? (resolvedRuntimeKind === 'real-local-project' ? 'real-project' : 'demo-fixture')
 
   return {
     projectId,
     projectTitle,
+    projectMode: resolvedProjectMode,
     runtimeKind: resolvedRuntimeKind,
     source,
     status,
@@ -95,8 +108,21 @@ export function createProjectRuntimeInfoRecord({
     checkedAtLabel,
     apiBaseUrl,
     versionLabel,
+    modelBindings: modelBindings ?? {
+      usable: resolvedProjectMode !== 'real-project',
+    },
     capabilities: createProjectRuntimeCapabilitiesRecord(capabilities),
   }
+}
+
+export function isRealProjectRuntime(info: Pick<ProjectRuntimeInfoRecord, 'projectMode'> | null | undefined) {
+  return info?.projectMode === 'real-project'
+}
+
+export function areProjectRuntimeModelBindingsUsable(
+  info: Pick<ProjectRuntimeInfoRecord, 'modelBindings'> | null | undefined,
+) {
+  return Boolean(info?.modelBindings.usable)
 }
 
 export function supportsRunEventStream(info: Pick<ProjectRuntimeInfoRecord, 'capabilities'> | null | undefined) {

@@ -29,6 +29,7 @@ describe('RecentProjectsStore', () => {
       projectMode: 'real-project',
       projectRoot: '/tmp/workbench-alpha',
       projectTitle: 'Workbench Alpha',
+      runtimeKind: 'real-local-project',
     })
 
     const persisted = JSON.parse(
@@ -41,6 +42,7 @@ describe('RecentProjectsStore', () => {
         projectMode: 'real-project',
         projectRoot: '/tmp/workbench-alpha',
         projectTitle: 'Workbench Alpha',
+        runtimeKind: 'real-local-project',
       }],
     })
   })
@@ -54,18 +56,21 @@ describe('RecentProjectsStore', () => {
       projectMode: 'real-project',
       projectRoot: '/tmp/workbench-alpha',
       projectTitle: 'Workbench Alpha',
+      runtimeKind: 'real-local-project',
     })
     await store.add({
       projectId: 'local-project-beta',
       projectMode: 'real-project',
       projectRoot: '/tmp/workbench-beta',
       projectTitle: 'Workbench Beta',
+      runtimeKind: 'real-local-project',
     })
     await store.add({
       projectId: 'local-project-alpha',
       projectMode: 'real-project',
       projectRoot: '/tmp/workbench-alpha',
       projectTitle: 'Workbench Alpha',
+      runtimeKind: 'real-local-project',
     })
 
     const restored = new RecentProjectsStore({ userDataPath })
@@ -76,12 +81,14 @@ describe('RecentProjectsStore', () => {
         projectMode: 'real-project',
         projectRoot: '/tmp/workbench-alpha',
         projectTitle: 'Workbench Alpha',
+        runtimeKind: 'real-local-project',
       },
       {
         projectId: 'local-project-beta',
         projectMode: 'real-project',
         projectRoot: '/tmp/workbench-beta',
         projectTitle: 'Workbench Beta',
+        runtimeKind: 'real-local-project',
       },
     ])
   })
@@ -106,6 +113,7 @@ describe('RecentProjectsStore', () => {
           projectMode: 'real-project',
           projectRoot: '/tmp/workbench-alpha',
           projectTitle: 'Workbench Alpha',
+          runtimeKind: 'real-local-project',
         },
       ],
     }), 'utf8')
@@ -118,6 +126,7 @@ describe('RecentProjectsStore', () => {
         projectMode: 'real-project',
         projectRoot: '/tmp/workbench-alpha',
         projectTitle: 'Workbench Alpha',
+        runtimeKind: 'real-local-project',
       },
     ])
   })
@@ -142,6 +151,7 @@ describe('RecentProjectsStore', () => {
         projectMode: 'real-project',
         projectRoot: '/tmp/legacy-alpha',
         projectTitle: 'Legacy Alpha',
+        runtimeKind: 'real-local-project',
       },
     ])
     await expect(readFile(path.join(userDataPath, 'recent-projects.json'), 'utf8')).resolves.toContain('"projectMode": "real-project"')

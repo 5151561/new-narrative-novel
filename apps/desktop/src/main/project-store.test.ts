@@ -8,6 +8,7 @@ function createSession(projectRoot: string, title = 'Local Project'): SelectedPr
   return {
     projectId: `local-project-${path.basename(projectRoot)}`,
     projectMode: 'real-project',
+    runtimeKind: 'real-local-project',
     projectRoot,
     projectTitle: title,
   }
@@ -132,6 +133,7 @@ describe('ProjectStore', () => {
     const selectedProject: SelectedProjectSession = {
       projectId: 'book-signal-arc',
       projectMode: 'demo-fixture',
+      runtimeKind: 'fixture-demo',
       projectRoot: '/tmp/user-data/demo-projects/book-signal-arc',
       projectTitle: 'Signal Arc Demo',
     }
@@ -161,6 +163,7 @@ describe('ProjectStore', () => {
     const demoProject: SelectedProjectSession = {
       projectId: 'book-signal-arc',
       projectMode: 'demo-fixture',
+      runtimeKind: 'fixture-demo',
       projectRoot: '/tmp/user-data/demo-projects/book-signal-arc',
       projectTitle: 'Signal Arc Demo',
     }
@@ -195,6 +198,7 @@ describe('ProjectStore', () => {
     const demoProject: SelectedProjectSession = {
       projectId: 'book-signal-arc',
       projectMode: 'demo-fixture',
+      runtimeKind: 'fixture-demo',
       projectRoot: '/tmp/user-data/demo-projects/book-signal-arc',
       projectTitle: 'Signal Arc Demo',
     }

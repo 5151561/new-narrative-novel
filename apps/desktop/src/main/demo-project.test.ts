@@ -31,6 +31,7 @@ describe('readOrCreateDemoProjectSession', () => {
     expect(session).toEqual({
       projectId: 'book-signal-arc',
       projectMode: 'demo-fixture',
+      runtimeKind: 'fixture-demo',
       projectRoot: path.join(userDataPath, 'demo-projects', 'book-signal-arc'),
       projectTitle: 'Signal Arc Demo',
     })

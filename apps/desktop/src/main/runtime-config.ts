@@ -17,6 +17,7 @@ export interface DesktopRuntimeConfig {
   port: number
   projectId: string
   projectMode: 'demo-fixture' | 'real-project'
+  runtimeKind: 'fixture-demo' | 'real-local-project'
   projectTitle: string
 }
 
@@ -39,7 +40,7 @@ export interface ApiRuntimeModelSettingsPayload {
 export interface CreateDesktopRuntimeConfigOptions {
   host?: string
   apiBasePath?: string
-  currentProject: Pick<SelectedProjectSession, 'projectId' | 'projectMode' | 'projectTitle'>
+  currentProject: Pick<SelectedProjectSession, 'projectId' | 'projectMode' | 'projectTitle' | 'runtimeKind'>
 }
 
 const DEFAULT_MODEL_SETTINGS: ApiRuntimeModelSettingsPayload = {
@@ -73,6 +74,7 @@ export function createDesktopRuntimeConfig(
     port,
     projectId: currentProject.projectId,
     projectMode: currentProject.projectMode,
+    runtimeKind: currentProject.runtimeKind,
     projectTitle: currentProject.projectTitle,
     runtimeMode: 'desktop-local',
   }
@@ -150,6 +152,7 @@ export function createLocalApiProcessConfig({
       NARRATIVE_PROJECT_ROOT: currentProject.projectRoot,
       NARRATIVE_PROJECT_STORE_FILE: projectStoreFilePath,
       NARRATIVE_PROJECT_TITLE: currentProject.projectTitle,
+      NARRATIVE_RUNTIME_KIND: currentProject.runtimeKind,
       NARRATIVE_RUNTIME: 'desktop-local',
       PORT: String(port),
     },

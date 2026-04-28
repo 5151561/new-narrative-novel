@@ -23,12 +23,7 @@ export interface ApiServerConfig {
   apiBasePath: string
   apiBaseUrl: string
   corsOrigin: string | true
-  currentProject?: {
-    projectId: string
-    projectMode: 'demo-fixture' | 'real-project'
-    projectRoot: string
-    projectTitle: string
-  }
+  currentProject?: ApiCurrentProjectConfig
   projectStoreFilePath?: string
   projectArtifactDirPath?: string
   projectStateFilePath?: string
@@ -38,8 +33,18 @@ export interface ApiServerConfig {
   modelBindings?: ModelBindings
 }
 
+export interface ApiCurrentProjectConfig {
+    projectId: string
+    projectMode: 'demo-fixture' | 'real-project'
+    runtimeKind?: 'fixture-demo' | 'real-local-project'
+    modelBindingsUsable?: boolean
+    projectRoot: string
+    projectTitle: string
+}
+
 type CurrentProjectConfig = NonNullable<ApiServerConfig['currentProject']>
 type LegacyEnvModelProvider = ModelProvider | 'openai'
+type RuntimeKind = 'fixture-demo' | 'mock-storybook' | 'real-local-project'
 
 function readPort(name: string, fallback: number) {
   const value = process.env[name]
@@ -86,6 +91,7 @@ function readCurrentProject(): CurrentProjectConfig | undefined {
   const projectId = readOptionalTrimmedEnv('NARRATIVE_PROJECT_ID')
   const projectMode = readOptionalTrimmedEnv('NARRATIVE_PROJECT_MODE')
   const projectTitle = readOptionalTrimmedEnv('NARRATIVE_PROJECT_TITLE')
+  const runtimeKind = readOptionalTrimmedEnv('NARRATIVE_RUNTIME_KIND')
 
   if (!projectRoot || !projectId || !projectTitle) {
     return undefined
@@ -96,10 +102,16 @@ function readCurrentProject(): CurrentProjectConfig | undefined {
   }
 
   const resolvedProjectMode: CurrentProjectConfig['projectMode'] = projectMode ?? 'real-project'
+  const inferredRuntimeKind: CurrentProjectConfig['runtimeKind'] =
+    resolvedProjectMode === 'demo-fixture' ? 'fixture-demo' : 'real-local-project'
+  if (runtimeKind !== undefined && runtimeKind !== inferredRuntimeKind) {
+    throw new Error(`NARRATIVE_RUNTIME_KIND must match NARRATIVE_PROJECT_MODE (${inferredRuntimeKind}).`)
+  }
 
   return {
     projectId,
     projectMode: resolvedProjectMode,
+    runtimeKind: inferredRuntimeKind,
     projectRoot,
     projectTitle,
   }
@@ -258,6 +270,35 @@ function deriveModelProvider(modelBindings: ModelBindings): ModelProvider {
     : 'fixture'
 }
 
+function hasUsableRealProjectBindings(modelBindings: ModelBindings) {
+  const requiredRoles = ['planner', 'sceneProseWriter'] as const
+
+  return requiredRoles.every((role) => {
+    const binding = modelBindings[role]
+    return binding.provider === 'openai-compatible'
+      && Boolean(binding.providerId.trim())
+      && Boolean(binding.modelId?.trim())
+      && Boolean(binding.apiKey?.trim())
+  })
+}
+
+export function finalizeCurrentProjectConfig(
+  currentProject: CurrentProjectConfig | undefined,
+  modelBindings: ModelBindings,
+) {
+  if (!currentProject) {
+    return undefined
+  }
+
+  return {
+    ...currentProject,
+    runtimeKind: currentProject.runtimeKind ?? (currentProject.projectMode === 'demo-fixture' ? 'fixture-demo' : 'real-local-project'),
+    modelBindingsUsable: currentProject.projectMode === 'real-project'
+      ? hasUsableRealProjectBindings(modelBindings)
+      : true,
+  }
+}
+
 export function getApiServerConfig(): ApiServerConfig {
   const host = process.env.HOST ?? '127.0.0.1'
   const port = readPort('PORT', 4174)
@@ -280,7 +321,7 @@ export function getApiServerConfig(): ApiServerConfig {
       apiBasePath,
       apiBaseUrl,
       corsOrigin,
-      currentProject,
+      currentProject: finalizeCurrentProjectConfig(currentProject, modelBindingsFromJson),
       host,
       modelBindings: modelBindingsFromJson,
       modelProvider: deriveModelProvider(modelBindingsFromJson),
@@ -309,7 +350,7 @@ export function getApiServerConfig(): ApiServerConfig {
     apiBasePath,
     apiBaseUrl,
     corsOrigin,
-    currentProject,
+    currentProject: finalizeCurrentProjectConfig(currentProject, modelBindings),
     projectStoreFilePath,
     projectArtifactDirPath,
     modelProvider,

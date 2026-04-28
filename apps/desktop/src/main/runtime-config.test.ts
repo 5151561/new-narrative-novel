@@ -10,6 +10,7 @@ describe('createLocalApiProcessConfig', () => {
       currentProject: {
         projectId: 'local-project-alpha',
         projectMode: 'real-project',
+        runtimeKind: 'real-local-project',
         projectTitle: 'Local Alpha',
       },
     })).toEqual({
@@ -18,6 +19,7 @@ describe('createLocalApiProcessConfig', () => {
       port: 4888,
       projectId: 'local-project-alpha',
       projectMode: 'real-project',
+      runtimeKind: 'real-local-project',
       projectTitle: 'Local Alpha',
       runtimeMode: 'desktop-local',
     })
@@ -29,6 +31,7 @@ describe('createLocalApiProcessConfig', () => {
         projectId: 'local-project-alpha',
         projectMode: 'real-project',
         projectRoot: '/repo/projects/local-alpha',
+        runtimeKind: 'real-local-project',
         projectTitle: 'Local Alpha',
       },
       env: {
@@ -126,6 +129,7 @@ describe('createLocalApiProcessConfig', () => {
       NARRATIVE_PROJECT_ROOT: '/repo/projects/local-alpha',
       NARRATIVE_PROJECT_STORE_FILE: path.resolve('/repo/projects/local-alpha/.narrative/project-store.json'),
       NARRATIVE_PROJECT_TITLE: 'Local Alpha',
+      NARRATIVE_RUNTIME_KIND: 'real-local-project',
       NARRATIVE_RUNTIME: 'desktop-local',
       PATH: '/usr/bin',
       PORT: '4888',

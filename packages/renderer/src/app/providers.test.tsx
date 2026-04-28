@@ -154,6 +154,7 @@ describe('AppProviders', () => {
       apiBaseUrl: 'http://127.0.0.1:4888/api',
       projectId: 'desktop-project-signal-arc',
       projectMode: 'real-project',
+      runtimeKind: 'real-local-project',
       projectTitle: 'Signal Arc Desktop',
       runtimeMode: 'desktop-local',
     })

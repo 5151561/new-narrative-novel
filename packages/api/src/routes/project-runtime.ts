@@ -1,5 +1,12 @@
 import type { ApiRouteContext } from './route-context.js'
 
+type ProjectMode = 'demo-fixture' | 'real-project'
+type RuntimeKind = 'fixture-demo' | 'mock-storybook' | 'real-local-project'
+
+function inferProjectModeFromRuntimeKind(runtimeKind: RuntimeKind): ProjectMode {
+  return runtimeKind === 'real-local-project' ? 'real-project' : 'demo-fixture'
+}
+
 export function registerProjectRuntimeRoutes({
   app,
   apiBasePath,
@@ -9,6 +16,8 @@ export function registerProjectRuntimeRoutes({
   currentProject?: {
     projectId: string
     projectMode: 'demo-fixture' | 'real-project'
+    runtimeKind?: 'fixture-demo' | 'real-local-project'
+    modelBindingsUsable?: boolean
     projectRoot: string
     projectTitle: string
   }
@@ -21,6 +30,7 @@ export function registerProjectRuntimeRoutes({
     return {
       projectId: currentProject.projectId,
       projectMode: currentProject.projectMode,
+      runtimeKind: currentProject.runtimeKind ?? (currentProject.projectMode === 'demo-fixture' ? 'fixture-demo' : 'real-local-project'),
       projectTitle: currentProject.projectTitle,
     }
   })
@@ -32,12 +42,22 @@ export function registerProjectRuntimeRoutes({
     if (currentProject?.projectId === projectId) {
       return {
         ...runtimeInfo,
+        modelBindings: {
+          usable: currentProject.modelBindingsUsable ?? (currentProject.projectMode !== 'real-project'),
+        },
+        projectMode: currentProject.projectMode,
         projectTitle: currentProject.projectTitle,
-        runtimeKind: currentProject.projectMode === 'demo-fixture' ? 'fixture-demo' : runtimeInfo.runtimeKind,
+        runtimeKind: currentProject.runtimeKind ?? (currentProject.projectMode === 'demo-fixture' ? 'fixture-demo' : 'real-local-project'),
       }
     }
 
-    return runtimeInfo
+    return {
+      ...runtimeInfo,
+      modelBindings: {
+        usable: inferProjectModeFromRuntimeKind(runtimeInfo.runtimeKind) !== 'real-project',
+      },
+      projectMode: inferProjectModeFromRuntimeKind(runtimeInfo.runtimeKind),
+    }
   })
 
   app.post(`${apiBasePath}/projects/:projectId/runtime/reset`, async (request, reply) => {

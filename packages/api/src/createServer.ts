@@ -3,7 +3,7 @@ import path from 'node:path'
 import cors from '@fastify/cors'
 import Fastify from 'fastify'
 
-import { getApiServerConfig, type ApiServerConfig } from './config.js'
+import { finalizeCurrentProjectConfig, getApiServerConfig, type ApiServerConfig } from './config.js'
 import { notFound, registerGlobalErrorHandler } from './http/errors.js'
 import {
   createScenePlannerGateway,
@@ -38,7 +38,13 @@ export interface CreateServerOptions {
 }
 
 export function createServer(options: CreateServerOptions = {}) {
-  const config = options.config ?? getApiServerConfig()
+  const bootConfig = options.config ?? getApiServerConfig()
+  const config: ApiServerConfig = {
+    ...bootConfig,
+    currentProject: bootConfig.currentProject && bootConfig.modelBindings
+      ? finalizeCurrentProjectConfig(bootConfig.currentProject, bootConfig.modelBindings)
+      : bootConfig.currentProject,
+  }
   const app = Fastify()
   const scenePlannerGateway = createScenePlannerGateway(
     config,

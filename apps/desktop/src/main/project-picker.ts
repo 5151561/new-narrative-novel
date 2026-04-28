@@ -7,6 +7,7 @@ import type { OpenDialogReturnValue } from 'electron'
 export interface SelectedProjectSession {
   projectId: string
   projectMode: 'demo-fixture' | 'real-project'
+  runtimeKind: 'fixture-demo' | 'real-local-project'
   projectRoot: string
   projectTitle: string
 }
@@ -177,6 +178,7 @@ export async function readOrInitializeProjectSession(
   return {
     projectId,
     projectMode: 'real-project',
+    runtimeKind: 'real-local-project',
     projectRoot,
     projectTitle: title,
   }
