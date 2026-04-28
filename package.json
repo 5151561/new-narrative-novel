@@ -3,6 +3,7 @@
   "private": true,
   "packageManager": "pnpm@10.8.0",
   "scripts": {
+    "cleanup:debug": "node ./scripts/cleanup-debug-processes.mjs",
     "dev:api": "node ./scripts/run-with-cleanup.mjs pnpm --filter @narrative-novel/api dev",
     "dev:desktop": "node ./scripts/run-with-cleanup.mjs pnpm --filter @narrative-novel/desktop dev",
     "desktop:dev": "pnpm dev:desktop",

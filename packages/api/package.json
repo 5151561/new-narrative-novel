@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "node ../../scripts/cleanup-debug-processes.mjs --scope api --quiet",
     "dev": "node ../../scripts/run-with-cleanup.mjs tsx src/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "node ../../scripts/run-with-cleanup.mjs vitest run",

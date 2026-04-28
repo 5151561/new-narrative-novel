@@ -5,6 +5,7 @@
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
+    "predev": "node ../../scripts/cleanup-debug-processes.mjs --scope desktop --quiet",
     "dev": "node ../../scripts/run-with-cleanup.mjs node ../../scripts/desktop-dev.mjs",
     "dev:electron": "pnpm run build && electron dist/main.js",
     "build": "pnpm run build:main && pnpm run build:preload",

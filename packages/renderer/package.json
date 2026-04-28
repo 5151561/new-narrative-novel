@@ -4,11 +4,13 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "node ../../scripts/cleanup-debug-processes.mjs --scope renderer --quiet",
     "dev": "node ../../scripts/run-with-cleanup.mjs vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc --noEmit",
     "test": "node ../../scripts/run-with-cleanup.mjs vitest run",
     "test:watch": "node ../../scripts/run-with-cleanup.mjs vitest",
+    "prestorybook": "node ../../scripts/cleanup-debug-processes.mjs --scope storybook --quiet",
     "storybook": "node ../../scripts/run-with-cleanup.mjs storybook dev -p 6006 --host 127.0.0.1 --no-open --exact-port",
     "build-storybook": "storybook build"
   },
