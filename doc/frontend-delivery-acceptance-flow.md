@@ -85,6 +85,35 @@
 
 ---
 
+## Parity 配对原则
+
+双 gate 不只是“两个都跑一下”，而是要对**同一组 surface family** 记录成对证据。
+
+`surface family` 指的是用户在真实软件里感知为同一个工作面的一组 surface，例如：
+
+- `Workbench shell / layout`
+- `Scene workspace / orchestrate`
+- `Scene workspace / draft`
+- `Book workspace / structure`
+- `Asset workspace / knowledge`
+
+每次前端验收都应先写清楚本次改动覆盖哪些 `surface family`，然后对每一组分别记录：
+
+- 对应的 Storybook story id / story 名称
+- 对应的真实软件入口与 route
+- 这两边必须对齐检查的关键点
+- 两边各自的结构化快照与截图证据
+- 两边各自的结果
+
+禁止把一个 story 的通过，拿去替代另一个真实 route 的结论。
+也禁止只写“本次 Storybook 已同步、真实软件已验证”而不说明验证的是哪一个 surface family。
+
+可直接复用的 repo-local 模板见：
+
+- `doc/review/2026-04-29-real-frontend-storybook-parity-checklist.md`
+
+---
+
 ## 正确的开发顺序
 
 ### 1. 先读真实产品路径
@@ -152,6 +181,7 @@ pnpm --filter @narrative-novel/renderer build-storybook
 - 必须有结构化快照
 - 必须明确 story id 或 story 名称
 - 必须说明检查的是哪几个关键状态
+- 必须能和同一 surface family 的真实软件证据一一对应
 
 ### Storybook gate 通过，只能说明
 
@@ -214,6 +244,7 @@ NARRATIVE_DESKTOP_LIVE_RENDERER=1 pnpm dev:desktop
 - runtime badge / launcher / settings / current project 是否正确
 - main stage 的主任务是否仍在 main stage
 - inspector / dock 是否只是支持面，而不是抢主任务
+- 与对应 Storybook surface 承诺的 shell / chrome / state 是否一致
 
 ### 判定规则
 
@@ -251,21 +282,39 @@ Storybook 负责：
 每次前端交付，结论至少按下面格式写：
 
 ```md
+## Surface Families
+- Family: ...
+  - Storybook story: ...
+  - Real entry path: desktop-local / web/api / fixture demo
+  - Real route: ...
+  - Parity checks: ...
+
 ## Storybook Sync Gate
+- Surface family: ...
 - Stories: ...
 - Command: ...
 - Structured snapshot: ...
 - Screenshot: ...
+- Checked states: ...
 - Result: pass / fail / blocked
 - Notes: ...
 
 ## Real Software Acceptance Gate
+- Surface family: ...
 - Entry path: desktop-local / web/api / fixture demo
+- Route: ...
 - Command: ...
+- Runtime mode / project context: ...
 - Structured snapshot: ...
 - Screenshot: ...
+- Checked states: ...
 - Result: pass / fail / blocked
 - Notes: ...
+
+## Parity Verdict
+- Surface family: ...
+- Storybook vs real software: aligned / drifted / blocked
+- Mismatch summary: ...
 
 ## Overall Verdict
 - Storybook sync: ...
@@ -273,13 +322,17 @@ Storybook 负责：
 - Final: pass / not passed / blocked
 ```
 
+如果一次改动涉及多个 surface family，就按 family 重复填写，而不是把所有 story 和所有 route 混在一个结论里。
+
 允许：
 
 - `Storybook sync pass, real software blocked, overall not passed`
+- `Scene workspace / draft: Storybook pass, real software fail, parity drifted`
 
 禁止：
 
 - `Storybook pass, therefore frontend pass`
+- `Storybook pass on shell story, therefore scene real route also pass`
 
 ---
 
