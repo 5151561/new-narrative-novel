@@ -163,6 +163,7 @@ describe('desktop main bridge registration', () => {
         getAllWindows: vi.fn(() => []),
       },
       app: {
+        name: 'Narrative Desktop',
         getVersion: vi.fn(() => '0.1.0'),
         isPackaged: false,
         on: appOn,
@@ -173,6 +174,8 @@ describe('desktop main bridge registration', () => {
         handle: ipcHandle,
       },
     }))
+    const { buildApplicationMenuTemplate } = await vi.importActual<typeof import('./app-menu.js')>('./app-menu.js')
+
     vi.doMock('./app-menu.js', () => ({
       setApplicationMenu,
     }))
@@ -210,6 +213,8 @@ describe('desktop main bridge registration', () => {
       onOpenRecentProject?: (projectRoot: string) => Promise<void>
       onCreateProjectBackup?: () => Promise<void>
       onExportProjectArchive?: () => Promise<void>
+      onRestartLocalApi?: () => Promise<void>
+      onRestartWorker?: () => Promise<void>
     } | undefined
 
     const registrations = new Map(
@@ -223,6 +228,9 @@ describe('desktop main bridge registration', () => {
 
     expect(registrations.has(DESKTOP_API_CHANNELS.getWorkerStatus)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.restartWorker)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.getLocalApiStatus)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.restartLocalApi)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.getLocalApiLogs)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.getCurrentProject)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.getRuntimeConfig)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.getProviderCredentialStatus)).toBe(true)
@@ -244,6 +252,31 @@ describe('desktop main bridge registration', () => {
       projectTitle: 'Desktop Local Project',
       runtimeMode: 'desktop-local',
     })
+    expect(registrations.get(DESKTOP_API_CHANNELS.getLocalApiStatus)?.()).toEqual({
+      lastError: undefined,
+      runtimeConfig: {
+        apiBaseUrl: 'http://127.0.0.1:4888/api',
+        apiHealthUrl: 'http://127.0.0.1:4888/api/health',
+        port: 4888,
+        projectId: 'local-project-alpha',
+        projectTitle: 'Desktop Local Project',
+        runtimeMode: 'desktop-local',
+      },
+      status: 'ready',
+    })
+    await expect(registrations.get(DESKTOP_API_CHANNELS.restartLocalApi)?.()).resolves.toEqual({
+      lastError: undefined,
+      runtimeConfig: {
+        apiBaseUrl: 'http://127.0.0.1:4888/api',
+        apiHealthUrl: 'http://127.0.0.1:4888/api/health',
+        port: 4888,
+        projectId: 'local-project-alpha',
+        projectTitle: 'Desktop Local Project',
+        runtimeMode: 'desktop-local',
+      },
+      status: 'ready',
+    })
+    expect(registrations.get(DESKTOP_API_CHANNELS.getLocalApiLogs)?.()).toEqual([])
     expect(registrations.get(DESKTOP_API_CHANNELS.getWorkerStatus)?.()).toEqual({
       implementation: 'placeholder',
       lastError: undefined,
@@ -312,7 +345,7 @@ describe('desktop main bridge registration', () => {
       },
       role: 'sceneRevision',
     })
-    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(3)
+    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(4)
 
     const beforeQuitHandler = appOn.mock.calls.find(([event]) => event === 'before-quit')?.[1] as (() => void) | undefined
     expect(beforeQuitHandler).toBeTypeOf('function')
@@ -324,13 +357,13 @@ describe('desktop main bridge registration', () => {
     expect(initialMenuOptions?.onCreateProject).toBeTypeOf('function')
     await expect(initialMenuOptions!.onCreateProject!()).resolves.toBeUndefined()
     expect(projectStore.createProject).toHaveBeenCalledTimes(1)
-    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(4)
+    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(5)
     expect(setApplicationMenu).toHaveBeenCalledTimes(2)
 
     projectStore.openProject.mockRejectedValueOnce(new Error('dialog failed'))
     expect(initialMenuOptions?.onOpenProject).toBeTypeOf('function')
     await expect(initialMenuOptions!.onOpenProject!()).resolves.toBeUndefined()
-    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(4)
+    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(5)
     expect(setApplicationMenu).toHaveBeenCalledTimes(3)
 
     projectStore.selectProjectRoot.mockRejectedValueOnce(new Error('project missing'))
@@ -352,12 +385,38 @@ describe('desktop main bridge registration', () => {
       storeFilePath: '/tmp/local-project/.narrative/project-store.json',
     })
 
+    expect(initialMenuOptions?.onRestartLocalApi).toBeTypeOf('function')
+    await expect(initialMenuOptions!.onRestartLocalApi!()).resolves.toBeUndefined()
+    expect(localApiSupervisor.restart).toHaveBeenCalledTimes(6)
+
+    expect(initialMenuOptions?.onRestartWorker).toBeTypeOf('function')
+    await expect(initialMenuOptions!.onRestartWorker!()).resolves.toBeUndefined()
+    expect(workerSupervisor.restart).toHaveBeenCalledTimes(2)
+
     expect(initialMenuOptions?.onExportProjectArchive).toBeTypeOf('function')
     await expect(initialMenuOptions!.onExportProjectArchive!()).resolves.toBeUndefined()
     expect(exportProjectArchive).toHaveBeenCalledWith({
       projectRoot: '/tmp/local-project',
       storeFilePath: '/tmp/local-project/.narrative/project-store.json',
     })
-    expect(setApplicationMenu).toHaveBeenCalledTimes(7)
+    expect(setApplicationMenu).toHaveBeenCalledTimes(9)
+
+    const runtimeMenuTemplate = buildApplicationMenuTemplate({
+      isDev: false,
+      onOpenProject: vi.fn(),
+      onCreateProject: vi.fn(),
+      onOpenRecentProject: vi.fn(),
+      onCreateProjectBackup: vi.fn(),
+      onExportProjectArchive: vi.fn(),
+      onRestartLocalApi: vi.fn(),
+      onRestartWorker: vi.fn(),
+    })
+    const runtimeMenu = runtimeMenuTemplate.find((item) => item.label === 'Runtime')
+    const runtimeLabels = (runtimeMenu?.submenu as Array<{ label?: string }> | undefined)?.map((item) => item.label)
+
+    expect(runtimeLabels).toEqual([
+      'Restart Local API',
+      'Restart Worker',
+    ])
   })
 })

@@ -314,6 +314,12 @@ function refreshApplicationMenu(): void {
     onExportProjectArchive: () => runProjectMenuAction(async () => {
       await exportManualProjectArchive(activeProjectStore)
     }),
+    onRestartLocalApi: () => runProjectMenuAction(async () => {
+      await localApiSupervisor.restart()
+    }),
+    onRestartWorker: () => runProjectMenuAction(async () => {
+      await workerSupervisor.restart()
+    }),
     recentProjects: activeProjectStore.getRecentProjects(),
   })
 }

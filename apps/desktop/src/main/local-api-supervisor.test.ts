@@ -47,6 +47,8 @@ afterEach(() => {
 describe('LocalApiSupervisor', () => {
   it('spawns the API process with desktop-local env and marks it ready after health succeeds', async () => {
     const child = new FakeLocalApiChild()
+    const restartedChild = new FakeLocalApiChild()
+    const children = [child, restartedChild]
     const spawnConfigs: LocalApiSpawnConfig[] = []
     const fetch = vi.fn(async () => okResponse())
     const supervisor = new LocalApiSupervisor({
@@ -81,7 +83,12 @@ describe('LocalApiSupervisor', () => {
       sleep: async () => {},
       spawnLocalApi: (config) => {
         spawnConfigs.push(config)
-        return child
+        const nextChild = children.shift()
+        if (!nextChild) {
+          throw new Error('unexpected extra local API spawn')
+        }
+
+        return nextChild
       },
     })
 
@@ -119,6 +126,14 @@ describe('LocalApiSupervisor', () => {
     })
     expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:4888/api/health', { signal: expect.any(AbortSignal) })
     expect(supervisor.getSnapshot().logs).toContain('[stdout] api ready')
+    await expect(supervisor.restart()).resolves.toMatchObject({
+      runtimeConfig: {
+        projectId: 'local-project-alpha',
+      },
+      status: 'ready',
+    })
+    expect(spawnConfigs).toHaveLength(2)
+    expect(child.killed).toBe(true)
   })
 
   it('uses a non-fixture default current project identity when no override is provided', async () => {

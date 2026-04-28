@@ -9,6 +9,8 @@ export interface ApplicationMenuOptions {
   onOpenRecentProject?: (projectRoot: string) => Promise<void> | void
   onCreateProjectBackup?: () => Promise<void> | void
   onExportProjectArchive?: () => Promise<void> | void
+  onRestartLocalApi?: () => Promise<void> | void
+  onRestartWorker?: () => Promise<void> | void
   platform?: NodeJS.Platform
   recentProjects?: RecentProjectRecord[]
 }
@@ -20,6 +22,8 @@ export function buildApplicationMenuTemplate({
   onOpenRecentProject,
   onCreateProjectBackup,
   onExportProjectArchive,
+  onRestartLocalApi,
+  onRestartWorker,
   platform = process.platform,
   recentProjects = [],
 }: ApplicationMenuOptions): MenuItemConstructorOptions[] {
@@ -73,6 +77,23 @@ export function buildApplicationMenuTemplate({
         },
         { type: 'separator' },
         { role: 'quit' },
+      ],
+    },
+    {
+      label: 'Runtime',
+      submenu: [
+        {
+          click: () => {
+            void onRestartLocalApi?.()
+          },
+          label: 'Restart Local API',
+        },
+        {
+          click: () => {
+            void onRestartWorker?.()
+          },
+          label: 'Restart Worker',
+        },
       ],
     },
   ]

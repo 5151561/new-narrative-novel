@@ -30,6 +30,36 @@ describe('createNarrativeDesktopApi', () => {
         } as T
       }
 
+      if (channel === DESKTOP_API_CHANNELS.getRuntimeConfig) {
+        return {
+          apiBaseUrl: 'http://127.0.0.1:4888/api',
+          apiHealthUrl: 'http://127.0.0.1:4888/api/health',
+          port: 4888,
+          projectId: 'local-project-alpha',
+          projectTitle: 'Selected Project',
+          runtimeMode: 'desktop-local',
+        } as T
+      }
+
+      if (channel === DESKTOP_API_CHANNELS.getLocalApiStatus || channel === DESKTOP_API_CHANNELS.restartLocalApi) {
+        return {
+          lastError: undefined,
+          runtimeConfig: {
+            apiBaseUrl: 'http://127.0.0.1:4888/api',
+            apiHealthUrl: 'http://127.0.0.1:4888/api/health',
+            port: 4888,
+            projectId: 'local-project-alpha',
+            projectTitle: 'Selected Project',
+            runtimeMode: 'desktop-local',
+          },
+          status: 'ready',
+        } as T
+      }
+
+      if (channel === DESKTOP_API_CHANNELS.getLocalApiLogs) {
+        return ['[stdout] api ready'] as T
+      }
+
       if (channel === DESKTOP_API_CHANNELS.getWorkerStatus || channel === DESKTOP_API_CHANNELS.restartWorker) {
         return {
           implementation: 'placeholder',
@@ -94,6 +124,39 @@ describe('createNarrativeDesktopApi', () => {
     })
     await expect(api.getPlatform()).resolves.toBe('darwin')
     await expect(api.getRuntimeMode()).resolves.toBe('desktop')
+    await expect(api.getRuntimeConfig()).resolves.toEqual({
+      apiBaseUrl: 'http://127.0.0.1:4888/api',
+      apiHealthUrl: 'http://127.0.0.1:4888/api/health',
+      port: 4888,
+      projectId: 'local-project-alpha',
+      projectTitle: 'Selected Project',
+      runtimeMode: 'desktop-local',
+    })
+    await expect(api.getLocalApiStatus()).resolves.toEqual({
+      lastError: undefined,
+      runtimeConfig: {
+        apiBaseUrl: 'http://127.0.0.1:4888/api',
+        apiHealthUrl: 'http://127.0.0.1:4888/api/health',
+        port: 4888,
+        projectId: 'local-project-alpha',
+        projectTitle: 'Selected Project',
+        runtimeMode: 'desktop-local',
+      },
+      status: 'ready',
+    })
+    await expect(api.restartLocalApi()).resolves.toEqual({
+      lastError: undefined,
+      runtimeConfig: {
+        apiBaseUrl: 'http://127.0.0.1:4888/api',
+        apiHealthUrl: 'http://127.0.0.1:4888/api/health',
+        port: 4888,
+        projectId: 'local-project-alpha',
+        projectTitle: 'Selected Project',
+        runtimeMode: 'desktop-local',
+      },
+      status: 'ready',
+    })
+    await expect(api.getLocalApiLogs()).resolves.toEqual(['[stdout] api ready'])
     await expect(api.getWorkerStatus()).resolves.toEqual({
       implementation: 'placeholder',
       status: 'disabled',
@@ -143,6 +206,10 @@ describe('createNarrativeDesktopApi', () => {
       { channel: DESKTOP_API_CHANNELS.getCurrentProject, payload: [] },
       { channel: DESKTOP_API_CHANNELS.getPlatform, payload: [] },
       { channel: DESKTOP_API_CHANNELS.getRuntimeMode, payload: [] },
+      { channel: DESKTOP_API_CHANNELS.getRuntimeConfig, payload: [] },
+      { channel: DESKTOP_API_CHANNELS.getLocalApiStatus, payload: [] },
+      { channel: DESKTOP_API_CHANNELS.restartLocalApi, payload: [] },
+      { channel: DESKTOP_API_CHANNELS.getLocalApiLogs, payload: [] },
       { channel: DESKTOP_API_CHANNELS.getWorkerStatus, payload: [] },
       { channel: DESKTOP_API_CHANNELS.restartWorker, payload: [] },
       { channel: DESKTOP_API_CHANNELS.getProviderCredentialStatus, payload: ['openai'] },
