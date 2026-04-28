@@ -118,6 +118,55 @@ function writeWorkbenchLayoutStoryState(storageKey: string, initialLayout: Workb
   window.localStorage.setItem(storageKey, serializeWorkbenchLayoutState(initialLayout))
 }
 
+function installStoryDesktopModelSettingsBridge() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  Object.defineProperty(window, 'narrativeDesktop', {
+    configurable: true,
+    value: {
+      deleteProviderCredential: async () => ({
+        configured: false,
+        provider: 'openai',
+      }),
+      getModelSettingsSnapshot: async () => ({
+        bindings: {
+          continuityReviewer: { provider: 'fixture' },
+          planner: { modelId: 'gpt-5.4', provider: 'openai' },
+          sceneProseWriter: { provider: 'fixture' },
+          sceneRevision: { provider: 'fixture' },
+          summary: { provider: 'fixture' },
+        },
+        connectionTest: {
+          status: 'never',
+        },
+        credentialStatus: {
+          configured: true,
+          provider: 'openai',
+          redactedValue: 'sk-...1234',
+        },
+      }),
+      saveProviderCredential: async () => ({
+        configured: true,
+        provider: 'openai',
+        redactedValue: 'sk-...1234',
+      }),
+      testModelSettings: async () => ({
+        status: 'passed',
+        summary: 'OpenAI connection test passed for the configured model roles.',
+      }),
+      updateModelBinding: async () => ({
+        continuityReviewer: { provider: 'fixture' },
+        planner: { modelId: 'gpt-5.4', provider: 'openai' },
+        sceneProseWriter: { provider: 'fixture' },
+        sceneRevision: { provider: 'fixture' },
+        summary: { provider: 'fixture' },
+      }),
+    },
+  })
+}
+
 function createWorkbenchLayoutState(layout: Partial<WorkbenchLayoutState> = {}): WorkbenchLayoutState {
   return { ...DEFAULT_WORKBENCH_LAYOUT_STATE, ...layout }
 }
@@ -309,6 +358,7 @@ function renderShellStory(
   options: { narrow?: boolean } = {},
 ) {
   writeWorkbenchLayoutStoryState(storageKey, initialLayout)
+  installStoryDesktopModelSettingsBridge()
 
   const preview = (
     <WorkbenchStoryProviders>

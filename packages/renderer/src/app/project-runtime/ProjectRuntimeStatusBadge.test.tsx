@@ -1,11 +1,15 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { AllStates } from './ProjectRuntimeStatusBadge.stories'
+import { AllStates, RealLocalProjectTestFailed } from './ProjectRuntimeStatusBadge.stories'
 import { createProjectRuntimeInfoRecord } from './project-runtime-info'
 import { createProjectRuntimeTestWrapper } from './project-runtime-test-utils'
 import { ProjectRuntimeStatusBadge } from './ProjectRuntimeStatusBadge'
+
+afterEach(() => {
+  Reflect.deleteProperty(window, 'narrativeDesktop')
+})
 
 function renderBadge(
   props: Partial<Parameters<typeof ProjectRuntimeStatusBadge>[0]> & {
@@ -44,6 +48,7 @@ describe('ProjectRuntimeStatusBadge', () => {
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Signal Arc')
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Mock')
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Healthy')
+    expect(screen.getByRole('status', { name: 'Project runtime status' })).not.toHaveTextContent('Demo Fixture Project')
     expect(screen.queryByText('Read-only')).not.toBeInTheDocument()
   })
 
@@ -82,6 +87,8 @@ describe('ProjectRuntimeStatusBadge', () => {
     expect(realLocalProjectStatus).toHaveTextContent('Signal Arc Desktop')
     expect(realLocalProjectStatus).toHaveTextContent('API')
     expect(realLocalProjectStatus).toHaveTextContent('Healthy')
+    expect(realLocalProjectStatus).toHaveTextContent('Real Project')
+    expect(realLocalProjectStatus).toHaveTextContent('Model Fixture')
     expect(realLocalProjectStatus).toHaveTextContent('Connected to the desktop-local runtime for the current project.')
   })
 
@@ -171,6 +178,7 @@ describe('ProjectRuntimeStatusBadge', () => {
       info: createProjectRuntimeInfoRecord({
         projectId: 'desktop-project-signal-arc',
         projectTitle: 'Signal Arc Desktop',
+        runtimeKind: 'real-local-project',
         source: 'api',
         status: 'unavailable',
         summary:
@@ -187,7 +195,8 @@ describe('ProjectRuntimeStatusBadge', () => {
     expect(status).toHaveTextContent('Signal Arc Desktop')
     expect(status).toHaveTextContent('API')
     expect(status).toHaveTextContent('Unavailable')
-    expect(status).not.toHaveTextContent(/fixture|API demo runtime/i)
+    expect(status).toHaveTextContent('Real Project')
+    expect(status).not.toHaveTextContent(/API demo runtime/i)
 
     await user.click(screen.getByRole('button', { name: 'Retry runtime check' }))
     expect(onRetry).toHaveBeenCalledTimes(1)
@@ -223,5 +232,74 @@ describe('ProjectRuntimeStatusBadge', () => {
 
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent('Signal Arc')
     expect(screen.getByRole('status', { name: 'Project runtime status' })).toHaveTextContent(summary)
+  })
+
+  it('shows desktop model configuration badges when a desktop settings snapshot is available', async () => {
+    Object.defineProperty(window, 'narrativeDesktop', {
+      configurable: true,
+      value: {
+        getModelSettingsSnapshot: async () => ({
+          bindings: {
+            continuityReviewer: { provider: 'fixture' },
+            planner: { modelId: 'gpt-5.4', provider: 'openai' },
+            sceneProseWriter: { provider: 'fixture' },
+            sceneRevision: { provider: 'fixture' },
+            summary: { provider: 'fixture' },
+          },
+          connectionTest: {
+            errorCode: 'missing_key',
+            status: 'failed',
+            summary: 'OpenAI API key is missing.',
+          },
+          credentialStatus: {
+            configured: false,
+            provider: 'openai',
+          },
+        }),
+      },
+    })
+
+    renderBadge({
+      info: createProjectRuntimeInfoRecord({
+        projectId: 'desktop-project-signal-arc',
+        projectTitle: 'Signal Arc Desktop',
+        runtimeKind: 'real-local-project',
+        source: 'api',
+        status: 'healthy',
+        summary: 'Connected to the desktop-local runtime for the current project.',
+        capabilities: {
+          read: true,
+          write: true,
+        },
+      }),
+    })
+
+    const status = screen.getByRole('status', { name: 'Project runtime status' })
+    expect(status).toHaveTextContent('Real Project')
+    await screen.findByText('Model OpenAI')
+    expect(status).toHaveTextContent('Key Missing')
+    expect(status).toHaveTextContent('Test Failed')
+  })
+
+  it('renders bridge-backed badge stories for failing desktop model configuration chips', async () => {
+    const wrapper = createProjectRuntimeTestWrapper()
+    Object.defineProperty(window, 'narrativeDesktop', {
+      configurable: true,
+      value: {
+        getModelSettingsSnapshot: async () => RealLocalProjectTestFailed.parameters?.desktopModelSettingsSnapshot,
+      },
+    })
+
+    render(RealLocalProjectTestFailed.render?.(RealLocalProjectTestFailed.args ?? {}, {} as never)
+      ?? <ProjectRuntimeStatusBadge {...(RealLocalProjectTestFailed.args as Parameters<typeof ProjectRuntimeStatusBadge>[0])} />, { wrapper })
+
+    const failingStatus = screen.getByRole('status', {
+      name: 'Project runtime status',
+    })
+
+    await screen.findByText('Model OpenAI')
+    expect(failingStatus).toHaveTextContent('Model OpenAI')
+    expect(failingStatus).toHaveTextContent('Key Missing')
+    expect(failingStatus).toHaveTextContent('Test Failed')
   })
 })

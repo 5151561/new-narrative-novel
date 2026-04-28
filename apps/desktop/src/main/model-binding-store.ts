@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import {
+  type DesktopModelConnectionTestRecord,
   DESKTOP_MODEL_BINDING_ROLES,
   type DesktopModelBinding,
   type DesktopModelBindingRole,
@@ -11,6 +12,16 @@ import {
 
 interface PersistedModelBindingStoreRecord {
   bindings: Partial<Record<DesktopModelBindingRole, DesktopModelBinding>>
+  connectionTest?: DesktopModelConnectionTestRecord
+}
+
+export interface DesktopModelSettingsStoreRecord {
+  bindings: DesktopModelBindings
+  connectionTest: DesktopModelConnectionTestRecord
+}
+
+const DEFAULT_CONNECTION_TEST: DesktopModelConnectionTestRecord = {
+  status: 'never',
 }
 
 export const DEFAULT_DESKTOP_MODEL_BINDINGS: DesktopModelBindings = {
@@ -67,7 +78,7 @@ function buildStoreFilePath(projectRoot: string): string {
 }
 
 export class ModelBindingStore {
-  async readBindings(projectRoot: string): Promise<DesktopModelBindings> {
+  async readModelSettingsRecord(projectRoot: string): Promise<DesktopModelSettingsStoreRecord> {
     const filePath = buildStoreFilePath(projectRoot)
 
     try {
@@ -75,12 +86,18 @@ export class ModelBindingStore {
       return this.normalizeRecord(parsed)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        return { ...DEFAULT_DESKTOP_MODEL_BINDINGS }
+        return {
+          bindings: { ...DEFAULT_DESKTOP_MODEL_BINDINGS },
+          connectionTest: { ...DEFAULT_CONNECTION_TEST },
+        }
       }
 
       if (error instanceof SyntaxError) {
-        const defaults = { ...DEFAULT_DESKTOP_MODEL_BINDINGS }
-        await this.writeBindings(projectRoot, defaults)
+        const defaults = {
+          bindings: { ...DEFAULT_DESKTOP_MODEL_BINDINGS },
+          connectionTest: { ...DEFAULT_CONNECTION_TEST },
+        }
+        await this.writeRecord(projectRoot, defaults)
         return defaults
       }
 
@@ -88,43 +105,98 @@ export class ModelBindingStore {
     }
   }
 
+  async readBindings(projectRoot: string): Promise<DesktopModelBindings> {
+    return (await this.readModelSettingsRecord(projectRoot)).bindings
+  }
+
   async updateBinding(projectRoot: string, input: UpdateModelBindingInput): Promise<DesktopModelBindings> {
-    const bindings = await this.readBindings(projectRoot)
+    const record = await this.readModelSettingsRecord(projectRoot)
     const nextBindings: DesktopModelBindings = {
-      ...bindings,
+      ...record.bindings,
       [input.role]: normalizeBinding(input.binding),
     }
 
-    await this.writeBindings(projectRoot, nextBindings)
+    await this.writeRecord(projectRoot, {
+      bindings: nextBindings,
+      connectionTest: { ...DEFAULT_CONNECTION_TEST },
+    })
     return nextBindings
   }
 
-  private normalizeRecord(value: unknown): DesktopModelBindings {
+  async resetConnectionTest(projectRoot: string): Promise<DesktopModelConnectionTestRecord> {
+    const record = await this.readModelSettingsRecord(projectRoot)
+    const nextConnectionTest = { ...DEFAULT_CONNECTION_TEST }
+    await this.writeRecord(projectRoot, {
+      ...record,
+      connectionTest: nextConnectionTest,
+    })
+    return nextConnectionTest
+  }
+
+  async writeConnectionTest(
+    projectRoot: string,
+    connectionTest: DesktopModelConnectionTestRecord,
+  ): Promise<DesktopModelConnectionTestRecord> {
+    const record = await this.readModelSettingsRecord(projectRoot)
+    const nextConnectionTest = normalizeConnectionTest(connectionTest)
+    await this.writeRecord(projectRoot, {
+      ...record,
+      connectionTest: nextConnectionTest,
+    })
+    return nextConnectionTest
+  }
+
+  private normalizeRecord(value: unknown): DesktopModelSettingsStoreRecord {
     if (!value || typeof value !== 'object') {
-      return { ...DEFAULT_DESKTOP_MODEL_BINDINGS }
+      return {
+        bindings: { ...DEFAULT_DESKTOP_MODEL_BINDINGS },
+        connectionTest: { ...DEFAULT_CONNECTION_TEST },
+      }
     }
 
     const bindings = (value as Partial<PersistedModelBindingStoreRecord>).bindings
-    if (!bindings || typeof bindings !== 'object') {
-      return { ...DEFAULT_DESKTOP_MODEL_BINDINGS }
-    }
+    const connectionTest = normalizeConnectionTest((value as Partial<PersistedModelBindingStoreRecord>).connectionTest)
 
-    return DESKTOP_MODEL_BINDING_ROLES.reduce<DesktopModelBindings>((result, role) => {
+    const normalizedBindings = !bindings || typeof bindings !== 'object'
+      ? { ...DEFAULT_DESKTOP_MODEL_BINDINGS }
+      : DESKTOP_MODEL_BINDING_ROLES.reduce<DesktopModelBindings>((result, role) => {
       const candidate = bindings[role]
       result[role] = isDesktopModelBinding(candidate)
         ? normalizeBinding(candidate)
         : DEFAULT_DESKTOP_MODEL_BINDINGS[role]
       return result
     }, { ...DEFAULT_DESKTOP_MODEL_BINDINGS })
+
+    return {
+      bindings: normalizedBindings,
+      connectionTest,
+    }
   }
 
-  private async writeBindings(projectRoot: string, bindings: DesktopModelBindings): Promise<void> {
+  private async writeRecord(projectRoot: string, record: DesktopModelSettingsStoreRecord): Promise<void> {
     const filePath = buildStoreFilePath(projectRoot)
-    const serialized = `${JSON.stringify({ bindings }, null, 2)}\n`
+    const serialized = `${JSON.stringify(record, null, 2)}\n`
     const temporaryFilePath = `${filePath}.tmp`
 
     await mkdir(path.dirname(filePath), { recursive: true })
     await writeFile(temporaryFilePath, serialized, 'utf8')
     await rename(temporaryFilePath, filePath)
+  }
+}
+
+function normalizeConnectionTest(value: unknown): DesktopModelConnectionTestRecord {
+  if (!value || typeof value !== 'object') {
+    return { ...DEFAULT_CONNECTION_TEST }
+  }
+
+  const candidate = value as Partial<DesktopModelConnectionTestRecord>
+  if (candidate.status !== 'passed' && candidate.status !== 'failed' && candidate.status !== 'never') {
+    return { ...DEFAULT_CONNECTION_TEST }
+  }
+
+  return {
+    ...(candidate.errorCode ? { errorCode: candidate.errorCode } : {}),
+    status: candidate.status,
+    ...(candidate.summary ? { summary: candidate.summary } : {}),
   }
 }

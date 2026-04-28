@@ -343,6 +343,56 @@ describe('LocalApiSupervisor', () => {
     })
   })
 
+  it('posts model settings connection tests against the running local API and returns the sanitized record', async () => {
+    const child = new FakeLocalApiChild()
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (typeof input === 'string' && input.endsWith('/api/health')) {
+        return okResponse()
+      }
+
+      if (typeof input === 'string' && input.endsWith('/api/model-settings/test-connection')) {
+        expect(init).toMatchObject({
+          method: 'POST',
+        })
+
+        return {
+          json: async () => ({
+            errorCode: 'model_not_found',
+            status: 'failed',
+            summary: 'One or more configured OpenAI models were not found.',
+          }),
+          ok: true,
+          status: 200,
+        } as Response
+      }
+
+      throw new Error(`Unexpected fetch: ${String(input)}`)
+    })
+    const supervisor = new LocalApiSupervisor({
+      fetch,
+      findAvailablePort: async () => 4888,
+      getCurrentProject: () => ({
+        projectId: 'local-project-alpha',
+        projectRoot: '/tmp/local-project',
+        projectTitle: 'Desktop Local Project',
+      }),
+      sleep: async () => {},
+      spawnLocalApi: () => child,
+    })
+
+    await expect(supervisor.testModelSettings()).resolves.toEqual({
+      errorCode: 'model_not_found',
+      status: 'failed',
+      summary: 'One or more configured OpenAI models were not found.',
+    })
+    expect(fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:4888/api/model-settings/test-connection',
+      expect.objectContaining({
+        method: 'POST',
+      }),
+    )
+  })
+
   it('clears stale failed status and error details on restart before returning a fresh ready snapshot', async () => {
     const childOne = new FakeLocalApiChild()
     const childTwo = new FakeLocalApiChild()

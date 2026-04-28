@@ -52,6 +52,20 @@ export interface SaveProviderCredentialInput {
   secret: string
 }
 
+export type DesktopModelConnectionTestStatus = 'never' | 'passed' | 'failed'
+export type DesktopModelConnectionTestErrorCode =
+  | 'missing_key'
+  | 'invalid_key'
+  | 'model_not_found'
+  | 'network_error'
+  | 'invalid_output'
+
+export interface DesktopModelConnectionTestRecord {
+  status: DesktopModelConnectionTestStatus
+  errorCode?: DesktopModelConnectionTestErrorCode
+  summary?: string
+}
+
 export interface DesktopModelBinding {
   provider: DesktopModelBindingProvider
   modelId?: string
@@ -62,6 +76,12 @@ export type DesktopModelBindings = Record<DesktopModelBindingRole, DesktopModelB
 export interface UpdateModelBindingInput {
   role: DesktopModelBindingRole
   binding: DesktopModelBinding
+}
+
+export interface DesktopModelSettingsSnapshot {
+  bindings: DesktopModelBindings
+  credentialStatus: ProviderCredentialStatus
+  connectionTest: DesktopModelConnectionTestRecord
 }
 
 export interface NarrativeDesktopApi {
@@ -79,6 +99,8 @@ export interface NarrativeDesktopApi {
   saveProviderCredential(input: SaveProviderCredentialInput): Promise<ProviderCredentialStatus>
   deleteProviderCredential(provider: ProviderCredentialProvider): Promise<ProviderCredentialStatus>
   getModelBindings(): Promise<DesktopModelBindings>
+  getModelSettingsSnapshot(): Promise<DesktopModelSettingsSnapshot>
+  testModelSettings(): Promise<DesktopModelConnectionTestRecord>
   updateModelBinding(input: UpdateModelBindingInput): Promise<DesktopModelBindings>
 }
 
@@ -97,6 +119,8 @@ export const DESKTOP_API_CHANNELS = {
   saveProviderCredential: 'narrativeDesktop:saveProviderCredential',
   deleteProviderCredential: 'narrativeDesktop:deleteProviderCredential',
   getModelBindings: 'narrativeDesktop:getModelBindings',
+  getModelSettingsSnapshot: 'narrativeDesktop:getModelSettingsSnapshot',
+  testModelSettings: 'narrativeDesktop:testModelSettings',
   updateModelBinding: 'narrativeDesktop:updateModelBinding',
 } as const
 

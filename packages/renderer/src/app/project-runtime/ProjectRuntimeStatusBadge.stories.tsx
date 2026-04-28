@@ -7,6 +7,56 @@ import { createProjectRuntimeInfoRecord } from './project-runtime-info'
 import { createStoryProjectRuntimeEnvironment } from './project-runtime-test-utils'
 import { ProjectRuntimeStatusBadge } from './ProjectRuntimeStatusBadge'
 
+interface DesktopModelSettingsStorySnapshot {
+  bindings: {
+    continuityReviewer: { provider: 'fixture' | 'openai'; modelId?: string }
+    planner: { provider: 'fixture' | 'openai'; modelId?: string }
+    sceneProseWriter: { provider: 'fixture' | 'openai'; modelId?: string }
+    sceneRevision: { provider: 'fixture' | 'openai'; modelId?: string }
+    summary: { provider: 'fixture' | 'openai'; modelId?: string }
+  }
+  connectionTest: {
+    status: 'never' | 'passed' | 'failed'
+    errorCode?: 'missing_key' | 'invalid_key' | 'model_not_found' | 'network_error' | 'invalid_output'
+    summary?: string
+  }
+  credentialStatus: {
+    configured: boolean
+    provider: 'openai'
+    redactedValue?: string
+  }
+}
+
+const defaultDesktopModelSettingsSnapshot: DesktopModelSettingsStorySnapshot = {
+  bindings: {
+    continuityReviewer: { provider: 'fixture' },
+    planner: { provider: 'fixture' },
+    sceneProseWriter: { provider: 'fixture' },
+    sceneRevision: { provider: 'fixture' },
+    summary: { provider: 'fixture' },
+  },
+  connectionTest: {
+    status: 'never',
+  },
+  credentialStatus: {
+    configured: false,
+    provider: 'openai',
+  },
+}
+
+function installProjectRuntimeStatusBadgeBridge(snapshot: DesktopModelSettingsStorySnapshot) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  Object.defineProperty(window, 'narrativeDesktop', {
+    configurable: true,
+    value: {
+      getModelSettingsSnapshot: async () => snapshot,
+    },
+  })
+}
+
 function StoryProviders({ children }: PropsWithChildren) {
   const storyEnvironment = useMemo(() => createStoryProjectRuntimeEnvironment(), [])
 
@@ -17,13 +67,20 @@ const meta = {
   title: 'App/Project Runtime/Status Badge',
   component: ProjectRuntimeStatusBadge,
   decorators: [
-    (Story) => (
-      <StoryProviders>
-        <div className="max-w-3xl p-4">
-          <Story />
-        </div>
-      </StoryProviders>
-    ),
+    (Story, context) => {
+      installProjectRuntimeStatusBadgeBridge(
+        (context.parameters.desktopModelSettingsSnapshot as DesktopModelSettingsStorySnapshot | undefined)
+          ?? defaultDesktopModelSettingsSnapshot,
+      )
+
+      return (
+        <StoryProviders>
+          <div className="max-w-3xl p-4">
+            <Story />
+          </div>
+        </StoryProviders>
+      )
+    },
   ],
   args: {
     info: createProjectRuntimeInfoRecord({
@@ -56,6 +113,7 @@ export const FixtureDemoHealthy: Story = {
     info: createProjectRuntimeInfoRecord({
       projectId: 'book-signal-arc',
       projectTitle: 'Signal Arc',
+      runtimeKind: 'fixture-demo',
       source: 'api',
       status: 'healthy',
       summary: 'Connected to fixture API runtime.',
@@ -80,6 +138,7 @@ export const RealLocalProjectHealthy: Story = {
     info: createProjectRuntimeInfoRecord({
       projectId: 'desktop-project-signal-arc',
       projectTitle: 'Signal Arc Desktop',
+      runtimeKind: 'real-local-project',
       source: 'api',
       status: 'healthy',
       summary: 'Connected to the desktop-local runtime for the current project.',
@@ -120,6 +179,7 @@ export const RealLocalProjectUnavailable: Story = {
     info: createProjectRuntimeInfoRecord({
       projectId: 'desktop-project-signal-arc',
       projectTitle: 'Signal Arc Desktop',
+      runtimeKind: 'real-local-project',
       source: 'api',
       status: 'unavailable',
       summary:
@@ -138,6 +198,7 @@ export const RealLocalProjectUnauthorized: Story = {
     info: createProjectRuntimeInfoRecord({
       projectId: 'desktop-project-signal-arc',
       projectTitle: 'Signal Arc Desktop',
+      runtimeKind: 'real-local-project',
       source: 'api',
       status: 'unauthorized',
       summary:
@@ -156,6 +217,7 @@ export const NoSilentMockFallback: Story = {
     info: createProjectRuntimeInfoRecord({
       projectId: 'desktop-project-signal-arc',
       projectTitle: 'Signal Arc Desktop',
+      runtimeKind: 'real-local-project',
       source: 'api',
       status: 'unknown',
       summary:
@@ -169,6 +231,78 @@ export const NoSilentMockFallback: Story = {
   },
 }
 
+export const RealLocalProjectOpenAiKeyMissing: Story = {
+  args: {
+    info: createProjectRuntimeInfoRecord({
+      projectId: 'desktop-project-signal-arc',
+      projectTitle: 'Signal Arc Desktop',
+      runtimeKind: 'real-local-project',
+      source: 'api',
+      status: 'healthy',
+      summary: 'Connected to the desktop-local runtime for the current project.',
+      capabilities: {
+        read: true,
+        write: true,
+      },
+    }),
+  },
+  parameters: {
+    desktopModelSettingsSnapshot: {
+      bindings: {
+        continuityReviewer: { provider: 'fixture' },
+        planner: { provider: 'openai', modelId: 'gpt-5.4' },
+        sceneProseWriter: { provider: 'fixture' },
+        sceneRevision: { provider: 'fixture' },
+        summary: { provider: 'fixture' },
+      },
+      connectionTest: {
+        status: 'never',
+      },
+      credentialStatus: {
+        configured: false,
+        provider: 'openai',
+      },
+    } satisfies DesktopModelSettingsStorySnapshot,
+  },
+}
+
+export const RealLocalProjectTestFailed: Story = {
+  args: {
+    info: createProjectRuntimeInfoRecord({
+      projectId: 'desktop-project-signal-arc',
+      projectTitle: 'Signal Arc Desktop',
+      runtimeKind: 'real-local-project',
+      source: 'api',
+      status: 'healthy',
+      summary: 'Connected to the desktop-local runtime for the current project.',
+      capabilities: {
+        read: true,
+        write: true,
+      },
+    }),
+  },
+  parameters: {
+    desktopModelSettingsSnapshot: {
+      bindings: {
+        continuityReviewer: { provider: 'fixture' },
+        planner: { provider: 'openai', modelId: 'gpt-5.4' },
+        sceneProseWriter: { provider: 'fixture' },
+        sceneRevision: { provider: 'fixture' },
+        summary: { provider: 'fixture' },
+      },
+      connectionTest: {
+        status: 'failed',
+        errorCode: 'missing_key',
+        summary: 'OpenAI API key is missing.',
+      },
+      credentialStatus: {
+        configured: false,
+        provider: 'openai',
+      },
+    } satisfies DesktopModelSettingsStorySnapshot,
+  },
+}
+
 export const AllStates: Story = {
   render: () => {
     const statuses = [
@@ -178,6 +312,7 @@ export const AllStates: Story = {
           info: createProjectRuntimeInfoRecord({
             projectId: 'book-signal-arc',
             projectTitle: 'Signal Arc',
+            runtimeKind: 'fixture-demo',
             source: 'api',
             status: 'healthy',
             summary: 'Connected to fixture API runtime.',
@@ -222,6 +357,7 @@ export const AllStates: Story = {
           info: createProjectRuntimeInfoRecord({
             projectId: 'desktop-project-signal-arc',
             projectTitle: 'Signal Arc Desktop',
+            runtimeKind: 'real-local-project',
             source: 'api',
             status: 'healthy',
             summary: 'Connected to the desktop-local runtime for the current project.',
@@ -244,6 +380,7 @@ export const AllStates: Story = {
           info: createProjectRuntimeInfoRecord({
             projectId: 'desktop-project-signal-arc',
             projectTitle: 'Signal Arc Desktop',
+            runtimeKind: 'real-local-project',
             source: 'api',
             status: 'healthy',
             summary: 'Connected to the desktop-local runtime for the current project.',
@@ -285,6 +422,7 @@ export const AllStates: Story = {
           info: createProjectRuntimeInfoRecord({
             projectId: 'desktop-project-signal-arc',
             projectTitle: 'Signal Arc Desktop',
+            runtimeKind: 'real-local-project',
             source: 'api',
             status: 'unavailable',
             summary:

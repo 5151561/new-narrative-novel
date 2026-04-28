@@ -76,6 +76,29 @@ describe('desktop main bridge registration', () => {
       })),
     }
     const modelBindingStore = {
+      readModelSettingsRecord: vi.fn(async () => ({
+        bindings: {
+          continuityReviewer: {
+            provider: 'fixture' as const,
+          },
+          planner: {
+            modelId: 'gpt-5.4',
+            provider: 'openai' as const,
+          },
+          sceneProseWriter: {
+            provider: 'fixture' as const,
+          },
+          sceneRevision: {
+            provider: 'fixture' as const,
+          },
+          summary: {
+            provider: 'fixture' as const,
+          },
+        },
+        connectionTest: {
+          status: 'never' as const,
+        },
+      })),
       readBindings: vi.fn(async () => ({
         continuityReviewer: {
           provider: 'fixture' as const,
@@ -113,6 +136,14 @@ describe('desktop main bridge registration', () => {
           provider: 'fixture' as const,
         },
       })),
+      resetConnectionTest: vi.fn(async () => ({
+        status: 'never' as const,
+      })),
+      writeConnectionTest: vi.fn(async () => ({
+        errorCode: 'missing_key' as const,
+        status: 'failed' as const,
+        summary: 'OpenAI API key is missing.',
+      })),
     }
     const localApiSupervisor = {
       getLogs: vi.fn(() => []),
@@ -141,6 +172,11 @@ describe('desktop main bridge registration', () => {
           runtimeMode: 'desktop-local' as const,
         },
         status: 'ready' as const,
+      })),
+      testModelSettings: vi.fn(async () => ({
+        errorCode: 'missing_key' as const,
+        status: 'failed' as const,
+        summary: 'OpenAI API key is missing.',
       })),
       start: vi.fn(async () => ({
         lastError: undefined,
@@ -237,6 +273,8 @@ describe('desktop main bridge registration', () => {
     expect(registrations.has(DESKTOP_API_CHANNELS.saveProviderCredential)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.deleteProviderCredential)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.getModelBindings)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.getModelSettingsSnapshot)).toBe(true)
+    expect(registrations.has(DESKTOP_API_CHANNELS.testModelSettings)).toBe(true)
     expect(registrations.has(DESKTOP_API_CHANNELS.updateModelBinding)).toBe(true)
     expect(Array.from(registrations.keys())).not.toContain('narrativeDesktop:getRawCredential')
 
@@ -318,6 +356,39 @@ describe('desktop main bridge registration', () => {
         provider: 'openai',
       },
     })
+    await expect(registrations.get(DESKTOP_API_CHANNELS.getModelSettingsSnapshot)?.()).resolves.toEqual({
+      bindings: {
+        continuityReviewer: {
+          provider: 'fixture',
+        },
+        planner: {
+          modelId: 'gpt-5.4',
+          provider: 'openai',
+        },
+        sceneProseWriter: {
+          provider: 'fixture',
+        },
+        sceneRevision: {
+          provider: 'fixture',
+        },
+        summary: {
+          provider: 'fixture',
+        },
+      },
+      connectionTest: {
+        status: 'never',
+      },
+      credentialStatus: {
+        configured: true,
+        provider: 'openai',
+        redactedValue: 'sk-...alue',
+      },
+    })
+    await expect(registrations.get(DESKTOP_API_CHANNELS.testModelSettings)?.()).resolves.toEqual({
+      errorCode: 'missing_key',
+      status: 'failed',
+      summary: 'OpenAI API key is missing.',
+    })
     await expect(
       registrations.get(DESKTOP_API_CHANNELS.updateModelBinding)?.(undefined, {
         binding: {
@@ -337,7 +408,9 @@ describe('desktop main bridge registration', () => {
     expect(credentialStore.getCredentialStatus).toHaveBeenCalledWith('openai')
     expect(credentialStore.saveCredential).toHaveBeenCalledWith('openai', 'sk-secret-value')
     expect(credentialStore.deleteCredential).toHaveBeenCalledWith('openai')
+    expect(modelBindingStore.readModelSettingsRecord).toHaveBeenCalledWith('/tmp/local-project')
     expect(modelBindingStore.readBindings).toHaveBeenCalledWith('/tmp/local-project')
+    expect(modelBindingStore.resetConnectionTest).toHaveBeenCalledTimes(2)
     expect(modelBindingStore.updateBinding).toHaveBeenCalledWith('/tmp/local-project', {
       binding: {
         modelId: 'gpt-5.4-mini',
@@ -345,7 +418,13 @@ describe('desktop main bridge registration', () => {
       },
       role: 'sceneRevision',
     })
+    expect(modelBindingStore.writeConnectionTest).toHaveBeenCalledWith('/tmp/local-project', {
+      errorCode: 'missing_key',
+      status: 'failed',
+      summary: 'OpenAI API key is missing.',
+    })
     expect(localApiSupervisor.restart).toHaveBeenCalledTimes(4)
+    expect(localApiSupervisor.testModelSettings).toHaveBeenCalledTimes(1)
 
     const beforeQuitHandler = appOn.mock.calls.find(([event]) => event === 'before-quit')?.[1] as (() => void) | undefined
     expect(beforeQuitHandler).toBeTypeOf('function')

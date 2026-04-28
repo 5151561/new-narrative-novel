@@ -4,6 +4,7 @@ import {
   getProjectRuntimeSourceLabel,
   useI18n,
 } from '@/app/i18n'
+import { useDesktopModelSettingsSnapshot } from '@/features/settings/ModelSettingsProvider'
 
 import type { ProjectRuntimeHealthStatus, ProjectRuntimeInfoRecord } from './project-runtime-info'
 
@@ -37,11 +38,17 @@ export function ProjectRuntimeStatusBadge({
   onRetry,
 }: ProjectRuntimeStatusBadgeProps) {
   const { locale, dictionary } = useI18n()
+  const modelSettingsSnapshot = useDesktopModelSettingsSnapshot()
   const visibleStatus: ProjectRuntimeHealthStatus = isChecking ? 'checking' : info.status
   const showRetry = !isChecking && retryableStatuses.has(info.status) && onRetry
   const showCapabilityLimitations = !isChecking && info.status === 'healthy'
   const capabilityLimitations = showCapabilityLimitations ? getCapabilityLimitations(info, dictionary) : []
   const projectIdentityLabel = info.projectTitle.trim() || info.projectId
+  const projectBadgeLabel = getProjectBadgeLabel(info.runtimeKind, dictionary)
+  const hasOpenAiBinding = Object.values(modelSettingsSnapshot?.bindings ?? {}).some((binding) => binding.provider === 'openai')
+  const modelBadgeLabel = hasOpenAiBinding
+    ? dictionary.shell.modelOpenAiLabel
+    : dictionary.shell.modelFixtureLabel
 
   return (
     <div
@@ -54,6 +61,24 @@ export function ProjectRuntimeStatusBadge({
         <span title={info.projectId} className="max-w-full truncate text-xs font-semibold text-text-main">
           {projectIdentityLabel}
         </span>
+        {projectBadgeLabel ? (
+          <Badge tone={info.runtimeKind === 'real-local-project' ? 'success' : 'accent'}>
+            {projectBadgeLabel}
+          </Badge>
+        ) : null}
+        <Badge tone={hasOpenAiBinding ? 'accent' : 'neutral'}>
+          {modelBadgeLabel}
+        </Badge>
+        {modelSettingsSnapshot?.credentialStatus ? (
+          <Badge tone={modelSettingsSnapshot.credentialStatus.configured ? 'success' : 'warn'}>
+            {modelSettingsSnapshot.credentialStatus.configured
+              ? dictionary.shell.keyConfigured
+              : dictionary.shell.keyMissing}
+          </Badge>
+        ) : null}
+        {modelSettingsSnapshot?.connectionTest.status === 'failed' ? (
+          <Badge tone="danger">{dictionary.shell.testFailedLabel}</Badge>
+        ) : null}
         <Badge tone={info.source === 'api' ? 'success' : 'accent'}>
           {getProjectRuntimeSourceLabel(locale, info.source)}
         </Badge>
@@ -100,4 +125,19 @@ function getCapabilityLimitations(
   }
 
   return limitations
+}
+
+function getProjectBadgeLabel(
+  runtimeKind: ProjectRuntimeInfoRecord['runtimeKind'],
+  dictionary: ReturnType<typeof useI18n>['dictionary'],
+) {
+  if (runtimeKind === 'real-local-project') {
+    return dictionary.shell.realProjectLabel
+  }
+
+  if (runtimeKind === 'fixture-demo') {
+    return dictionary.shell.demoFixtureProjectLabel
+  }
+
+  return undefined
 }

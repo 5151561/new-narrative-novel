@@ -89,6 +89,33 @@ describe('createNarrativeDesktopApi', () => {
         } as T
       }
 
+      if (channel === DESKTOP_API_CHANNELS.getModelSettingsSnapshot) {
+        return {
+          bindings: {
+            continuityReviewer: { provider: 'fixture' },
+            planner: { modelId: 'gpt-5.4', provider: 'openai' },
+            sceneProseWriter: { provider: 'fixture' },
+            sceneRevision: { provider: 'fixture' },
+            summary: { provider: 'fixture' },
+          },
+          connectionTest: {
+            status: 'never',
+          },
+          credentialStatus: {
+            configured: false,
+            provider: 'openai',
+          },
+        } as T
+      }
+
+      if (channel === DESKTOP_API_CHANNELS.testModelSettings) {
+        return {
+          status: 'failed',
+          errorCode: 'missing_key',
+          summary: 'OpenAI API key is missing.',
+        } as T
+      }
+
       return 'desktop' as T
     }
     const api = createNarrativeDesktopApi(invoke)
@@ -100,6 +127,7 @@ describe('createNarrativeDesktopApi', () => {
       'getLocalApiLogs',
       'getLocalApiStatus',
       'getModelBindings',
+      'getModelSettingsSnapshot',
       'getPlatform',
       'getProviderCredentialStatus',
       'getRuntimeConfig',
@@ -108,6 +136,7 @@ describe('createNarrativeDesktopApi', () => {
       'restartLocalApi',
       'restartWorker',
       'saveProviderCredential',
+      'testModelSettings',
       'updateModelBinding',
     ])
     expect('ipcRenderer' in api).toBe(false)
@@ -189,6 +218,27 @@ describe('createNarrativeDesktopApi', () => {
         provider: 'openai',
       },
     })
+    await expect(api.getModelSettingsSnapshot()).resolves.toEqual({
+      bindings: {
+        continuityReviewer: { provider: 'fixture' },
+        planner: { modelId: 'gpt-5.4', provider: 'openai' },
+        sceneProseWriter: { provider: 'fixture' },
+        sceneRevision: { provider: 'fixture' },
+        summary: { provider: 'fixture' },
+      },
+      connectionTest: {
+        status: 'never',
+      },
+      credentialStatus: {
+        configured: false,
+        provider: 'openai',
+      },
+    })
+    await expect(api.testModelSettings()).resolves.toEqual({
+      status: 'failed',
+      errorCode: 'missing_key',
+      summary: 'OpenAI API key is missing.',
+    })
     await expect(api.updateModelBinding({
       binding: {
         modelId: 'gpt-5.4-mini',
@@ -222,6 +272,8 @@ describe('createNarrativeDesktopApi', () => {
       },
       { channel: DESKTOP_API_CHANNELS.deleteProviderCredential, payload: ['openai'] },
       { channel: DESKTOP_API_CHANNELS.getModelBindings, payload: [] },
+      { channel: DESKTOP_API_CHANNELS.getModelSettingsSnapshot, payload: [] },
+      { channel: DESKTOP_API_CHANNELS.testModelSettings, payload: [] },
       {
         channel: DESKTOP_API_CHANNELS.updateModelBinding,
         payload: [{
@@ -292,6 +344,7 @@ describe('createNarrativeDesktopApi', () => {
       'getLocalApiLogs',
       'getLocalApiStatus',
       'getModelBindings',
+      'getModelSettingsSnapshot',
       'getPlatform',
       'getProviderCredentialStatus',
       'getRuntimeConfig',
@@ -300,6 +353,7 @@ describe('createNarrativeDesktopApi', () => {
       'restartLocalApi',
       'restartWorker',
       'saveProviderCredential',
+      'testModelSettings',
       'updateModelBinding',
     ])
     expect('ipcRenderer' in api).toBe(false)

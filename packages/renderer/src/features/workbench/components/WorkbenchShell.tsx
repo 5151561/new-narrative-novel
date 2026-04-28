@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { useI18n } from '@/app/i18n'
 import { ProjectRuntimeStatusBoundary } from '@/app/project-runtime'
 import { Pane } from '@/components/ui/Pane'
+import { ModelSettingsDialog } from '@/features/settings/ModelSettingsDialog'
+import { ModelSettingsProvider, useOptionalModelSettingsController } from '@/features/settings/ModelSettingsProvider'
 
 import { useOptionalWorkbenchEditor } from '../editor/WorkbenchEditorProvider'
 import { WorkbenchEditorTabs } from '../editor/WorkbenchEditorTabs'
@@ -39,7 +41,32 @@ export function WorkbenchShell({
   bottomDock,
   layoutStorageKey,
 }: WorkbenchShellProps) {
+  return (
+    <ModelSettingsProvider>
+      <WorkbenchShellContent
+        topBar={topBar}
+        modeRail={modeRail}
+        navigator={navigator}
+        mainStage={mainStage}
+        inspector={inspector}
+        bottomDock={bottomDock}
+        layoutStorageKey={layoutStorageKey}
+      />
+    </ModelSettingsProvider>
+  )
+}
+
+function WorkbenchShellContent({
+  topBar,
+  modeRail,
+  navigator,
+  mainStage,
+  inspector,
+  bottomDock,
+  layoutStorageKey,
+}: WorkbenchShellProps) {
   const { dictionary } = useI18n()
+  const modelSettings = useOptionalModelSettingsController()
   const layout = useWorkbenchLayoutState(layoutStorageKey)
   const editor = useOptionalWorkbenchEditor()
   const hasNavigator = isRenderablePane(navigator)
@@ -73,7 +100,16 @@ export function WorkbenchShell({
         <div className="flex flex-col gap-2">
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">{topBar}</div>
-            <div className="shrink-0">
+            <div className="flex shrink-0 items-center gap-2">
+              {modelSettings?.supported ? (
+                <button
+                  type="button"
+                  onClick={() => modelSettings.setOpen(true)}
+                  className="rounded-md border border-line-soft bg-surface-2 px-3 py-2 text-sm text-text-main"
+                >
+                  {dictionary.shell.openModelSettings}
+                </button>
+              ) : null}
               <WorkbenchLayoutControls
                 layout={effectiveLayoutState}
                 navigatorAvailable={hasNavigator}
@@ -215,6 +251,10 @@ export function WorkbenchShell({
           ) : null}
         </div>
       ) : null}
+      <ModelSettingsDialog
+        open={Boolean(modelSettings?.open)}
+        onOpenChange={(nextOpen) => modelSettings?.setOpen(nextOpen)}
+      />
     </div>
   )
 }

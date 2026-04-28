@@ -18,6 +18,7 @@ import {
   DESKTOP_API_CHANNELS,
   type CurrentProjectSnapshot,
   type DesktopModelBinding,
+  type DesktopModelSettingsSnapshot,
   type DesktopModelBindingRole,
   type DesktopPlatform,
   type ProviderCredentialProvider,
@@ -138,6 +139,30 @@ async function restartLocalApiForModelConfigChange(supervisor: LocalApiSuperviso
   await supervisor.restart()
 }
 
+function readCurrentProjectRootIfAvailable(): string | null {
+  return projectStore?.getCurrentProject()?.projectRoot ?? null
+}
+
+async function resetStoredConnectionTestIfPossible() {
+  const projectRoot = readCurrentProjectRootIfAvailable()
+  if (!projectRoot) {
+    return
+  }
+
+  await modelBindingStore.resetConnectionTest(projectRoot)
+}
+
+async function readModelSettingsSnapshot(projectRoot: string): Promise<DesktopModelSettingsSnapshot> {
+  const record = await modelBindingStore.readModelSettingsRecord(projectRoot)
+  const credentialStatus = await credentialStore.getCredentialStatus('openai')
+
+  return {
+    bindings: record.bindings,
+    connectionTest: record.connectionTest,
+    credentialStatus,
+  }
+}
+
 export function registerDesktopBridgeHandlers(
   supervisor: LocalApiSupervisor = localApiSupervisor,
   processWorkerSupervisor: WorkerSupervisor = workerSupervisor,
@@ -182,12 +207,14 @@ export function registerDesktopBridgeHandlers(
   ipcMain.handle(DESKTOP_API_CHANNELS.saveProviderCredential, (_event, input: unknown) => {
     const normalized = assertSaveProviderCredentialInput(input)
     return credentialStore.saveCredential(normalized.provider, normalized.secret).then(async (status) => {
+      await resetStoredConnectionTestIfPossible()
       await restartLocalApiForModelConfigChange(supervisor)
       return status
     })
   })
   ipcMain.handle(DESKTOP_API_CHANNELS.deleteProviderCredential, (_event, provider: unknown) => (
     credentialStore.deleteCredential(assertProviderCredentialProvider(provider)).then(async (status) => {
+      await resetStoredConnectionTestIfPossible()
       await restartLocalApiForModelConfigChange(supervisor)
       return status
     })
@@ -195,6 +222,15 @@ export function registerDesktopBridgeHandlers(
   ipcMain.handle(DESKTOP_API_CHANNELS.getModelBindings, () => (
     modelBindingStore.readBindings(requireCurrentProjectRoot())
   ))
+  ipcMain.handle(DESKTOP_API_CHANNELS.getModelSettingsSnapshot, () => (
+    readModelSettingsSnapshot(requireCurrentProjectRoot())
+  ))
+  ipcMain.handle(DESKTOP_API_CHANNELS.testModelSettings, async () => {
+    const projectRoot = requireCurrentProjectRoot()
+    const connectionTest = await supervisor.testModelSettings()
+    await modelBindingStore.writeConnectionTest(projectRoot, connectionTest)
+    return connectionTest
+  })
   ipcMain.handle(DESKTOP_API_CHANNELS.updateModelBinding, (_event, input: unknown) => (
     modelBindingStore.updateBinding(requireCurrentProjectRoot(), assertUpdateModelBindingInput(input)).then(async (bindings) => {
       await restartLocalApiForModelConfigChange(supervisor)

@@ -27,6 +27,7 @@ import { registerReviewRoutes } from './routes/review.js'
 import { registerRunRoutes } from './routes/run.js'
 import { registerRunArtifactRoutes } from './routes/runArtifacts.js'
 import { registerSceneRoutes } from './routes/scene.js'
+import { registerModelSettingsRoutes } from './routes/model-settings.js'
 
 export interface CreateServerOptions {
   config?: ApiServerConfig
@@ -110,6 +111,11 @@ export function createServer(options: CreateServerOptions = {}) {
   }
 
   registerProjectRuntimeRoutes(routeContext)
+  registerModelSettingsRoutes({
+    app,
+    apiBasePath: config.apiBasePath,
+    config,
+  })
   registerBookRoutes(routeContext)
   registerChapterRoutes(routeContext)
   registerAssetRoutes(routeContext)

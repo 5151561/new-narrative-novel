@@ -1,10 +1,12 @@
 import {
   type CurrentProjectSnapshot,
   DESKTOP_API_CHANNELS,
+  type DesktopModelConnectionTestRecord,
   type DesktopModelBindings,
   type DesktopApiChannel,
   type DesktopModelBindingRole,
   type DesktopModelBindingProvider,
+  type DesktopModelSettingsSnapshot,
   type DesktopRuntimeConfig,
   type LocalApiStatusSnapshot,
   type DesktopPlatform,
@@ -44,6 +46,8 @@ export function createNarrativeDesktopApi(invoke: DesktopIpcInvoke): NarrativeDe
       provider,
     ),
     getModelBindings: () => invoke<DesktopModelBindings>(DESKTOP_API_CHANNELS.getModelBindings),
+    getModelSettingsSnapshot: () => invoke<DesktopModelSettingsSnapshot>(DESKTOP_API_CHANNELS.getModelSettingsSnapshot),
+    testModelSettings: () => invoke<DesktopModelConnectionTestRecord>(DESKTOP_API_CHANNELS.testModelSettings),
     updateModelBinding: (input: UpdateModelBindingInput) => invoke<DesktopModelBindings>(
       DESKTOP_API_CHANNELS.updateModelBinding,
       input,

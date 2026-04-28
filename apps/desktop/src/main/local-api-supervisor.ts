@@ -13,6 +13,7 @@ import {
   type LocalApiProcessConfig,
 } from './runtime-config.js'
 import type {
+  DesktopModelConnectionTestRecord,
   DesktopModelBindings,
   ProviderCredentialProvider,
 } from '../shared/desktop-bridge-types.js'
@@ -198,6 +199,25 @@ export class LocalApiSupervisor {
     return this.start()
   }
 
+  async testModelSettings(): Promise<DesktopModelConnectionTestRecord> {
+    const snapshot = await this.ensureReadyForControlPlaneRequest()
+    if (!snapshot.runtimeConfig) {
+      throw new Error(snapshot.lastError ?? 'Local API runtime config is unavailable.')
+    }
+
+    const response = await this.fetchImpl(`${snapshot.runtimeConfig.apiBaseUrl}/model-settings/test-connection`, {
+      headers: {
+        'content-type': 'application/json',
+      },
+      method: 'POST',
+    })
+    if (!response.ok) {
+      throw new Error(`Model settings connection test failed with HTTP ${response.status}.`)
+    }
+
+    return response.json() as Promise<DesktopModelConnectionTestRecord>
+  }
+
   stop(): LocalApiSnapshot {
     this.status = 'stopped'
     this.lastError = undefined
@@ -310,6 +330,18 @@ export class LocalApiSupervisor {
     if (this.status === 'failed') {
       throw new Error(this.lastError ?? 'Local API process failed before readiness.')
     }
+  }
+
+  private async ensureReadyForControlPlaneRequest(): Promise<LocalApiSnapshot> {
+    if (this.status === 'ready') {
+      return this.getSnapshot()
+    }
+
+    if (this.status === 'stopped') {
+      return this.start()
+    }
+
+    return this.restart()
   }
 }
 

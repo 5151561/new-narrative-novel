@@ -19,6 +19,7 @@ import type {
   ProjectRuntimeHealthStatus,
   ProjectRuntimeSource,
 } from '@/app/project-runtime/project-runtime-info'
+import type { DesktopModelBindingProvider, DesktopModelBindingRole } from '@/features/settings/ModelSettingsProvider'
 
 type InspectorTabId = 'context' | 'versions' | 'traceability' | 'runtime'
 
@@ -538,6 +539,30 @@ const dictionaries = {
       projectRuntimeReadOnly: 'Read-only',
       projectRuntimeNoRunEvents: 'No run events',
       projectRuntimeNoReviewDecisions: 'No review decisions',
+      demoFixtureProjectLabel: 'Demo Fixture Project',
+      realProjectLabel: 'Real Project',
+      mockStorybookProjectLabel: 'Mock Storybook',
+      modelFixtureLabel: 'Model Fixture',
+      modelOpenAiLabel: 'Model OpenAI',
+      keyMissing: 'Key Missing',
+      keyConfigured: 'Key Configured',
+      testFailedLabel: 'Test Failed',
+      openModelSettings: 'Model Settings',
+      modelSettingsEyebrow: 'Runtime model bindings',
+      modelSettingsTitle: 'Model Settings',
+      openAiApiKeyTitle: 'OpenAI API key',
+      openAiApiKeyInput: 'OpenAI API key input',
+      saveOpenAiApiKey: 'Save OpenAI API key',
+      clearOpenAiApiKey: 'Clear OpenAI API key',
+      modelRoleBindingsTitle: 'Role bindings',
+      modelRoleBindingsDescription: 'Shell-owned model bindings stay in the desktop bridge, not in the route.',
+      modelIdLabel: 'Model ID',
+      saveBindingLabel: (role: string) => `Save ${role} binding`,
+      modelSettingsRoleProviderLabel: (role: string) => `${role} provider`,
+      modelSettingsRoleModelLabel: (role: string) => `${role} model`,
+      testModelConnection: 'Test model connection',
+      connectionTestTitle: 'Connection test',
+      connectionTestNever: 'No connection test has been run yet.',
     },
   },
   'zh-CN': {
@@ -675,6 +700,30 @@ const dictionaries = {
       projectRuntimeReadOnly: '只读',
       projectRuntimeNoRunEvents: '无运行事件',
       projectRuntimeNoReviewDecisions: '无审阅决策',
+      demoFixtureProjectLabel: '演示 Fixture 项目',
+      realProjectLabel: '真实项目',
+      mockStorybookProjectLabel: 'Mock Storybook',
+      modelFixtureLabel: '模型 Fixture',
+      modelOpenAiLabel: '模型 OpenAI',
+      keyMissing: '密钥缺失',
+      keyConfigured: '密钥已配置',
+      testFailedLabel: '测试失败',
+      openModelSettings: '模型设置',
+      modelSettingsEyebrow: '运行时模型绑定',
+      modelSettingsTitle: '模型设置',
+      openAiApiKeyTitle: 'OpenAI API 密钥',
+      openAiApiKeyInput: 'OpenAI API 密钥输入',
+      saveOpenAiApiKey: '保存 OpenAI API 密钥',
+      clearOpenAiApiKey: '清除 OpenAI API 密钥',
+      modelRoleBindingsTitle: '角色绑定',
+      modelRoleBindingsDescription: '模型绑定由 shell 通过 desktop bridge 持有，不进入 route。',
+      modelIdLabel: '模型 ID',
+      saveBindingLabel: (role: string) => `保存 ${role} 绑定`,
+      modelSettingsRoleProviderLabel: (role: string) => `${role}提供方`,
+      modelSettingsRoleModelLabel: (role: string) => `${role}模型`,
+      testModelConnection: '测试模型连接',
+      connectionTestTitle: '连接测试',
+      connectionTestNever: '尚未执行连接测试。',
     },
   },
 } as const
@@ -793,6 +842,42 @@ export function getProjectRuntimeSourceLabel(locale: Locale, source: ProjectRunt
 
 export function getProjectRuntimeHealthStatusLabel(locale: Locale, status: ProjectRuntimeHealthStatus) {
   return projectRuntimeHealthStatusLabels[locale][status]
+}
+
+export function getModelBindingRoleLabel(locale: Locale, role: DesktopModelBindingRole) {
+  const labels: Record<Locale, Record<DesktopModelBindingRole, string>> = {
+    en: {
+      continuityReviewer: 'Continuity Reviewer',
+      planner: 'Planner',
+      sceneProseWriter: 'Scene Prose Writer',
+      sceneRevision: 'Scene Revision',
+      summary: 'Summary',
+    },
+    'zh-CN': {
+      continuityReviewer: '连续性审阅',
+      planner: '规划器',
+      sceneProseWriter: '场景正文生成',
+      sceneRevision: '场景修订',
+      summary: '摘要',
+    },
+  }
+
+  return labels[locale][role]
+}
+
+export function getModelBindingProviderLabel(locale: Locale, provider: DesktopModelBindingProvider) {
+  const labels: Record<Locale, Record<DesktopModelBindingProvider, string>> = {
+    en: {
+      fixture: 'Fixture',
+      openai: 'OpenAI',
+    },
+    'zh-CN': {
+      fixture: '演示 Fixture',
+      openai: 'OpenAI',
+    },
+  }
+
+  return labels[locale][provider]
 }
 
 export function getChapterStructureViewLabel(locale: Locale, view: ChapterStructureView) {
