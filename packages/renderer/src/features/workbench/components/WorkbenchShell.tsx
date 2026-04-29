@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 
 import { useI18n } from '@/app/i18n'
-import { ProjectRuntimeStatusBoundary } from '@/app/project-runtime'
+import { ProjectRuntimeStatusBoundary, useProjectRuntime } from '@/app/project-runtime'
+import { Badge } from '@/components/ui/Badge'
 import { Pane } from '@/components/ui/Pane'
 import { ModelSettingsDialog } from '@/features/settings/ModelSettingsDialog'
 import { ModelSettingsProvider, useOptionalModelSettingsController } from '@/features/settings/ModelSettingsProvider'
@@ -17,6 +18,26 @@ import {
 import { WorkbenchLayoutControls } from './WorkbenchLayoutControls'
 import { WorkbenchSash } from './WorkbenchSash'
 import { WorkbenchSurfaceBody } from './WorkbenchSurfaceBody'
+
+function WorkbenchRuntimeBadge() {
+  const runtime = useProjectRuntime()
+  const projectMode = runtime.info?.projectMode
+  if (!projectMode || projectMode === 'mock-storybook') {
+    return null
+  }
+
+  const isReal = projectMode === 'real-project'
+  const providerLabel = runtime.info?.modelBindings?.usable ? 'OpenAI' : 'Fixture'
+
+  return (
+    <div className="flex items-center gap-2">
+      <Badge tone={isReal ? 'success' : 'accent'}>
+        {isReal ? 'Real Project' : 'Demo Project'}
+      </Badge>
+      <Badge tone="neutral">{providerLabel}</Badge>
+    </div>
+  )
+}
 
 interface WorkbenchShellProps {
   topBar: ReactNode
@@ -101,6 +122,7 @@ function WorkbenchShellContent({
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">{topBar}</div>
             <div className="flex shrink-0 items-center gap-2">
+              <WorkbenchRuntimeBadge />
               {modelSettings?.supported ? (
                 <button
                   type="button"
