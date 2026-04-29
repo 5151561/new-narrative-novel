@@ -6,9 +6,10 @@ interface ChapterModeRailProps {
   activeLens: ChapterLens
   onSelectScope: (scope: WorkbenchScope) => void
   onSelectLens: (lens: ChapterLens) => void
+  showAssetScope?: boolean
 }
 
-export function ChapterModeRail({ activeLens, onSelectScope, onSelectLens }: ChapterModeRailProps) {
+export function ChapterModeRail({ activeLens, onSelectScope, onSelectLens, showAssetScope = true }: ChapterModeRailProps) {
   const { locale, dictionary } = useI18n()
 
   return (
@@ -31,14 +32,16 @@ export function ChapterModeRail({ activeLens, onSelectScope, onSelectLens }: Cha
           >
             {dictionary.common.chapter}
           </button>
-          <button
-            type="button"
-            aria-pressed="false"
-            onClick={() => onSelectScope('asset')}
-            className="rounded-md border border-transparent px-2 py-2 text-sm text-text-muted hover:border-line-soft hover:bg-surface-2"
-          >
-            {dictionary.common.asset}
-          </button>
+          {showAssetScope ? (
+            <button
+              type="button"
+              aria-pressed="false"
+              onClick={() => onSelectScope('asset')}
+              className="rounded-md border border-transparent px-2 py-2 text-sm text-text-muted hover:border-line-soft hover:bg-surface-2"
+            >
+              {dictionary.common.asset}
+            </button>
+          ) : null}
           <button
             type="button"
             aria-pressed="false"

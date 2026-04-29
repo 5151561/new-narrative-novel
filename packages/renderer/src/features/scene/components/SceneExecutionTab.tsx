@@ -227,6 +227,42 @@ export function SceneExecutionTab({
                 ) : null}
               </div>
             ) : null}
+            {isFailedRun && activeRun ? (
+              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-950">
+                <p className="font-medium">
+                  {activeRun.failureClass === 'rate_limited'
+                    ? (locale === 'zh-CN' ? '速率限制' : 'Rate Limited')
+                    : activeRun.failureClass === 'provider_error'
+                      ? (locale === 'zh-CN' ? '提供方错误' : 'Provider Error')
+                      : activeRun.failureClass === 'model_timeout'
+                        ? (locale === 'zh-CN' ? '模型超时' : 'Model Timeout')
+                        : activeRun.failureClass === 'invalid_output'
+                          ? (locale === 'zh-CN' ? '无效输出' : 'Invalid Output')
+                          : activeRun.failureClass === 'missing_model_config'
+                            ? (locale === 'zh-CN' ? '缺少模型配置' : 'Missing Model Config')
+                            : (locale === 'zh-CN' ? '运行失败' : 'Run Failed')}
+                </p>
+                <p className="mt-1 leading-6">{activeRun.failureMessage ?? activeRun.summary}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(activeRun.failureClass === 'provider_error' || activeRun.failureClass === 'rate_limited' || activeRun.failureClass === 'model_timeout') ? (
+                    <button
+                      type="button"
+                      className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white"
+                      onClick={() => { void runSession.onRetryRun?.() }}
+                    >
+                      {locale === 'zh-CN' ? '重试运行' : 'Retry Run'}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="rounded-md border border-line-soft bg-white px-3 py-2 text-sm font-medium text-text-main"
+                    onClick={onOpenSetup}
+                  >
+                    {dictionary.shell.openModelSettings}
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {activeRun ? (
               <div className="grid gap-3 text-sm text-text-muted">
                 <div className="flex flex-wrap items-center gap-2">

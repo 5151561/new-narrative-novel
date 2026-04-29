@@ -20,8 +20,8 @@ interface Props {
 
 export function WorkbenchFirstRunChecklist({ onCreateChapter, onCreateScene }: Props) {
   const runtime = useProjectRuntime()
-  const { replaceRoute } = useWorkbenchRouteState()
   const { bookId, chapterId, sceneId } = useProjectFirstObjectIds()
+  const { replaceRoute } = useWorkbenchRouteState({ sceneId, chapterId, bookId })
   const locale = (typeof window !== 'undefined' && document.documentElement.lang === 'zh-CN') ? 'zh-CN' : 'en' as const
 
   const isReal = runtime.info?.projectMode === 'real-project'

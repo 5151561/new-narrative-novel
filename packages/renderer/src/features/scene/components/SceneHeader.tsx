@@ -1,4 +1,7 @@
+import { useCallback, useRef, useState } from 'react'
+
 import { getSceneRunStatusLabel, getSceneStatusLabel, getWorkbenchLensLabel, useI18n } from '@/app/i18n'
+import { useProjectRuntime } from '@/app/project-runtime'
 import { Badge } from '@/components/ui/Badge'
 import { StatusDot } from '@/components/ui/StatusDot'
 import type { SceneLens } from '@/features/workbench/types/workbench-route'
@@ -28,6 +31,43 @@ function statusTone(status: SceneWorkspaceViewModel['status']): 'neutral' | 'acc
 
 export function SceneHeader({ scene, lens, onOpenExport, onSwitchThread, onOpenVersions }: SceneHeaderProps) {
   const { locale } = useI18n()
+  const runtime = useProjectRuntime()
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editTitleValue, setEditTitleValue] = useState('')
+  const editTitleInputRef = useRef<HTMLInputElement>(null)
+
+  const startEditingTitle = useCallback(() => {
+    setEditTitleValue(scene.title)
+    setIsEditingTitle(true)
+    requestAnimationFrame(() => {
+      editTitleInputRef.current?.focus()
+      editTitleInputRef.current?.select()
+    })
+  }, [scene.title])
+
+  const commitTitleEdit = useCallback(async () => {
+    if (!editTitleValue.trim() || editTitleValue.trim() === scene.title) {
+      setIsEditingTitle(false)
+      return
+    }
+    setIsEditingTitle(false)
+    await runtime.sceneClient.renameScene?.(scene.id, editTitleValue.trim())
+  }, [editTitleValue, scene.id, scene.title, runtime.sceneClient])
+
+  const cancelTitleEdit = useCallback(() => {
+    setIsEditingTitle(false)
+  }, [])
+
+  const handleTitleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'Enter') {
+        void commitTitleEdit()
+      } else if (event.key === 'Escape') {
+        cancelTitleEdit()
+      }
+    },
+    [commitTitleEdit, cancelTitleEdit],
+  )
 
   return (
     <header className="flex flex-wrap items-start justify-between gap-4 px-5 py-4">
@@ -36,7 +76,27 @@ export function SceneHeader({ scene, lens, onOpenExport, onSwitchThread, onOpenV
           {scene.chapterTitle} / {locale === 'zh-CN' ? '场景' : 'Scene'} / {getWorkbenchLensLabel(locale, lens)}
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-[30px] leading-[1.15]">{scene.title}</h1>
+          {isEditingTitle ? (
+            <input
+              ref={editTitleInputRef}
+              type="text"
+              value={editTitleValue}
+              onChange={(event) => setEditTitleValue(event.target.value)}
+              onBlur={() => void commitTitleEdit()}
+              onKeyDown={handleTitleKeyDown}
+              className="min-w-[200px] rounded-md border border-line-soft bg-surface-1 px-2 py-1 text-[30px] leading-[1.15] text-text-main"
+              placeholder={locale === 'zh-CN' ? '场景标题' : 'Scene title'}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={startEditingTitle}
+              className="rounded-md px-1 -ml-1 text-[30px] leading-[1.15] hover:bg-surface-2 hover:text-accent text-left"
+              title={locale === 'zh-CN' ? '点击编辑场景标题' : 'Click to edit scene title'}
+            >
+              {scene.title}
+            </button>
+          )}
           <Badge tone={statusTone(scene.status)}>{getSceneStatusLabel(locale, scene.status)}</Badge>
           <Badge tone={scene.runStatus === 'paused' ? 'warn' : 'neutral'}>
             <StatusDot tone={scene.runStatus === 'paused' ? 'warn' : 'neutral'} className="mr-1" />

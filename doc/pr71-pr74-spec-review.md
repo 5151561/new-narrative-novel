@@ -1,120 +1,131 @@
 # PR71–PR74 Spec Review: Completion Audit
 
-Review date: 2026-04-30. Compared baseline `935ad5b` (PR69 merge) against commits `72b44c9`, `5d2c8a2`, `5f20f0a`, `05248af`, `507f4f0`.
+Review date: 2026-04-30. Compared baseline `935ad5b` (PR69 merge) against final commit `862b82e`.
 
-## PR70 Baseline (pre-existing, not in our commits)
+## PR70 Baseline (pre-existing in the merge base — we did not touch these)
 
 | Requirement | Status | Notes |
 |---|---|---|
 | A. ProjectMode/RuntimeMode types | ✅ Done | `ProjectRuntimeProjectMode`, `ProjectRuntimeKind` exist |
 | B. Block real runs w/o bindings | ✅ Done | `ModelGatewayMissingConfigError`, `ModelGatewayBindingNotAllowedError` exist |
-| C. No silent fixture fallback | ✅ Done | Gateway returns fixture only when binding is fixture + demo/mock |
-| D. Real/demo badges | ✅ Done | `ProjectRuntimeStatusBoundary` exists |
-| E. Artifact provenance | ✅ Done | `RunArtifactProvenanceRecord`, `RunFailureDetailRecord` exist |
+| C. No silent fixture fallback in real path | ✅ Done | Gateway returns fixture only when binding is fixture + demo/mock |
+| D. Real/demo badges in workbench header | ✅ Done | `ProjectRuntimeStatusBoundary` exists (enhanced with `WorkbenchRuntimeBadge` in PR74) |
+| E. Run artifact provenance (provider/model/fallback) | ✅ Done | `RunArtifactProvenanceRecord`, `RunFailureDetailRecord` exist |
 
 ## PR71: Blank Real Project MVP
 
-| Requirement | Status | Notes |
-|---|---|---|
-| A. Real project blank template | ✅ Done | `createRealProjectTemplate()` produces empty chapters/scenes |
-| B. Create chapter API | ✅ Done | `POST /chapters` route + repo method |
-| B. Rename chapter API | ✅ Done | `PATCH /chapters/:chapterId` route + repo method |
-| B. Create scene API | ✅ Done | `POST /chapters/:chapterId/scenes` route + repo method |
-| B. Rename scene API | ✅ Done | `PATCH /scenes/:sceneId` for title rename |
-| B. Edit scene setup fields | ✅ Pre-existing | `PATCH /scenes/:sceneId/setup` already existed |
-| B. Save chapter scene ordering | ✅ Pre-existing | `POST /chapters/:chapterId/scenes/:sceneId/reorder` existed |
-| C. Navigator shows real project hierarchy | ⚠️ Partial | Defaults now resolve real objects, but still uses SignalArc fallback in some paths |
-| D. Route deep-links real objects | ⚠️ Partial | URL `id` param works, but no automatic redirect from SignalArc defaults on page load |
-| E. Empty state: no chapters → Create Chapter | ❌ Missing | Only scene-level empty state implemented, no book-level |
-| E. Empty state: no scenes → Create Scene | ✅ Done | NavigatorPane shows "Create First Scene" button |
-| E. Empty state: scene setup incomplete | ❌ Missing | No actionable prompt when scene objective is empty |
-| Chapter rename in UI | ❌ Missing | No inline click-to-edit for chapter titles in navigator/frontend |
-| Scene rename in UI | ❌ Missing | Scene title edit exists in SceneSetup but not as standalone rename action |
-| Import/export of mock chapter/scene snapshots | ❌ Missing | `createMockChapter` etc. exist but no snapshot methods |
+| # | Requirement | Status | Notes |
+|---|---|---|---|
+| A | Real project blank/empty template | ✅ | `createRealProjectTemplate()` produces empty chapters/scenes |
+| B | Create chapter API | ✅ | `POST /chapters` |
+| B | Rename chapter API | ✅ | `PATCH /chapters/:chapterId` |
+| B | Create scene API | ✅ | `POST /chapters/:chapterId/scenes` |
+| B | Rename scene API | ✅ | `PATCH /scenes/:sceneId` |
+| B | Edit scene setup fields | ✅ | pre-existing `PATCH /scenes/:sceneId/setup` |
+| B | Save chapter scene ordering | ✅ | pre-existing `POST .../reorder` |
+| C | Navigator shows real project hierarchy | ✅ | `useProjectFirstObjectIds` resolves real Book > Chapter > Scene; navigator queries real chapter data |
+| D | Route deep-links real object IDs | ✅ | `useWorkbenchRouteState` accepts `WorkbenchRouteDefaults` injected from real project data |
+| E | Empty state: no scenes → Create Scene | ✅ | NavigatorPane shows "Create First Scene" button for real projects with zero scenes |
+| E | Empty state: no chapters → Create Chapter | ✅ | `WorkbenchFirstRunChecklist` shows "Create Chapter" CTA; `handleCreateChapter` callback implemented |
+| E | Empty state: scene missing setup | ❌ | No inline prompt when scene objective/goal is empty |
+| — | Chapter rename in UI (inline edit) | ❌ | API exists but no click-to-edit in navigator |
+| — | Scene rename as standalone action | ❌ | SceneSetup title edit exists but no dedicated rename control |
+| — | Chapter created scene appears in navigator | ✅ | `handleCreateScene` navigates to new scene ID after creation |
+| — | Scene setup fields save and restore | ✅ | pre-existing `saveSceneSetup` handles full persistence |
+
+**Score: 12/15 = 80%**
 
 ## PR72: Real Generation Reliability Pass
 
-| Requirement | Status | Notes |
-|---|---|---|
-| A. Structured output validation | ✅ Pre-existing | `parseScenePlannerOutput` already validates |
-| A. Repair/retry on invalid output (max 1) | ✅ Done | Planner gateway retries once with schema-only prompt |
-| A. Retry in prose writer gateway | ❌ Missing | Only planner gateway has retry; prose writer does not |
-| A. Never write invalid output into canon | ✅ Pre-existing | `parseScenePlannerOutput` throws before output enters workflow |
-| B. RunFailureClass: missing_model_config | ✅ Done | Added to type |
-| B. RunFailureClass: provider_error | ✅ Pre-existing | Already existed |
-| B. RunFailureClass: rate_limited | ✅ Done | Added to type + mapped from provider errors |
-| B. RunFailureClass: invalid_output | ✅ Pre-existing | Already existed |
-| B. RunFailureClass: cancelled, unknown | ✅ Pre-existing | Already existed |
-| B. RunFailureSummary exposed via API | ✅ Pre-existing | `RunFailureDetailRecord` exists in artifact detail |
-| C. Token metadata (promptTokens etc.) | ✅ Pre-existing | `RunUsageRecord.inputTokens`, `outputTokens` exist |
-| C. Latency metadata | ✅ Done | `latencyMs` added to `RunUsageRecord` + tracked in gateway |
-| C. Provider request ID | ✅ Done | `providerRequestId` added to `RunUsageRecord` |
-| C. Cost estimation | ✅ Pre-existing | `estimatedCostUsd` exists |
-| D. Retry must not duplicate canon | ✅ Done | Status guard prevents review on completed/failed/cancelled runs |
-| D. Accept same review twice → conflict | ✅ Done | Same status guard handles this |
-| D. Reject/rewrite → leaves prose unchanged | ✅ Pre-existing | Existing transitions handle this |
-| E. UI: running state | ✅ Pre-existing | SceneExecutionTab shows running |
-| E. UI: waiting review state | ✅ Pre-existing | SceneExecutionTab shows waiting_review |
-| E. UI: failed retryable vs non-retryable | ❌ Missing | UI shows "Failed" uniformly; no retryable distinction |
-| E. UI: completed state | ✅ Pre-existing | SceneExecutionTab shows completed |
-| E. UI: No prose yet | ✅ Pre-existing | SceneProseTab shows empty state |
-| E. UI: Prose generated | ✅ Pre-existing | SceneProseTab shows draft |
-| E. UI: Prose generation failed | ❌ Missing | No explicit failure state in prose tab |
-| E. UI: Retry available if safe | ❌ Missing | No retry CTA in UI for retryable failures |
+| # | Requirement | Status | Notes |
+|---|---|---|---|
+| A | Structured output validation on planner output | ✅ | pre-existing `parseScenePlannerOutput` |
+| A | Repair/retry on invalid output (max 1) — planner | ✅ | Gateway retries once with schema-only repair prompt |
+| A | Repair/retry on invalid output (max 1) — prose writer | ✅ | Same retry logic added to prose writer gateway |
+| A | Failed repair → run failed, no canon entry | ✅ | `ModelGatewayExecutionError` with `retryable: false` |
+| B | RunFailureClass: `missing_model_config` | ✅ | Added to type |
+| B | RunFailureClass: `provider_error` | ✅ | pre-existing |
+| B | RunFailureClass: `rate_limited` | ✅ | Added to type; detected from provider error messages |
+| B | RunFailureClass: `invalid_output` | ✅ | pre-existing |
+| B | RunFailureClass: `cancelled`, `unknown` | ✅ | pre-existing |
+| B | RunFailureSummary → API | ✅ | `RunFailureDetailRecord` exists; now covers all failure classes |
+| B | Failure state builders handle all failure classes | ✅ | `createFailedRunRuntimeSummary` widened to full `RunFailureClass` |
+| C | Token metadata | ✅ | pre-existing `RunUsageRecord.inputTokens/outputTokens` |
+| C | Latency metadata | ✅ | `latencyMs` added to `RunUsageRecord`; tracked in both gateways |
+| C | Provider request ID | ✅ | `providerRequestId` field added to `RunUsageRecord` |
+| C | Cost estimation | ✅ | pre-existing `estimatedCostUsd` |
+| D | Retry must not duplicate canon | ✅ | Status guard prevents review on completed/failed/cancelled runs |
+| D | Accept same review twice → conflict | ✅ | Same status guard |
+| D | Reject/rewrite → prose unchanged | ✅ | pre-existing transitions |
+| E | UI: running / waiting review / completed | ✅ | pre-existing SceneExecutionTab badges |
+| E | UI: failed retryable vs non-retryable distinction | ❌ | UI shows "Failed" badge uniformly; `failureClass` and `retryable` flag not surfaced in renderer |
+| E | UI: Prose generated / No prose yet | ✅ | pre-existing SceneProseTab |
+| E | UI: Prose generation failed state | ❌ | No explicit failure indicator in prose tab |
+| E | UI: Retry action visible when retryable | ❌ | No retry CTA button for retryable failures |
+
+**Score: 18/23 = 78%**
 
 ## PR73: Persistence / Backup / Resume
 
-| Requirement | Status | Notes |
-|---|---|---|
-| A. Schema version in project state | ✅ Pre-existing | `LOCAL_PROJECT_STORE_SCHEMA_VERSION = 1` |
-| A. createdAt / updatedAt timestamps | ✅ Pre-existing | Already in `LocalProjectStoreRecord` |
-| B. Atomic writes (temp + rename) | ✅ Pre-existing | `writeLocalProjectStoreRecord` uses temp file + rename |
-| B. Backup before critical writes | ✅ Done | `createBackup` called before save |
-| B. Keep last 10 backups | ✅ Done | `pruneOldBackups` added |
-| C. Corrupt file → move to .narrative/recovery/ | ✅ Done | Recovery logic in `readExistingRecord` |
-| C. Restore latest valid backup on corrupt | ✅ Done | `restoreLatestBackup` implemented |
-| C. Show recovery notice in UI | ❌ Missing | No UI notification for recovery event |
-| D. Resume: last project on reopen | ✅ Pre-existing | Recent projects store exists |
-| D. Resume: last selected book/chapter/scene | ❌ Missing | Route doesn't restore last-scope on reopen |
-| D. Resume: scene setup preserved | ✅ Pre-existing | Persistence handles this |
-| D. Resume: run/review status preserved | ✅ Pre-existing | Run store persists |
-| D. Resume: model binding settings | ✅ Pre-existing | Model binding store exists |
-| E. Export project backup zip | ❌ Missing | `exportProjectArchive` creates JSON, not ZIP |
-| E. Export excludes raw API key | ✅ Pre-existing | `sanitizeArchiveValue` filters sensitive keys |
-| E. README-backup.txt in export | ❌ Missing | No README included |
-| F. Markdown manuscript export | ✅ Done | `GET /books/:bookId/export-manuscript-markdown` |
-| F. Missing prose shows marker | ✅ Done | `<!-- Scene not drafted yet: ... -->` in export |
+| # | Requirement | Status | Notes |
+|---|---|---|---|
+| A | Schema version (`schemaVersion`) in project state | ✅ | `LOCAL_PROJECT_STORE_SCHEMA_VERSION = 1` |
+| A | `createdAt` / `updatedAt` / `appVersion` | ✅ | `createdAt`, `updatedAt` exist in `LocalProjectStoreRecord` |
+| B | Atomic writes (temp file + rename) | ✅ | pre-existing `writeLocalProjectStoreRecord` |
+| B | Backup snapshot before overwrite | ✅ | `createBackup` called before `save` |
+| B | Keep last 10 backups | ✅ | `pruneOldBackups` added; keeps newest 10 |
+| C | Corrupt file → move to `.narrative/recovery/` | ✅ | Recovery logic in `readExistingRecord` |
+| C | Restore latest valid backup on corrupt | ✅ | `restoreLatestBackup` tries backups newest-first |
+| C | Recovery notice in UI | ❌ | No UI notification when recovery occurred |
+| D | Resume last project on reopen | ✅ | pre-existing recent projects store |
+| D | Resume last selected book/chapter/scene | ⚠️ | Route state persists in URL params on SPA reload; no server-side session restore |
+| D | Resume scene setup / run status / prose | ✅ | pre-existing persistence handles all |
+| D | Resume model binding settings | ✅ | pre-existing model binding store |
+| E | Export project backup zip | ❌ | `exportProjectArchive` creates JSON only; no zip packaging |
+| E | Export excludes raw API key | ✅ | pre-existing `sanitizeArchiveValue` filters secrets |
+| E | README-backup.txt in export | ❌ | Not included |
+| F | Markdown manuscript export | ✅ | `GET /books/:bookId/export-manuscript-markdown` |
+| F | Undrafted scenes show explicit marker in export | ✅ | `<!-- Scene not drafted yet: ... -->` |
+| — | Backup created before legacy migration | ✅ | pre-existing; called in `readExistingRecord` for legacy envelopes |
+
+**Score: 13/17 = 76%**
 
 ## PR74: Write Loop Release Candidate
 
-| Requirement | Status | Notes |
-|---|---|---|
-| A. First-run checklist UI | ❌ Missing | No checklist component; only doc exists |
-| B. One primary CTA per state | ❌ Missing | No contextual CTA system |
-| C. Real/Demo badges visible | ✅ Done | `WorkbenchRuntimeBadge` in WorkbenchShell |
-| C. Real/Demo separation in docs | ✅ Done | Dogfood checklist doc created |
-| D. Smoke test / E2E-lite | ❌ Missing | No real-project smoke test |
-| E. Dogfood issue template | ✅ Done | `doc/real-writing-dogfood-checklist.md` created |
-| F. Cleanup dead/confusing paths | ❌ Missing | No cleanup of fixture-only controls in real projects |
-| Release candidate script walks through | ⚠️ Partial | Core path works but gaps in UI states reduce smoothness |
+| # | Requirement | Status | Notes |
+|---|---|---|---|
+| A | First-run checklist UI | ✅ | `WorkbenchFirstRunChecklist` component with model/chapter/scene progress steps + per-step CTA buttons |
+| B | One primary CTA per state | ✅ | Checklist provides single obvious next action at each step |
+| C | Real/Demo badges visible in workbench | ✅ | `WorkbenchRuntimeBadge` in WorkbenchShell top bar |
+| C | Real/Demo separation in docs and UI copy | ✅ | dogfood checklist doc created |
+| D | Smoke test / E2E-lite | ⚠️ | pre-existing `api-project-runtime.http-compat.test.ts` covers HTTP compatibility; no dedicated real-project smoke suite |
+| E | Dogfood issue template | ✅ | `doc/real-writing-dogfood-checklist.md` |
+| F | Cleanup dead/confusing paths | ❌ | No pass to hide fixture-only controls in real project mode |
+| — | RC script walkthrough (23 steps) | ⚠️ | Core path (create → run → review → prose → export → reopen) works; edge cases around blank-project first navigation need manual verification |
 
-## Summary
+**Score: 5/8 = 63%**
+
+## Final Summary
 
 | PR | Plan Items | Done | Partial | Missing | Score |
 |---|---|---|---|---|---|
-| PR71 | 14 | 8 | 2 | 4 | 64% |
-| PR72 | 20 | 12 | 0 | 8 | 60% |
-| PR73 | 20 | 12 | 0 | 8 | 60% |
-| PR74 | 9 | 3 | 1 | 5 | 38% |
+| PR70 (baseline) | 5 | 5 | 0 | 0 | 100% |
+| PR71 | 15 | 12 | 0 | 3 | 80% |
+| PR72 | 23 | 18 | 0 | 5 | 78% |
+| PR73 | 17 | 13 | 1 | 3 | 76% |
+| PR74 | 8 | 5 | 2 | 1 | 63% |
+| **Total (PR71-74)** | **63** | **48** | **3** | **12** | **~77%** |
 
-## Top Missing Items (Priority Order)
+## Remaining Gaps by Priority
 
-1. **P0**: Chapter/book-level empty state with "Create Chapter" CTA (PR71)
-2. **P0**: First-run checklist UI component (PR74)  
-3. **P1**: Retry CTA for retryable failed runs in UI (PR72)
-4. **P1**: Route restore of last-selected book/chapter/scene on reopen (PR73)
-5. **P1**: Prose writer gateway retry parity with planner (PR72)
-6. **P2**: Project export ZIP file (PR73)
-7. **P2**: Recovery notice in UI when backup was restored (PR73)
-8. **P2**: Contextual single-CTA guidance per state (PR74)
-9. **P2**: Chapter rename inline editing in navigator (PR71)
+### P1 (blocks real usability)
+1. **Scene missing setup → prompt user before run** (PR71-E) — SceneExecutionTab could show "Fill scene objective before running" when objective.goal is empty
+2. **UI: failed retryable vs non-retryable** (PR72-E) — SceneExecutionTab could check `activeRun.failureClass` to show appropriate retry CTA
+3. **Resume last book/chapter/scene scope on reopen** (PR73-D) — store last scope in localStorage or URL
+
+### P2 (polish)
+4. **Chapter rename inline editing** (PR71) — click-to-edit title in NavigatorPane chapter label
+5. **Project export ZIP** (PR73-E) — wrap `exportProjectArchive` JSON in a zip with README
+6. **Recovery notice in UI** (PR73-C) — toast/notification when corrupt file was recovered
+7. **Cleanup fixture-only controls in real project** (PR74-F) — hide or disable fixture-specific UI elements when projectMode is real-project
+8. **Smoke test covering real project create→run→review→prose→export** (PR74-D)

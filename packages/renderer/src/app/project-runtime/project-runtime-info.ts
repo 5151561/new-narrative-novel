@@ -24,6 +24,12 @@ export interface ProjectRuntimeCapabilitiesRecord {
   proposalSetRefs: boolean
 }
 
+export interface ProjectRuntimeRecoveryNotice {
+  recovered: boolean
+  recoveredFrom?: string
+  brokenFileMovedTo?: string
+}
+
 export interface ProjectRuntimeInfoRecord {
   projectId: string
   projectTitle: string
@@ -39,6 +45,7 @@ export interface ProjectRuntimeInfoRecord {
     usable: boolean
   }
   capabilities: ProjectRuntimeCapabilitiesRecord
+  recoveryNotice?: ProjectRuntimeRecoveryNotice
 }
 
 export interface ProjectRuntimeInfoClient {

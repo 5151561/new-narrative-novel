@@ -162,12 +162,12 @@ export function createScenePlannerGateway(
           },
         }
       } catch {
-        // Attempt one repair retry with schema-only prompt
+        // Attempt one repair retry preserving original scene context
         try {
           const repairPayload = await openAiProvider.generate({
             sceneId: request.sceneId,
-            instructions: 'The previous output did not match the required JSON schema. Return only valid JSON matching the schema.',
-            input: `Previous output was invalid. Return only valid JSON matching this schema.`,
+            instructions: `${request.instructions}\n\nThe previous output did not match the required JSON schema. Return only valid JSON matching the schema.`,
+            input: request.input,
           })
           const repairLatencyMs = Date.now() - startedAt
           return {

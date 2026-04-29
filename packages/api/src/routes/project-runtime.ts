@@ -1,4 +1,5 @@
 import type { ApiRouteContext } from './route-context.js'
+import { exportProjectZip } from '../repositories/project-export-zip.js'
 
 type ProjectMode = 'demo-fixture' | 'real-project'
 type RuntimeKind = 'fixture-demo' | 'mock-storybook' | 'real-local-project'
@@ -65,5 +66,15 @@ export function registerProjectRuntimeRoutes({
     await repository.resetProject(projectId)
     reply.status(204)
     return null
+  })
+
+  app.get(`${apiBasePath}/projects/:projectId/export-zip`, async (request, reply) => {
+    const { projectId } = request.params as { projectId: string }
+    const snapshot = repository.exportSnapshot()
+    const zip = exportProjectZip(snapshot, projectId)
+    return reply
+      .header('Content-Disposition', `attachment; filename="project-export-${projectId}.json"`)
+      .header('Content-Type', 'application/json; charset=utf-8')
+      .send(zip)
   })
 }

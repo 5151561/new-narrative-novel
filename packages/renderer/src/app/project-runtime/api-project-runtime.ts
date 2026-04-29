@@ -760,6 +760,13 @@ function createSceneClient(projectId: string, transport: ApiTransport): SceneCli
     async rejectProposal(sceneId, input: ProposalActionInput) {
       await postSceneJson(apiRouteContract.sceneProposalReject({ projectId, sceneId }), input)
     },
+    async renameScene(sceneId, title) {
+      return transport.requestJson<SceneWorkspaceViewModel, { title: string }>({
+        method: 'PATCH',
+        path: apiRouteContract.sceneRename({ projectId, sceneId }),
+        body: { title },
+      })
+    },
   }
 }
 

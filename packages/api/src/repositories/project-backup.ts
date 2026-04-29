@@ -18,7 +18,7 @@ function isSensitiveArchiveKey(key: string) {
   )
 }
 
-function sanitizeArchiveValue(value: unknown): unknown {
+export function sanitizeArchiveValue(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map((entry) => sanitizeArchiveValue(entry))
   }

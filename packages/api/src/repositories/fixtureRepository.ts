@@ -3020,6 +3020,15 @@ export function createFixtureRepository(options: {
       }
       if (input.title !== undefined) {
         record.title = localizedText(input.title, input.title)
+
+        const project = getProject(projectId)
+        for (const sceneEntry of record.scenes) {
+          const scene = project.scenes[sceneEntry.id]
+          if (scene) {
+            scene.workspace.chapterTitle = input.title
+            scene.setup.identity.chapterLabel = input.title
+          }
+        }
       }
       if (input.summary !== undefined) {
         record.summary = localizedText(input.summary, input.summary)

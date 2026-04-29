@@ -181,8 +181,7 @@ export function createSceneProseWriterGateway(
         try {
           const repairPayload = await openAiProvider.generate({
             ...request,
-            instructions: 'The previous output did not match the required JSON schema. Return only valid JSON matching the schema.',
-            input: 'Previous output was invalid. Return only valid JSON matching the required schema.',
+            instructions: `${request.instructions}\n\nThe previous output did not match the required JSON schema. Return only valid JSON matching the schema.`,
           })
           const repairLatencyMs = Date.now() - startedAt
           return {

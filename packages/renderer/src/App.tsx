@@ -119,11 +119,13 @@ function ModeRail({
   activeLens,
   onSelectScope,
   onSelectLens,
+  showAssetScope = true,
 }: {
   activeScope: WorkbenchScope
   activeLens: SceneLens
   onSelectScope: (scope: WorkbenchScope) => void
   onSelectLens: (lens: SceneLens, tab: SceneTab) => void
+  showAssetScope?: boolean
 }) {
   const { locale, dictionary } = useI18n()
   const sceneLensItems: Array<{
@@ -161,17 +163,19 @@ function ModeRail({
           },
         ]
 
+  const scopeItems = [
+    { scope: 'scene' as const, label: dictionary.common.scene },
+    { scope: 'chapter' as const, label: dictionary.common.chapter },
+    ...(showAssetScope ? [{ scope: 'asset' as const, label: dictionary.common.asset }] : []),
+    { scope: 'book' as const, label: dictionary.common.book },
+  ]
+
   return (
     <div className="flex h-full flex-col gap-2 px-2 py-3">
       <div className="rounded-md border border-line-soft bg-surface-1 p-2">
         <p className="text-center text-[10px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.scope}</p>
         <div className="mt-2 grid gap-2">
-          {([
-            { scope: 'scene' as const, label: dictionary.common.scene },
-            { scope: 'chapter' as const, label: dictionary.common.chapter },
-            { scope: 'asset' as const, label: dictionary.common.asset },
-            { scope: 'book' as const, label: dictionary.common.book },
-          ]).map((item) => (
+          {scopeItems.map((item) => (
             <button
               key={item.scope}
               type="button"
@@ -405,6 +409,7 @@ function SceneWorkbench({
           <ModeRail
             activeScope="scene"
             activeLens={route.lens}
+            showAssetScope={Boolean(runtime.persistence)}
             onSelectScope={(scope) => {
               if (scope === 'scene') {
                 return
