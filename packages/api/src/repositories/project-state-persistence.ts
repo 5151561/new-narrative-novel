@@ -7,7 +7,7 @@ import type { FixtureProjectData } from '../contracts/api-records.js'
 
 import { createSignalArcProjectTemplate } from './fixture-data.js'
 import { createRealProjectTemplate } from './real-project-template.js'
-import { createProjectBackup } from './project-backup.js'
+import { createProjectBackup, restoreLatestBackup } from './project-backup.js'
 
 export const LOCAL_PROJECT_STORE_SCHEMA_VERSION = 1 as const
 export const LOCAL_PROJECT_STORE_KIND = 'narrative-local-project-store' as const
@@ -392,6 +392,8 @@ export function createLocalProjectStorePersistence(options: CreateLocalProjectSt
   const createBackup = options.createBackup ?? createProjectBackup
 
   async function readExistingRecord() {
+    const projectRoot = path.dirname(path.dirname(options.filePath))
+
     try {
       const fileContents = await fileSystem.readFile(options.filePath, 'utf8')
       const parsed = JSON.parse(fileContents) as unknown
@@ -400,7 +402,7 @@ export function createLocalProjectStorePersistence(options: CreateLocalProjectSt
         const migratedRecord = sanitizeLegacyProjectStateEnvelope(parsed, options)
         await createBackup({
           now: options.now,
-          projectRoot: path.dirname(path.dirname(options.filePath)),
+          projectRoot,
           storeFilePath: options.filePath,
         })
         return writeRecord(migratedRecord)
@@ -413,7 +415,33 @@ export function createLocalProjectStorePersistence(options: CreateLocalProjectSt
         return undefined
       }
 
-      if (error instanceof SyntaxError) {
+      // Corrupt file recovery: move broken file to recovery dir, restore from backup
+      if (error instanceof SyntaxError || error instanceof Error && error.message.includes('invalid')) {
+        const recoveryDir = path.join(projectRoot, '.narrative', 'recovery')
+        const timestamp = (options.now ? options.now() : new Date().toISOString()).replaceAll(':', '-').replaceAll('.', '-')
+        const recoveryPath = path.join(recoveryDir, `broken-${timestamp}.json`)
+        try {
+          await fileSystem.mkdir(recoveryDir, { recursive: true })
+          await fileSystem.rename(options.filePath, recoveryPath)
+        } catch {
+          // If we can't move the file, continue to try restore anyway
+        }
+
+        const restored = await restoreLatestBackup({
+          projectRoot,
+          storeFilePath: options.filePath,
+        })
+
+        if (restored) {
+          try {
+            const fileContents = await fileSystem.readFile(options.filePath, 'utf8')
+            const parsed = JSON.parse(fileContents) as unknown
+            return sanitizeLocalProjectStoreRecord(parsed, options)
+          } catch {
+            // If restored backup is also invalid, fall through to throw
+          }
+        }
+
         throw invalidLocalProjectStoreError(options.filePath)
       }
 
@@ -450,6 +478,13 @@ export function createLocalProjectStorePersistence(options: CreateLocalProjectSt
       if (input.runStore && !nextRunStore) {
         throw invalidLocalProjectStoreError(options.filePath)
       }
+
+      const projectRoot = path.dirname(path.dirname(options.filePath))
+      await createBackup({
+        now: options.now,
+        projectRoot,
+        storeFilePath: options.filePath,
+      })
 
       const nextRecord: LocalProjectStoreRecord = {
         ...current,

@@ -94,6 +94,7 @@ export interface SceneClient {
   editAcceptProposal(sceneId: string, input: ProposalActionInput): Promise<void>
   requestRewrite(sceneId: string, input: ProposalActionInput): Promise<void>
   rejectProposal(sceneId: string, input: ProposalActionInput): Promise<void>
+  renameScene?(sceneId: string, title: string): Promise<SceneWorkspaceViewModel>
 }
 
 export class SceneRuntimeCapabilityError extends Error {

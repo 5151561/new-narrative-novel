@@ -302,13 +302,13 @@ function normalizeBookRoute(route: Partial<BookRouteState>): BookRouteState {
   }
 }
 
-function readSceneSnapshot(params: URLSearchParams) {
+function readSceneSnapshot(params: URLSearchParams, defaults?: { sceneId?: string | null; chapterId?: string | null; bookId?: string | null }) {
   const activeLens = readLensParam(params.get('lens'))
   const activeTab = readSceneTabParam(params.get('tab'))
   const activeModal = readSceneModalParam(params.get('modal'))
 
   return normalizeSceneRoute({
-    sceneId: readTextParam(params, 'id'),
+    sceneId: readTextParam(params, 'id') ?? defaults?.sceneId ?? undefined,
     lens: activeLens,
     tab: activeTab,
     beatId: readTextParam(params, 'beatId'),
@@ -317,12 +317,12 @@ function readSceneSnapshot(params: URLSearchParams) {
   })
 }
 
-function readChapterSnapshot(params: URLSearchParams) {
+function readChapterSnapshot(params: URLSearchParams, defaults?: { chapterId?: string | null; bookId?: string | null }) {
   const activeLens = readChapterLensParam(params.get('lens'))
   const activeView = readChapterViewParam(params.get('view'))
 
   return normalizeChapterRoute({
-    chapterId: readTextParam(params, 'id'),
+    chapterId: readTextParam(params, 'id') ?? defaults?.chapterId ?? undefined,
     lens: activeLens,
     view: activeView,
     sceneId: readTextParam(params, 'sceneId'),
@@ -340,7 +340,7 @@ function readAssetSnapshot(params: URLSearchParams) {
   })
 }
 
-function readBookSnapshot(params: URLSearchParams) {
+function readBookSnapshot(params: URLSearchParams, defaults?: { bookId?: string | null }) {
   const activeLens = readBookLensParam(params.get('lens'))
   const activeView = readBookViewParam(params.get('view'))
   const activeDraftView = readBookDraftViewParam(params.get('draftView'))
@@ -349,7 +349,7 @@ function readBookSnapshot(params: URLSearchParams) {
   const activeReviewStatusFilter = readBookReviewStatusFilterParam(params.get('reviewStatusFilter'))
 
   return normalizeBookRoute({
-    bookId: readTextParam(params, 'id'),
+    bookId: readTextParam(params, 'id') ?? defaults?.bookId ?? undefined,
     lens: activeLens,
     view: activeView,
     draftView: activeDraftView,
@@ -380,20 +380,81 @@ function resolveActiveRoute(state: WorkbenchSearchState): WorkbenchRouteState {
   return state.scene
 }
 
-function readWorkbenchSearchState(search = typeof window === 'undefined' ? '' : window.location.search): WorkbenchSearchState {
-  if (lastRouteSnapshot && search === lastRouteSearch) {
+export interface WorkbenchRouteDefaults {
+  sceneId?: string | null
+  chapterId?: string | null
+  bookId?: string | null
+}
+
+let lastRouteDefaults: WorkbenchRouteDefaults | undefined
+
+const LAST_ROUTE_STORAGE_KEY = 'workbench-last-route'
+
+function readLastRouteFromStorage(): WorkbenchRouteDefaults | undefined {
+  if (typeof window === 'undefined') {
+    return undefined
+  }
+  try {
+    const raw = window.localStorage.getItem(LAST_ROUTE_STORAGE_KEY)
+    if (!raw) {
+      return undefined
+    }
+    const parsed = JSON.parse(raw) as unknown
+    if (typeof parsed !== 'object' || parsed === null) {
+      return undefined
+    }
+    const record = parsed as Record<string, unknown>
+    const defaults: WorkbenchRouteDefaults = {}
+    if (typeof record.sceneId === 'string') { defaults.sceneId = record.sceneId }
+    if (typeof record.chapterId === 'string') { defaults.chapterId = record.chapterId }
+    if (typeof record.bookId === 'string') { defaults.bookId = record.bookId }
+    return defaults
+  } catch {
+    return undefined
+  }
+}
+
+function writeLastRouteToStorage(state: WorkbenchSearchState) {
+  if (typeof window === 'undefined') {
+    return
+  }
+  try {
+    const payload: Record<string, string> = {}
+    if (state.scene.sceneId) { payload.sceneId = state.scene.sceneId }
+    if (state.chapter.chapterId) { payload.chapterId = state.chapter.chapterId }
+    if (state.book.bookId) { payload.bookId = state.book.bookId }
+    window.localStorage.setItem(LAST_ROUTE_STORAGE_KEY, JSON.stringify(payload))
+  } catch {
+    // Silent — storage may be unavailable
+  }
+}
+
+function readWorkbenchSearchState(
+  search = typeof window === 'undefined' ? '' : window.location.search,
+  defaults?: WorkbenchRouteDefaults,
+): WorkbenchSearchState {
+  if (lastRouteSnapshot && search === lastRouteSearch && defaults === lastRouteDefaults) {
     return lastRouteSnapshot
   }
 
+  const storageDefaults = defaults ?? readLastRouteFromStorage()
   const params = new URLSearchParams(search)
   const rawScope = params.get('scope')
   const scope: WorkbenchScope =
     rawScope === 'chapter' ? 'chapter' : rawScope === 'asset' ? 'asset' : rawScope === 'book' ? 'book' : 'scene'
   const previous = lastRouteSnapshot
-  const scene = scope === 'scene' ? readSceneSnapshot(params) : previous?.scene ?? normalizeSceneRoute({})
-  const chapter = scope === 'chapter' ? readChapterSnapshot(params) : previous?.chapter ?? normalizeChapterRoute({})
-  const asset = scope === 'asset' ? readAssetSnapshot(params) : previous?.asset ?? normalizeAssetRoute({})
-  const book = scope === 'book' ? readBookSnapshot(params) : previous?.book ?? normalizeBookRoute({})
+  const scene = scope === 'scene'
+    ? readSceneSnapshot(params, storageDefaults)
+    : previous?.scene ?? normalizeSceneRoute({})
+  const chapter = scope === 'chapter'
+    ? readChapterSnapshot(params, storageDefaults)
+    : previous?.chapter ?? normalizeChapterRoute({})
+  const asset = scope === 'asset'
+    ? readAssetSnapshot(params)
+    : previous?.asset ?? normalizeAssetRoute({})
+  const book = scope === 'book'
+    ? readBookSnapshot(params, storageDefaults)
+    : previous?.book ?? normalizeBookRoute({})
   const snapshot: WorkbenchSearchState = {
     scope,
     scene,
@@ -404,12 +465,13 @@ function readWorkbenchSearchState(search = typeof window === 'undefined' ? '' : 
   }
 
   lastRouteSearch = search
+  lastRouteDefaults = defaults
   lastRouteSnapshot = snapshot
   return snapshot
 }
 
-export function readWorkbenchRouteState(search = typeof window === 'undefined' ? '' : window.location.search): WorkbenchRouteState {
-  return readWorkbenchSearchState(search).route
+export function readWorkbenchRouteState(search = typeof window === 'undefined' ? '' : window.location.search, defaults?: WorkbenchRouteDefaults): WorkbenchRouteState {
+  return readWorkbenchSearchState(search, defaults).route
 }
 
 function buildWorkbenchSearch(
@@ -497,6 +559,8 @@ function writeWorkbenchRouteState(state: WorkbenchSearchState, options?: SetWork
     route: resolveActiveRoute(state),
   }
 
+  writeLastRouteToStorage(state)
+
   if (options?.replace) {
     window.history.replaceState({}, '', nextUrl)
   } else {
@@ -516,11 +580,15 @@ function subscribe(onStoreChange: () => void) {
   }
 }
 
-export function useWorkbenchRouteState() {
-  const route = useSyncExternalStore(subscribe, readWorkbenchRouteState, () => readWorkbenchRouteState(''))
+export function useWorkbenchRouteState(defaults?: WorkbenchRouteDefaults) {
+  const route = useSyncExternalStore(
+    subscribe,
+    () => readWorkbenchRouteState(undefined, defaults),
+    () => readWorkbenchRouteState('', defaults),
+  )
 
   const replaceRoute = useCallback((next: WorkbenchRouteInput, options?: SetWorkbenchRouteOptions) => {
-    const current = readWorkbenchSearchState()
+    const current = readWorkbenchSearchState(undefined, lastRouteDefaults)
     const baseSearch = typeof window === 'undefined' ? lastRouteSearch : window.location.search
 
     const nextState: WorkbenchSearchState =
@@ -565,10 +633,10 @@ export function useWorkbenchRouteState() {
     }
 
     writeWorkbenchRouteState(nextState, options)
-  }, [])
+  }, [defaults])
 
   const patchSceneRoute = useCallback((patch: SceneRoutePatch, options?: SetWorkbenchRouteOptions) => {
-    const current = readWorkbenchSearchState()
+    const current = readWorkbenchSearchState(undefined, lastRouteDefaults)
     const baseSearch = typeof window === 'undefined' ? lastRouteSearch : window.location.search
     const nextScene = normalizeSceneRoute({ ...current.scene, ...patch, scope: 'scene' })
     const nextState: WorkbenchSearchState = {
@@ -590,10 +658,10 @@ export function useWorkbenchRouteState() {
     }
 
     writeWorkbenchRouteState(nextState, options)
-  }, [])
+  }, [defaults])
 
   const patchChapterRoute = useCallback((patch: ChapterRoutePatch, options?: SetWorkbenchRouteOptions) => {
-    const current = readWorkbenchSearchState()
+    const current = readWorkbenchSearchState(undefined, lastRouteDefaults)
     const baseSearch = typeof window === 'undefined' ? lastRouteSearch : window.location.search
     const nextChapter = normalizeChapterRoute({ ...current.chapter, ...patch, scope: 'chapter' })
     const nextState: WorkbenchSearchState = {
@@ -615,10 +683,10 @@ export function useWorkbenchRouteState() {
     }
 
     writeWorkbenchRouteState(nextState, options)
-  }, [])
+  }, [defaults])
 
   const patchAssetRoute = useCallback((patch: AssetRoutePatch, options?: SetWorkbenchRouteOptions) => {
-    const current = readWorkbenchSearchState()
+    const current = readWorkbenchSearchState(undefined, lastRouteDefaults)
     const baseSearch = typeof window === 'undefined' ? lastRouteSearch : window.location.search
     const nextAsset = normalizeAssetRoute({ ...current.asset, ...patch, scope: 'asset' })
     const nextState: WorkbenchSearchState = {
@@ -640,10 +708,10 @@ export function useWorkbenchRouteState() {
     }
 
     writeWorkbenchRouteState(nextState, options)
-  }, [])
+  }, [defaults])
 
   const patchBookRoute = useCallback((patch: BookRoutePatch, options?: SetWorkbenchRouteOptions) => {
-    const current = readWorkbenchSearchState()
+    const current = readWorkbenchSearchState(undefined, lastRouteDefaults)
     const baseSearch = typeof window === 'undefined' ? lastRouteSearch : window.location.search
     const nextBook = normalizeBookRoute({ ...current.book, ...patch, scope: 'book' })
     const nextState: WorkbenchSearchState = {
@@ -665,7 +733,7 @@ export function useWorkbenchRouteState() {
     }
 
     writeWorkbenchRouteState(nextState, options)
-  }, [])
+  }, [defaults])
 
   return {
     route,

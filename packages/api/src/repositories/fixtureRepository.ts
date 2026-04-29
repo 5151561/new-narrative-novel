@@ -80,6 +80,7 @@ import type {
   SceneInspectorViewModel,
   ScenePatchPreviewViewModel,
   SceneProseViewModel,
+  SceneFixtureRecord,
   SceneSetupViewModel,
   SceneWorkspaceViewModel,
   SetReviewIssueDecisionInput,
@@ -1301,6 +1302,10 @@ export interface FixtureRepository {
   ): Promise<StartNextChapterSceneRunRecord | null>
   reorderChapterScene(projectId: string, input: { chapterId: string; sceneId: string; targetIndex: number }): Promise<ChapterStructureWorkspaceRecord | null>
   updateChapterSceneStructure(projectId: string, input: { chapterId: string; sceneId: string; locale: 'en' | 'zh-CN'; patch: ChapterSceneStructurePatch }): Promise<ChapterStructureWorkspaceRecord | null>
+  createChapter(projectId: string, input: { title?: string; summary?: string }): Promise<ChapterStructureWorkspaceRecord>
+  renameChapter(projectId: string, chapterId: string, input: { title?: string; summary?: string }): Promise<ChapterStructureWorkspaceRecord | null>
+  createScene(projectId: string, chapterId: string, input: { title?: string; summary?: string }): Promise<ChapterStructureWorkspaceRecord | null>
+  renameScene(projectId: string, sceneId: string, input: { title?: string }): Promise<SceneWorkspaceViewModel>
   listAssets(projectId: string): AssetNavigatorResponseRecord
   getAssetKnowledge(
     projectId: string,
@@ -1349,6 +1354,7 @@ export interface FixtureRepository {
   supportsRunEventStream(): boolean
   submitRunReviewDecision(projectId: string, input: SubmitRunReviewDecisionInput): Promise<RunRecord>
   exportSnapshot(): FixtureDataSnapshot
+  exportManuscriptMarkdown(projectId: string, bookId: string, locale?: string): string
   resetProject(projectId: string): Promise<void>
   reset(): void
 }
@@ -1638,6 +1644,150 @@ export function createFixtureRepository(options: {
     }
 
     return scene
+  }
+
+  function buildEmptySceneRecord(input: {
+    sceneId: string
+    chapterId: string
+    title: string
+    chapterTitle: string
+    summary: string
+  }): SceneFixtureRecord {
+    return {
+      workspace: {
+        id: input.sceneId,
+        title: input.title,
+        chapterId: input.chapterId,
+        chapterTitle: input.chapterTitle,
+        status: 'draft',
+        runStatus: 'idle',
+        objective: input.summary,
+        castIds: [],
+        locationId: undefined,
+        latestRunId: undefined,
+        pendingProposalCount: 0,
+        warningCount: 0,
+        currentVersionLabel: undefined,
+        activeThreadId: undefined,
+        availableThreads: [],
+      },
+      setup: {
+        sceneId: input.sceneId,
+        identity: {
+          title: input.title,
+          chapterLabel: input.chapterTitle,
+          locationLabel: '',
+          povCharacterId: '',
+          timeboxLabel: '',
+          summary: input.summary,
+        },
+        objective: {
+          externalGoal: '',
+          emotionalGoal: '',
+          successSignal: '',
+          failureCost: '',
+        },
+        cast: [],
+        constraints: [],
+        knowledgeBoundaries: [],
+        runtimePreset: {
+          selectedPresetId: '',
+          presetOptions: [],
+        },
+      },
+      execution: {
+        runId: undefined,
+        objective: {
+          goal: input.summary,
+          tensionLabel: undefined,
+          pacingLabel: undefined,
+          cast: [],
+          location: undefined,
+          warningsCount: 0,
+          unresolvedCount: 0,
+          constraintSummary: [],
+        },
+        beats: [],
+        proposals: [],
+        acceptedSummary: {
+          sceneSummary: input.summary,
+          acceptedFacts: [],
+          readiness: 'not-ready',
+          pendingProposalCount: 0,
+          warningCount: 0,
+        },
+        runtimeSummary: {
+          runHealth: 'stable',
+          latencyLabel: '--',
+          tokenLabel: '--',
+          costLabel: '--',
+        },
+        consistencySummary: undefined,
+        canContinueRun: false,
+        canOpenProse: false,
+      },
+      prose: {
+        sceneId: input.sceneId,
+        proseDraft: undefined,
+        revisionModes: ['rewrite', 'compress', 'expand', 'tone_adjust', 'continuity_fix'],
+        latestDiffSummary: undefined,
+        warningsCount: 0,
+        focusModeAvailable: false,
+        revisionQueueCount: 0,
+        draftWordCount: 0,
+        statusLabel: 'No draft yet',
+        revisionCandidate: undefined,
+        traceSummary: undefined,
+      },
+      inspector: {
+        context: {
+          acceptedFacts: [],
+          privateInfoGuard: {
+            summary: 'No guard information yet.',
+            items: [],
+          },
+          actorKnowledgeBoundaries: [],
+          localState: [],
+          overrides: [],
+        },
+        versions: {
+          checkpoints: [],
+          acceptanceTimeline: [],
+          patchCandidates: [],
+        },
+        runtime: {
+          profile: {
+            label: 'No profile yet.',
+            summary: 'Scene has not been run.',
+          },
+          runHealth: 'stable',
+          metrics: {
+            latencyLabel: '--',
+            tokenLabel: '--',
+            costLabel: '--',
+          },
+          latestFailure: undefined,
+        },
+      },
+      dock: {
+        events: [],
+        trace: [],
+        consistency: {
+          summary: 'No consistency checks yet.',
+          checks: [],
+        },
+        problems: {
+          summary: 'No problems detected.',
+          items: [],
+        },
+        cost: {
+          currentWindowLabel: '--',
+          trendLabel: '--',
+          breakdown: [],
+        },
+      },
+      patchPreview: null,
+    }
   }
 
   function runHasGeneratedProseArtifact(projectId: string, run: RunRecord) {
@@ -2831,6 +2981,128 @@ export function createFixtureRepository(options: {
       await persistProjectOverlay(projectId)
       return clone(nextRecord)
     },
+    async createChapter(projectId, input = {}) {
+      const chapterId = `chapter-${randomUUID()}`
+      const title = input.title ?? 'Untitled Chapter'
+      const summary = input.summary ?? ''
+      const record: ChapterStructureWorkspaceRecord = {
+        chapterId,
+        title: localizedText(title, title),
+        summary: localizedText(summary, summary),
+        planning: {
+          goal: localizedText('', ''),
+          constraints: [],
+          proposals: [],
+        },
+        scenes: [],
+        inspector: {
+          chapterNotes: [],
+          problemsSummary: [],
+          assemblyHints: [],
+        },
+        viewsMeta: {
+          availableViews: ['backlog', 'sequence', 'outliner', 'assembly'],
+        },
+      }
+      const project = getProject(projectId)
+      project.chapters[chapterId] = clone(record)
+      const firstBook = Object.values(project.books)[0]
+      if (firstBook) {
+        firstBook.chapterIds = [...firstBook.chapterIds, chapterId]
+      }
+      await persistProjectOverlay(projectId)
+      return clone(record)
+    },
+    async renameChapter(projectId, chapterId, input = {}) {
+      const record = getChapter(projectId, chapterId)
+      if (!record) {
+        return null
+      }
+      if (input.title !== undefined) {
+        record.title = localizedText(input.title, input.title)
+
+        const project = getProject(projectId)
+        for (const sceneEntry of record.scenes) {
+          const scene = project.scenes[sceneEntry.id]
+          if (scene) {
+            scene.workspace.chapterTitle = input.title
+            scene.setup.identity.chapterLabel = input.title
+          }
+        }
+      }
+      if (input.summary !== undefined) {
+        record.summary = localizedText(input.summary, input.summary)
+      }
+      getProject(projectId).chapters[chapterId] = record
+      await persistProjectOverlay(projectId)
+      return clone(record)
+    },
+    async createScene(projectId, chapterId, input = {}) {
+      const chapter = getChapter(projectId, chapterId)
+      if (!chapter) {
+        return null
+      }
+      const sceneId = `scene-${randomUUID()}`
+      const sceneTitle = input.title ?? 'Untitled Scene'
+      const sceneSummary = input.summary ?? ''
+      const chapterTitle = chapter.title.en || chapter.title['zh-CN'] || ''
+
+      const sceneRecord = buildEmptySceneRecord({
+        sceneId,
+        chapterId,
+        title: sceneTitle,
+        chapterTitle,
+        summary: sceneSummary,
+      })
+      const project = getProject(projectId)
+      project.scenes[sceneId] = sceneRecord
+
+      const order = chapter.scenes.length + 1
+      chapter.scenes = [
+        ...chapter.scenes,
+        {
+          id: sceneId,
+          order,
+          title: localizedText(sceneTitle, sceneTitle),
+          summary: localizedText(sceneSummary, sceneSummary),
+          purpose: localizedText('', ''),
+          pov: localizedText('', ''),
+          location: localizedText('', ''),
+          conflict: localizedText('', ''),
+          reveal: localizedText('', ''),
+          backlogStatus: 'planned',
+          statusLabel: localizedText('New', '新建'),
+          proseStatusLabel: localizedText('Needs draft', '需起草'),
+          runStatusLabel: localizedText('Not started', '未开始'),
+          unresolvedCount: 0,
+          lastRunLabel: localizedText('Not run', '未运行'),
+        },
+      ]
+      chapter.scenes.forEach((scene, index) => {
+        scene.order = index + 1
+      })
+      project.chapters[chapterId] = chapter
+      await persistProjectOverlay(projectId)
+      return clone(chapter)
+    },
+    async renameScene(projectId, sceneId, input = {}) {
+      const scene = getScene(projectId, sceneId)
+      if (input.title !== undefined) {
+        scene.workspace.title = input.title
+        scene.setup.identity.title = input.title
+
+        const project = getProject(projectId)
+        for (const chapter of Object.values(project.chapters)) {
+          const sceneEntry = chapter.scenes.find((s) => s.id === sceneId)
+          if (sceneEntry) {
+            sceneEntry.title = localizedText(input.title, input.title)
+            break
+          }
+        }
+      }
+      await persistProjectOverlay(projectId)
+      return clone(scene.workspace)
+    },
     listAssets(projectId) {
       const firstWorkspace = Object.values(getProject(projectId).assets)[0] ?? null
       if (!firstWorkspace) {
@@ -3137,6 +3409,47 @@ export function createFixtureRepository(options: {
       syncSceneProseFromAcceptedRun(projectId, run, input.decision)
       await persistProjectOverlay(projectId)
       return run
+    },
+    exportManuscriptMarkdown(projectId, bookId, locale = 'en') {
+      const project = getProject(projectId)
+      const book = project.books[bookId]
+      if (!book) {
+        return ''
+      }
+
+      const bookTitle = book.title[locale as 'en' | 'zh-CN'] ?? book.title.en ?? ''
+      const lines: string[] = []
+      lines.push(`# ${bookTitle}`)
+      lines.push('')
+
+      for (const chapterId of book.chapterIds) {
+        const chapter = project.chapters[chapterId]
+        if (!chapter) {
+          continue
+        }
+        const chapterTitle = chapter.title[locale as 'en' | 'zh-CN'] ?? chapter.title.en ?? 'Untitled Chapter'
+        lines.push(`## ${chapterTitle}`)
+        lines.push('')
+
+        for (const sceneEntry of chapter.scenes) {
+          const sceneId = sceneEntry.id
+          const scene = project.scenes[sceneId]
+          const sceneTitle = sceneEntry.title[locale as 'en' | 'zh-CN'] ?? sceneEntry.title.en ?? 'Untitled Scene'
+          const proseDraft = scene?.prose?.proseDraft
+
+          if (proseDraft) {
+            lines.push(`### ${sceneTitle}`)
+            lines.push('')
+            lines.push(proseDraft)
+            lines.push('')
+          } else {
+            lines.push(`<!-- Scene not drafted yet: ${sceneTitle} -->`)
+            lines.push('')
+          }
+        }
+      }
+
+      return lines.join('\n')
     },
     exportSnapshot() {
       return clone(snapshot)

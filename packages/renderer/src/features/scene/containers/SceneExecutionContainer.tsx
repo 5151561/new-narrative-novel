@@ -129,7 +129,17 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
       && !hasUnknownProviderBinding
       && !hasFailedConnectionTest
     ) {
-      return undefined
+      if (execution.objective?.goal?.trim()) {
+        return undefined
+      }
+
+      return {
+        ctaLabel: locale === 'zh-CN' ? '打开场景设定' : 'Open Setup',
+        message: locale === 'zh-CN'
+          ? '场景目标为空。请在设定中填写场景目标后再运行。'
+          : 'Scene objective is empty. Fill the scene objective in Setup before running.',
+        onRepair: () => workspaceActions.openTab('setup'),
+      }
     }
 
     const providerLabels = providerBindings
@@ -164,7 +174,7 @@ export function SceneExecutionContainer({ sceneId }: SceneExecutionContainerProp
         workspaceActions.openTab('setup')
       },
     }
-  }, [dictionary.shell.openModelSettings, locale, modelSettings, runtime, workspaceActions])
+  }, [dictionary.shell.openModelSettings, locale, modelSettings, runtime, workspaceActions, execution.objective?.goal])
 
   useEffect(() => {
     if (execution.isLoading) {

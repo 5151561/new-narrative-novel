@@ -8,6 +8,38 @@ const RUN_MODES = ['continue', 'rewrite', 'from-scratch'] as const
 export function registerChapterRoutes({ app, apiBasePath, repository }: ApiRouteContext) {
   const projectBase = `${apiBasePath}/projects/:projectId`
 
+  app.post(`${projectBase}/chapters`, async (request) => {
+    const { projectId } = request.params as { projectId: string }
+    const body = request.body as { title?: string; summary?: string } | undefined
+    return repository.createChapter(projectId, { title: body?.title, summary: body?.summary })
+  })
+
+  app.patch(`${projectBase}/chapters/:chapterId`, async (request) => {
+    const { projectId, chapterId } = request.params as { projectId: string; chapterId: string }
+    const body = request.body as { title?: string; summary?: string } | undefined
+    const record = await repository.renameChapter(projectId, chapterId, { title: body?.title, summary: body?.summary })
+    if (!record) {
+      throw notFound(`Chapter ${chapterId} was not found.`, {
+        code: 'CHAPTER_NOT_FOUND',
+        detail: { projectId, chapterId },
+      })
+    }
+    return record
+  })
+
+  app.post(`${projectBase}/chapters/:chapterId/scenes`, async (request) => {
+    const { projectId, chapterId } = request.params as { projectId: string; chapterId: string }
+    const body = request.body as { title?: string; summary?: string } | undefined
+    const record = await repository.createScene(projectId, chapterId, { title: body?.title, summary: body?.summary })
+    if (!record) {
+      throw notFound(`Chapter ${chapterId} was not found.`, {
+        code: 'CHAPTER_NOT_FOUND',
+        detail: { projectId, chapterId },
+      })
+    }
+    return record
+  })
+
   function readLocaleBody(body: unknown, code: string) {
     const locale = (body as { locale?: unknown } | undefined)?.locale
     if (locale !== 'en' && locale !== 'zh-CN') {

@@ -55,6 +55,7 @@ function createPlannerUsage(input: SceneRunWorkflowStartInput): NonNullable<RunR
     modelId: input.plannerProvenance.modelId,
     projectMode: input.plannerProvenance.projectMode,
     fallbackUsed: input.plannerProvenance.fallbackUsed,
+    latencyMs: input.plannerProvenance.latencyMs,
   }
 }
 

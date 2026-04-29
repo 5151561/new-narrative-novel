@@ -359,6 +359,14 @@ export function createSceneClient({
       async rejectProposal(sceneId, input) {
         applyProposalAction(activeDatabase, sceneId, 'reject', input)
       },
+      async renameScene(sceneId, title) {
+        const scene = getScene(activeDatabase, sceneId)
+        scene.workspace = {
+          ...scene.workspace,
+          title,
+        }
+        return clone(scene.workspace)
+      },
     }
   }
 
@@ -423,6 +431,9 @@ export function createSceneClient({
       },
       async rejectProposal(sceneId, input) {
         await requireBridgeCapability(bridge, 'rejectProposal', runtimeInfo)(sceneId, input)
+      },
+      async renameScene(sceneId, title) {
+        return clone(await requireBridgeCapability(bridge, 'getSceneWorkspace', runtimeInfo)(sceneId, locale))
       },
     }
   }
@@ -490,6 +501,9 @@ export function createSceneClient({
     },
     async rejectProposal(sceneId, input: ProposalActionInput) {
       await resolveRuntime().rejectProposal(sceneId, input)
+    },
+    async renameScene(sceneId, title) {
+      return resolveRuntime().renameScene(sceneId, title)
     },
   }
 }

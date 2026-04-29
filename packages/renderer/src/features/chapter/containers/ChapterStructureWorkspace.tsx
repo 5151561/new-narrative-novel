@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { getChapterStructureViewLabel, getWorkbenchLensLabel, useI18n } from '@/app/i18n'
+import { useProjectRuntime } from '@/app/project-runtime'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { WorkbenchStatusTopBar } from '@/features/workbench/components/WorkbenchStatusTopBar'
@@ -85,9 +86,11 @@ function resolveChapterRunGate(
 function ChapterTopCommandBar({
   chapterTitle,
   view,
+  inlineEditContent,
 }: {
   chapterTitle: string
   view: ChapterStructureView
+  inlineEditContent?: ReactNode
 }) {
   const { locale, dictionary } = useI18n()
 
@@ -95,7 +98,9 @@ function ChapterTopCommandBar({
     <WorkbenchStatusTopBar
       title={dictionary.app.chapterWorkbench}
       subtitle={`${chapterTitle} / ${getWorkbenchLensLabel(locale, 'structure')} / ${getChapterStructureViewLabel(locale, view)}`}
-    />
+    >
+      {inlineEditContent}
+    </WorkbenchStatusTopBar>
   )
 }
 
@@ -110,8 +115,12 @@ function ChapterPaneState({ title, message }: { title: string; message: string }
 export function ChapterStructureWorkspace() {
   const { route, replaceRoute, patchChapterRoute } = useWorkbenchRouteState()
   const { locale, dictionary } = useI18n()
+  const runtime = useProjectRuntime()
   const [latestMutation, setLatestMutation] = useState<ChapterWorkbenchMutationEvent | null>(null)
   const mutationSequenceRef = useRef(0)
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editTitleValue, setEditTitleValue] = useState('')
+  const editTitleInputRef = useRef<HTMLInputElement>(null)
 
   if (route.scope !== 'chapter') {
     return null
@@ -169,6 +178,7 @@ export function ChapterStructureWorkspace() {
 
   const shellModeRail = (
     <ChapterModeRail
+      showAssetScope={Boolean(runtime.persistence)}
       onSelectScope={(scope) => {
         if (scope === 'chapter') {
           return
@@ -378,6 +388,77 @@ export function ChapterStructureWorkspace() {
     }
   }, [effectiveView, error, isLoading, patchChapterRoute, route.view, workspace])
 
+  const startEditingTitle = useCallback(() => {
+    if (!workspace) {
+      return
+    }
+    setEditTitleValue(workspace.title)
+    setIsEditingTitle(true)
+    requestAnimationFrame(() => {
+      editTitleInputRef.current?.focus()
+      editTitleInputRef.current?.select()
+    })
+  }, [workspace])
+
+  const commitTitleEdit = useCallback(async () => {
+    if (!workspace || !editTitleValue.trim() || editTitleValue.trim() === workspace.title) {
+      setIsEditingTitle(false)
+      return
+    }
+    setIsEditingTitle(false)
+    await runtime.chapterClient.renameChapter?.({ chapterId: route.chapterId, title: editTitleValue.trim() })
+  }, [editTitleValue, route.chapterId, runtime.chapterClient, workspace])
+
+  const cancelTitleEdit = useCallback(() => {
+    setIsEditingTitle(false)
+  }, [])
+
+  const handleTitleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'Enter') {
+        void commitTitleEdit()
+      } else if (event.key === 'Escape') {
+        cancelTitleEdit()
+      }
+    },
+    [commitTitleEdit, cancelTitleEdit],
+  )
+
+  const createFirstScene = useCallback(async () => {
+    if (!workspace || workspace.scenes.length > 0) {
+      return
+    }
+    const result = await runtime.chapterClient.createScene?.({
+      chapterId: route.chapterId,
+      locale,
+    })
+    if (result) {
+      openSceneFromChapter(result.sceneId, 'orchestrate')
+    }
+  }, [locale, openSceneFromChapter, route.chapterId, runtime.chapterClient, workspace])
+
+  const inlineEditContent = workspace && isEditingTitle ? (
+    <input
+      ref={editTitleInputRef}
+      type="text"
+      value={editTitleValue}
+      onChange={(event) => setEditTitleValue(event.target.value)}
+      onBlur={() => void commitTitleEdit()}
+      onKeyDown={handleTitleKeyDown}
+      className="min-w-[120px] rounded-md border border-line-soft bg-surface-1 px-2 py-1 text-sm text-text-main"
+      placeholder={locale === 'zh-CN' ? '章节标题' : 'Chapter title'}
+    />
+  ) : workspace ? (
+    <button
+      type="button"
+      onClick={startEditingTitle}
+      className="rounded-md px-2 py-1 text-sm text-text-main hover:bg-surface-2 hover:text-accent"
+      title={locale === 'zh-CN' ? '点击编辑章节标题' : 'Click to edit chapter title'}
+    >
+      {workspace.title}
+    </button>
+  ) : null
+
   if (error) {
     const message = error.message
 
@@ -431,7 +512,7 @@ export function ChapterStructureWorkspace() {
 
   return (
     <WorkbenchShell
-      topBar={<ChapterTopCommandBar chapterTitle={workspace.title} view={effectiveView} />}
+      topBar={<ChapterTopCommandBar chapterTitle={workspace.title} view={effectiveView} inlineEditContent={inlineEditContent} />}
       modeRail={shellModeRail}
       navigator={
         <ChapterBinderPane
@@ -446,8 +527,29 @@ export function ChapterStructureWorkspace() {
         />
       }
       mainStage={
-        <div className="flex min-h-0 flex-1 flex-col gap-3">
-          <ChapterRunOrchestrationPanel
+        workspace.scenes.length === 0 ? (
+          <div className="flex min-h-0 flex-1 items-center justify-center p-8">
+            <div className="max-w-md space-y-4 text-center">
+              <EmptyState
+                title={locale === 'zh-CN' ? '尚无场景' : 'No scenes yet'}
+                message={
+                  locale === 'zh-CN'
+                    ? '此章节还没有任何场景。创建第一个场景以开始编排。'
+                    : 'This chapter has no scenes yet. Create the first scene to start orchestrating.'
+                }
+              />
+              <button
+                type="button"
+                onClick={() => void createFirstScene()}
+                className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90"
+              >
+                {locale === 'zh-CN' ? '创建第一个场景' : 'Create First Scene'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <ChapterRunOrchestrationPanel
             title={locale === 'zh-CN' ? '章节编排' : 'Chapter orchestration'}
             description={
               locale === 'zh-CN'
@@ -511,7 +613,7 @@ export function ChapterStructureWorkspace() {
             }
           />
         </div>
-      }
+        )}
       inspector={
         <ChapterStructureInspectorPane
           chapterTitle={workspace.title}

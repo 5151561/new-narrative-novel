@@ -1,6 +1,6 @@
 export type ModelGatewayRole = 'planner' | 'sceneProseWriter' | 'sceneRevision'
 export type ModelGatewayProvider = 'openai-compatible'
-export type ModelGatewayFailureClass = 'provider_error' | 'invalid_output'
+export type ModelGatewayFailureClass = 'missing_model_config' | 'provider_error' | 'rate_limited' | 'invalid_output'
 export type ModelGatewayProjectMode = 'demo-fixture' | 'real-project'
 
 interface ModelGatewayMissingConfigInput {

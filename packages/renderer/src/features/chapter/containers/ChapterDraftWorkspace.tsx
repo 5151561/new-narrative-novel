@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { getWorkbenchLensLabel, useI18n } from '@/app/i18n'
+import { useProjectRuntime } from '@/app/project-runtime'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
@@ -155,6 +156,7 @@ function ChapterDraftTopBar({
 export function ChapterDraftWorkspace() {
   const { route, replaceRoute, patchChapterRoute } = useWorkbenchRouteState()
   const { locale } = useI18n()
+  const runtime = useProjectRuntime()
   const [lastStartedRunSceneId, setLastStartedRunSceneId] = useState<string | null>(null)
 
   if (route.scope !== 'chapter') {
@@ -212,6 +214,7 @@ export function ChapterDraftWorkspace() {
 
   const shellModeRail = (
     <ChapterModeRail
+      showAssetScope={Boolean(runtime.persistence)}
       activeLens="draft"
       onSelectScope={(scope) => {
         if (scope === 'chapter') {

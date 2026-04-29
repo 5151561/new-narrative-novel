@@ -5,6 +5,7 @@ import type {
   RunEventRecord,
   RunEventsPageRecord,
   ProposalSetArtifactDetailRecord,
+  RunFailureClass,
   RunRecord,
   RunReviewDecisionKind,
   RunSelectedProposalVariantRecord,
@@ -463,12 +464,21 @@ function createFailedRunUsage(modelId: string, projectMode: 'demo-fixture' | 're
   }
 }
 
-function createFailedRunRuntimeSummary(failureClass: 'provider_error' | 'invalid_output', retryable: boolean) {
+function createFailedRunRuntimeSummary(failureClass: RunFailureClass, retryable: boolean) {
+  const failureLabels: Record<RunFailureClass, string> = {
+    missing_model_config: 'Missing model config',
+    provider_error: 'Provider error',
+    model_timeout: 'Model timeout',
+    rate_limited: 'Rate limited',
+    invalid_output: 'Invalid output',
+    cancelled: 'Cancelled',
+    unknown: 'Unknown error',
+  }
   return {
     health: 'failed' as const,
     costLabel: '$0.0000 est.',
     tokenLabel: '0 tokens',
-    failureClassLabel: failureClass === 'provider_error' ? 'Provider error' : 'Invalid output',
+    failureClassLabel: failureLabels[failureClass],
     nextActionLabel: retryable
       ? 'Repair model settings or retry the run after the runtime issue is resolved.'
       : 'Repair model settings before running this scene again.',
@@ -504,7 +514,7 @@ function createFailedGatewayProvenance(input: {
 
 function createFailedStartRunState(input: {
   contextPacket: SceneContextPacketRecord
-  failureClass: 'provider_error' | 'invalid_output'
+  failureClass: RunFailureClass
   failureMessage: string
   modelId: string
   providerId?: string
@@ -1602,6 +1612,12 @@ export function createRunFixtureStore(options: {
       }
 
       const state = requireRunState(projectId, input.runId)
+      if (state.run.status === 'completed' || state.run.status === 'failed' || state.run.status === 'cancelled') {
+        throw conflict(`Run ${input.runId} is already ${state.run.status}.`, {
+          code: 'RUN_REVIEW_CONFLICT',
+          detail: { projectId, runId: input.runId, status: state.run.status },
+        })
+      }
       if (state.run.pendingReviewId !== input.reviewId) {
         throw conflict(`Pending review ${input.reviewId} does not match ${state.run.id}.`, {
           code: 'RUN_REVIEW_CONFLICT',

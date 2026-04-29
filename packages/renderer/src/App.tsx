@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 
 import { signalArcFixtureSeed } from '@narrative-novel/fixture-seed'
@@ -28,7 +29,9 @@ import type { SceneTab, SceneWorkspaceViewModel } from '@/features/scene/types/s
 import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { WorkbenchEditorProvider } from '@/features/workbench/editor/WorkbenchEditorProvider'
+import { WorkbenchFirstRunChecklist } from '@/features/workbench/components/WorkbenchFirstRunChecklist'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
+import { useProjectFirstObjectIds } from '@/features/workbench/hooks/useProjectFirstObjectIds'
 import type {
   SceneRouteState,
   SceneLens,
@@ -116,11 +119,13 @@ function ModeRail({
   activeLens,
   onSelectScope,
   onSelectLens,
+  showAssetScope = true,
 }: {
   activeScope: WorkbenchScope
   activeLens: SceneLens
   onSelectScope: (scope: WorkbenchScope) => void
   onSelectLens: (lens: SceneLens, tab: SceneTab) => void
+  showAssetScope?: boolean
 }) {
   const { locale, dictionary } = useI18n()
   const sceneLensItems: Array<{
@@ -158,17 +163,19 @@ function ModeRail({
           },
         ]
 
+  const scopeItems = [
+    { scope: 'scene' as const, label: dictionary.common.scene },
+    { scope: 'chapter' as const, label: dictionary.common.chapter },
+    ...(showAssetScope ? [{ scope: 'asset' as const, label: dictionary.common.asset }] : []),
+    { scope: 'book' as const, label: dictionary.common.book },
+  ]
+
   return (
     <div className="flex h-full flex-col gap-2 px-2 py-3">
       <div className="rounded-md border border-line-soft bg-surface-1 p-2">
         <p className="text-center text-[10px] uppercase tracking-[0.08em] text-text-soft">{dictionary.app.scope}</p>
         <div className="mt-2 grid gap-2">
-          {([
-            { scope: 'scene' as const, label: dictionary.common.scene },
-            { scope: 'chapter' as const, label: dictionary.common.chapter },
-            { scope: 'asset' as const, label: dictionary.common.asset },
-            { scope: 'book' as const, label: dictionary.common.book },
-          ]).map((item) => (
+          {scopeItems.map((item) => (
             <button
               key={item.scope}
               type="button"
@@ -209,17 +216,35 @@ function NavigatorPane({
   items,
   activeSceneId,
   onSelectScene,
+  onCreateScene,
+  isRealProject,
 }: {
   items: SceneNavigatorCard[]
   activeSceneId: string
   onSelectScene: (sceneId: string) => void
+  onCreateScene?: () => void
+  isRealProject?: boolean
 }) {
-  const { dictionary } = useI18n()
+  const { locale, dictionary } = useI18n()
 
   return (
     <>
       <PaneHeader title={dictionary.app.scenes} />
       <div className="grid gap-2 p-3">
+        {items.length === 0 && isRealProject ? (
+          <div className="rounded-md border border-line-soft bg-surface-2/80 px-4 py-6 text-center">
+            <p className="text-sm text-text-muted">{dictionary.app.noScenesYet ?? 'No scenes yet'}</p>
+            {onCreateScene ? (
+              <button
+                type="button"
+                onClick={onCreateScene}
+                className="mt-3 rounded-md border border-line-strong bg-surface-1 px-4 py-2 text-sm font-medium text-text-main hover:bg-surface-2"
+              >
+                {locale === 'zh-CN' ? '创建第一个场景' : 'Create First Scene'}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {items.map((item) => {
           const active = item.sceneId === activeSceneId
 
@@ -331,6 +356,47 @@ function SceneWorkbench({
   }).filter((item): item is SceneNavigatorCard => item !== undefined)
   const activeScene = activeSceneQuery.scene ?? navigatorQueries.find((query) => query.data?.id === sceneId)?.data
 
+  const firstObjectIds = useProjectFirstObjectIds()
+  const realChapterId = navigatorChapterId ?? firstObjectIds.chapterId
+  const isRealProjectForNavigator = runtime.info?.projectMode === 'real-project'
+
+  const handleCreateScene = useCallback(async () => {
+    if (!realChapterId || !isRealProjectForNavigator) {
+      return
+    }
+    try {
+      const updatedChapter = await runtime.chapterClient.createScene({ chapterId: realChapterId, title: undefined, summary: undefined })
+      if (updatedChapter && updatedChapter.scenes.length > 0) {
+        const newSceneId = updatedChapter.scenes[updatedChapter.scenes.length - 1]?.id
+        if (newSceneId) {
+          patchSceneRoute({
+            sceneId: newSceneId,
+            beatId: undefined,
+            proposalId: undefined,
+            modal: undefined,
+          })
+        }
+      }
+      navigatorChapterQuery.refetch()
+    } catch {
+      // silently handle; the UI will show the error via react-query state
+    }
+  }, [realChapterId, isRealProjectForNavigator, runtime.chapterClient, patchSceneRoute, navigatorChapterQuery])
+
+  const handleCreateChapter = useCallback(async () => {
+    if (!isRealProjectForNavigator) {
+      return
+    }
+    try {
+      const newChapter = await runtime.chapterClient.createChapter({})
+      if (newChapter) {
+        replaceRoute({ scope: 'chapter', chapterId: newChapter.chapterId })
+      }
+    } catch {
+      // silently handle
+    }
+  }, [isRealProjectForNavigator, runtime.chapterClient, replaceRoute])
+
   return (
     <SceneRunSessionProvider
       sceneId={sceneId}
@@ -343,6 +409,7 @@ function SceneWorkbench({
           <ModeRail
             activeScope="scene"
             activeLens={route.lens}
+            showAssetScope={Boolean(runtime.persistence)}
             onSelectScope={(scope) => {
               if (scope === 'scene') {
                 return
@@ -361,18 +428,30 @@ function SceneWorkbench({
           />
         }
         navigator={
-          <NavigatorPane
-            items={navigatorItems}
-            activeSceneId={sceneId}
-            onSelectScene={(nextSceneId) => {
-              patchSceneRoute({
-                sceneId: nextSceneId,
-                beatId: undefined,
-                proposalId: undefined,
-                modal: undefined,
-              })
-            }}
-          />
+          <div className="flex h-full flex-col gap-3">
+            <WorkbenchFirstRunChecklist
+              onCreateChapter={handleCreateChapter}
+              onCreateScene={handleCreateScene}
+            />
+            <NavigatorPane
+              items={navigatorItems}
+              activeSceneId={sceneId}
+              onSelectScene={(nextSceneId) => {
+                patchSceneRoute({
+                  sceneId: nextSceneId,
+                  beatId: undefined,
+                  proposalId: undefined,
+                  modal: undefined,
+                })
+              }}
+              onCreateScene={
+                isRealProjectForNavigator && navigatorItems.length === 0
+                  ? handleCreateScene
+                  : undefined
+              }
+              isRealProject={isRealProjectForNavigator}
+            />
+          </div>
         }
         mainStage={<SceneWorkspace sceneId={sceneId} defaultTab="execution" />}
         inspector={<SceneInspectorContainer sceneId={sceneId} />}
@@ -383,7 +462,12 @@ function SceneWorkbench({
 }
 
 export default function App() {
-  const { route, replaceRoute, patchSceneRoute } = useWorkbenchRouteState()
+  const { bookId, chapterId, sceneId } = useProjectFirstObjectIds()
+  const { route, replaceRoute, patchSceneRoute } = useWorkbenchRouteState({
+    sceneId,
+    chapterId,
+    bookId,
+  })
 
   return (
     <WorkbenchEditorProvider route={route} replaceRoute={replaceRoute}>
