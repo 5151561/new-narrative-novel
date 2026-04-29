@@ -18,7 +18,7 @@ import {
   type FixtureRepositoryLocalProjectStore,
   type FixtureRepositoryProjectStatePersistence,
 } from './repositories/fixtureRepository.js'
-import { createLocalProjectStorePersistence } from './repositories/project-state-persistence.js'
+import { createLocalProjectStorePersistence, LOCAL_PROJECT_STORE_TEMPLATE_VERSION } from './repositories/project-state-persistence.js'
 import { registerAssetRoutes } from './routes/asset.js'
 import { registerBookRoutes } from './routes/book.js'
 import { registerChapterRoutes } from './routes/chapter.js'
@@ -67,7 +67,7 @@ export function createServer(options: CreateServerOptions = {}) {
           projectId: config.currentProject.projectId,
           projectTitle: config.currentProject.projectTitle,
           versionLabel: config.currentProject.projectMode === 'real-project'
-            ? 'local-project-store-v1'
+            ? LOCAL_PROJECT_STORE_TEMPLATE_VERSION
             : 'fixture-api-be-pr1',
         })
         : undefined
