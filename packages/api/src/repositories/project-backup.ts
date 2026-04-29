@@ -1,5 +1,7 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+
+const DEFAULT_MAX_BACKUP_COUNT = 10
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -56,6 +58,70 @@ async function writeJsonAtomically(filePath: string, value: unknown) {
   await rename(tempFilePath, filePath)
 }
 
+async function pruneOldBackups(backupDir: string, maxCount: number) {
+  let entries: string[]
+  try {
+    entries = await readdir(backupDir)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return
+    }
+    throw error
+  }
+
+  const backupFiles = entries
+    .filter((entry) => entry.startsWith('project-backup-') && entry.endsWith('.json'))
+    .sort()
+  if (backupFiles.length <= maxCount) {
+    return
+  }
+
+  const toRemove = backupFiles.slice(0, backupFiles.length - maxCount)
+  await Promise.all(toRemove.map((file) => unlink(path.join(backupDir, file)).catch(() => undefined)))
+}
+
+export async function restoreLatestBackup({
+  projectRoot,
+  storeFilePath,
+}: {
+  projectRoot: string
+  storeFilePath: string
+}) {
+  const backupDir = path.join(projectRoot, '.narrative', 'backups')
+  let entries: string[]
+  try {
+    entries = await readdir(backupDir)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return null
+    }
+    throw error
+  }
+
+  const backupFiles = entries
+    .filter((entry) => entry.startsWith('project-backup-') && entry.endsWith('.json'))
+    .sort()
+    .reverse()
+
+  for (const backupFile of backupFiles) {
+    const backupPath = path.join(backupDir, backupFile)
+    try {
+      const raw = await readFile(backupPath, 'utf8')
+      const backup = JSON.parse(raw) as unknown
+      if (!isRecord(backup) || !isRecord(backup.store) || typeof backup.store.content !== 'string') {
+        continue
+      }
+
+      await writeFile(storeFilePath, backup.store.content, 'utf8')
+      return { restoredFrom: backupPath, createdAt: typeof backup.createdAt === 'string' ? backup.createdAt : undefined }
+    } catch {
+      continue
+    }
+  }
+
+  return null
+}
+
 export async function createProjectBackup({
   projectRoot,
   storeFilePath,
@@ -87,6 +153,9 @@ export async function createProjectBackup({
       relativePath: path.relative(projectRoot, storeFilePath),
     },
   })
+
+  const backupDir = path.join(projectRoot, '.narrative', 'backups')
+  await pruneOldBackups(backupDir, DEFAULT_MAX_BACKUP_COUNT)
 
   return {
     filePath: backupFilePath,

@@ -1354,6 +1354,7 @@ export interface FixtureRepository {
   supportsRunEventStream(): boolean
   submitRunReviewDecision(projectId: string, input: SubmitRunReviewDecisionInput): Promise<RunRecord>
   exportSnapshot(): FixtureDataSnapshot
+  exportManuscriptMarkdown(projectId: string, bookId: string, locale?: string): string
   resetProject(projectId: string): Promise<void>
   reset(): void
 }
@@ -3390,6 +3391,47 @@ export function createFixtureRepository(options: {
       syncSceneProseFromAcceptedRun(projectId, run, input.decision)
       await persistProjectOverlay(projectId)
       return run
+    },
+    exportManuscriptMarkdown(projectId, bookId, locale = 'en') {
+      const project = getProject(projectId)
+      const book = project.books[bookId]
+      if (!book) {
+        return ''
+      }
+
+      const bookTitle = book.title[locale as 'en' | 'zh-CN'] ?? book.title.en ?? ''
+      const lines: string[] = []
+      lines.push(`# ${bookTitle}`)
+      lines.push('')
+
+      for (const chapterId of book.chapterIds) {
+        const chapter = project.chapters[chapterId]
+        if (!chapter) {
+          continue
+        }
+        const chapterTitle = chapter.title[locale as 'en' | 'zh-CN'] ?? chapter.title.en ?? 'Untitled Chapter'
+        lines.push(`## ${chapterTitle}`)
+        lines.push('')
+
+        for (const sceneEntry of chapter.scenes) {
+          const sceneId = sceneEntry.id
+          const scene = project.scenes[sceneId]
+          const sceneTitle = sceneEntry.title[locale as 'en' | 'zh-CN'] ?? sceneEntry.title.en ?? 'Untitled Scene'
+          const proseDraft = scene?.prose?.proseDraft
+
+          if (proseDraft) {
+            lines.push(`### ${sceneTitle}`)
+            lines.push('')
+            lines.push(proseDraft)
+            lines.push('')
+          } else {
+            lines.push(`<!-- Scene not drafted yet: ${sceneTitle} -->`)
+            lines.push('')
+          }
+        }
+      }
+
+      return lines.join('\n')
     },
     exportSnapshot() {
       return clone(snapshot)

@@ -27,6 +27,16 @@ export function registerBookRoutes({ app, apiBasePath, repository }: ApiRouteCon
     }
   }
 
+  app.get(`${projectBase}/books/:bookId/export-manuscript-markdown`, async (request, reply) => {
+    const { projectId, bookId } = request.params as { projectId: string; bookId: string }
+    const locale = (request.query as { locale?: string }).locale ?? 'en'
+    const markdown = repository.exportManuscriptMarkdown(projectId, bookId, locale)
+    return reply
+      .header('Content-Type', 'text/markdown; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="manuscript-${bookId}.md"`)
+      .send(markdown)
+  })
+
   app.get(`${projectBase}/books/:bookId/structure`, async (request) => {
     const { projectId, bookId } = request.params as { projectId: string; bookId: string }
     return repository.getBookStructure(projectId, bookId)
