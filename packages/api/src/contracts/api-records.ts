@@ -1345,7 +1345,7 @@ export interface SceneFixtureRecord {
 }
 
 export type RunMode = 'continue' | 'rewrite' | 'from-scratch'
-export type RunFailureClass = 'provider_error' | 'model_timeout' | 'invalid_output' | 'cancelled' | 'unknown'
+export type RunFailureClass = 'missing_model_config' | 'provider_error' | 'model_timeout' | 'rate_limited' | 'invalid_output' | 'cancelled' | 'unknown'
 export type RunScope = 'scene' | 'chapter' | 'book'
 export type RunStatus = 'queued' | 'running' | 'waiting_review' | 'completed' | 'failed' | 'cancelled'
 
@@ -1399,6 +1399,8 @@ export interface RunUsageRecord {
   modelId: string
   projectMode?: ProjectRuntimeProjectMode
   fallbackUsed?: boolean
+  latencyMs?: number
+  providerRequestId?: string
 }
 
 export interface RunRuntimeSummaryRecord {

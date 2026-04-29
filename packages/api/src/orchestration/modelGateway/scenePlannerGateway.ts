@@ -36,6 +36,7 @@ export type ScenePlannerGatewayProvenance =
       modelId: string
       projectMode: 'demo-fixture' | 'real-project'
       fallbackReason?: ScenePlannerGatewayFallbackReason
+      latencyMs?: number
     }
   | {
       fallbackUsed: boolean
@@ -45,6 +46,8 @@ export type ScenePlannerGatewayProvenance =
       modelId: string
       projectMode: 'demo-fixture' | 'real-project'
       fallbackReason?: ScenePlannerGatewayFallbackReason
+      latencyMs?: number
+      repairAttempted?: boolean
     }
 
 export interface ScenePlannerGatewayResult {
@@ -117,49 +120,83 @@ export function createScenePlannerGateway(
         baseUrl: binding.baseUrl,
       })
 
+      const startedAt = Date.now()
       let payload: unknown
       try {
         payload = await openAiProvider.generate(request)
-      } catch {
+      } catch (error) {
+        const latencyMs = Date.now() - startedAt
+        const isRateLimit = error instanceof Error && (
+          error.message.includes('rate_limit') ||
+          error.message.includes('429')
+        )
         throw new ModelGatewayExecutionError({
-          failureClass: 'provider_error',
-          message: 'OpenAI-compatible provider request failed.',
+          failureClass: isRateLimit ? 'rate_limited' : 'provider_error',
+          message: isRateLimit
+            ? 'OpenAI-compatible provider returned a rate limit error.'
+            : 'OpenAI-compatible provider request failed.',
           modelId: binding.modelId,
           provider: 'openai-compatible',
           providerId: binding.providerId,
           providerLabel: binding.providerLabel,
           projectMode,
           fallbackUsed: false,
-          retryable: true,
+          retryable: isRateLimit,
           role: 'planner',
         })
       }
+
+      const firstLatencyMs = Date.now() - startedAt
 
       try {
         return {
           output: parseScenePlannerOutput(payload),
           provenance: {
             fallbackUsed: false,
-            provider: 'openai-compatible',
+            provider: 'openai-compatible' as const,
             providerId: binding.providerId,
             providerLabel: binding.providerLabel,
             modelId: binding.modelId,
             projectMode,
+            latencyMs: firstLatencyMs,
           },
         }
       } catch {
-        throw new ModelGatewayExecutionError({
-          failureClass: 'invalid_output',
-          message: 'OpenAI-compatible provider returned invalid structured planner output.',
-          modelId: binding.modelId,
-          provider: 'openai-compatible',
-          providerId: binding.providerId,
-          providerLabel: binding.providerLabel,
-          projectMode,
-          fallbackUsed: false,
-          retryable: true,
-          role: 'planner',
-        })
+        // Attempt one repair retry with schema-only prompt
+        try {
+          const repairPayload = await openAiProvider.generate({
+            sceneId: request.sceneId,
+            instructions: 'The previous output did not match the required JSON schema. Return only valid JSON matching the schema.',
+            input: `Previous output was invalid. Return only valid JSON matching this schema.`,
+          })
+          const repairLatencyMs = Date.now() - startedAt
+          return {
+            output: parseScenePlannerOutput(repairPayload),
+            provenance: {
+              fallbackUsed: false,
+              provider: 'openai-compatible' as const,
+              providerId: binding.providerId,
+              providerLabel: binding.providerLabel,
+              modelId: binding.modelId,
+              projectMode,
+              latencyMs: repairLatencyMs,
+              repairAttempted: true,
+            },
+          }
+        } catch {
+          throw new ModelGatewayExecutionError({
+            failureClass: 'invalid_output',
+            message: 'OpenAI-compatible provider returned invalid structured planner output. Repair retry also failed.',
+            modelId: binding.modelId,
+            provider: 'openai-compatible',
+            providerId: binding.providerId,
+            providerLabel: binding.providerLabel,
+            projectMode,
+            fallbackUsed: false,
+            retryable: false,
+            role: 'planner',
+          })
+        }
       }
     },
   }

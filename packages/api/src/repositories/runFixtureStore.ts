@@ -1602,6 +1602,12 @@ export function createRunFixtureStore(options: {
       }
 
       const state = requireRunState(projectId, input.runId)
+      if (state.run.status === 'completed' || state.run.status === 'failed' || state.run.status === 'cancelled') {
+        throw conflict(`Run ${input.runId} is already ${state.run.status}.`, {
+          code: 'RUN_REVIEW_CONFLICT',
+          detail: { projectId, runId: input.runId, status: state.run.status },
+        })
+      }
       if (state.run.pendingReviewId !== input.reviewId) {
         throw conflict(`Pending review ${input.reviewId} does not match ${state.run.id}.`, {
           code: 'RUN_REVIEW_CONFLICT',
