@@ -352,7 +352,8 @@ function SceneWorkbench({
   }).filter((item): item is SceneNavigatorCard => item !== undefined)
   const activeScene = activeSceneQuery.scene ?? navigatorQueries.find((query) => query.data?.id === sceneId)?.data
 
-  const realChapterId = navigatorChapterId ?? getCanonicalSeedChapterId(sceneId)
+  const firstObjectIds = useProjectFirstObjectIds()
+  const realChapterId = navigatorChapterId ?? firstObjectIds.chapterId
   const isRealProjectForNavigator = runtime.info?.projectMode === 'real-project'
 
   const handleCreateScene = useCallback(async () => {

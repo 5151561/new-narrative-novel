@@ -3081,6 +3081,15 @@ export function createFixtureRepository(options: {
       if (input.title !== undefined) {
         scene.workspace.title = input.title
         scene.setup.identity.title = input.title
+
+        const project = getProject(projectId)
+        for (const chapter of Object.values(project.chapters)) {
+          const sceneEntry = chapter.scenes.find((s) => s.id === sceneId)
+          if (sceneEntry) {
+            sceneEntry.title = localizedText(input.title, input.title)
+            break
+          }
+        }
       }
       await persistProjectOverlay(projectId)
       return clone(scene.workspace)
