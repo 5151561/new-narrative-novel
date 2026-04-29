@@ -17,7 +17,7 @@ export function registerChapterRoutes({ app, apiBasePath, repository }: ApiRoute
   app.patch(`${projectBase}/chapters/:chapterId`, async (request) => {
     const { projectId, chapterId } = request.params as { projectId: string; chapterId: string }
     const body = request.body as { title?: string; summary?: string } | undefined
-    const record = repository.renameChapter(projectId, chapterId, { title: body?.title, summary: body?.summary })
+    const record = await repository.renameChapter(projectId, chapterId, { title: body?.title, summary: body?.summary })
     if (!record) {
       throw notFound(`Chapter ${chapterId} was not found.`, {
         code: 'CHAPTER_NOT_FOUND',
@@ -30,7 +30,7 @@ export function registerChapterRoutes({ app, apiBasePath, repository }: ApiRoute
   app.post(`${projectBase}/chapters/:chapterId/scenes`, async (request) => {
     const { projectId, chapterId } = request.params as { projectId: string; chapterId: string }
     const body = request.body as { title?: string; summary?: string } | undefined
-    const record = repository.createScene(projectId, chapterId, { title: body?.title, summary: body?.summary })
+    const record = await repository.createScene(projectId, chapterId, { title: body?.title, summary: body?.summary })
     if (!record) {
       throw notFound(`Chapter ${chapterId} was not found.`, {
         code: 'CHAPTER_NOT_FOUND',

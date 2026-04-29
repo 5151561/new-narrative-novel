@@ -536,7 +536,7 @@ export function useWorkbenchRouteState(defaults?: WorkbenchRouteDefaults) {
   )
 
   const replaceRoute = useCallback((next: WorkbenchRouteInput, options?: SetWorkbenchRouteOptions) => {
-    const current = readWorkbenchSearchState()
+    const current = readWorkbenchSearchState(undefined, lastRouteDefaults)
     const baseSearch = typeof window === 'undefined' ? lastRouteSearch : window.location.search
 
     const nextState: WorkbenchSearchState =
@@ -581,10 +581,10 @@ export function useWorkbenchRouteState(defaults?: WorkbenchRouteDefaults) {
     }
 
     writeWorkbenchRouteState(nextState, options)
-  }, [])
+  }, [defaults])
 
   const patchSceneRoute = useCallback((patch: SceneRoutePatch, options?: SetWorkbenchRouteOptions) => {
-    const current = readWorkbenchSearchState()
+    const current = readWorkbenchSearchState(undefined, lastRouteDefaults)
     const baseSearch = typeof window === 'undefined' ? lastRouteSearch : window.location.search
     const nextScene = normalizeSceneRoute({ ...current.scene, ...patch, scope: 'scene' })
     const nextState: WorkbenchSearchState = {
@@ -606,10 +606,10 @@ export function useWorkbenchRouteState(defaults?: WorkbenchRouteDefaults) {
     }
 
     writeWorkbenchRouteState(nextState, options)
-  }, [])
+  }, [defaults])
 
   const patchChapterRoute = useCallback((patch: ChapterRoutePatch, options?: SetWorkbenchRouteOptions) => {
-    const current = readWorkbenchSearchState()
+    const current = readWorkbenchSearchState(undefined, lastRouteDefaults)
     const baseSearch = typeof window === 'undefined' ? lastRouteSearch : window.location.search
     const nextChapter = normalizeChapterRoute({ ...current.chapter, ...patch, scope: 'chapter' })
     const nextState: WorkbenchSearchState = {
@@ -631,10 +631,10 @@ export function useWorkbenchRouteState(defaults?: WorkbenchRouteDefaults) {
     }
 
     writeWorkbenchRouteState(nextState, options)
-  }, [])
+  }, [defaults])
 
   const patchAssetRoute = useCallback((patch: AssetRoutePatch, options?: SetWorkbenchRouteOptions) => {
-    const current = readWorkbenchSearchState()
+    const current = readWorkbenchSearchState(undefined, lastRouteDefaults)
     const baseSearch = typeof window === 'undefined' ? lastRouteSearch : window.location.search
     const nextAsset = normalizeAssetRoute({ ...current.asset, ...patch, scope: 'asset' })
     const nextState: WorkbenchSearchState = {
@@ -656,10 +656,10 @@ export function useWorkbenchRouteState(defaults?: WorkbenchRouteDefaults) {
     }
 
     writeWorkbenchRouteState(nextState, options)
-  }, [])
+  }, [defaults])
 
   const patchBookRoute = useCallback((patch: BookRoutePatch, options?: SetWorkbenchRouteOptions) => {
-    const current = readWorkbenchSearchState()
+    const current = readWorkbenchSearchState(undefined, lastRouteDefaults)
     const baseSearch = typeof window === 'undefined' ? lastRouteSearch : window.location.search
     const nextBook = normalizeBookRoute({ ...current.book, ...patch, scope: 'book' })
     const nextState: WorkbenchSearchState = {
@@ -681,7 +681,7 @@ export function useWorkbenchRouteState(defaults?: WorkbenchRouteDefaults) {
     }
 
     writeWorkbenchRouteState(nextState, options)
-  }, [])
+  }, [defaults])
 
   return {
     route,

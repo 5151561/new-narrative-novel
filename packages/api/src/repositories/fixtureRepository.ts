@@ -1302,10 +1302,10 @@ export interface FixtureRepository {
   ): Promise<StartNextChapterSceneRunRecord | null>
   reorderChapterScene(projectId: string, input: { chapterId: string; sceneId: string; targetIndex: number }): Promise<ChapterStructureWorkspaceRecord | null>
   updateChapterSceneStructure(projectId: string, input: { chapterId: string; sceneId: string; locale: 'en' | 'zh-CN'; patch: ChapterSceneStructurePatch }): Promise<ChapterStructureWorkspaceRecord | null>
-  createChapter(projectId: string, input: { title?: string; summary?: string }): ChapterStructureWorkspaceRecord
-  renameChapter(projectId: string, chapterId: string, input: { title?: string; summary?: string }): ChapterStructureWorkspaceRecord | null
-  createScene(projectId: string, chapterId: string, input: { title?: string; summary?: string }): ChapterStructureWorkspaceRecord | null
-  renameScene(projectId: string, sceneId: string, input: { title?: string }): SceneWorkspaceViewModel
+  createChapter(projectId: string, input: { title?: string; summary?: string }): Promise<ChapterStructureWorkspaceRecord>
+  renameChapter(projectId: string, chapterId: string, input: { title?: string; summary?: string }): Promise<ChapterStructureWorkspaceRecord | null>
+  createScene(projectId: string, chapterId: string, input: { title?: string; summary?: string }): Promise<ChapterStructureWorkspaceRecord | null>
+  renameScene(projectId: string, sceneId: string, input: { title?: string }): Promise<SceneWorkspaceViewModel>
   listAssets(projectId: string): AssetNavigatorResponseRecord
   getAssetKnowledge(
     projectId: string,
@@ -2981,7 +2981,7 @@ export function createFixtureRepository(options: {
       await persistProjectOverlay(projectId)
       return clone(nextRecord)
     },
-    createChapter(projectId, input = {}) {
+    async createChapter(projectId, input = {}) {
       const chapterId = `chapter-${randomUUID()}`
       const title = input.title ?? 'Untitled Chapter'
       const summary = input.summary ?? ''
@@ -3010,10 +3010,10 @@ export function createFixtureRepository(options: {
       if (firstBook) {
         firstBook.chapterIds = [...firstBook.chapterIds, chapterId]
       }
-      persistProjectOverlay(projectId)
+      await persistProjectOverlay(projectId)
       return clone(record)
     },
-    renameChapter(projectId, chapterId, input = {}) {
+    async renameChapter(projectId, chapterId, input = {}) {
       const record = getChapter(projectId, chapterId)
       if (!record) {
         return null
@@ -3025,10 +3025,10 @@ export function createFixtureRepository(options: {
         record.summary = localizedText(input.summary, input.summary)
       }
       getProject(projectId).chapters[chapterId] = record
-      persistProjectOverlay(projectId)
+      await persistProjectOverlay(projectId)
       return clone(record)
     },
-    createScene(projectId, chapterId, input = {}) {
+    async createScene(projectId, chapterId, input = {}) {
       const chapter = getChapter(projectId, chapterId)
       if (!chapter) {
         return null
@@ -3073,16 +3073,16 @@ export function createFixtureRepository(options: {
         scene.order = index + 1
       })
       project.chapters[chapterId] = chapter
-      persistProjectOverlay(projectId)
+      await persistProjectOverlay(projectId)
       return clone(chapter)
     },
-    renameScene(projectId, sceneId, input = {}) {
+    async renameScene(projectId, sceneId, input = {}) {
       const scene = getScene(projectId, sceneId)
       if (input.title !== undefined) {
         scene.workspace.title = input.title
         scene.setup.identity.title = input.title
       }
-      persistProjectOverlay(projectId)
+      await persistProjectOverlay(projectId)
       return clone(scene.workspace)
     },
     listAssets(projectId) {
