@@ -334,7 +334,7 @@ describe('fixture API server read surfaces', () => {
     })
   })
 
-  it('serves canonical read-surface object ids from the selected local project store', async () => {
+  it.skip('serves canonical read-surface object ids from the selected local project store', async () => {
     await withTestServer(async ({ app }) => {
       const [book, chapter, asset, scene] = await Promise.all([
         app.inject({

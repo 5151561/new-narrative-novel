@@ -66,6 +66,9 @@ export function createServer(options: CreateServerOptions = {}) {
           apiBaseUrl: config.apiBaseUrl,
           projectId: config.currentProject.projectId,
           projectTitle: config.currentProject.projectTitle,
+          versionLabel: config.currentProject.projectMode === 'real-project'
+            ? 'local-project-store-v1'
+            : 'fixture-api-be-pr1',
         })
         : undefined
     )

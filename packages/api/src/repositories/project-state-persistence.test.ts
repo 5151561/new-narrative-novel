@@ -326,45 +326,46 @@ describe('localProjectStorePersistence', () => {
     const initial = await persistence.load()
     const data = initial.project.data
     const previousUpdatedAt = initial.project.updatedAt
+    const bookId = `book-${data.runtimeInfo.projectId}`
 
     data.runtimeInfo.summary = 'Persisted runtime summary.'
-    data.scenes['scene-midnight-platform'].prose.proseDraft = 'Persisted prose.'
+    data.books[bookId]!.title.en = 'Persisted book title.'
 
     await persistence.save({
       data,
       runStore: {
         runStates: [
           {
-            sequence: 3,
+            sequence: 1,
             run: {
-              id: 'run-scene-midnight-platform-003',
+              id: 'run-test-001',
             },
           },
         ],
         sceneSequences: {
-          'scene-midnight-platform': 3,
+          'scene-test-001': 1,
         },
       },
     })
 
     data.runtimeInfo.summary = 'Mutated after save.'
-    data.scenes['scene-midnight-platform'].prose.proseDraft = 'Mutated after save.'
+    data.books[bookId]!.title.en = 'Mutated after save.'
 
     const reloaded = await persistence.load()
     expect(reloaded.project.updatedAt).not.toBe(previousUpdatedAt)
     expect(reloaded.project.data.runtimeInfo.summary).toBe('Persisted runtime summary.')
-    expect(reloaded.project.data.scenes['scene-midnight-platform'].prose.proseDraft).toBe('Persisted prose.')
+    expect(reloaded.project.data.books[bookId]!.title.en).toBe('Persisted book title.')
     expect(reloaded.runStore).toEqual({
       runStates: [
         {
-          sequence: 3,
+          sequence: 1,
           run: {
-            id: 'run-scene-midnight-platform-003',
+            id: 'run-test-001',
           },
         },
       ],
       sceneSequences: {
-        'scene-midnight-platform': 3,
+        'scene-test-001': 1,
       },
     })
 
@@ -458,5 +459,51 @@ describe('localProjectStorePersistence', () => {
       },
     })
     expect(resetRecord).not.toHaveProperty('runStore')
+  })
+
+  it('does not seed SignalArc fixture IDs into a freshly created real project template', async () => {
+    const paths = await createTempStorePaths()
+    const persistence = createLocalProjectStorePersistence({
+      filePath: paths.filePath,
+      artifactDirPath: paths.artifactDirPath,
+      apiBaseUrl: 'http://127.0.0.1:4174/api',
+      projectId: 'local-project-regression',
+      projectTitle: 'Regression Test Project',
+      now: () => '2026-04-29T00:00:00.000Z',
+    })
+
+    const record = await persistence.load()
+    const { data } = record.project
+
+    const signalArcBookId = 'book-signal-arc'
+    const signalArcChapterIds = ['chapter-signals-in-rain', 'chapter-open-water-signals']
+    const signalArcSceneIds = [
+      'scene-midnight-platform',
+      'scene-concourse-delay',
+      'scene-ticket-window',
+      'scene-departure-bell',
+      'scene-warehouse-bridge',
+    ]
+
+    expect(data.runtimeInfo.runtimeKind).toBe('real-local-project')
+    expect(data.runtimeInfo.projectMode).toBe('real-project')
+
+    const bookIds = Object.keys(data.books)
+    expect(bookIds).not.toContain(signalArcBookId)
+    expect(bookIds).toHaveLength(1)
+    expect(bookIds[0]).toBe('book-local-project-regression')
+
+    expect(Object.keys(data.chapters)).toEqual([])
+    for (const chapterId of signalArcChapterIds) {
+      expect(data.chapters).not.toHaveProperty(chapterId)
+    }
+
+    expect(Object.keys(data.scenes)).toEqual([])
+    for (const sceneId of signalArcSceneIds) {
+      expect(data.scenes).not.toHaveProperty(sceneId)
+    }
+
+    expect(Object.keys(data.assets)).toEqual([])
+    expect(Object.keys(data.manuscriptCheckpoints)).toEqual([])
   })
 })

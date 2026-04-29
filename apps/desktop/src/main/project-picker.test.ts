@@ -40,7 +40,7 @@ describe('readOrInitializeProjectSession', () => {
     })
     expect(JSON.parse(readFileSync(path.join(projectRoot, 'narrative.project.json'), 'utf8'))).toEqual({
       bootstrap: {
-        source: 'signal-arc-demo-template-v1',
+        source: 'real-project-template-v1',
       },
       createdAt: '2026-04-28T00:00:00.000Z',
       projectId: 'local-project-alpha',
@@ -125,7 +125,7 @@ describe('readOrInitializeProjectSession', () => {
     })
     expect(JSON.parse(readFileSync(path.join(projectRoot, 'narrative.project.json'), 'utf8'))).toEqual({
       bootstrap: {
-        source: 'signal-arc-demo-template-v1',
+        source: 'real-project-template-v1',
       },
       createdAt: '2026-04-27T00:00:00.000Z',
       projectId: 'local-project-beta',

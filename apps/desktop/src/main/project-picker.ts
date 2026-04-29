@@ -29,6 +29,7 @@ interface NarrativeProjectFileRecord {
 }
 
 export interface ReadProjectSessionOptions {
+  bootstrapSource?: string
   createProjectId?: () => string
   now?: () => string
 }
@@ -47,7 +48,8 @@ interface ChooseProjectWithDialogOptions {
 
 const NARRATIVE_PROJECT_FILE = 'narrative.project.json'
 const DEFAULT_SCHEMA_VERSION = 1
-const DEFAULT_BOOTSTRAP_SOURCE = 'signal-arc-demo-template-v1'
+const DEFAULT_BOOTSTRAP_SOURCE = 'real-project-template-v1'
+const DEMO_BOOTSTRAP_SOURCE = 'signal-arc-demo-template-v1'
 const DEFAULT_STORE_DATA_FILE = '.narrative/project-store.json'
 const DEFAULT_STORE_ARTIFACT_DIR = '.narrative/artifacts'
 
@@ -92,7 +94,7 @@ function hasStoreMetadata(record: NarrativeProjectFileRecord | null) {
 }
 
 function hasBootstrapMetadata(record: NarrativeProjectFileRecord | null) {
-  return record?.bootstrap?.source === DEFAULT_BOOTSTRAP_SOURCE
+  return typeof record?.bootstrap?.source === 'string' && record.bootstrap.source.trim().length > 0
 }
 
 function getProjectFilePath(projectRoot: string) {
@@ -124,6 +126,7 @@ async function readProjectFileRecord(projectRoot: string): Promise<NarrativeProj
 export async function readOrInitializeProjectSession(
   projectRoot: string,
   {
+    bootstrapSource = DEFAULT_BOOTSTRAP_SOURCE,
     createProjectId = () => `local-project-${randomUUID()}`,
     now = () => new Date().toISOString(),
   }: ReadProjectSessionOptions = {},
@@ -155,7 +158,7 @@ export async function readOrInitializeProjectSession(
 
   const normalizedRecord = {
     bootstrap: {
-      source: DEFAULT_BOOTSTRAP_SOURCE,
+      source: bootstrapSource,
     },
     createdAt,
     projectId,

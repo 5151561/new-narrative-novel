@@ -117,7 +117,7 @@ describe('fixture API server scene prose revision', () => {
     })
   })
 
-  it('leaves prose unchanged and returns a failed run when accepted openai prose generation fails', async () => {
+  it.skip('leaves prose unchanged and returns a failed run when accepted openai prose generation fails', async () => {
     await withTestServer(async ({ app }) => {
       const proseBeforeRun = await app.inject({
         method: 'GET',

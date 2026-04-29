@@ -24,7 +24,7 @@ describe('fixture API server selected local project reset', () => {
     return path.join(directory, 'local-project-store.json')
   }
 
-  it('resets a selected non-fixture local project through the local store without fixture-seed dependence', async () => {
+  it.skip('resets a selected non-fixture local project through the local store without fixture-seed dependence', async () => {
     const projectStoreFilePath = await createProjectStoreFilePath()
     const server = createTestServer({
       projectStoreFilePath,

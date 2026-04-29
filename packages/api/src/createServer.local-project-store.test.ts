@@ -1,37 +1,12 @@
-import { access, mkdtemp, rm } from 'node:fs/promises'
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { signalArcBookId, signalArcChapterIds, signalArcCanonicalSceneIds } from '@narrative-novel/fixture-seed'
+
 import { createTestServer } from './test/support/test-server.js'
-
-async function expectSceneLatestRunToResolve(
-  inject: (options: { method: string; url: string }) => Promise<{ statusCode: number; json(): any }>,
-  projectId: string,
-  sceneId: string,
-) {
-  const sceneResponse = await inject({
-    method: 'GET',
-    url: `/api/projects/${projectId}/scenes/${sceneId}/workspace`,
-  })
-  expect(sceneResponse.statusCode).toBe(200)
-
-  const scene = sceneResponse.json() as { latestRunId?: string }
-  if (!scene.latestRunId) {
-    expect(scene).not.toHaveProperty('latestRunId')
-    return
-  }
-
-  const runResponse = await inject({
-    method: 'GET',
-    url: `/api/projects/${projectId}/runs/${scene.latestRunId}`,
-  })
-  expect(runResponse.statusCode).toBe(200)
-  expect(runResponse.json()).toMatchObject({
-    id: scene.latestRunId,
-  })
-}
 
 describe('fixture API server selected local project store', () => {
   const tempDirectories = [] as string[]
@@ -55,7 +30,7 @@ describe('fixture API server selected local project store', () => {
     }
   }
 
-  it('bootstraps, persists, and resets a selected non-fixture local project store across fresh servers', async () => {
+  it('bootstraps a blank real project template without SignalArc fixture bleed', async () => {
     const { projectStoreFilePath, projectArtifactDirPath } = await createProjectStorePaths()
     const serverOptions = {
       projectStoreFilePath,
@@ -69,90 +44,27 @@ describe('fixture API server selected local project store', () => {
         },
         modelBindings: {
           continuityReviewer: { provider: 'fixture' },
-          planner: {
-            apiKey: 'sk-test',
-            baseUrl: 'https://api.openai.com/v1',
-            modelId: 'gpt-5.4',
-            provider: 'openai-compatible',
-            providerId: 'openai-default',
-            providerLabel: 'OpenAI',
-          },
-          sceneProseWriter: {
-            apiKey: 'sk-test',
-            baseUrl: 'https://api.openai.com/v1',
-            modelId: 'gpt-5.4',
-            provider: 'openai-compatible',
-            providerId: 'openai-default',
-            providerLabel: 'OpenAI',
-          },
+          planner: { provider: 'fixture' },
+          sceneProseWriter: { provider: 'fixture' },
           sceneRevision: { provider: 'fixture' },
           summary: { provider: 'fixture' },
         },
-        modelProvider: 'openai-compatible',
-      },
-      scenePlannerGatewayDependencies: {
-        openAiProvider: {
-          generate: async () => ({
-            proposals: [
-              {
-                title: 'Keep the local project run honest',
-                summary: 'Persist accepted prose from the configured provider path.',
-                changeKind: 'action',
-                riskLabel: 'Low continuity risk',
-              },
-            ],
-          }),
-        },
-      },
-      sceneProseWriterGatewayDependencies: {
-        openAiProvider: {
-          generate: async () => ({
-            body: {
-              en: 'Midnight Platform opens from the accepted run artifact and keeps the local project state durable.',
-              'zh-CN': 'Midnight Platform 从已接受运行产物展开，并保持本地项目状态可持久化。',
-            },
-            excerpt: {
-              en: 'Midnight Platform opens from the accepted run artifact.',
-              'zh-CN': 'Midnight Platform 从已接受运行产物展开。',
-            },
-            diffSummary: 'Accepted prose persisted through the real-project path.',
-            relatedAssets: [
-              {
-                assetId: 'asset-scene-midnight-platform-lead',
-                kind: 'character',
-                label: {
-                  en: 'Midnight Platform lead',
-                  'zh-CN': 'Midnight Platform 主角',
-                },
-              },
-            ],
-          }),
-        },
+        modelProvider: 'fixture',
       },
     } as const
-    const firstServer = createTestServer(serverOptions)
+    const server = createTestServer(serverOptions)
 
     try {
-      const [currentProjectResponse, runtimeInfoResponse, bookResponse, chapterResponse, sceneResponse] = await Promise.all([
-        firstServer.app.inject({
+      await server.app.ready()
+
+      const [currentProjectResponse, runtimeInfoResponse] = await Promise.all([
+        server.app.inject({
           method: 'GET',
           url: '/api/current-project',
         }),
-        firstServer.app.inject({
+        server.app.inject({
           method: 'GET',
           url: '/api/projects/local-project-alpha/runtime-info',
-        }),
-        firstServer.app.inject({
-          method: 'GET',
-          url: '/api/projects/local-project-alpha/books/book-signal-arc/structure',
-        }),
-        firstServer.app.inject({
-          method: 'GET',
-          url: '/api/projects/local-project-alpha/chapters/chapter-signals-in-rain/structure',
-        }),
-        firstServer.app.inject({
-          method: 'GET',
-          url: '/api/projects/local-project-alpha/scenes/scene-midnight-platform/workspace',
         }),
       ])
 
@@ -168,170 +80,58 @@ describe('fixture API server selected local project store', () => {
       expect(runtimeInfoResponse.json()).toMatchObject({
         projectId: 'local-project-alpha',
         projectTitle: 'Local Project Alpha',
+        runtimeKind: 'real-local-project',
         source: 'api',
         status: 'healthy',
         versionLabel: 'local-project-store-v1',
       })
 
+      const bookId = 'book-local-project-alpha'
+      const bookResponse = await server.app.inject({
+        method: 'GET',
+        url: `/api/projects/local-project-alpha/books/${bookId}/structure`,
+      })
       expect(bookResponse.statusCode).toBe(200)
       expect(bookResponse.json()).toMatchObject({
-        bookId: 'book-signal-arc',
-        chapterIds: ['chapter-signals-in-rain', 'chapter-open-water-signals'],
+        bookId,
+        chapterIds: [],
       })
+      expect(bookResponse.json().bookId).not.toBe(signalArcBookId)
 
-      expect(chapterResponse.statusCode).toBe(200)
-      expect(chapterResponse.json().scenes).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          id: 'scene-midnight-platform',
-          order: 1,
-        }),
-      ]))
-
-      expect(sceneResponse.statusCode).toBe(200)
-      expect(sceneResponse.json()).toMatchObject({
-        id: 'scene-midnight-platform',
-        chapterId: 'chapter-signals-in-rain',
+      const signalArcBookResponse = await server.app.inject({
+        method: 'GET',
+        url: `/api/projects/local-project-alpha/books/${signalArcBookId}/structure`,
       })
+      expect(signalArcBookResponse.statusCode).toBe(200)
+      expect(signalArcBookResponse.json()).toBeNull()
 
-      await expectSceneLatestRunToResolve(
-        firstServer.app.inject.bind(firstServer.app),
-        'local-project-alpha',
-        'scene-midnight-platform',
-      )
+      for (const chapterId of signalArcChapterIds) {
+        const chapterResponse = await server.app.inject({
+          method: 'GET',
+          url: `/api/projects/local-project-alpha/chapters/${chapterId}/structure`,
+        })
+        expect(chapterResponse.statusCode).toBe(200)
+        expect(chapterResponse.json()).toBeNull()
+      }
 
-      const startResponse = await firstServer.app.inject({
-        method: 'POST',
-        url: '/api/projects/local-project-alpha/scenes/scene-midnight-platform/runs',
-        payload: {
-          mode: 'rewrite',
-          note: 'Persist accepted local project prose across restart.',
-        },
-      })
-      expect(startResponse.statusCode).toBe(200)
+      for (const sceneId of signalArcCanonicalSceneIds) {
+        const sceneResponse = await server.app.inject({
+          method: 'GET',
+          url: `/api/projects/local-project-alpha/scenes/${sceneId}/workspace`,
+        })
+        expect(sceneResponse.statusCode).toBe(404)
+      }
 
-      const reviewResponse = await firstServer.app.inject({
-        method: 'POST',
-        url: `/api/projects/local-project-alpha/runs/${startResponse.json().id}/review-decisions`,
-        payload: {
-          reviewId: startResponse.json().pendingReviewId,
-          decision: 'accept',
-        },
-      })
-      expect(reviewResponse.statusCode).toBe(200)
+      const storeContents = await readFile(projectStoreFilePath, 'utf8')
+      const storeRecord = JSON.parse(storeContents) as Record<string, unknown>
+      const data = (storeRecord.project as Record<string, unknown>).data as Record<string, unknown>
+
+      expect(data.books as Record<string, unknown>).toHaveProperty(bookId)
+      expect(data.books as Record<string, unknown>).not.toHaveProperty(signalArcBookId)
+      expect(data.chapters as Record<string, unknown>).toEqual({})
+      expect(data.scenes as Record<string, unknown>).toEqual({})
     } finally {
-      await firstServer.app.close()
-    }
-
-    const secondServer = createTestServer(serverOptions)
-
-    try {
-      const [proseResponse, chapterResponse, assemblyResponse, runtimeInfoResponse] = await Promise.all([
-        secondServer.app.inject({
-          method: 'GET',
-          url: '/api/projects/local-project-alpha/scenes/scene-midnight-platform/prose',
-        }),
-        secondServer.app.inject({
-          method: 'GET',
-          url: '/api/projects/local-project-alpha/chapters/chapter-signals-in-rain/structure',
-        }),
-        secondServer.app.inject({
-          method: 'GET',
-          url: '/api/projects/local-project-alpha/books/book-signal-arc/draft-assembly',
-        }),
-        secondServer.app.inject({
-          method: 'GET',
-          url: '/api/projects/local-project-alpha/runtime-info',
-        }),
-      ])
-
-      expect(runtimeInfoResponse.statusCode).toBe(200)
-      expect(runtimeInfoResponse.json()).toMatchObject({
-        projectId: 'local-project-alpha',
-        projectTitle: 'Local Project Alpha',
-        versionLabel: 'local-project-store-v1',
-      })
-
-      expect(proseResponse.statusCode).toBe(200)
-      expect(proseResponse.json()).toMatchObject({
-        sceneId: 'scene-midnight-platform',
-        proseDraft: expect.stringContaining('Midnight Platform'),
-        traceSummary: {
-          sourcePatchId: expect.any(String),
-        },
-      })
-
-      expect(chapterResponse.statusCode).toBe(200)
-      expect(chapterResponse.json().scenes.find((scene: { id: string }) => scene.id === 'scene-midnight-platform')).toMatchObject({
-        id: 'scene-midnight-platform',
-        proseStatusLabel: {
-          en: 'Updated',
-          'zh-CN': '已更新',
-        },
-      })
-
-      expect(assemblyResponse.statusCode).toBe(200)
-      const assemblyScene = assemblyResponse
-        .json()
-        .chapters
-        .flatMap((chapter: { scenes: Array<{ sceneId: string; proseDraft?: string }> }) => chapter.scenes)
-        .find((scene: { sceneId: string }) => scene.sceneId === 'scene-midnight-platform')
-      expect(assemblyScene).toMatchObject({
-        sceneId: 'scene-midnight-platform',
-        proseDraft: expect.stringContaining('Midnight Platform'),
-      })
-
-      const resetResponse = await secondServer.app.inject({
-        method: 'POST',
-        url: '/api/projects/local-project-alpha/runtime/reset',
-      })
-      expect(resetResponse.statusCode).toBe(204)
-
-      const [currentProjectAfterReset, runtimeInfoAfterReset, proseAfterReset] = await Promise.all([
-        secondServer.app.inject({
-          method: 'GET',
-          url: '/api/current-project',
-        }),
-        secondServer.app.inject({
-          method: 'GET',
-          url: '/api/projects/local-project-alpha/runtime-info',
-        }),
-        secondServer.app.inject({
-          method: 'GET',
-          url: '/api/projects/local-project-alpha/scenes/scene-midnight-platform/prose',
-        }),
-      ])
-
-      expect(currentProjectAfterReset.statusCode).toBe(200)
-      expect(currentProjectAfterReset.json()).toEqual({
-        projectId: 'local-project-alpha',
-        projectMode: 'real-project',
-        runtimeKind: 'real-local-project',
-        projectTitle: 'Local Project Alpha',
-      })
-
-      expect(runtimeInfoAfterReset.statusCode).toBe(200)
-      expect(runtimeInfoAfterReset.json()).toMatchObject({
-        projectId: 'local-project-alpha',
-        projectTitle: 'Local Project Alpha',
-        summary: 'Connected to local project store v1.',
-      })
-
-      expect(proseAfterReset.statusCode).toBe(200)
-      expect(proseAfterReset.json()).toMatchObject({
-        sceneId: 'scene-midnight-platform',
-        statusLabel: 'Draft ready for review',
-        traceSummary: {
-          sourcePatchId: 'patch-midnight-platform-001',
-        },
-      })
-
-      await expectSceneLatestRunToResolve(
-        secondServer.app.inject.bind(secondServer.app),
-        'local-project-alpha',
-        'scene-midnight-platform',
-      )
-    } finally {
-      await secondServer.app.close()
+      await server.app.close()
     }
   })
 
