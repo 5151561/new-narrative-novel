@@ -15,6 +15,18 @@ interface UseSceneWorkspaceActionsOptions {
   client?: SceneClient
 }
 
+function getLensForSceneTab(tab: SceneTab) {
+  if (tab === 'setup') {
+    return 'structure'
+  }
+
+  if (tab === 'prose') {
+    return 'draft'
+  }
+
+  return 'orchestrate'
+}
+
 async function invalidateSceneQueries(queryClient: QueryClient, sceneId: string) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: sceneQueryKeys.workspace(sceneId) }),
@@ -57,10 +69,10 @@ export function useSceneWorkspaceActions({ sceneId, client }: UseSceneWorkspaceA
     () => ({
       isMutating,
       openTab: (tab: SceneTab) => {
-        setRoute({ sceneId, tab })
+        setRoute({ sceneId, lens: getLensForSceneTab(tab), tab })
       },
       openProse: () => {
-        setRoute({ sceneId, tab: 'prose' })
+        setRoute({ sceneId, lens: 'draft', tab: 'prose' })
       },
       openVersions: () => {
         setInspectorTab('versions')

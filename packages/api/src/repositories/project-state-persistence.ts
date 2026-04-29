@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import type { FixtureProjectData } from '../contracts/api-records.js'
 
 import { createSignalArcProjectTemplate } from './fixture-data.js'
+import { createRealProjectTemplate } from './real-project-template.js'
 import { createProjectBackup } from './project-backup.js'
 
 export const LOCAL_PROJECT_STORE_SCHEMA_VERSION = 1 as const
@@ -259,14 +260,22 @@ function createTemplateRecord(
       projectTitle: options.projectTitle,
       createdAt: now,
       updatedAt: now,
-      data: createSignalArcProjectTemplate({
-        projectId: options.projectId,
-        projectTitle: options.projectTitle,
-        apiBaseUrl: options.apiBaseUrl,
-        runtimeSummary: options.runtimeSummary,
-        versionLabel: options.versionLabel,
-        includeSeedRunReferences: false,
-      }),
+      data: (options.versionLabel ?? 'local-project-store-v1').startsWith('local-project-store-')
+        ? createRealProjectTemplate({
+          projectId: options.projectId,
+          projectTitle: options.projectTitle,
+          apiBaseUrl: options.apiBaseUrl,
+          runtimeSummary: options.runtimeSummary,
+          versionLabel: options.versionLabel,
+        })
+        : createSignalArcProjectTemplate({
+          projectId: options.projectId,
+          projectTitle: options.projectTitle,
+          apiBaseUrl: options.apiBaseUrl,
+          runtimeSummary: options.runtimeSummary,
+          versionLabel: options.versionLabel,
+          includeSeedRunReferences: false,
+        }),
     },
   }
 }
@@ -305,8 +314,26 @@ function sanitizeLegacyProjectStateEnvelope(
     throw invalidLocalProjectStoreError(options.filePath)
   }
 
-  const migratedRecord = createTemplateRecord(options)
-  migratedRecord.project.updatedAt = legacyProject.updatedAt
+  const now = options.now ? options.now() : new Date().toISOString()
+  const migratedRecord: LocalProjectStoreRecord = {
+    schemaVersion: LOCAL_PROJECT_STORE_SCHEMA_VERSION,
+    storeKind: LOCAL_PROJECT_STORE_KIND,
+    templateVersion: LOCAL_PROJECT_STORE_TEMPLATE_VERSION,
+    project: {
+      projectId: options.projectId,
+      projectTitle: options.projectTitle,
+      createdAt: now,
+      updatedAt: legacyProject.updatedAt,
+      data: createSignalArcProjectTemplate({
+        projectId: options.projectId,
+        projectTitle: options.projectTitle,
+        apiBaseUrl: options.apiBaseUrl,
+        runtimeSummary: options.runtimeSummary,
+        versionLabel: options.versionLabel,
+        includeSeedRunReferences: false,
+      }),
+    },
+  }
 
   if (legacyProject.reviewDecisions && isRecord(legacyProject.reviewDecisions)) {
     migratedRecord.project.data.reviewDecisions = toJsonClone(

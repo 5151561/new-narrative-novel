@@ -15,6 +15,7 @@ import { RunArtifactInspectorPanel } from './RunArtifactInspectorPanel'
 
 const runId = 'run-scene-midnight-platform-001'
 const contextPacketId = 'ctx-scene-midnight-platform-run-001'
+const plannerInvocationId = 'agent-invocation-scene-midnight-platform-run-001-001'
 const proposalSetId = 'proposal-set-scene-midnight-platform-run-001'
 const canonPatchId = 'canon-patch-scene-midnight-platform-001'
 const proseDraftId = 'prose-draft-scene-midnight-platform-001'
@@ -87,6 +88,10 @@ describe('RunArtifactInspectorPanel', () => {
     renderInspector(artifact(proposalSetId))
 
     expect(screen.getByText('Editorial review')).toBeInTheDocument()
+    expect(screen.getByText('Artifact provenance')).toBeInTheDocument()
+    expect(screen.getAllByText('Demo Project').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Fixture (fixture)').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('No').length).toBeGreaterThan(0)
     expect(screen.getByText('Invocation 1')).toBeInTheDocument()
     expect(screen.getByText('Invocation 2')).toBeInTheDocument()
     expect(screen.getByText('agent-invocation-scene-midnight-platform-run-001-001, agent-invocation-scene-midnight-platform-run-001-002')).toBeInTheDocument()
@@ -154,6 +159,8 @@ describe('RunArtifactInspectorPanel', () => {
     renderInspector(artifact(proseDraftId))
 
     expect(screen.getByRole('heading', { name: 'Prose draft' })).toBeInTheDocument()
+    expect(screen.getAllByText('Artifact provenance').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Demo Project').length).toBeGreaterThan(0)
     expect(screen.getByText('The scene settles into view before the next reveal turns visible.')).toBeInTheDocument()
     expect(screen.getByText('The scene opens from the accepted run artifact, keeping the selected review material visible in the draft.')).toBeInTheDocument()
     expect(screen.getByText('143 words')).toBeInTheDocument()
@@ -172,7 +179,32 @@ describe('RunArtifactInspectorPanel', () => {
 
   it('shows artifact-level failure detail, usage summary, and retry guidance for failed artifacts', () => {
     const failedArtifact: RunArtifactDetailRecord = {
-      ...artifact(proposalSetId),
+      ...artifact(plannerInvocationId),
+      title: {
+        en: 'Planner invocation failed',
+        'zh-CN': '规划器调用失败',
+      },
+      summary: {
+        en: 'The real-provider planner invocation returned output that failed structured validation for this run.',
+        'zh-CN': '这次真实提供方规划器调用返回了未通过结构化校验的输出。',
+      },
+      modelLabel: {
+        en: 'OpenAI planner profile',
+        'zh-CN': 'OpenAI 规划器配置',
+      },
+      outputSummary: {
+        en: 'No proposal set was emitted because planner output failed normalization.',
+        'zh-CN': '由于规划器输出归一化失败，本次未产生提案集。',
+      },
+      generatedRefs: [],
+      provenance: {
+        provider: 'openai',
+        providerId: 'openai',
+        providerLabel: 'OpenAI',
+        modelId: 'gpt-5.4',
+        projectMode: 'real-project',
+        fallbackUsed: false,
+      },
       usage: {
         inputTokens: 1420,
         outputTokens: 318,
@@ -180,12 +212,16 @@ describe('RunArtifactInspectorPanel', () => {
         actualCostUsd: 0.0241,
         provider: 'openai',
         modelId: 'gpt-5.4',
+        projectMode: 'real-project',
+        fallbackUsed: false,
       },
       failureDetail: {
         failureClass: 'invalid_output',
         message: 'Proposal normalization failed because no safe variant survived validation.',
         provider: 'openai',
         modelId: 'gpt-5.4',
+        projectMode: 'real-project',
+        fallbackUsed: false,
         retryable: false,
         sourceEventIds: ['run-event-scene-midnight-platform-001-007', 'run-event-scene-midnight-platform-001-008'],
       },
@@ -193,13 +229,28 @@ describe('RunArtifactInspectorPanel', () => {
 
     renderInspector(failedArtifact)
 
+    expect(screen.getByRole('heading', { name: 'Planner invocation failed' })).toBeInTheDocument()
+    expect(screen.getByText('The real-provider planner invocation returned output that failed structured validation for this run.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Agent Invocation' })).toBeInTheDocument()
+    expect(screen.getByText('OpenAI planner profile')).toBeInTheDocument()
+    expect(screen.getByText('No proposal set was emitted because planner output failed normalization.')).toBeInTheDocument()
+    expect(screen.queryByText('Anchor the arrival beat')).not.toBeInTheDocument()
+    expect(screen.queryByText('Stage the reveal through the setting')).not.toBeInTheDocument()
+    expect(screen.queryByText('Accept with edit')).not.toBeInTheDocument()
+    expect(screen.queryByText('Request rewrite')).not.toBeInTheDocument()
+    expect(screen.queryByText('Scene proposal set')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Failure detail' })).toBeInTheDocument()
     expect(screen.getByText('invalid_output')).toBeInTheDocument()
     expect(screen.getByText('Proposal normalization failed because no safe variant survived validation.')).toBeInTheDocument()
     expect(screen.getByText('1,420 in / 318 out')).toBeInTheDocument()
     expect(screen.getByText('$0.0218 est. / $0.0241 actual')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Runtime provenance' })).toBeInTheDocument()
+    expect(screen.getAllByText('Real Project').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('OpenAI (openai)').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Demo Project')).not.toBeInTheDocument()
+    expect(screen.queryByText('Fixture (fixture)')).not.toBeInTheDocument()
     expect(screen.getByText('Retryable')).toBeInTheDocument()
-    expect(screen.getByText('No')).toBeInTheDocument()
+    expect(screen.getAllByText('No').length).toBeGreaterThan(0)
     expect(screen.getByText('Check the source events before starting a new run.')).toBeInTheDocument()
     expect(screen.getByText('run-event-scene-midnight-platform-001-007')).toBeInTheDocument()
     expect(screen.getByText('run-event-scene-midnight-platform-001-008')).toBeInTheDocument()

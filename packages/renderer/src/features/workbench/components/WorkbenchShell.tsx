@@ -132,7 +132,7 @@ function WorkbenchShellContent({
       </header>
       <div
         data-testid="workbench-body"
-        className="grid min-h-0 px-3 py-3"
+        className="grid min-h-0 overflow-hidden px-3 py-3"
         style={{ gridTemplateColumns }}
       >
         <Pane
@@ -224,7 +224,7 @@ function WorkbenchShellContent({
         ) : null}
       </div>
       {showBottomDock ? (
-        <div className="relative mx-3 mb-3 min-h-0">
+        <div className="relative mx-3 mb-3 min-h-0 overflow-hidden">
           <Pane
             muted
             className="h-full min-h-0"

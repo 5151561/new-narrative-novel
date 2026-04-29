@@ -51,6 +51,19 @@ export const Draft: Story = {
   },
 }
 
+export const ProseDraftStage: Story = {
+  name: 'Scene / Draft / Prose',
+  args: {
+    sceneId: 'scene-midnight-platform',
+    defaultTab: 'prose',
+  },
+  parameters: {
+    sceneStory: {
+      search: '?scope=scene&id=scene-midnight-platform&lens=draft&tab=prose',
+    },
+  },
+}
+
 export const ExecutionSelection: Story = {
   args: {
     sceneId: 'scene-midnight-platform',

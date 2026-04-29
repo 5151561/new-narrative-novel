@@ -41,10 +41,12 @@ describe('startSceneRunWorkflow', () => {
         ],
       },
       plannerProvenance: {
+        fallbackUsed: false,
         provider: 'openai-compatible',
         providerId: 'deepseek',
         providerLabel: 'DeepSeek',
         modelId: 'gpt-5.4',
+        projectMode: 'real-project',
       },
     }, {
       buildTimelineLabel: (order) => `step-${String(order).padStart(3, '0')}`,
@@ -57,10 +59,12 @@ describe('startSceneRunWorkflow', () => {
         role: 'planner',
         index: 1,
         provenance: {
+          fallbackUsed: false,
           provider: 'openai-compatible',
           providerId: 'deepseek',
           providerLabel: 'DeepSeek',
           modelId: 'gpt-5.4',
+          projectMode: 'real-project',
         },
       },
     })
@@ -156,6 +160,8 @@ describe('startSceneRunWorkflow', () => {
       plannerProvenance: {
         provider: 'fixture',
         modelId: 'fixture-scene-planner',
+        projectMode: 'demo-fixture',
+        fallbackUsed: false,
       },
     }, {
       buildTimelineLabel: (order) => `step-${String(order).padStart(3, '0')}`,
@@ -176,6 +182,8 @@ describe('startSceneRunWorkflow', () => {
         estimatedCostUsd: 0.0246,
         provider: 'fixture',
         modelId: 'fixture-scene-planner',
+        projectMode: 'demo-fixture',
+        fallbackUsed: false,
       },
       runtimeSummary: {
         health: 'attention',
@@ -240,6 +248,8 @@ describe('startSceneRunWorkflow', () => {
         estimatedCostUsd: 0.0246,
         provider: 'fixture',
         modelId: 'fixture-scene-planner',
+        projectMode: 'demo-fixture',
+        fallbackUsed: false,
       },
     })
 
@@ -259,8 +269,10 @@ describe('startSceneRunWorkflow', () => {
           role: 'planner',
           index: 1,
           provenance: {
+            fallbackUsed: false,
             provider: 'fixture',
             modelId: 'fixture-scene-planner',
+            projectMode: 'demo-fixture',
           },
         },
       }),
@@ -280,6 +292,12 @@ describe('startSceneRunWorkflow', () => {
         runId: 'run-scene-midnight-platform-002',
         sceneId: 'scene-midnight-platform',
         meta: {
+          provenance: {
+            fallbackUsed: false,
+            provider: 'fixture',
+            modelId: 'fixture-scene-planner',
+            projectMode: 'demo-fixture',
+          },
           proposals: [
             {
               id: 'proposal-set-scene-midnight-platform-run-002-proposal-001',

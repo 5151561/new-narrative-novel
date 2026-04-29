@@ -1,11 +1,13 @@
-import { getSceneRunStatusLabel, getSceneStatusLabel, useI18n } from '@/app/i18n'
+import { getSceneRunStatusLabel, getSceneStatusLabel, getWorkbenchLensLabel, useI18n } from '@/app/i18n'
 import { Badge } from '@/components/ui/Badge'
 import { StatusDot } from '@/components/ui/StatusDot'
+import type { SceneLens } from '@/features/workbench/types/workbench-route'
 
 import type { SceneWorkspaceViewModel } from '../types/scene-view-models'
 
 interface SceneHeaderProps {
   scene: SceneWorkspaceViewModel
+  lens: SceneLens
   onOpenExport: () => void
   onSwitchThread: (threadId: string) => void
   onOpenVersions: () => void
@@ -24,14 +26,14 @@ function statusTone(status: SceneWorkspaceViewModel['status']): 'neutral' | 'acc
   return 'neutral'
 }
 
-export function SceneHeader({ scene, onOpenExport, onSwitchThread, onOpenVersions }: SceneHeaderProps) {
+export function SceneHeader({ scene, lens, onOpenExport, onSwitchThread, onOpenVersions }: SceneHeaderProps) {
   const { locale } = useI18n()
 
   return (
     <header className="flex flex-wrap items-start justify-between gap-4 px-5 py-4">
       <div className="space-y-2">
         <p className="text-xs uppercase tracking-[0.08em] text-text-soft">
-          {scene.chapterTitle} / {locale === 'zh-CN' ? '场景' : 'Scene'} / {locale === 'zh-CN' ? '编排' : 'Orchestrate'}
+          {scene.chapterTitle} / {locale === 'zh-CN' ? '场景' : 'Scene'} / {getWorkbenchLensLabel(locale, lens)}
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-[30px] leading-[1.15]">{scene.title}</h1>

@@ -22,6 +22,7 @@ export interface DesktopRuntimeConfig {
   port: number
   projectId: string
   projectMode: DesktopProjectMode
+  runtimeKind: 'fixture-demo' | 'real-local-project'
   projectTitle: string
 }
 

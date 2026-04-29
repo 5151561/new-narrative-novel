@@ -5,11 +5,11 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
+import { WorkbenchStatusTopBar } from '@/features/workbench/components/WorkbenchStatusTopBar'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import type { BookDraftView, BookReviewFilter, BookReviewStatusFilter } from '@/features/workbench/types/workbench-route'
 
 import { getWorkbenchLensLabel, useI18n } from '@/app/i18n'
-import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { useClearReviewIssueDecisionMutation } from '@/features/review/hooks/useClearReviewIssueDecisionMutation'
 import { useClearReviewIssueFixActionMutation } from '@/features/review/hooks/useClearReviewIssueFixActionMutation'
 import { useBookReviewInboxQuery } from '@/features/review/hooks/useBookReviewInboxQuery'
@@ -69,15 +69,10 @@ function BookDraftTopBar({
   const { locale } = useI18n()
 
   return (
-    <div className="flex h-full flex-wrap items-center justify-end gap-2">
-      <div className="sr-only">
-        <h1>{locale === 'zh-CN' ? '书籍手稿' : 'Book manuscript'}</h1>
-        <p>
-          {bookTitle ?? (locale === 'zh-CN' ? '书籍' : 'Book')} / {getWorkbenchLensLabel(locale, 'draft')}
-          {selectedChapterTitle ? ` / ${selectedChapterTitle}` : ''}
-        </p>
-      </div>
-      <LocaleToggle />
+    <WorkbenchStatusTopBar
+      title={locale === 'zh-CN' ? '书籍手稿' : 'Book manuscript'}
+      subtitle={`${bookTitle ?? (locale === 'zh-CN' ? '书籍' : 'Book')} / ${getWorkbenchLensLabel(locale, 'draft')}${selectedChapterTitle ? ` / ${selectedChapterTitle}` : ''}`}
+    >
       {assembledWordCount !== undefined ? (
         <Badge tone="neutral">{locale === 'zh-CN' ? `合计 ${assembledWordCount} 词` : `${assembledWordCount} words`}</Badge>
       ) : null}
@@ -86,7 +81,7 @@ function BookDraftTopBar({
           {locale === 'zh-CN' ? `缺稿 ${missingDraftChapterCount}` : `Missing ${missingDraftChapterCount}`}
         </Badge>
       ) : null}
-    </div>
+    </WorkbenchStatusTopBar>
   )
 }
 

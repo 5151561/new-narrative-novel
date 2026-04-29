@@ -5,6 +5,7 @@ import { useI18n, type Locale } from '@/app/i18n'
 import { AppProviders } from '@/app/providers'
 import { createStoryProjectRuntimeEnvironment } from '@/app/project-runtime'
 import { Badge } from '@/components/ui/Badge'
+import { PaneHeader } from '@/components/ui/PaneHeader'
 import { ChapterBinderPane } from '@/features/chapter/components/ChapterBinderPane'
 import { ChapterStructureInspectorPane } from '@/features/chapter/components/ChapterStructureInspectorPane'
 import { ChapterStructureStage } from '@/features/chapter/components/ChapterStructureStage'
@@ -230,6 +231,28 @@ function WorkbenchShellStoryPreview({
 }) {
   const { locale } = useI18n()
   const isChinese = locale === 'zh-CN'
+  const navigatorItems = [
+    {
+      id: 'scene-a',
+      chapterTitle: isChinese ? '第 11 章 / 夜站换乘' : 'Chapter 11 / Night Platform Transfer',
+      title: isChinese ? '午夜站台上的公开交易与延误广播交叉施压' : 'Midnight Platform Bargain Under the Public Delay Broadcast',
+      statusLabel: isChinese ? '检查点 PR11 + 成稿差异' : 'CHECKPOINT PR11 + DRAFT DELTA',
+      statusTone: 'warn' as const,
+      detail: isChinese
+        ? '当前版本要同时保留公开见证压力、换乘倒计时和未决的成稿差异。'
+        : 'Keep public witness pressure, the transfer countdown, and the unresolved draft delta in view.',
+    },
+    {
+      id: 'scene-b',
+      chapterTitle: isChinese ? '第 11 章 / 仓桥交接' : 'Chapter 11 / Warehouse Bridge',
+      title: isChinese ? '仓桥交接后的静默回撤' : 'Silent Withdrawal After the Warehouse Bridge Handoff',
+      statusLabel: isChinese ? '待编排评审' : 'WAITING ORCHESTRATION REVIEW',
+      statusTone: 'accent' as const,
+      detail: isChinese
+        ? '需要在窄导航栏里继续保留长标题、长状态和多语种说明。'
+        : 'The narrow navigator still needs to hold long labels, long status badges, and mixed-language detail.',
+    },
+  ]
 
   return (
     <WorkbenchShell
@@ -263,24 +286,41 @@ function WorkbenchShellStoryPreview({
         </div>
       }
       navigator={
-        <TimelineList
-          items={[
-            {
-              id: 'scene-a',
-              title: isChinese ? '午夜站台' : 'Midnight Platform',
-              detail: isChinese ? '执行评审进行中。' : 'Execution review active.',
-              meta: isChinese ? '场景' : 'Scene',
-              tone: 'accent',
-            },
-            {
-              id: 'scene-b',
-              title: isChinese ? '仓桥交接' : 'Warehouse Bridge',
-              detail: isChinese ? '设定草稿等待中。' : 'Setup draft waiting.',
-              meta: isChinese ? '草稿' : 'Draft',
-              tone: 'neutral',
-            },
-          ]}
-        />
+        <>
+          <PaneHeader title={isChinese ? '场景' : 'Scenes'} />
+          <div className="grid gap-2 p-3">
+            {navigatorItems.map((item, index) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`rounded-md border px-3 py-3 text-left transition ${
+                  index === 0
+                    ? 'border-line-strong bg-surface-1 shadow-sm'
+                    : 'border-line-soft bg-surface-2/80 hover:bg-surface-1'
+                }`}
+              >
+                <div className="flex flex-wrap items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs uppercase tracking-[0.08em] text-text-soft">{item.chapterTitle}</p>
+                    <p className="break-words text-sm font-medium text-text-main">{item.title}</p>
+                  </div>
+                  <Badge tone={item.statusTone} className="max-w-full whitespace-normal break-words text-left">
+                    {item.statusLabel}
+                  </Badge>
+                </div>
+                <p className="mt-2 break-words text-sm leading-6 text-text-muted">{item.detail}</p>
+              </button>
+            ))}
+          </div>
+          <div className="border-t border-line-soft px-4 py-3">
+            <p className="text-[11px] uppercase tracking-[0.08em] text-text-soft">{isChinese ? '队列' : 'Queue'}</p>
+            <p className="mt-2 text-sm leading-6 text-text-muted">
+              {isChinese
+                ? '窄导航宽度下仍应保持 badge、标题和说明完整包裹。'
+                : 'Badges, titles, and detail copy should keep wrapping cleanly at the narrow navigator width.'}
+            </p>
+          </div>
+        </>
       }
       mainStage={
         <div className="flex h-full items-center justify-center p-8 text-center">
@@ -375,7 +415,7 @@ function renderShellStory(
   )
 
   return options.narrow ? (
-    <div className="min-h-screen overflow-auto bg-app">
+    <div className="h-screen overflow-hidden bg-app">
       <div className="w-[390px] max-w-full">{preview}</div>
     </div>
   ) : (

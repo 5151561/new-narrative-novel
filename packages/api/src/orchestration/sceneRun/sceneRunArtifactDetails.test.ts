@@ -235,10 +235,12 @@ describe('sceneRunArtifactDetails', () => {
       index: 1,
       role: 'planner',
       provenance: {
+        fallbackUsed: false,
         provider: 'openai-compatible',
         providerId: 'deepseek',
         providerLabel: 'DeepSeek',
         modelId: 'gpt-5.4',
+        projectMode: 'real-project',
       },
     })
 
@@ -262,6 +264,14 @@ describe('sceneRunArtifactDetails', () => {
       ),
       outputSchemaLabel: text('Proposal candidate schema', '提案候选结构'),
       createdAtLabel: text('Linked event 005', '关联事件 005'),
+      provenance: {
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
+        providerLabel: 'DeepSeek',
+        modelId: 'gpt-5.4',
+        projectMode: 'real-project',
+        fallbackUsed: false,
+      },
     })
     expect(detail.generatedRefs).toEqual([
       {
@@ -282,6 +292,8 @@ describe('sceneRunArtifactDetails', () => {
       provenance: {
         provider: 'fixture',
         modelId: 'fixture-scene-planner',
+        projectMode: 'demo-fixture',
+        fallbackUsed: true,
         fallbackReason: 'invalid-output',
       },
     })
@@ -320,12 +332,16 @@ describe('sceneRunArtifactDetails', () => {
         providerId: 'deepseek',
         providerLabel: 'DeepSeek',
         modelId: 'gpt-5.4',
+        projectMode: 'real-project',
+        fallbackUsed: false,
       },
       failureDetail: {
         failureClass: 'provider_error',
         message: 'OpenAI-compatible provider request failed.',
         modelId: 'gpt-5.4',
         provider: 'openai-compatible',
+        projectMode: 'real-project',
+        fallbackUsed: false,
         retryable: true,
         sourceEventIds: ['run-event-scene-midnight-platform-002-005'],
       },
@@ -343,6 +359,42 @@ describe('sceneRunArtifactDetails', () => {
       provider: 'openai-compatible',
       modelId: 'gpt-5.4',
     })
+  })
+
+  it('describes real writer invocations without fixture wording when openai provenance is present', () => {
+    const artifact = createAgentInvocationArtifact({
+      runId,
+      sceneId,
+      sequence: 2,
+      index: 3,
+      role: 'writer',
+      provenance: {
+        fallbackUsed: false,
+        provider: 'openai-compatible',
+        providerId: 'openai-default',
+        providerLabel: 'OpenAI',
+        modelId: 'gpt-5.4',
+        projectMode: 'real-project',
+      },
+    })
+
+    const detail = buildAgentInvocationDetail({
+      artifact,
+      sourceEventIds: ['run-event-scene-midnight-platform-002-012'],
+    })
+
+    expect(detail.modelLabel).toEqual(
+      text('OpenAI writer profile (gpt-5.4)', 'OpenAI 写作模型 (gpt-5.4)'),
+    )
+    expect(detail.summary).toEqual(
+      text('Writer output is ready for Midnight Platform.', '面向 Midnight Platform 的写作输出已就绪。'),
+    )
+    expect(detail.outputSummary).toEqual(
+      text(
+        'Produces a structured accepted prose draft after review acceptance.',
+        '在审阅接受后产出结构化的正文草稿。',
+      ),
+    )
   })
 
   it('builds proposal set detail with deterministic proposals and review options', () => {
@@ -867,6 +919,8 @@ describe('sceneRunArtifactDetails', () => {
         providerId: 'deepseek',
         providerLabel: 'DeepSeek',
         modelId: 'gpt-5.4',
+        projectMode: 'real-project',
+        fallbackUsed: false,
       },
     })
     failedInvocationArtifact.meta = {
@@ -878,12 +932,16 @@ describe('sceneRunArtifactDetails', () => {
         estimatedCostUsd: 0.0218,
         provider: 'openai-compatible',
         modelId: 'gpt-5.4',
+        projectMode: 'real-project',
+        fallbackUsed: false,
       },
       failureDetail: {
         failureClass: 'provider_error',
         message: 'Provider returned 502 while planner output was being finalized.',
         provider: 'openai-compatible',
         modelId: 'gpt-5.4',
+        projectMode: 'real-project',
+        fallbackUsed: false,
         retryable: true,
         sourceEventIds: ['run-event-scene-midnight-platform-002-006'],
       },
@@ -900,15 +958,23 @@ describe('sceneRunArtifactDetails', () => {
       estimatedCostUsd: 0.0218,
       provider: 'openai-compatible',
       modelId: 'gpt-5.4',
+      projectMode: 'real-project',
+      fallbackUsed: false,
     })
     expect(failedInvocationDetail.failureDetail).toEqual({
       failureClass: 'provider_error',
       message: 'Provider returned 502 while planner output was being finalized.',
       provider: 'openai-compatible',
       modelId: 'gpt-5.4',
+      projectMode: 'real-project',
+      fallbackUsed: false,
       retryable: true,
       sourceEventIds: ['run-event-scene-midnight-platform-002-006'],
     })
+    expect(failedInvocationDetail.statusLabel).toEqual(text('Failed', '已失败'))
+    expect(failedInvocationDetail.summary).toEqual(
+      text('Planner invocation failed for Midnight Platform.', 'Midnight Platform 的规划调用失败。'),
+    )
     expect(failedInvocationDetail).not.toHaveProperty('prompt')
 
     const failedProposalArtifact = createProposalSetArtifact({
@@ -925,12 +991,16 @@ describe('sceneRunArtifactDetails', () => {
         actualCostUsd: 0.0241,
         provider: 'openai-compatible',
         modelId: 'gpt-5.4',
+        projectMode: 'real-project',
+        fallbackUsed: false,
       },
       failureDetail: {
         failureClass: 'invalid_output',
         message: 'Proposal normalization failed because no safe variant survived validation.',
         provider: 'openai-compatible',
         modelId: 'gpt-5.4',
+        projectMode: 'real-project',
+        fallbackUsed: false,
         retryable: false,
         sourceEventIds: ['run-event-scene-midnight-platform-002-007', 'run-event-scene-midnight-platform-002-008'],
       },
@@ -948,12 +1018,16 @@ describe('sceneRunArtifactDetails', () => {
       actualCostUsd: 0.0241,
       provider: 'openai-compatible',
       modelId: 'gpt-5.4',
+      projectMode: 'real-project',
+      fallbackUsed: false,
     })
     expect(failedProposalDetail.failureDetail).toEqual({
       failureClass: 'invalid_output',
       message: 'Proposal normalization failed because no safe variant survived validation.',
       provider: 'openai-compatible',
       modelId: 'gpt-5.4',
+      projectMode: 'real-project',
+      fallbackUsed: false,
       retryable: false,
       sourceEventIds: ['run-event-scene-midnight-platform-002-007', 'run-event-scene-midnight-platform-002-008'],
     })

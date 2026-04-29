@@ -39,6 +39,7 @@ interface AgentInvocationArtifactInput extends SceneRunArtifactBaseInput {
 
 interface ProposalSetArtifactInput extends SceneRunArtifactBaseInput {
   plannerOutput?: ScenePlannerOutput
+  provenance?: ScenePlannerGatewayProvenance
   usage?: RunUsageRecord
   failureDetail?: RunFailureDetailRecord
 }
@@ -72,6 +73,8 @@ function buildFailureMeta(failureDetail?: RunFailureDetailRecord) {
           message: failureDetail.message,
           ...(failureDetail.provider ? { provider: failureDetail.provider } : {}),
           ...(failureDetail.modelId ? { modelId: failureDetail.modelId } : {}),
+          ...(failureDetail.projectMode ? { projectMode: failureDetail.projectMode } : {}),
+          ...(typeof failureDetail.fallbackUsed === 'boolean' ? { fallbackUsed: failureDetail.fallbackUsed } : {}),
           retryable: failureDetail.retryable,
           sourceEventIds: [...failureDetail.sourceEventIds],
         },
@@ -89,6 +92,8 @@ function buildUsageMeta(usage?: RunUsageRecord) {
           ...(typeof usage.actualCostUsd === 'number' ? { actualCostUsd: usage.actualCostUsd } : {}),
           provider: usage.provider,
           modelId: usage.modelId,
+          ...(usage.projectMode ? { projectMode: usage.projectMode } : {}),
+          ...(typeof usage.fallbackUsed === 'boolean' ? { fallbackUsed: usage.fallbackUsed } : {}),
         },
       }
     : {}
@@ -190,13 +195,16 @@ export function createContextPacketArtifact(input: ContextPacketArtifactInput): 
 
 export function createAgentInvocationArtifact(input: AgentInvocationArtifactInput): SceneRunArtifactRecord {
   const title = input.role === 'planner' ? 'Planner' : 'Writer'
+  const status = input.failureDetail ? 'failed' : 'completed'
   const provenanceMeta = input.provenance
     ? {
         provenance: {
+          fallbackUsed: input.provenance.fallbackUsed,
           provider: input.provenance.provider,
           ...('providerId' in input.provenance ? { providerId: input.provenance.providerId } : {}),
           ...('providerLabel' in input.provenance ? { providerLabel: input.provenance.providerLabel } : {}),
           modelId: input.provenance.modelId,
+          projectMode: input.provenance.projectMode,
           ...(input.provenance.fallbackReason ? { fallbackReason: input.provenance.fallbackReason } : {}),
         },
       }
@@ -214,7 +222,7 @@ export function createAgentInvocationArtifact(input: AgentInvocationArtifactInpu
     sceneId: input.sceneId,
     title,
     summary: `${title} invocation prepared for scene run execution.`,
-    status: 'completed',
+    status,
     meta: {
       role: input.role,
       index: input.index,
@@ -228,6 +236,19 @@ export function createAgentInvocationArtifact(input: AgentInvocationArtifactInpu
 
 export function createProposalSetArtifact(input: ProposalSetArtifactInput): SceneRunArtifactRecord {
   const proposalSetId = buildProposalSetId(input.sceneId, input.sequence)
+  const provenanceMeta = input.provenance
+    ? {
+        provenance: {
+          provider: input.provenance.provider,
+          ...('providerId' in input.provenance ? { providerId: input.provenance.providerId } : {}),
+          ...('providerLabel' in input.provenance ? { providerLabel: input.provenance.providerLabel } : {}),
+          modelId: input.provenance.modelId,
+          projectMode: input.provenance.projectMode,
+          fallbackUsed: input.provenance.fallbackUsed,
+          ...(input.provenance.fallbackReason ? { fallbackReason: input.provenance.fallbackReason } : {}),
+        },
+      }
+    : {}
 
   return {
     kind: 'proposal-set',
@@ -239,6 +260,7 @@ export function createProposalSetArtifact(input: ProposalSetArtifactInput): Scen
     status: 'ready',
     meta: {
       proposals: canonicalizePlannerProposals(proposalSetId, input.plannerOutput, input.sceneId),
+      ...provenanceMeta,
       ...buildUsageMeta(input.usage),
       ...buildFailureMeta(input.failureDetail),
     },
@@ -265,6 +287,8 @@ export function createProseDraftArtifact(input: ProseDraftArtifactInput): SceneR
           ...('providerId' in input.writerProvenance ? { providerId: input.writerProvenance.providerId } : {}),
           ...('providerLabel' in input.writerProvenance ? { providerLabel: input.writerProvenance.providerLabel } : {}),
           modelId: input.writerProvenance.modelId,
+          projectMode: input.writerProvenance.projectMode,
+          fallbackUsed: input.writerProvenance.fallbackUsed,
           ...(input.writerProvenance.fallbackReason ? { fallbackReason: input.writerProvenance.fallbackReason } : {}),
         },
         output: input.writerOutput,

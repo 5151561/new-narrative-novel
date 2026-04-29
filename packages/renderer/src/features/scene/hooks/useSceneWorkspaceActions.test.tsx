@@ -20,6 +20,7 @@ import { useSceneUiStore } from '../store/scene-ui-store'
 import { useSceneExecutionQuery } from './useSceneExecutionQuery'
 import { useScenePatchPreview } from './useScenePatchPreview'
 import { useSceneProseQuery } from './useSceneProseQuery'
+import { useSceneRouteState } from './useSceneRouteState'
 import { useSceneWorkspaceActions } from './useSceneWorkspaceActions'
 import { useSceneWorkspaceQuery } from './useSceneWorkspaceQuery'
 
@@ -128,6 +129,41 @@ describe('useSceneWorkspaceActions', () => {
     expect(runtimeClient.getSceneProse).toHaveBeenCalled()
     expect(runtimeClient.previewAcceptedPatch).toHaveBeenCalled()
     expect(runtimeClient.commitAcceptedPatch).toHaveBeenCalled()
+  })
+
+  it('keeps scene lens and tab aligned when workspace actions switch tabs', async () => {
+    window.history.replaceState({}, '', '/workbench?scope=scene&id=scene-midnight-platform&lens=structure&tab=setup')
+
+    const { wrapper } = createWrapper()
+    const routeHook = renderHook(() => useSceneRouteState(), { wrapper })
+    const actionsHook = renderHook(() => useSceneWorkspaceActions({ sceneId }), { wrapper })
+
+    act(() => {
+      actionsHook.result.current.openTab('execution')
+    })
+
+    await waitFor(() => {
+      expect(routeHook.result.current.route.lens).toBe('orchestrate')
+      expect(routeHook.result.current.route.tab).toBe('execution')
+    })
+
+    act(() => {
+      actionsHook.result.current.openTab('prose')
+    })
+
+    await waitFor(() => {
+      expect(routeHook.result.current.route.lens).toBe('draft')
+      expect(routeHook.result.current.route.tab).toBe('prose')
+    })
+
+    act(() => {
+      actionsHook.result.current.openTab('setup')
+    })
+
+    await waitFor(() => {
+      expect(routeHook.result.current.route.lens).toBe('structure')
+      expect(routeHook.result.current.route.tab).toBe('setup')
+    })
   })
 
   it('refetches bridge-backed execution after continue run without mutating fallback fixtures', async () => {

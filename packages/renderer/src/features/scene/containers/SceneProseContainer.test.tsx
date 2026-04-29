@@ -253,7 +253,7 @@ describe('SceneProseContainer', () => {
     expect(screen.getByText('Queue 1')).toBeInTheDocument()
   })
 
-  it('shows a prose toolbar and exposes focus mode only when prose focus is available', async () => {
+  it('shows a prose toolbar and exposes reader focus only when prose focus is available', async () => {
     const user = userEvent.setup()
     const client = createSceneClient()
     const Wrapper = wrapperFactory()
@@ -263,10 +263,10 @@ describe('SceneProseContainer', () => {
     })
 
     expect(await screen.findByText('Scene Prose Workbench')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Focus Mode' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reader Focus' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Focus Mode' }))
-    expect(screen.getByText('Focus mode active')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Reader Focus' }))
+    expect(screen.getByText('Reader focus active')).toBeInTheDocument()
 
     rerender(<SceneProseContainer sceneId="scene-warehouse-bridge" client={client} />)
 
@@ -274,7 +274,120 @@ describe('SceneProseContainer', () => {
       expect(screen.getByText('No manuscript draft yet')).toBeInTheDocument()
     })
 
-    expect(screen.queryByRole('button', { name: 'Focus Mode' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reader Focus' })).not.toBeInTheDocument()
+  })
+
+  it('localizes visible prose chrome support copy for zh-CN without changing prose content', async () => {
+    window.localStorage.setItem(APP_LOCALE_STORAGE_KEY, 'zh-CN')
+
+    const user = userEvent.setup()
+    const client = {
+      ...createSceneClient(),
+      getSceneProse: vi.fn(async () => ({
+        sceneId: 'scene-midnight-platform',
+        proseDraft: '雨一直压着站台，任让梅把条件说给旁观者听。',
+        revisionModes: ['expand', 'rewrite'],
+        latestDiffSummary: 'Expanded witness-facing beats while preserving accepted provenance.',
+        warningsCount: 0,
+        focusModeAvailable: true,
+        draftWordCount: 24,
+        statusLabel: 'Revision candidate ready',
+        revisionCandidate: {
+          revisionId: 'revision-scene-midnight-platform-001',
+          revisionMode: 'expand',
+          proseBody: '英文正文内容保留原样，用来证明这里只本地化 chrome/support copy。',
+          diffSummary: 'Expanded witness-facing beats while preserving accepted provenance.',
+          sourceProseDraftId: 'prose-draft-scene-midnight-platform-002',
+          sourceCanonPatchId: 'canon-patch-scene-midnight-platform-002',
+          contextPacketId: 'ctx-scene-midnight-platform-run-002',
+        },
+        traceSummary: {
+          sourcePatchId: 'canon-patch-scene-midnight-platform-002',
+          sourceProposals: [{ proposalId: 'proposal-001', title: 'Anchor the arrival beat' }],
+          relatedAssets: [{ assetId: 'asset-ren-voss', title: 'Ren Voss', kind: 'character' }],
+          missingLinks: ['asset-ledger-stays-shut'],
+        },
+      })),
+    }
+    const Wrapper = wrapperFactory()
+
+    render(<SceneProseContainer sceneId="scene-midnight-platform" client={client} />, {
+      wrapper: Wrapper,
+    })
+
+    expect(await screen.findByText('雨一直压着站台，任让梅把条件说给旁观者听。')).toBeInTheDocument()
+    expect(screen.getByText('修订候选已就绪')).toBeInTheDocument()
+    expect(screen.getAllByText('已扩展面向见证者的节拍，并保留已采纳来源链。').length).toBeGreaterThan(0)
+    expect(screen.getByText('来源补丁')).toBeInTheDocument()
+    expect(screen.getByText('来源提案')).toBeInTheDocument()
+    expect(screen.getByText('关联资产')).toBeInTheDocument()
+    expect(screen.getByText('缺失链接')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '聚焦阅读' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '聚焦阅读' }))
+
+    expect(screen.getByText('聚焦阅读已开启')).toBeInTheDocument()
+    expect(screen.getByText('英文正文内容保留原样，用来证明这里只本地化 chrome/support copy。')).toBeInTheDocument()
+  })
+
+  it('falls back to generic zh-CN prose support copy when runtime support text stays English', async () => {
+    window.localStorage.setItem(APP_LOCALE_STORAGE_KEY, 'zh-CN')
+
+    const client = {
+      ...createSceneClient(),
+      getSceneProse: vi.fn(async () => ({
+        sceneId: 'scene-midnight-platform',
+        proseDraft: 'Midnight Platform keeps the visible prose body in English for this regression.',
+        revisionModes: ['rewrite', 'expand'],
+        latestDiffSummary: 'Fresh runtime support summary that is not on a tiny whitelist.',
+        warningsCount: 0,
+        focusModeAvailable: true,
+        draftWordCount: 11,
+        statusLabel: 'Fresh runtime prose status',
+      })),
+    }
+    const Wrapper = wrapperFactory()
+
+    render(<SceneProseContainer sceneId="scene-midnight-platform" client={client} />, {
+      wrapper: Wrapper,
+    })
+
+    expect(
+      await screen.findByText('Midnight Platform keeps the visible prose body in English for this regression.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('可进入修订轮次')).toBeInTheDocument()
+    expect(screen.getAllByText('当前正文支持摘要已更新。').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Fresh runtime prose status')).not.toBeInTheDocument()
+    expect(screen.queryByText('Fresh runtime support summary that is not on a tiny whitelist.')).not.toBeInTheDocument()
+  })
+
+  it('keeps queued-without-candidate distinct from candidate-ready in zh-CN fallback status copy', async () => {
+    window.localStorage.setItem(APP_LOCALE_STORAGE_KEY, 'zh-CN')
+
+    const client = {
+      ...createSceneClient(),
+      getSceneProse: vi.fn(async () => ({
+        sceneId: 'scene-midnight-platform',
+        proseDraft: 'Queued prose stays readable while the next revision has not produced a candidate yet.',
+        revisionModes: ['rewrite', 'expand'],
+        latestDiffSummary: 'Fresh runtime support summary that is not on a tiny whitelist.',
+        warningsCount: 0,
+        focusModeAvailable: true,
+        revisionQueueCount: 1,
+        statusLabel: 'Fresh runtime prose status',
+      })),
+    }
+    const Wrapper = wrapperFactory()
+
+    render(<SceneProseContainer sceneId="scene-midnight-platform" client={client} />, {
+      wrapper: Wrapper,
+    })
+
+    expect(
+      await screen.findByText('Queued prose stays readable while the next revision has not produced a candidate yet.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('修订已排队')).toBeInTheDocument()
+    expect(screen.queryByText('修订候选已就绪')).not.toBeInTheDocument()
   })
 
   it('refetches bridge-backed prose after revise without mutating fallback fixtures', async () => {

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { useI18n } from '@/app/i18n'
+import { getChapterStructureViewLabel, getWorkbenchLensLabel, useI18n } from '@/app/i18n'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
+import { WorkbenchStatusTopBar } from '@/features/workbench/components/WorkbenchStatusTopBar'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import type { SceneLens } from '@/features/workbench/types/workbench-route'
 
@@ -82,14 +82,20 @@ function resolveChapterRunGate(
   }
 }
 
-function ChapterTopCommandBar() {
-  const { dictionary } = useI18n()
+function ChapterTopCommandBar({
+  chapterTitle,
+  view,
+}: {
+  chapterTitle: string
+  view: ChapterStructureView
+}) {
+  const { locale, dictionary } = useI18n()
 
   return (
-    <div className="flex h-full flex-wrap items-center justify-end gap-2">
-      <h1 className="sr-only">{dictionary.app.chapterWorkbench}</h1>
-      <LocaleToggle />
-    </div>
+    <WorkbenchStatusTopBar
+      title={dictionary.app.chapterWorkbench}
+      subtitle={`${chapterTitle} / ${getWorkbenchLensLabel(locale, 'structure')} / ${getChapterStructureViewLabel(locale, view)}`}
+    />
   )
 }
 
@@ -377,7 +383,7 @@ export function ChapterStructureWorkspace() {
 
     return (
       <WorkbenchShell
-        topBar={<ChapterTopCommandBar />}
+        topBar={<ChapterTopCommandBar chapterTitle={route.chapterId} view={route.view} />}
         modeRail={shellModeRail}
         navigator={<ChapterPaneState title={locale === 'zh-CN' ? '章节不可用' : 'Chapter unavailable'} message={message} />}
         mainStage={<ChapterPaneState title={locale === 'zh-CN' ? '章节不可用' : 'Chapter unavailable'} message={message} />}
@@ -395,7 +401,7 @@ export function ChapterStructureWorkspace() {
 
     return (
       <WorkbenchShell
-        topBar={<ChapterTopCommandBar />}
+        topBar={<ChapterTopCommandBar chapterTitle={route.chapterId} view={route.view} />}
         modeRail={shellModeRail}
         navigator={<ChapterPaneState title={dictionary.common.loading} message={message} />}
         mainStage={<ChapterPaneState title={dictionary.common.loading} message={message} />}
@@ -413,7 +419,7 @@ export function ChapterStructureWorkspace() {
 
     return (
       <WorkbenchShell
-        topBar={<ChapterTopCommandBar />}
+        topBar={<ChapterTopCommandBar chapterTitle={route.chapterId} view={route.view} />}
         modeRail={shellModeRail}
         navigator={<ChapterPaneState title={locale === 'zh-CN' ? '章节不存在' : 'Chapter not found'} message={message} />}
         mainStage={<ChapterPaneState title={locale === 'zh-CN' ? '章节不存在' : 'Chapter not found'} message={message} />}
@@ -425,7 +431,7 @@ export function ChapterStructureWorkspace() {
 
   return (
     <WorkbenchShell
-      topBar={<ChapterTopCommandBar />}
+      topBar={<ChapterTopCommandBar chapterTitle={workspace.title} view={effectiveView} />}
       modeRail={shellModeRail}
       navigator={
         <ChapterBinderPane

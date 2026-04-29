@@ -13,6 +13,7 @@ import { RunArtifactInspectorPanel } from './RunArtifactInspectorPanel'
 const runId = 'run-scene-midnight-platform-001'
 const reviewId = 'review-scene-midnight-platform-001'
 const contextPacketId = 'ctx-scene-midnight-platform-run-001'
+const plannerInvocationId = 'agent-invocation-scene-midnight-platform-run-001-001'
 const proposalSetId = 'proposal-set-scene-midnight-platform-run-001'
 const canonPatchId = 'canon-patch-scene-midnight-platform-001'
 const proseDraftId = 'prose-draft-scene-midnight-platform-001'
@@ -40,9 +41,35 @@ const contextPacketRedactedAssets: ContextPacketArtifactDetailRecord = {
     warningCount: contextPacket.activationSummary?.warningCount ?? 0,
   },
 }
+const plannerInvocation = getMockRunArtifact({ runId, artifactId: plannerInvocationId }).artifact
 const proposalSet = getMockRunArtifact({ runId, artifactId: proposalSetId }).artifact
 const failedArtifactDetail = {
-  ...proposalSet,
+  ...plannerInvocation,
+  title: {
+    en: 'Planner invocation failed',
+    'zh-CN': '规划器调用失败',
+  },
+  summary: {
+    en: 'The real-provider planner invocation returned output that failed structured validation for this run.',
+    'zh-CN': '这次真实提供方规划器调用返回了未通过结构化校验的输出。',
+  },
+  modelLabel: {
+    en: 'OpenAI planner profile',
+    'zh-CN': 'OpenAI 规划器配置',
+  },
+  outputSummary: {
+    en: 'No proposal set was emitted because planner output failed normalization.',
+    'zh-CN': '由于规划器输出归一化失败，本次未产生提案集。',
+  },
+  generatedRefs: [],
+  provenance: {
+    provider: 'openai',
+    providerId: 'openai',
+    providerLabel: 'OpenAI',
+    modelId: 'gpt-5.4',
+    projectMode: 'real-project' as const,
+    fallbackUsed: false,
+  },
   usage: {
     inputTokens: 1420,
     outputTokens: 318,
@@ -50,12 +77,16 @@ const failedArtifactDetail = {
     actualCostUsd: 0.0241,
     provider: 'openai',
     modelId: 'gpt-5.4',
+    projectMode: 'real-project' as const,
+    fallbackUsed: false,
   },
   failureDetail: {
     failureClass: 'invalid_output' as const,
     message: 'Proposal normalization failed because no safe variant survived validation.',
     provider: 'openai',
     modelId: 'gpt-5.4',
+    projectMode: 'real-project' as const,
+    fallbackUsed: false,
     retryable: false,
     sourceEventIds: ['run-event-scene-midnight-platform-001-007', 'run-event-scene-midnight-platform-001-008'],
   },
@@ -104,6 +135,12 @@ export const ContextPacketRedactedAssets: Story = {
 }
 
 export const ProposalSet: Story = {
+  args: {
+    artifact: proposalSet,
+  },
+}
+
+export const ProposalSetDemoFixtureProvenance: Story = {
   args: {
     artifact: proposalSet,
   },

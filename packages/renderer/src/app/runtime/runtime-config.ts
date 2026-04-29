@@ -12,6 +12,7 @@ export interface DesktopLocalRuntimeConfig {
   apiBaseUrl: string
   projectId: string
   projectMode: ProjectMode
+  runtimeKind: Exclude<RuntimeKind, 'mock-storybook'>
   projectTitle?: string
 }
 
@@ -53,6 +54,7 @@ function isRuntimeConfig(value: unknown): value is RuntimeConfig {
     && typeof candidate.projectId === 'string'
     && candidate.projectId.length > 0
     && (candidate.projectMode === 'demo-fixture' || candidate.projectMode === 'real-project')
+    && (candidate.runtimeKind === 'fixture-demo' || candidate.runtimeKind === 'real-local-project')
     && (candidate.projectTitle === undefined || typeof candidate.projectTitle === 'string')
   )
 }
@@ -88,5 +90,5 @@ export function getRuntimeKindFromRuntimeConfig(runtimeConfig: RuntimeConfig): E
     return 'fixture-demo'
   }
 
-  return runtimeConfig.projectMode === 'demo-fixture' ? 'fixture-demo' : 'real-local-project'
+  return runtimeConfig.runtimeKind
 }

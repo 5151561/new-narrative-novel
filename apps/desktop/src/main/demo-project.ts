@@ -22,6 +22,7 @@ export async function readOrCreateDemoProjectSession({
 
   const session = await readOrInitializeProjectSession(projectRoot, {
     ...options,
+    bootstrapSource: 'signal-arc-demo-template-v1',
     createProjectId: () => DEMO_PROJECT_ID,
   })
   const projectFilePath = path.join(projectRoot, 'narrative.project.json')
@@ -39,6 +40,7 @@ export async function readOrCreateDemoProjectSession({
     ...session,
     projectId: DEMO_PROJECT_ID,
     projectMode: 'demo-fixture',
+    runtimeKind: 'fixture-demo',
     projectTitle: DEMO_PROJECT_TITLE,
   }
 }

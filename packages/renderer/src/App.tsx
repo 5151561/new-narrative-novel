@@ -42,6 +42,7 @@ interface SceneNavigatorCard {
   statusLabel: string
   statusTone: 'accent' | 'success' | 'warn' | 'neutral'
   detail: string
+  disabled?: boolean
 }
 
 function statusTone(status: SceneWorkspaceViewModel['status']): SceneNavigatorCard['statusTone'] {
@@ -64,6 +65,16 @@ function getCanonicalSeedChapterId(sceneId: string) {
 function getCanonicalSeedSceneIdSetForChapter(chapterId: string) {
   const chapterSeed = signalArcFixtureSeed.chapters.find((chapter) => chapter.chapterId === chapterId)
   return chapterSeed ? new Set<string>(chapterSeed.canonicalSceneIds) : null
+}
+
+function isUnavailableNavigatorSceneError(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    typeof error.status === 'number' &&
+    error.status === 404
+  )
 }
 
 function SceneTopCommandBar({
@@ -216,21 +227,26 @@ function NavigatorPane({
             <button
               key={item.sceneId}
               type="button"
+              disabled={item.disabled}
               onClick={() => onSelectScene(item.sceneId)}
               className={`rounded-md border px-3 py-3 text-left transition ${
                 active
                   ? 'border-line-strong bg-surface-1 shadow-sm'
-                  : 'border-line-soft bg-surface-2/80 hover:bg-surface-1'
+                  : item.disabled
+                    ? 'border-line-soft bg-surface-2/60 text-text-muted opacity-75'
+                    : 'border-line-soft bg-surface-2/80 hover:bg-surface-1'
               }`}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+              <div className="flex flex-wrap items-start gap-2">
+                <div className="min-w-0 flex-1">
                   <p className="text-xs uppercase tracking-[0.08em] text-text-soft">{item.chapterTitle}</p>
-                  <p className="truncate text-sm font-medium text-text-main">{item.title}</p>
+                  <p className="break-words text-sm font-medium text-text-main">{item.title}</p>
                 </div>
-                <Badge tone={item.statusTone}>{item.statusLabel}</Badge>
+                <Badge tone={item.statusTone} className="max-w-full whitespace-normal break-words text-left">
+                  {item.statusLabel}
+                </Badge>
               </div>
-              <p className="mt-2 text-sm leading-6 text-text-muted">{item.detail}</p>
+              <p className="mt-2 break-words text-sm leading-6 text-text-muted">{item.detail}</p>
             </button>
           )
         })}
@@ -257,6 +273,7 @@ function SceneWorkbench({
   const sceneId = route.sceneId
   const activeSceneQuery = useSceneWorkspaceQuery(sceneId)
   const sceneExecutionQuery = useSceneExecutionQuery(sceneId)
+  const preservesStorybookNavigatorRichness = Boolean(runtime.persistence)
   const navigatorChapterId = activeSceneQuery.scene?.chapterId ?? getCanonicalSeedChapterId(sceneId)
   const navigatorChapterQuery = useQuery({
     queryKey: navigatorChapterId ? chapterQueryKeys.workspace(navigatorChapterId) : [...chapterQueryKeys.all, 'workspace', 'scene-navigator', sceneId],
@@ -286,8 +303,8 @@ function SceneWorkbench({
   const navigatorItems = navigatorQueries.map((query, index) => {
     const fallback = fallbackNavigatorItems[index]
 
-    return query.data
-      ? {
+    if (query.data) {
+      return {
           sceneId: query.data.id,
           title: query.data.title,
           chapterTitle: query.data.chapterTitle,
@@ -295,7 +312,22 @@ function SceneWorkbench({
           statusTone: statusTone(query.data.status),
           detail: query.data.objective,
         }
-      : fallback
+    }
+
+    if (!fallback) {
+      return undefined
+    }
+
+    if (!preservesStorybookNavigatorRichness && isUnavailableNavigatorSceneError(query.error)) {
+      return {
+        ...fallback,
+        statusLabel: dictionary.common.unavailable,
+        detail: query.error.message,
+        disabled: true,
+      }
+    }
+
+    return fallback
   }).filter((item): item is SceneNavigatorCard => item !== undefined)
   const activeScene = activeSceneQuery.scene ?? navigatorQueries.find((query) => query.data?.id === sceneId)?.data
 

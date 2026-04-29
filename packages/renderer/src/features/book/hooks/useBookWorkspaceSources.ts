@@ -38,6 +38,41 @@ export interface BookSceneProseState {
   error: Error | null
 }
 
+interface ApiLikeErrorShape {
+  status?: number
+  code?: string
+  detail?: unknown
+}
+
+function asApiLikeError(error: unknown): ApiLikeErrorShape | null {
+  if (!error || typeof error !== 'object') {
+    return null
+  }
+
+  return error as ApiLikeErrorShape
+}
+
+function isMissingSceneDetail(detail: unknown, sceneId: string) {
+  if (!detail || typeof detail !== 'object' || !('sceneId' in detail)) {
+    return false
+  }
+
+  return detail.sceneId === sceneId
+}
+
+function shouldIgnoreMissingSceneError(sceneId: string, error: unknown) {
+  const apiError = asApiLikeError(error)
+  if (apiError?.status !== 404) {
+    return false
+  }
+
+  if (!isMissingSceneDetail(apiError.detail, sceneId)) {
+    return false
+  }
+
+  return apiError.code === 'SCENE_NOT_FOUND'
+}
+
 function buildTraceRollup(
   sceneId: string,
   trace: ReturnType<typeof useTraceabilitySceneSources>['traceBySceneId'][string],
@@ -168,13 +203,15 @@ export function useBookWorkspaceSources(
       Object.fromEntries(
         orderedSceneIds.map((sceneId, index) => {
           const query = proseQueries[index]
+          const rawError = query?.error instanceof Error ? query.error : null
+          const error = rawError && shouldIgnoreMissingSceneError(sceneId, rawError) ? null : rawError
 
           return [
             sceneId,
             {
               prose: query?.data ?? undefined,
               isLoading: query?.isLoading ?? false,
-              error: query?.error instanceof Error ? query.error : null,
+              error,
             } satisfies BookSceneProseState,
           ]
         }),
@@ -218,6 +255,17 @@ export function useBookWorkspaceSources(
     const trace = traceability.sceneStateBySceneId[sceneId]
     return Boolean(trace && (trace.isComplete || trace.error))
   })
+  const traceError =
+    orderedSceneIds
+      .map((sceneId) => {
+        const sceneError = traceability.sceneStateBySceneId[sceneId]?.error
+        if (!sceneError || shouldIgnoreMissingSceneError(sceneId, sceneError)) {
+          return null
+        }
+
+        return sceneError
+      })
+      .find((sceneError): sceneError is Error => sceneError instanceof Error) ?? null
 
   const error =
     !enabled
@@ -225,8 +273,10 @@ export function useBookWorkspaceSources(
       : (bookRecordQuery.error as Error | null | undefined) ??
         missingChapterWorkspaceError ??
         chapterQueries.find((query) => query.error instanceof Error)?.error ??
-        proseQueries.find((query) => query.error instanceof Error)?.error ??
-        traceability.error ??
+        orderedSceneIds
+          .map((sceneId) => sceneProseStateBySceneId[sceneId]?.error)
+          .find((sceneError): sceneError is Error => sceneError instanceof Error) ??
+        traceError ??
         null
 
   const isLoading =

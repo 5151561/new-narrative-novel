@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren } from 'react'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ApiRequestError, type ProjectRuntime } from '@/app/project-runtime'
+import { ApiRequestError, createMockProjectRuntime, type ProjectRuntime } from '@/app/project-runtime'
 import { resetMockBookExportArtifactDb } from '@/features/book/api/mock-book-export-artifact-db'
 import { resetRememberedBookWorkbenchHandoffs } from '@/features/book/hooks/useBookWorkbenchActivity'
 import { resetMockChapterDb } from '@/features/chapter/api/mock-chapter-db'
@@ -488,6 +488,122 @@ describe('App scene workbench', () => {
     expect(getNavigatorSceneButton('Departure Bell')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Warehouse Bridge/i })).not.toBeInTheDocument()
     expect(screen.getByText('A crowd bottleneck should slow the exit without resolving who controls the courier line.')).toBeInTheDocument()
+  })
+
+  it('keeps API-backed missing navigator scenes guarded instead of routing into a full-surface 404', async () => {
+    const user = userEvent.setup()
+    const baseRuntime = createMockProjectRuntime()
+    const runtime: ProjectRuntime = {
+      ...baseRuntime,
+      persistence: undefined,
+    }
+    const [midnightPlatform, ticketWindow, departureBell] = await Promise.all([
+      baseRuntime.sceneClient.getSceneWorkspace('scene-midnight-platform'),
+      baseRuntime.sceneClient.getSceneWorkspace('scene-ticket-window'),
+      baseRuntime.sceneClient.getSceneWorkspace('scene-departure-bell'),
+    ])
+
+    vi.doMock('@tanstack/react-query', async () => {
+      const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query')
+
+      return {
+        ...actual,
+        useQueries: ({ queries }: { queries: Array<{ queryKey: readonly unknown[] }> }) =>
+          queries.map((query) => {
+            const sceneId = String(query.queryKey[2] ?? '')
+
+            if (sceneId === 'scene-midnight-platform') {
+              return { data: midnightPlatform, error: null }
+            }
+
+            if (sceneId === 'scene-concourse-delay') {
+              return {
+                data: undefined,
+                error: new ApiRequestError({
+                  status: 404,
+                  code: 'SCENE_NOT_FOUND',
+                  message: 'Scene scene-concourse-delay was not found.',
+                  detail: { sceneId: 'scene-concourse-delay' },
+                }),
+              }
+            }
+
+            if (sceneId === 'scene-ticket-window') {
+              return { data: ticketWindow, error: null }
+            }
+
+            if (sceneId === 'scene-departure-bell') {
+              return { data: departureBell, error: null }
+            }
+
+            return { data: undefined, error: null }
+          }),
+      }
+    })
+
+    await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution', {
+      runtime,
+    })
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    const missingSceneButton = getNavigatorSceneButton('Concourse Delay')
+    expect(missingSceneButton).toBeDisabled()
+    expect(within(missingSceneButton).getByText('Scene scene-concourse-delay was not found.')).toBeInTheDocument()
+
+    await user.click(missingSceneButton)
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('id')).toBe('scene-midnight-platform')
+      expect(screen.queryByText('Scene unavailable')).not.toBeInTheDocument()
+    })
+  })
+
+  it('preserves mock navigator richness when scene cards fall back to story-style placeholders', async () => {
+    const user = userEvent.setup()
+
+    vi.doMock('@tanstack/react-query', async () => {
+      const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query')
+
+      return {
+        ...actual,
+        useQueries: ({ queries }: { queries: Array<{ queryKey: readonly unknown[] }> }) =>
+          queries.map((query) => {
+            const sceneId = String(query.queryKey[2] ?? '')
+
+            if (sceneId === 'scene-concourse-delay') {
+              return {
+                data: undefined,
+                error: new ApiRequestError({
+                  status: 404,
+                  code: 'SCENE_NOT_FOUND',
+                  message: 'Scene scene-concourse-delay was not found.',
+                  detail: { sceneId: 'scene-concourse-delay' },
+                }),
+              }
+            }
+
+            return { data: undefined, error: null }
+          }),
+      }
+    })
+
+    await renderFreshApp('?scope=scene&id=scene-midnight-platform&lens=orchestrate&tab=execution')
+
+    expect(await screen.findByText('Proposal Review')).toBeInTheDocument()
+    const placeholderButton = getNavigatorSceneButton('Concourse Delay')
+    expect(placeholderButton).toBeEnabled()
+    expect(placeholderButton).not.toBeDisabled()
+    expect(within(placeholderButton).getByText('A crowd bottleneck should slow the exit without resolving who controls the courier line.')).toBeInTheDocument()
+
+    await user.click(placeholderButton)
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('id')).toBe('scene-concourse-delay')
+      expect(params.get('lens')).toBe('orchestrate')
+      expect(params.get('tab')).toBe('execution')
+    })
   })
 
   it('derives shell metadata from the active scene workspace data', async () => {
@@ -1658,6 +1774,7 @@ describe('App scene workbench', () => {
           apiBaseUrl: 'http://127.0.0.1:4888/api',
           projectId: 'desktop-project-signal-arc',
           projectMode: 'real-project',
+          runtimeKind: 'real-local-project',
           projectTitle: 'Signal Arc Desktop',
           runtimeMode: 'desktop-local',
         })),

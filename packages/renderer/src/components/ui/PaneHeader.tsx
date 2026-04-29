@@ -12,16 +12,16 @@ export function PaneHeader({ title, description, actions, className, ...props }:
   return (
     <div
       className={cn(
-        'flex items-start justify-between gap-4 border-b border-line-soft px-4 py-3',
+        'flex flex-wrap items-start justify-between gap-4 border-b border-line-soft px-4 py-3',
         className,
       )}
       {...props}
     >
-      <div className="space-y-1">
+      <div className="min-w-0 flex-1 space-y-1">
         <h3 className="text-lg leading-tight">{title}</h3>
         {description ? <p className="text-sm text-text-muted">{description}</p> : null}
       </div>
-      {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+      {actions ? <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">{actions}</div> : null}
     </div>
   )
 }

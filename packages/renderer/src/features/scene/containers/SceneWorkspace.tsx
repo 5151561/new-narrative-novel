@@ -22,13 +22,27 @@ interface SceneWorkspaceProps {
   defaultTab?: SceneTab
 }
 
+function deriveLensFromTab(tab: SceneTab) {
+  if (tab === 'setup') {
+    return 'structure'
+  }
+
+  if (tab === 'prose') {
+    return 'draft'
+  }
+
+  return 'orchestrate'
+}
+
 export function SceneWorkspace({ sceneId, defaultTab = 'execution' }: SceneWorkspaceProps) {
   const { locale } = useI18n()
   const workspaceQuery = useSceneWorkspaceQuery(sceneId)
   const { route } = useSceneRouteState()
   const actions = useSceneWorkspaceActions({ sceneId })
   const patchPreviewOpen = useSceneUiStore((state) => state.patchPreviewOpen)
-  const activeTab: SceneTab = route.sceneId === sceneId ? route.tab : defaultTab
+  const isActiveSceneRoute = route.sceneId === sceneId
+  const activeTab: SceneTab = isActiveSceneRoute ? route.tab : defaultTab
+  const activeLens = isActiveSceneRoute ? route.lens : deriveLensFromTab(activeTab)
   const patchPreview = useScenePatchPreview(sceneId, patchPreviewOpen)
 
   const tabPanel = useMemo(() => {
@@ -70,6 +84,7 @@ export function SceneWorkspace({ sceneId, defaultTab = 'execution' }: SceneWorks
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <SceneHeader
         scene={workspaceQuery.scene}
+        lens={activeLens}
         onOpenExport={actions.openExport}
         onSwitchThread={(threadId) => void actions.switchThread(threadId)}
         onOpenVersions={actions.openVersions}

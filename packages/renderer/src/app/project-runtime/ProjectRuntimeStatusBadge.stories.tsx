@@ -2,6 +2,7 @@ import { useMemo, type ComponentProps, type PropsWithChildren } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 
 import { AppProviders } from '@/app/providers'
+import { ModelSettingsProvider } from '@/features/settings/ModelSettingsProvider'
 
 import { createProjectRuntimeInfoRecord } from './project-runtime-info'
 import { createStoryProjectRuntimeEnvironment } from './project-runtime-test-utils'
@@ -44,7 +45,10 @@ const defaultDesktopModelSettingsSnapshot: DesktopModelSettingsStorySnapshot = {
   credentialStatuses: [],
 }
 
-function installProjectRuntimeStatusBadgeBridge(snapshot: DesktopModelSettingsStorySnapshot) {
+function installProjectRuntimeStatusBadgeBridge(
+  snapshot: DesktopModelSettingsStorySnapshot,
+  mode: 'resolved' | 'pending' = 'resolved',
+) {
   if (typeof window === 'undefined') {
     return
   }
@@ -52,7 +56,27 @@ function installProjectRuntimeStatusBadgeBridge(snapshot: DesktopModelSettingsSt
   Object.defineProperty(window, 'narrativeDesktop', {
     configurable: true,
     value: {
-      getModelSettingsSnapshot: async () => snapshot,
+      getModelSettingsSnapshot: () => {
+        if (mode === 'pending') {
+          return new Promise<DesktopModelSettingsStorySnapshot>(() => {})
+        }
+
+        return Promise.resolve(snapshot)
+      },
+      saveProviderProfile: async () => snapshot.providers,
+      deleteProviderProfile: async () => snapshot.providers,
+      saveProviderCredential: async () => snapshot.credentialStatuses[0] ?? {
+        configured: true,
+        provider: 'openai-compatible' as const,
+        providerId: snapshot.providers[0]?.id ?? 'storybook-provider',
+      },
+      deleteProviderCredential: async () => snapshot.credentialStatuses[0] ?? {
+        configured: false,
+        provider: 'openai-compatible' as const,
+        providerId: snapshot.providers[0]?.id ?? 'storybook-provider',
+      },
+      updateModelBinding: async () => snapshot.bindings,
+      testModelSettings: async () => snapshot.connectionTest,
     },
   })
 }
@@ -60,7 +84,11 @@ function installProjectRuntimeStatusBadgeBridge(snapshot: DesktopModelSettingsSt
 function StoryProviders({ children }: PropsWithChildren) {
   const storyEnvironment = useMemo(() => createStoryProjectRuntimeEnvironment(), [])
 
-  return <AppProviders runtime={storyEnvironment.runtime} queryClient={storyEnvironment.queryClient}>{children}</AppProviders>
+  return (
+    <AppProviders runtime={storyEnvironment.runtime} queryClient={storyEnvironment.queryClient}>
+      <ModelSettingsProvider>{children}</ModelSettingsProvider>
+    </AppProviders>
+  )
 }
 
 const meta = {
@@ -71,6 +99,7 @@ const meta = {
       installProjectRuntimeStatusBadgeBridge(
         (context.parameters.desktopModelSettingsSnapshot as DesktopModelSettingsStorySnapshot | undefined)
           ?? defaultDesktopModelSettingsSnapshot,
+        (context.parameters.desktopModelSettingsBridgeMode as 'resolved' | 'pending' | undefined) ?? 'resolved',
       )
 
       return (
@@ -131,17 +160,15 @@ export const FixtureDemoHealthy: Story = {
   },
 }
 
-export const MockStorybookHealthy: Story = {}
-
-export const RealLocalProjectHealthy: Story = {
+export const FixtureDemoIgnoresDesktopRealBindings: Story = {
   args: {
     info: createProjectRuntimeInfoRecord({
-      projectId: 'desktop-project-signal-arc',
-      projectTitle: 'Signal Arc Desktop',
-      runtimeKind: 'real-local-project',
+      projectId: 'book-signal-arc',
+      projectTitle: 'Signal Arc Demo',
+      runtimeKind: 'fixture-demo',
       source: 'api',
       status: 'healthy',
-      summary: 'Connected to the desktop-local runtime for the current project.',
+      summary: 'Connected to fixture API runtime.',
       capabilities: {
         contextPacketRefs: true,
         read: true,
@@ -153,6 +180,111 @@ export const RealLocalProjectHealthy: Story = {
         write: true,
       },
     }),
+  },
+  parameters: {
+    desktopModelSettingsSnapshot: {
+      providers: [
+        { id: 'deepseek', label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
+      ],
+      bindings: {
+        continuityReviewer: { provider: 'fixture' },
+        planner: { provider: 'openai-compatible', providerId: 'deepseek', modelId: 'deepseek-reasoner' },
+        sceneProseWriter: { provider: 'openai-compatible', providerId: 'deepseek', modelId: 'deepseek-chat' },
+        sceneRevision: { provider: 'fixture' },
+        summary: { provider: 'fixture' },
+      },
+      connectionTest: {
+        status: 'failed',
+        errorCode: 'missing_key',
+        summary: 'One or more configured provider credentials are missing.',
+      },
+      credentialStatuses: [{
+        configured: false,
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
+      }],
+    } satisfies DesktopModelSettingsStorySnapshot,
+  },
+}
+
+export const MockStorybookHealthy: Story = {}
+
+export const RealLocalProjectHealthy: Story = {
+  args: {
+    info: createProjectRuntimeInfoRecord({
+      projectId: 'desktop-project-signal-arc',
+      projectTitle: 'Signal Arc Desktop',
+      runtimeKind: 'real-local-project',
+      source: 'api',
+      status: 'healthy',
+      summary: 'Connected to the desktop-local runtime for the current project.',
+      modelBindings: {
+        usable: true,
+      },
+      capabilities: {
+        contextPacketRefs: true,
+        read: true,
+        proposalSetRefs: true,
+        reviewDecisions: true,
+        runEvents: true,
+        runEventPolling: true,
+        runEventStream: true,
+        write: true,
+      },
+    }),
+  },
+  parameters: {
+    desktopModelSettingsSnapshot: {
+      providers: [
+        { id: 'deepseek', label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
+      ],
+      bindings: {
+        continuityReviewer: { provider: 'fixture' },
+        planner: { provider: 'openai-compatible', providerId: 'deepseek', modelId: 'deepseek-reasoner' },
+        sceneProseWriter: { provider: 'openai-compatible', providerId: 'deepseek', modelId: 'deepseek-chat' },
+        sceneRevision: { provider: 'fixture' },
+        summary: { provider: 'fixture' },
+      },
+      connectionTest: {
+        status: 'passed',
+        summary: 'Planner and prose writer settings are ready for the current real project.',
+      },
+      credentialStatuses: [{
+        configured: true,
+        provider: 'openai-compatible',
+        providerId: 'deepseek',
+        redactedValue: 'sk-...1234',
+      }],
+    } satisfies DesktopModelSettingsStorySnapshot,
+  },
+}
+
+export const RealLocalProjectHydratingModelSettings: Story = {
+  args: {
+    info: createProjectRuntimeInfoRecord({
+      projectId: 'desktop-project-signal-arc',
+      projectTitle: 'Signal Arc Desktop',
+      runtimeKind: 'real-local-project',
+      source: 'api',
+      status: 'healthy',
+      summary: 'Connected to the desktop-local runtime for the current project.',
+      modelBindings: {
+        usable: true,
+      },
+      capabilities: {
+        contextPacketRefs: true,
+        read: true,
+        proposalSetRefs: true,
+        reviewDecisions: true,
+        runEvents: true,
+        runEventPolling: true,
+        runEventStream: true,
+        write: true,
+      },
+    }),
+  },
+  parameters: {
+    desktopModelSettingsBridgeMode: 'pending',
   },
 }
 

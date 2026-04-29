@@ -2,9 +2,9 @@ import type { Meta, StoryObj } from '@storybook/react'
 
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
+import { getChapterStructureViewLabel, getWorkbenchLensLabel, useI18n } from '@/app/i18n'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
-import { useI18n } from '@/app/i18n'
+import { WorkbenchStatusTopBar } from '@/features/workbench/components/WorkbenchStatusTopBar'
 
 import { ChapterBinderPane } from '../components/ChapterBinderPane'
 import { ChapterModeRail } from '../components/ChapterModeRail'
@@ -99,11 +99,17 @@ function buildWorkspace(selectedSceneId: string, state: WorkspaceState) {
 
 function WorkspacePreview({ selectedSceneId, state, hideInspector = false, hideDock = false }: ChapterStructureWorkspaceStoryProps) {
   const { locale, dictionary } = useI18n()
+  const workspace = buildWorkspace(selectedSceneId, state === 'error' ? 'proposal' : state)
 
   if (state === 'error') {
     return (
       <WorkbenchShell
-        topBar={<div className="flex h-full items-center justify-end"><LocaleToggle /></div>}
+        topBar={
+          <WorkbenchStatusTopBar
+            title={dictionary.app.chapterWorkbench}
+            subtitle={`${workspace.title} / ${getWorkbenchLensLabel(locale, 'structure')} / ${getChapterStructureViewLabel(locale, 'backlog')}`}
+          />
+        }
         modeRail={<ChapterModeRail activeLens="structure" onSelectScope={() => undefined} onSelectLens={() => undefined} />}
         navigator={<EmptyState title="Chapter unavailable" message="Backlog workspace failed to load." />}
         mainStage={<EmptyState title="Chapter unavailable" message="Backlog workspace failed to load." />}
@@ -113,7 +119,6 @@ function WorkspacePreview({ selectedSceneId, state, hideInspector = false, hideD
     )
   }
 
-  const workspace = buildWorkspace(selectedSceneId, state)
   const activity = buildChapterStructureStoryActivity(locale, workspace, {
     activeView: 'backlog',
   })
@@ -122,11 +127,13 @@ function WorkspacePreview({ selectedSceneId, state, hideInspector = false, hideD
   return (
     <WorkbenchShell
       topBar={
-        <div className="flex h-full flex-wrap items-center justify-end gap-2">
-          <LocaleToggle />
+        <WorkbenchStatusTopBar
+          title={dictionary.app.chapterWorkbench}
+          subtitle={`${workspace.title} / ${getWorkbenchLensLabel(locale, 'structure')} / ${getChapterStructureViewLabel(locale, 'backlog')}`}
+        >
           <Badge tone="neutral">{workspace.planning.proposals.length}</Badge>
           <Badge tone="neutral">{workspace.planning.acceptedProposalId ?? (locale === 'zh-CN' ? '未接受' : 'Not accepted')}</Badge>
-        </div>
+        </WorkbenchStatusTopBar>
       }
       modeRail={<ChapterModeRail activeLens="structure" onSelectScope={() => undefined} onSelectLens={() => undefined} />}
       navigator={

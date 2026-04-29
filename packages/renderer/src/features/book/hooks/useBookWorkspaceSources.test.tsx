@@ -4,11 +4,19 @@ import type { PropsWithChildren } from 'react'
 import { describe, expect, it } from 'vitest'
 
 import { I18nProvider } from '@/app/i18n'
-import { ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
+import { ApiRequestError, ProjectRuntimeProvider, createMockProjectRuntime } from '@/app/project-runtime'
 
 import { useBookWorkspaceSources } from './useBookWorkspaceSources'
 
-function createWrapper() {
+function createWrapper(runtime = createMockProjectRuntime({
+  persistence: {
+    async loadProjectSnapshot() {
+      return null
+    },
+    async saveProjectSnapshot() {},
+    async clearProjectSnapshot() {},
+  },
+})) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -19,16 +27,7 @@ function createWrapper() {
     return (
       <QueryClientProvider client={queryClient}>
         <I18nProvider>
-          <ProjectRuntimeProvider runtime={createMockProjectRuntime({
-            persistence: {
-              async loadProjectSnapshot() {
-                return null
-              },
-              async saveProjectSnapshot() {},
-              async clearProjectSnapshot() {},
-            },
-          })}
-          >
+          <ProjectRuntimeProvider runtime={runtime}>
             {children}
           </ProjectRuntimeProvider>
         </I18nProvider>
@@ -83,5 +82,136 @@ describe('useBookWorkspaceSources', () => {
       acceptedFactCount: expect.any(Number),
       sourceProposalCount: expect.any(Number),
     })
+  })
+
+  it('ignores matching missing-scene prose failures so the shared book sources stay usable', async () => {
+    const baseRuntime = createMockProjectRuntime()
+    const runtime = createMockProjectRuntime({
+      persistence: {
+        async loadProjectSnapshot() {
+          return null
+        },
+        async saveProjectSnapshot() {},
+        async clearProjectSnapshot() {},
+      },
+      sceneClient: {
+        ...baseRuntime.sceneClient,
+        async getSceneProse(sceneId) {
+          if (sceneId === 'scene-concourse-delay') {
+            throw new ApiRequestError({
+              status: 404,
+              code: 'SCENE_NOT_FOUND',
+              message: `Scene ${sceneId} was not found.`,
+              detail: { sceneId },
+            })
+          }
+
+          return baseRuntime.sceneClient.getSceneProse(sceneId)
+        },
+      },
+      traceabilitySceneClient: {
+        ...baseRuntime.traceabilitySceneClient,
+        async getSceneProse(sceneId) {
+          if (sceneId === 'scene-concourse-delay') {
+            throw new ApiRequestError({
+              status: 404,
+              code: 'SCENE_NOT_FOUND',
+              message: `Scene ${sceneId} was not found.`,
+              detail: { sceneId },
+            })
+          }
+
+          return baseRuntime.traceabilitySceneClient.getSceneProse(sceneId)
+        },
+        async getSceneExecution(sceneId) {
+          if (sceneId === 'scene-concourse-delay') {
+            throw new ApiRequestError({
+              status: 404,
+              code: 'SCENE_NOT_FOUND',
+              message: `Scene ${sceneId} was not found.`,
+              detail: { sceneId },
+            })
+          }
+
+          return baseRuntime.traceabilitySceneClient.getSceneExecution(sceneId)
+        },
+        async getSceneInspector(sceneId) {
+          if (sceneId === 'scene-concourse-delay') {
+            throw new ApiRequestError({
+              status: 404,
+              code: 'SCENE_NOT_FOUND',
+              message: `Scene ${sceneId} was not found.`,
+              detail: { sceneId },
+            })
+          }
+
+          return baseRuntime.traceabilitySceneClient.getSceneInspector(sceneId)
+        },
+        async previewAcceptedPatch(sceneId) {
+          if (sceneId === 'scene-concourse-delay') {
+            throw new ApiRequestError({
+              status: 404,
+              code: 'SCENE_NOT_FOUND',
+              message: `Scene ${sceneId} was not found.`,
+              detail: { sceneId },
+            })
+          }
+
+          return baseRuntime.traceabilitySceneClient.previewAcceptedPatch(sceneId)
+        },
+      },
+    })
+    const hook = renderHook(() => useBookWorkspaceSources({ bookId: 'book-signal-arc' }), {
+      wrapper: createWrapper(runtime),
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(hook.result.current.error).toBeNull()
+    expect(hook.result.current.sceneProseStateBySceneId['scene-concourse-delay']).toMatchObject({
+      prose: undefined,
+      error: null,
+    })
+    expect(hook.result.current.traceRollupsBySceneId['scene-concourse-delay']).toBeNull()
+  })
+
+  it('does not ignore scene 404s when the runtime does not report explicit SCENE_NOT_FOUND semantics', async () => {
+    const baseRuntime = createMockProjectRuntime()
+    const runtime = createMockProjectRuntime({
+      persistence: {
+        async loadProjectSnapshot() {
+          return null
+        },
+        async saveProjectSnapshot() {},
+        async clearProjectSnapshot() {},
+      },
+      sceneClient: {
+        ...baseRuntime.sceneClient,
+        async getSceneProse(sceneId) {
+          if (sceneId === 'scene-concourse-delay') {
+            throw new ApiRequestError({
+              status: 404,
+              message: `Scene ${sceneId} was not found.`,
+              detail: { sceneId },
+            })
+          }
+
+          return baseRuntime.sceneClient.getSceneProse(sceneId)
+        },
+      },
+      traceabilitySceneClient: baseRuntime.traceabilitySceneClient,
+    })
+    const hook = renderHook(() => useBookWorkspaceSources({ bookId: 'book-signal-arc' }), {
+      wrapper: createWrapper(runtime),
+    })
+
+    await waitFor(() => {
+      expect(hook.result.current.isLoading).toBe(false)
+    })
+
+    expect(hook.result.current.error).toBeInstanceOf(Error)
+    expect(hook.result.current.error?.message).toContain('scene-concourse-delay')
   })
 })

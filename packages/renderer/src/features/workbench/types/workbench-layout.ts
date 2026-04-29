@@ -24,7 +24,7 @@ export interface WorkbenchLayoutBounds {
 export const WORKBENCH_LAYOUT_BOUNDS: WorkbenchLayoutBounds = {
   navigator: { min: 180, max: 420, defaultSize: 240 },
   inspector: { min: 220, max: 460, defaultSize: 280 },
-  bottomDock: { min: 120, max: 420, defaultSize: 196, maximizedSize: 420 },
+  bottomDock: { min: 120, max: 420, defaultSize: 248, maximizedSize: 420 },
 }
 
 export const DEFAULT_WORKBENCH_LAYOUT_STATE: WorkbenchLayoutState = {
@@ -33,7 +33,7 @@ export const DEFAULT_WORKBENCH_LAYOUT_STATE: WorkbenchLayoutState = {
   bottomDockVisible: true,
   navigatorWidth: 240,
   inspectorWidth: 280,
-  bottomDockHeight: 196,
+  bottomDockHeight: 248,
   bottomDockMaximized: false,
 }
 

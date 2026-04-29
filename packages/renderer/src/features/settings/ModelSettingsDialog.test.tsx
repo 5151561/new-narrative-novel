@@ -84,6 +84,7 @@ describe('ModelSettingsDialog', () => {
 
     expect(await screen.findByRole('dialog', { name: 'Model Settings' })).toBeInTheDocument()
     expect(screen.getByText('Provider profiles')).toBeInTheDocument()
+    expect(screen.getByText('Real project run needs attention')).toBeInTheDocument()
     expect(await screen.findByDisplayValue('DeepSeek')).toBeInTheDocument()
     expect(await screen.findByDisplayValue('https://api.deepseek.com/v1')).toBeInTheDocument()
     expect(screen.getByLabelText('deepseek provider profile ID input')).toBeDisabled()
@@ -138,7 +139,8 @@ describe('ModelSettingsDialog', () => {
       role: 'planner',
     })
     expect(bridge.testModelSettings).toHaveBeenCalledTimes(1)
-    expect(await screen.findByText('One or more configured provider credentials are missing.')).toBeInTheDocument()
+    expect((await screen.findAllByText('One or more configured provider credentials are missing.')).length).toBeGreaterThan(0)
+    expect(screen.getByText('Connection test failed')).toBeInTheDocument()
   })
 
   it('keeps existing provider ids stable while still allowing label and base URL edits', async () => {

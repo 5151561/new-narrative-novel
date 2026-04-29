@@ -168,6 +168,7 @@ describe('createFakeApiRuntime override matching', () => {
 
     await expect(runtime.runtimeInfoClient.getProjectRuntimeInfo()).resolves.toEqual({
       projectId: 'project-runtime-info',
+      projectMode: 'demo-fixture',
       projectTitle: 'project-runtime-info',
       runtimeKind: 'fixture-demo',
       source: 'api',
@@ -175,6 +176,9 @@ describe('createFakeApiRuntime override matching', () => {
       summary: 'Connected to fake API runtime.',
       checkedAtLabel: 'Static fake API runtime',
       apiBaseUrl: '/api',
+      modelBindings: {
+        usable: true,
+      },
       versionLabel: 'fake-api-runtime',
       capabilities: {
         read: true,

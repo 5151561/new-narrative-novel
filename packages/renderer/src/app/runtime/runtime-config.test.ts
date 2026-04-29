@@ -55,6 +55,7 @@ describe('runtime config', () => {
       apiBaseUrl: 'http://127.0.0.1:4888/api',
       projectId: 'desktop-project-signal-arc',
       projectMode: 'real-project',
+      runtimeKind: 'real-local-project',
       projectTitle: 'Signal Arc Desktop',
       runtimeMode: 'desktop-local',
     }
@@ -78,6 +79,7 @@ describe('runtime config', () => {
         getRuntimeConfig: vi.fn(async () => ({
           apiBaseUrl: 'http://127.0.0.1:4888/api',
           projectMode: 'real-project',
+          runtimeKind: 'real-local-project',
           runtimeMode: 'desktop-local',
         })),
       },
@@ -93,6 +95,7 @@ describe('runtime config', () => {
         getRuntimeConfig: vi.fn(async () => ({
           apiBaseUrl: '',
           projectMode: 'real-project',
+          runtimeKind: 'real-local-project',
           runtimeMode: 'desktop-local',
         })),
       },
@@ -106,6 +109,7 @@ describe('runtime config', () => {
       apiBaseUrl: 'http://127.0.0.1:4888/api',
       projectId: 'desktop-project-signal-arc',
       projectMode: 'real-project',
+      runtimeKind: 'real-local-project',
       projectTitle: 'Signal Arc Desktop',
       runtimeMode: 'desktop-local',
     }
@@ -137,6 +141,7 @@ describe('runtime config', () => {
       apiBaseUrl: 'http://127.0.0.1:4888/api',
       projectId: 'book-signal-arc',
       projectMode: 'demo-fixture',
+      runtimeKind: 'fixture-demo',
       projectTitle: 'Signal Arc Demo',
       runtimeMode: 'desktop-local',
     }
@@ -160,6 +165,7 @@ describe('runtime config', () => {
         getRuntimeConfig: vi.fn(async () => ({
           apiBaseUrl: '',
           projectMode: 'real-project',
+          runtimeKind: 'real-local-project',
           runtimeMode: 'desktop-local',
         })),
       },

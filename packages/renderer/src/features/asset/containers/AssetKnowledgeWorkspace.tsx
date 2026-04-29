@@ -3,8 +3,8 @@ import { useCallback } from 'react'
 import { getAssetKnowledgeViewLabel, getWorkbenchLensLabel, useI18n } from '@/app/i18n'
 import { classifyApiResponseState } from '@/app/project-runtime'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
+import { WorkbenchStatusTopBar } from '@/features/workbench/components/WorkbenchStatusTopBar'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import { useAssetTraceabilitySummaryQuery } from '@/features/traceability/hooks/useAssetTraceabilitySummaryQuery'
 
@@ -34,15 +34,11 @@ function AssetTopBar({
   const { locale, dictionary } = useI18n()
 
   return (
-    <div className="flex h-full flex-wrap items-center justify-end gap-2" data-testid="asset-top-bar">
-      <div className="sr-only">
-        <h1>{dictionary.app.assetKnowledge}</h1>
-        <p>
-          {title ?? dictionary.common.asset} / {getWorkbenchLensLabel(locale, 'knowledge')} / {getAssetKnowledgeViewLabel(locale, view)}
-        </p>
-      </div>
-      <LocaleToggle />
-    </div>
+    <WorkbenchStatusTopBar
+      title={dictionary.app.assetKnowledge}
+      subtitle={`${title ?? dictionary.common.asset} / ${getWorkbenchLensLabel(locale, 'knowledge')} / ${getAssetKnowledgeViewLabel(locale, view)}`}
+      testId="asset-top-bar"
+    />
   )
 }
 

@@ -22,11 +22,16 @@ function createTransportMock() {
       return {
         projectId: 'project-1',
         projectTitle: 'Signal Arc',
+        projectMode: 'real-project',
+        runtimeKind: 'real-local-project',
         source: 'api',
         status: 'healthy',
         summary: 'Connected to runtime gateway.',
         checkedAtLabel: '2026-04-21 09:30',
         apiBaseUrl: 'https://runtime.example.test',
+        modelBindings: {
+          usable: true,
+        },
         versionLabel: 'runtime-v24',
         capabilities: {
           read: true,
@@ -335,11 +340,16 @@ describe('api project runtime', () => {
     await expect(runtime.runtimeInfoClient.getProjectRuntimeInfo()).resolves.toEqual<ProjectRuntimeInfoRecord>({
       projectId: 'project-1',
       projectTitle: 'Signal Arc',
+      projectMode: 'real-project',
+      runtimeKind: 'real-local-project',
       source: 'api',
       status: 'healthy',
       summary: 'Connected to runtime gateway.',
       checkedAtLabel: '2026-04-21 09:30',
       apiBaseUrl: 'https://runtime.example.test',
+      modelBindings: {
+        usable: true,
+      },
       versionLabel: 'runtime-v24',
       capabilities: {
         read: true,

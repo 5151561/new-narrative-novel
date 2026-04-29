@@ -1,6 +1,9 @@
 import type { RunSelectedProposalVariantRecord } from '../../contracts/api-records.js'
 import type { ApiServerConfig } from '../../config.js'
-import { resolveModelBindingForRole } from './model-binding.js'
+import {
+  resolveModelBindingForRole,
+  resolveModelGatewayProjectMode,
+} from './model-binding.js'
 
 import {
   createSceneProseWriterFixtureProvider,
@@ -11,6 +14,7 @@ import {
   type SceneProseWriterOpenAiResponsesProviderOptions,
 } from './sceneProseWriterOpenAiResponsesProvider.js'
 import {
+  ModelGatewayBindingNotAllowedError,
   ModelGatewayExecutionError,
   ModelGatewayMissingConfigError,
 } from './modelGatewayErrors.js'
@@ -42,15 +46,19 @@ export type SceneProseWriterGatewayFallbackReason =
 
 export type SceneProseWriterGatewayProvenance =
   | {
+      fallbackUsed: boolean
       provider: 'fixture'
       modelId: string
+      projectMode: 'demo-fixture' | 'real-project'
       fallbackReason?: SceneProseWriterGatewayFallbackReason
     }
   | {
+      fallbackUsed: boolean
       provider: 'openai-compatible'
       providerId: string
       providerLabel: string
       modelId: string
+      projectMode: 'demo-fixture' | 'real-project'
       fallbackReason?: SceneProseWriterGatewayFallbackReason
     }
 
@@ -64,7 +72,7 @@ export interface SceneProseWriterProvider {
 }
 
 export interface SceneProseWriterGatewayConfig
-  extends Pick<ApiServerConfig, 'modelBindings' | 'modelProvider' | 'openAiModel' | 'openAiApiKey'> {}
+  extends Pick<ApiServerConfig, 'currentProject' | 'modelBindings' | 'modelProvider' | 'openAiModel' | 'openAiApiKey'> {}
 
 export interface SceneProseWriterGatewayDependencies {
   fixtureProvider?: SceneProseWriterProvider
@@ -82,30 +90,40 @@ export function createSceneProseWriterGateway(
   async function renderFixtureResult(
     request: SceneProseWriterGatewayRequest,
   ): Promise<SceneProseWriterGatewayResult> {
+    const projectMode = resolveModelGatewayProjectMode(config)
     return {
       output: parseSceneProseWriterOutput(await fixtureProvider.generate(request)),
       provenance: {
+        fallbackUsed: false,
         provider: 'fixture',
         modelId: FIXTURE_SCENE_PROSE_WRITER_MODEL_ID,
+        projectMode,
       },
     }
   }
 
   return {
     async generate(request: SceneProseWriterGatewayRequest): Promise<SceneProseWriterGatewayResult> {
-      const binding = resolveModelBindingForRole(
-        config,
-        request.task === 'revision' ? 'sceneRevision' : 'sceneProseWriter',
-      )
+      const role = request.task === 'revision' ? 'sceneRevision' : 'sceneProseWriter'
+      const binding = resolveModelBindingForRole(config, role)
+      const projectMode = resolveModelGatewayProjectMode(config)
 
       if (binding.provider !== 'openai-compatible') {
+        if (projectMode === 'real-project') {
+          throw new ModelGatewayBindingNotAllowedError({
+            projectMode,
+            role,
+          })
+        }
+
         return renderFixtureResult(request)
       }
 
       if (!binding.modelId || !binding.apiKey) {
         throw new ModelGatewayMissingConfigError({
           provider: 'openai-compatible',
-          role: request.task === 'revision' ? 'sceneRevision' : 'sceneProseWriter',
+          projectMode,
+          role,
         })
       }
 
@@ -126,8 +144,10 @@ export function createSceneProseWriterGateway(
           provider: 'openai-compatible',
           providerId: binding.providerId,
           providerLabel: binding.providerLabel,
+          projectMode,
+          fallbackUsed: false,
           retryable: true,
-          role: request.task === 'revision' ? 'sceneRevision' : 'sceneProseWriter',
+          role,
         })
       }
 
@@ -135,10 +155,12 @@ export function createSceneProseWriterGateway(
         return {
           output: parseSceneProseWriterOutput(payload),
           provenance: {
+            fallbackUsed: false,
             provider: 'openai-compatible',
             providerId: binding.providerId,
             providerLabel: binding.providerLabel,
             modelId: binding.modelId,
+            projectMode,
           },
         }
       } catch {
@@ -149,8 +171,10 @@ export function createSceneProseWriterGateway(
           provider: 'openai-compatible',
           providerId: binding.providerId,
           providerLabel: binding.providerLabel,
+          projectMode,
+          fallbackUsed: false,
           retryable: true,
-          role: request.task === 'revision' ? 'sceneRevision' : 'sceneProseWriter',
+          role,
         })
       }
     },

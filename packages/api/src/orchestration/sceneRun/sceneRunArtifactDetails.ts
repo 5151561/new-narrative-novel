@@ -78,6 +78,7 @@ export interface BuildProseDraftDetailInput extends BuildArtifactDetailBaseInput
 const artifactStatusLabels = {
   built: localize('Built', '已构建'),
   completed: localize('Completed', '已完成'),
+  failed: localize('Failed', '已失败'),
   ready: localize('Ready for review', '待审阅'),
   applied: localize('Applied', '已应用'),
   generated: localize('Generated', '已生成'),
@@ -170,6 +171,9 @@ function buildDefaultSummary(artifact: SceneRunArtifactRecord): LocalizedTextRec
   const gatewayProvenance = artifact.kind === 'agent-invocation' || artifact.kind === 'prose-draft'
     ? readGatewayProvenance(artifact)
     : undefined
+  const failureDetail = artifact.kind === 'agent-invocation' || artifact.kind === 'proposal-set' || artifact.kind === 'prose-draft'
+    ? readFailureDetail(artifact)
+    : undefined
 
   switch (artifact.kind) {
     case 'context-packet':
@@ -178,6 +182,18 @@ function buildDefaultSummary(artifact: SceneRunArtifactRecord): LocalizedTextRec
         `已为 ${sceneName} 的第 ${sequenceLabel} 次运行整理上下文。`,
       )
     case 'agent-invocation':
+      if (failureDetail) {
+        return artifact.meta?.role === 'planner'
+          ? localize(
+              `Planner invocation failed for ${sceneName}.`,
+              `${sceneName} 的规划调用失败。`,
+            )
+          : localize(
+              `Writer invocation failed for ${sceneName}.`,
+              `${sceneName} 的写作调用失败。`,
+            )
+      }
+
       return artifact.meta?.role === 'planner'
         ? localize(
             gatewayProvenance?.fallbackReason
@@ -187,10 +203,20 @@ function buildDefaultSummary(artifact: SceneRunArtifactRecord): LocalizedTextRec
               ? `面向 ${sceneName} 的回退规划输出已就绪。`
               : `面向 ${sceneName} 的规划输出已就绪。`,
           )
-        : localize(
-            `Writer fixture output is ready for ${sceneName}.`,
-            `面向 ${sceneName} 的写作 fixture 输出已就绪。`,
-          )
+        : gatewayProvenance?.provider === 'openai-compatible'
+          ? localize(
+              `Writer output is ready for ${sceneName}.`,
+              `面向 ${sceneName} 的写作输出已就绪。`,
+            )
+          : gatewayProvenance?.fallbackReason
+            ? localize(
+                `Fallback writer output is ready for ${sceneName}.`,
+                `面向 ${sceneName} 的回退写作输出已就绪。`,
+              )
+            : localize(
+                `Writer fixture output is ready for ${sceneName}.`,
+                `面向 ${sceneName} 的写作 fixture 输出已就绪。`,
+              )
     case 'proposal-set':
       return localize(
         `Proposal candidates for ${sceneName} are ready for review.`,
@@ -251,13 +277,16 @@ function buildDefaultCreatedAtLabel(sourceEventIds: string[]) {
 }
 
 function buildArtifactSummary(input: BuildArtifactDetailBaseInput) {
+  const failureDetail = readFailureDetail(input.artifact)
+  const effectiveStatus = failureDetail ? 'failed' : input.artifact.status
+
   return {
     id: input.artifact.id,
     runId: input.artifact.runId,
     kind: input.artifact.kind,
     title: input.labels?.title ?? buildDefaultTitle(input.artifact),
     summary: input.labels?.summary ?? buildDefaultSummary(input.artifact),
-    statusLabel: input.labels?.statusLabel ?? localizeArtifactStatus(input.artifact.status),
+    statusLabel: input.labels?.statusLabel ?? localizeArtifactStatus(effectiveStatus),
     createdAtLabel: input.labels?.createdAtLabel ?? buildDefaultCreatedAtLabel(input.sourceEventIds),
     sourceEventIds: [...input.sourceEventIds],
     ...(readUsage(input.artifact) ? { usage: readUsage(input.artifact) } : {}),
@@ -284,6 +313,8 @@ function readUsage(artifact: SceneRunArtifactRecord): RunUsageRecord | undefined
   const actualCostUsd = usage.actualCostUsd
   const provider = usage.provider
   const modelId = usage.modelId
+  const projectMode = usage.projectMode
+  const fallbackUsed = usage.fallbackUsed
 
   if (
     typeof inputTokens !== 'number'
@@ -291,6 +322,8 @@ function readUsage(artifact: SceneRunArtifactRecord): RunUsageRecord | undefined
     || typeof estimatedCostUsd !== 'number'
     || typeof provider !== 'string'
     || typeof modelId !== 'string'
+    || (projectMode !== undefined && projectMode !== 'demo-fixture' && projectMode !== 'real-project')
+    || (fallbackUsed !== undefined && typeof fallbackUsed !== 'boolean')
   ) {
     return undefined
   }
@@ -302,6 +335,8 @@ function readUsage(artifact: SceneRunArtifactRecord): RunUsageRecord | undefined
     ...(typeof actualCostUsd === 'number' ? { actualCostUsd } : {}),
     provider,
     modelId,
+    ...(projectMode ? { projectMode } : {}),
+    ...(typeof fallbackUsed === 'boolean' ? { fallbackUsed } : {}),
   }
 }
 
@@ -317,6 +352,8 @@ function readFailureDetail(artifact: SceneRunArtifactRecord): RunFailureDetailRe
   const sourceEventIds = failureDetail.sourceEventIds
   const provider = failureDetail.provider
   const modelId = failureDetail.modelId
+  const projectMode = failureDetail.projectMode
+  const fallbackUsed = failureDetail.fallbackUsed
   const normalizedSourceEventIds = Array.isArray(sourceEventIds)
     ? sourceEventIds.filter((sourceEventId): sourceEventId is string => typeof sourceEventId === 'string')
     : []
@@ -327,6 +364,8 @@ function readFailureDetail(artifact: SceneRunArtifactRecord): RunFailureDetailRe
     || typeof retryable !== 'boolean'
     || !Array.isArray(sourceEventIds)
     || normalizedSourceEventIds.length !== sourceEventIds.length
+    || (projectMode !== undefined && projectMode !== 'demo-fixture' && projectMode !== 'real-project')
+    || (fallbackUsed !== undefined && typeof fallbackUsed !== 'boolean')
   ) {
     return undefined
   }
@@ -336,6 +375,8 @@ function readFailureDetail(artifact: SceneRunArtifactRecord): RunFailureDetailRe
     message,
     ...(typeof provider === 'string' ? { provider } : {}),
     ...(typeof modelId === 'string' ? { modelId } : {}),
+    ...(projectMode ? { projectMode } : {}),
+    ...(typeof fallbackUsed === 'boolean' ? { fallbackUsed } : {}),
     retryable,
     sourceEventIds: normalizedSourceEventIds,
   }
@@ -351,8 +392,15 @@ function readGatewayProvenance(artifact: SceneRunArtifactRecord) {
   const providerId = provenance.providerId
   const providerLabel = provenance.providerLabel
   const modelId = provenance.modelId
+  const projectMode = provenance.projectMode
+  const fallbackUsed = provenance.fallbackUsed
   const fallbackReason = provenance.fallbackReason
-  if ((provider !== 'fixture' && provider !== 'openai-compatible') || typeof modelId !== 'string') {
+  if (
+    (provider !== 'fixture' && provider !== 'openai-compatible')
+    || typeof modelId !== 'string'
+    || (projectMode !== 'demo-fixture' && projectMode !== 'real-project')
+    || typeof fallbackUsed !== 'boolean'
+  ) {
     return undefined
   }
 
@@ -373,6 +421,8 @@ function readGatewayProvenance(artifact: SceneRunArtifactRecord) {
     provider,
     ...(provider === 'openai-compatible' ? { providerId, providerLabel } : {}),
     modelId,
+    projectMode,
+    fallbackUsed,
     ...(fallbackReason ? { fallbackReason } : {}),
   }
 }
@@ -1115,6 +1165,7 @@ export function buildAgentInvocationDetail(
   const sequence = parseRunSequenceNumber(input.artifact.runId)
   const gatewayProvenance = readGatewayProvenance(input.artifact)
   const isAcceptedWriterInvocation = !isPlanner && Boolean(gatewayProvenance)
+  const isRealWriterInvocation = !isPlanner && gatewayProvenance?.provider === 'openai-compatible'
 
   return {
     ...buildArtifactSummary(input),
@@ -1160,11 +1211,16 @@ export function buildAgentInvocationDetail(
           'Produces structured proposal candidates for editorial review.',
           '产出供编辑审阅的结构化提案候选。',
         )
-      : isAcceptedWriterInvocation
+      : isRealWriterInvocation
         ? localize(
           'Produces a structured accepted prose draft after review acceptance.',
           '在审阅接受后产出结构化的正文草稿。',
         )
+        : isAcceptedWriterInvocation
+          ? localize(
+            'Produces an accepted prose draft after review acceptance.',
+            '在审阅接受后产出正文草稿。',
+          )
         : localize(
           'Produces prose-shaping fixture output for the proposal set.',
           '产出用于提案集的正文塑形 fixture 输出。',
@@ -1174,6 +1230,7 @@ export function buildAgentInvocationDetail(
       ? localize('Proposal candidate schema', '提案候选结构')
       : localize('Accepted prose draft schema', '已接受正文草稿结构'),
     generatedRefs: input.generatedRefs ?? buildDefaultGeneratedRefs(input.artifact),
+    ...(gatewayProvenance ? { provenance: gatewayProvenance } : {}),
     ...(readFailureDetail(input.artifact) ? { failureDetail: readFailureDetail(input.artifact) } : {}),
   }
 }
@@ -1194,6 +1251,7 @@ export function buildProposalSetDetail(
     ],
     proposals: buildDefaultProposalSetProposals(input.artifact, input.selectedVariants),
     reviewOptions: buildDefaultReviewOptions(),
+    ...(readGatewayProvenance(input.artifact) ? { provenance: readGatewayProvenance(input.artifact) } : {}),
     ...(readFailureDetail(input.artifact) ? { failureDetail: readFailureDetail(input.artifact) } : {}),
   }
 }
@@ -1270,6 +1328,7 @@ export function buildProseDraftDetail(
     wordCount: writerOutput?.wordCount ?? 140 + sequence * 3,
     relatedAssets: writerOutput?.relatedAssets ?? defaultRelatedAssets,
     traceLinkIds: input.traceLinkIds ?? buildDefaultTraceLinkIds(input.artifact, 'rendered_as'),
+    ...(provenance ? { provenance } : {}),
     ...(readFailureDetail(input.artifact) ? { failureDetail: readFailureDetail(input.artifact) } : {}),
   }
 }

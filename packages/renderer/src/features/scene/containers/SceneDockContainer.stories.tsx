@@ -15,7 +15,7 @@ const meta = {
   parameters: {
     layout: 'fullscreen',
   },
-  decorators: [withSceneStoryShell('ring-panel flex min-h-[420px] flex-col overflow-hidden rounded-md bg-surface-1')],
+  decorators: [withSceneStoryShell('ring-panel flex h-[248px] flex-col overflow-hidden rounded-md bg-surface-1')],
 } satisfies Meta<typeof SceneDockContainer>
 
 export default meta

@@ -3,7 +3,7 @@ import path from 'node:path'
 import cors from '@fastify/cors'
 import Fastify from 'fastify'
 
-import { getApiServerConfig, type ApiServerConfig } from './config.js'
+import { finalizeCurrentProjectConfig, getApiServerConfig, type ApiServerConfig } from './config.js'
 import { notFound, registerGlobalErrorHandler } from './http/errors.js'
 import {
   createScenePlannerGateway,
@@ -18,7 +18,7 @@ import {
   type FixtureRepositoryLocalProjectStore,
   type FixtureRepositoryProjectStatePersistence,
 } from './repositories/fixtureRepository.js'
-import { createLocalProjectStorePersistence } from './repositories/project-state-persistence.js'
+import { createLocalProjectStorePersistence, LOCAL_PROJECT_STORE_TEMPLATE_VERSION } from './repositories/project-state-persistence.js'
 import { registerAssetRoutes } from './routes/asset.js'
 import { registerBookRoutes } from './routes/book.js'
 import { registerChapterRoutes } from './routes/chapter.js'
@@ -38,7 +38,13 @@ export interface CreateServerOptions {
 }
 
 export function createServer(options: CreateServerOptions = {}) {
-  const config = options.config ?? getApiServerConfig()
+  const bootConfig = options.config ?? getApiServerConfig()
+  const config: ApiServerConfig = {
+    ...bootConfig,
+    currentProject: bootConfig.currentProject && bootConfig.modelBindings
+      ? finalizeCurrentProjectConfig(bootConfig.currentProject, bootConfig.modelBindings)
+      : bootConfig.currentProject,
+  }
   const app = Fastify()
   const scenePlannerGateway = createScenePlannerGateway(
     config,
@@ -60,6 +66,9 @@ export function createServer(options: CreateServerOptions = {}) {
           apiBaseUrl: config.apiBaseUrl,
           projectId: config.currentProject.projectId,
           projectTitle: config.currentProject.projectTitle,
+          versionLabel: config.currentProject.projectMode === 'real-project'
+            ? LOCAL_PROJECT_STORE_TEMPLATE_VERSION
+            : 'fixture-api-be-pr1',
         })
         : undefined
     )

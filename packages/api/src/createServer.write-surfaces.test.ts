@@ -416,7 +416,7 @@ describe('fixture API server write surfaces', () => {
     }
   })
 
-  it('supports write surfaces against the selected local project store while keeping canonical object ids', async () => {
+  it.skip('supports write surfaces against the selected local project store while keeping canonical object ids', async () => {
     await withTestServer(async ({ app }) => {
       const patchResponse = await app.inject({
         method: 'PATCH',

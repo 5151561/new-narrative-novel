@@ -106,9 +106,11 @@ describe('getApiServerConfig', () => {
 
     expect(getApiServerConfig()).toMatchObject({
       currentProject: {
+        modelBindingsUsable: false,
         projectId: 'book-signal-arc',
         projectMode: 'real-project',
         projectRoot: '/tmp/local-project',
+        runtimeKind: 'real-local-project',
         projectTitle: 'Signal Arc Desktop',
       },
       modelProvider: 'openai-compatible',
@@ -144,6 +146,46 @@ describe('getApiServerConfig', () => {
           baseUrl: 'https://api.openai.com/v1',
         },
       },
+    })
+  })
+
+  it('freezes runtime identity and binding usability into the boot config current-project contract', () => {
+    process.env.NARRATIVE_PROJECT_ROOT = '/tmp/local-project'
+    process.env.NARRATIVE_PROJECT_ID = 'local-project-alpha'
+    process.env.NARRATIVE_PROJECT_MODE = 'real-project'
+    process.env.NARRATIVE_PROJECT_TITLE = 'Local Project Alpha'
+    process.env.NARRATIVE_RUNTIME_KIND = 'real-local-project'
+    process.env.NARRATIVE_MODEL_SETTINGS_JSON = JSON.stringify({
+      bindings: {
+        continuityReviewer: { provider: 'fixture' },
+        planner: {
+          modelId: 'gpt-5.4',
+          provider: 'openai-compatible',
+          providerId: 'openai-default',
+        },
+        sceneProseWriter: {
+          modelId: 'gpt-5.4',
+          provider: 'openai-compatible',
+          providerId: 'openai-default',
+        },
+        sceneRevision: { provider: 'fixture' },
+        summary: { provider: 'fixture' },
+      },
+      providers: [{
+        apiKey: 'sk-openai',
+        baseUrl: 'https://api.openai.com/v1',
+        id: 'openai-default',
+        label: 'OpenAI',
+      }],
+    })
+
+    expect(getApiServerConfig().currentProject).toEqual({
+      modelBindingsUsable: true,
+      projectId: 'local-project-alpha',
+      projectMode: 'real-project',
+      projectRoot: '/tmp/local-project',
+      projectTitle: 'Local Project Alpha',
+      runtimeKind: 'real-local-project',
     })
   })
 

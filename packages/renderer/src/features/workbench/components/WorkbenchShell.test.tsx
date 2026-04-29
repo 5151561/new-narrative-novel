@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { renderWithProjectRuntime } from '@/app/project-runtime/project-runtime-test-utils'
 import { WorkbenchEditorProvider } from '@/features/workbench/editor/WorkbenchEditorProvider'
+import { WorkbenchBottomDockFrame } from '@/features/workbench/components/WorkbenchBottomDockFrame'
 import {
   DEFAULT_WORKBENCH_LAYOUT_STATE,
   WORKBENCH_LAYOUT_BOUNDS,
@@ -159,11 +160,47 @@ describe('WorkbenchShell', () => {
   it('gives shell surfaces explicit internal scroll regions', () => {
     renderWorkbenchShell()
 
+    expect(screen.getByTestId('workbench-body')).toHaveClass('overflow-hidden')
     expect(screen.getByTestId('workbench-mode-rail-scroll-body')).toHaveClass('overflow-auto')
     expect(screen.getByTestId('workbench-navigator-scroll-body')).toHaveClass('overflow-auto')
     expect(screen.getByTestId('workbench-main-stage-scroll-body')).toHaveClass('overflow-auto')
     expect(screen.getByTestId('workbench-inspector-scroll-body')).toHaveClass('overflow-auto')
     expect(screen.getByTestId('workbench-bottom-dock-body')).toHaveClass('overflow-hidden')
+  })
+
+  it('keeps dock frame tab content visible in the default shell layout', () => {
+    renderWorkbenchShell({
+      bottomDock: (
+        <WorkbenchBottomDockFrame
+          ariaLabel="Default shell dock"
+          tabs={[
+            { id: 'events', label: 'Events', badge: 'CHECKPOINT PR11 + DRAFT DELTA', tone: 'warn' },
+            { id: 'trace', label: 'Trace', badge: 2, tone: 'accent' },
+          ]}
+          activeTab="events"
+          onTabChange={() => {}}
+        >
+          <div className="p-4">
+            <p>First meaningful dock row</p>
+            <p>Second row stays inside the default dock viewport</p>
+          </div>
+        </WorkbenchBottomDockFrame>
+      ),
+    })
+
+    const bottomDock = screen.getByRole('region', { name: 'Bottom Dock' })
+    const tabPanel = screen.getByRole('tabpanel')
+    const firstRow = screen.getByText('First meaningful dock row')
+
+    expect(DEFAULT_WORKBENCH_LAYOUT_STATE.bottomDockHeight).toBeGreaterThanOrEqual(240)
+    expect(screen.getByRole('separator', { name: 'Resize Bottom Dock' })).toHaveAttribute(
+      'aria-valuenow',
+      `${DEFAULT_WORKBENCH_LAYOUT_STATE.bottomDockHeight}`,
+    )
+    expect(bottomDock).toContainElement(screen.getByTestId('workbench-bottom-dock-frame'))
+    expect(tabPanel).toHaveAttribute('data-testid', 'workbench-bottom-dock-frame-scroll-body')
+    expect(tabPanel).toContainElement(firstRow)
+    expect(firstRow).toBeVisible()
   })
 
   it('keeps long bottom dock content bounded in the shell-owned dock region', () => {

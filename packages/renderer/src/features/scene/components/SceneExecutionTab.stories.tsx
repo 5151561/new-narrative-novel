@@ -162,7 +162,55 @@ export const RunStartGuard: Story = {
     },
     runStartGuard: {
       ctaLabel: 'Model Settings',
-      message: 'Planner or prose writer settings are incomplete for this real project.',
+      message: 'Planner or prose writer bindings are not ready for this real project.',
+      onRepair: () => {},
+    },
+  },
+}
+
+export const RunStartGuardConnectionFailed: Story = {
+  args: {
+    runSession: {
+      run: null,
+      events: [],
+      pendingReviewId: null,
+      isReviewPending: false,
+      selectedVariantsForSubmit: [],
+      isLoading: false,
+      error: null,
+      isStartingRun: false,
+      isSubmittingDecision: false,
+      onStartRun: () => {},
+      onRetryRun: () => {},
+      onSubmitDecision: async () => {},
+    },
+    runStartGuard: {
+      ctaLabel: 'Model Settings',
+      message: 'The last real-project connection test failed for DeepSeek. Repair model settings before running this scene.',
+      onRepair: () => {},
+    },
+  },
+}
+
+export const RunStartGuardHydratingModelSettings: Story = {
+  args: {
+    runSession: {
+      run: null,
+      events: [],
+      pendingReviewId: null,
+      isReviewPending: false,
+      selectedVariantsForSubmit: [],
+      isLoading: false,
+      error: null,
+      isStartingRun: false,
+      isSubmittingDecision: false,
+      onStartRun: () => {},
+      onRetryRun: () => {},
+      onSubmitDecision: async () => {},
+    },
+    runStartGuard: {
+      ctaLabel: 'Model Settings',
+      message: 'Loading model settings for this real project. Run Scene stays locked until planner, prose writer, and connection status are confirmed.',
       onRepair: () => {},
     },
   },

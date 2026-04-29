@@ -24,6 +24,7 @@ import {
 } from '../orchestration/modelGateway/scenePlannerGateway.js'
 import { FIXTURE_SCENE_PLANNER_MODEL_ID } from '../orchestration/modelGateway/scenePlannerFixtureProvider.js'
 import {
+  isModelGatewayBindingNotAllowedError,
   isModelGatewayExecutionError,
   isModelGatewayMissingConfigError,
 } from '../orchestration/modelGateway/modelGatewayErrors.js'
@@ -442,19 +443,23 @@ function buildFixturePlannerResult(sceneId: string): ScenePlannerGatewayResult {
   return {
     output: buildDefaultPlannerOutput(sceneId),
     provenance: {
+      fallbackUsed: false,
       provider: 'fixture',
       modelId: FIXTURE_SCENE_PLANNER_MODEL_ID,
+      projectMode: 'demo-fixture',
     },
   }
 }
 
-function createFailedRunUsage(modelId: string) {
+function createFailedRunUsage(modelId: string, projectMode: 'demo-fixture' | 'real-project') {
   return {
     inputTokens: 0,
     outputTokens: 0,
     estimatedCostUsd: 0,
     provider: 'openai-compatible' as const,
     modelId,
+    projectMode,
+    fallbackUsed: false,
   }
 }
 
@@ -474,20 +479,26 @@ function createFailedGatewayProvenance(input: {
   modelId: string
   providerId?: string
   providerLabel?: string
+  projectMode: 'demo-fixture' | 'real-project'
 }): ScenePlannerGatewayResult['provenance'] | SceneProseWriterGatewayResult['provenance'] {
   if (input.providerId && input.providerLabel) {
     return {
+      fallbackUsed: false,
       provider: 'openai-compatible',
       providerId: input.providerId,
       providerLabel: input.providerLabel,
       modelId: input.modelId,
+      projectMode: input.projectMode,
     }
   }
 
   return {
-    provider: 'fixture',
+    fallbackUsed: false,
+    provider: 'openai-compatible',
+    providerId: 'configured-provider',
+    providerLabel: 'Configured provider',
     modelId: input.modelId,
-    fallbackReason: 'provider-error',
+    projectMode: input.projectMode,
   }
 }
 
@@ -498,6 +509,7 @@ function createFailedStartRunState(input: {
   modelId: string
   providerId?: string
   providerLabel?: string
+  projectMode: 'demo-fixture' | 'real-project'
   retryOfRunId?: string
   resumableFromEventId?: string
   sceneId: string
@@ -558,7 +570,7 @@ function createFailedStartRunState(input: {
       },
     ),
   ]
-  const usage = createFailedRunUsage(input.modelId)
+  const usage = createFailedRunUsage(input.modelId, input.projectMode)
   const artifacts = [
     createContextPacketArtifact({
       runId,
@@ -579,6 +591,8 @@ function createFailedStartRunState(input: {
         message: input.failureMessage,
         modelId: input.modelId,
         provider: 'openai-compatible',
+        projectMode: input.projectMode,
+        fallbackUsed: false,
         retryable: true,
         sourceEventIds: [events[4]!.id],
       },
@@ -631,6 +645,7 @@ function applyAcceptedProseGenerationFailure(state: RunState, input: {
   modelId: string
   providerId?: string
   providerLabel?: string
+  projectMode: 'demo-fixture' | 'real-project'
   reviewId: string
   selectedVariants?: RunSelectedProposalVariantRecord[]
 }) {
@@ -641,12 +656,14 @@ function applyAcceptedProseGenerationFailure(state: RunState, input: {
     index: 3,
     role: 'writer',
     provenance: createFailedGatewayProvenance(input),
-    usage: createFailedRunUsage(input.modelId),
+    usage: createFailedRunUsage(input.modelId, input.projectMode),
     failureDetail: {
       failureClass: input.failureClass,
       message: input.failureMessage,
       modelId: input.modelId,
       provider: 'openai-compatible',
+      projectMode: input.projectMode,
+      fallbackUsed: false,
       retryable: true,
       sourceEventIds: [],
     },
@@ -699,7 +716,7 @@ function applyAcceptedProseGenerationFailure(state: RunState, input: {
   state.run.eventCount = state.events.length
   state.run.failureClass = input.failureClass
   state.run.failureMessage = input.failureMessage
-  state.run.usage = createFailedRunUsage(input.modelId)
+  state.run.usage = createFailedRunUsage(input.modelId, input.projectMode)
   state.run.runtimeSummary = createFailedRunRuntimeSummary(input.failureClass, true)
 }
 
@@ -1171,16 +1188,21 @@ export function createRunFixtureStore(options: {
       try {
         plannerResult = await scenePlannerGateway.generate(createScenePlannerRequest(input, contextPacket))
       } catch (error) {
-        if (isModelGatewayMissingConfigError(error)) {
+        if (isModelGatewayMissingConfigError(error) || isModelGatewayBindingNotAllowedError(error)) {
           sequenceBucket!.set(input.sceneId, nextSequence - 1)
-          throw badRequest('Selected real-model planner binding is missing required OpenAI settings.', {
-            code: 'RUN_MODEL_CONFIG_REQUIRED',
-            detail: {
-              projectId,
-              role: error.role,
-              sceneId: input.sceneId,
+          throw badRequest(
+            isModelGatewayBindingNotAllowedError(error)
+              ? 'Real-project planner runs cannot use fixture bindings.'
+              : 'Selected real-model planner binding is missing required OpenAI settings.',
+            {
+              code: 'RUN_MODEL_CONFIG_REQUIRED',
+              detail: {
+                projectId,
+                role: error.role,
+                sceneId: input.sceneId,
+              },
             },
-          })
+          )
         }
 
         if (isModelGatewayExecutionError(error)) {
@@ -1191,6 +1213,7 @@ export function createRunFixtureStore(options: {
             modelId: error.modelId,
             providerId: error.providerId,
             providerLabel: error.providerLabel,
+            projectMode: error.projectMode,
             sceneId: input.sceneId,
             sequence: nextSequence,
           })
@@ -1252,16 +1275,21 @@ export function createRunFixtureStore(options: {
           mode: input.mode,
         }, contextPacket))
       } catch (error) {
-        if (isModelGatewayMissingConfigError(error)) {
+        if (isModelGatewayMissingConfigError(error) || isModelGatewayBindingNotAllowedError(error)) {
           sequenceBucket!.set(state.run.scopeId, nextSequence - 1)
-          throw badRequest('Selected real-model planner binding is missing required OpenAI settings.', {
-            code: 'RUN_MODEL_CONFIG_REQUIRED',
-            detail: {
-              projectId,
-              role: error.role,
-              runId: input.runId,
+          throw badRequest(
+            isModelGatewayBindingNotAllowedError(error)
+              ? 'Real-project planner runs cannot use fixture bindings.'
+              : 'Selected real-model planner binding is missing required OpenAI settings.',
+            {
+              code: 'RUN_MODEL_CONFIG_REQUIRED',
+              detail: {
+                projectId,
+                role: error.role,
+                runId: input.runId,
+              },
             },
-          })
+          )
         }
 
         if (isModelGatewayExecutionError(error)) {
@@ -1272,6 +1300,7 @@ export function createRunFixtureStore(options: {
             modelId: error.modelId,
             providerId: error.providerId,
             providerLabel: error.providerLabel,
+            projectMode: error.projectMode,
             retryOfRunId: state.run.id,
             sceneId: state.run.scopeId,
             sequence: nextSequence,
@@ -1409,16 +1438,21 @@ export function createRunFixtureStore(options: {
           note: `Resume from ${state.run.resumableFromEventId}`,
         }, contextPacket))
       } catch (error) {
-        if (isModelGatewayMissingConfigError(error)) {
+        if (isModelGatewayMissingConfigError(error) || isModelGatewayBindingNotAllowedError(error)) {
           sequenceBucket!.set(state.run.scopeId, nextSequence - 1)
-          throw badRequest('Selected real-model planner binding is missing required OpenAI settings.', {
-            code: 'RUN_MODEL_CONFIG_REQUIRED',
-            detail: {
-              projectId,
-              role: error.role,
-              runId: input.runId,
+          throw badRequest(
+            isModelGatewayBindingNotAllowedError(error)
+              ? 'Real-project planner runs cannot use fixture bindings.'
+              : 'Selected real-model planner binding is missing required OpenAI settings.',
+            {
+              code: 'RUN_MODEL_CONFIG_REQUIRED',
+              detail: {
+                projectId,
+                role: error.role,
+                runId: input.runId,
+              },
             },
-          })
+          )
         }
 
         if (isModelGatewayExecutionError(error)) {
@@ -1429,6 +1463,7 @@ export function createRunFixtureStore(options: {
             modelId: error.modelId,
             providerId: error.providerId,
             providerLabel: error.providerLabel,
+            projectMode: error.projectMode,
             retryOfRunId: state.run.id,
             resumableFromEventId: state.run.resumableFromEventId,
             sceneId: state.run.scopeId,
@@ -1598,15 +1633,20 @@ export function createRunFixtureStore(options: {
             decision: input.decision,
           }))
         } catch (error) {
-          if (isModelGatewayMissingConfigError(error)) {
-            throw badRequest('Selected real-model prose writer binding is missing required OpenAI settings.', {
-              code: 'RUN_MODEL_CONFIG_REQUIRED',
-              detail: {
-                projectId,
-                role: error.role,
-                runId: input.runId,
+          if (isModelGatewayMissingConfigError(error) || isModelGatewayBindingNotAllowedError(error)) {
+            throw badRequest(
+              isModelGatewayBindingNotAllowedError(error)
+                ? 'Real-project prose generation cannot use fixture bindings.'
+                : 'Selected real-model prose writer binding is missing required OpenAI settings.',
+              {
+                code: 'RUN_MODEL_CONFIG_REQUIRED',
+                detail: {
+                  projectId,
+                  role: error.role,
+                  runId: input.runId,
+                },
               },
-            })
+            )
           }
 
           if (isModelGatewayExecutionError(error)) {
@@ -1617,6 +1657,7 @@ export function createRunFixtureStore(options: {
               modelId: error.modelId,
               providerId: error.providerId,
               providerLabel: error.providerLabel,
+              projectMode: error.projectMode,
               reviewId: input.reviewId,
               selectedVariants: input.selectedVariants,
             })
