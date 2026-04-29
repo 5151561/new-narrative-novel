@@ -314,8 +314,26 @@ function sanitizeLegacyProjectStateEnvelope(
     throw invalidLocalProjectStoreError(options.filePath)
   }
 
-  const migratedRecord = createTemplateRecord(options)
-  migratedRecord.project.updatedAt = legacyProject.updatedAt
+  const now = options.now ? options.now() : new Date().toISOString()
+  const migratedRecord: LocalProjectStoreRecord = {
+    schemaVersion: LOCAL_PROJECT_STORE_SCHEMA_VERSION,
+    storeKind: LOCAL_PROJECT_STORE_KIND,
+    templateVersion: LOCAL_PROJECT_STORE_TEMPLATE_VERSION,
+    project: {
+      projectId: options.projectId,
+      projectTitle: options.projectTitle,
+      createdAt: now,
+      updatedAt: legacyProject.updatedAt,
+      data: createSignalArcProjectTemplate({
+        projectId: options.projectId,
+        projectTitle: options.projectTitle,
+        apiBaseUrl: options.apiBaseUrl,
+        runtimeSummary: options.runtimeSummary,
+        versionLabel: options.versionLabel,
+        includeSeedRunReferences: false,
+      }),
+    },
+  }
 
   if (legacyProject.reviewDecisions && isRecord(legacyProject.reviewDecisions)) {
     migratedRecord.project.data.reviewDecisions = toJsonClone(
