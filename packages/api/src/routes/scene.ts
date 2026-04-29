@@ -9,6 +9,12 @@ const MAX_SCENE_PROSE_REVISION_INSTRUCTION_LENGTH = 280
 export function registerSceneRoutes({ app, apiBasePath, repository }: ApiRouteContext) {
   const projectBase = `${apiBasePath}/projects/:projectId`
 
+  app.patch(`${projectBase}/scenes/:sceneId`, async (request) => {
+    const { projectId, sceneId } = request.params as { projectId: string; sceneId: string }
+    const body = request.body as { title?: string } | undefined
+    return repository.renameScene(projectId, sceneId, { title: body?.title })
+  })
+
   app.get(`${projectBase}/scenes/:sceneId/workspace`, async (request) => {
     const { projectId, sceneId } = request.params as { projectId: string; sceneId: string }
     return repository.getSceneWorkspace(projectId, sceneId)

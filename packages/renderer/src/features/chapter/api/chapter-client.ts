@@ -7,8 +7,11 @@ import type {
 import type { ChapterSceneStructurePatch } from './chapter-record-mutations'
 import {
   acceptMockChapterBacklogProposal,
+  createMockChapter,
+  createMockScene,
   generateMockChapterBacklogProposal,
   getMockChapterRecordById,
+  renameMockChapter,
   reorderMockChapterScene,
   startNextMockChapterSceneRun,
   updateMockChapterBacklogInput,
@@ -30,6 +33,9 @@ export interface ChapterClient {
   startNextChapterSceneRun(input: StartNextChapterSceneRunInput): Promise<StartNextChapterSceneRunRecord | null>
   reorderChapterScene(input: ReorderChapterSceneInput): Promise<ChapterStructureWorkspaceRecord | null>
   updateChapterSceneStructure(input: UpdateChapterSceneStructureInput): Promise<ChapterStructureWorkspaceRecord | null>
+  createChapter(input: CreateChapterInput): Promise<ChapterStructureWorkspaceRecord>
+  renameChapter(input: RenameChapterInput): Promise<ChapterStructureWorkspaceRecord | null>
+  createScene(input: CreateSceneInput): Promise<ChapterStructureWorkspaceRecord | null>
 }
 
 interface CreateChapterClientOptions {
@@ -43,6 +49,9 @@ interface CreateChapterClientOptions {
   startNextChapterSceneRun?: (input: StartNextChapterSceneRunInput) => StartNextChapterSceneRunRecord | null
   reorderChapterScene?: (input: ReorderChapterSceneInput) => ChapterStructureWorkspaceRecord | null
   updateChapterSceneStructure?: (input: UpdateChapterSceneStructureInput) => ChapterStructureWorkspaceRecord | null
+  createChapter?: (input: CreateChapterInput) => ChapterStructureWorkspaceRecord
+  renameChapter?: (input: RenameChapterInput) => ChapterStructureWorkspaceRecord | null
+  createScene?: (input: CreateSceneInput) => ChapterStructureWorkspaceRecord | null
 }
 
 export interface UpdateChapterBacklogInput {
@@ -79,6 +88,23 @@ export interface ReorderChapterSceneInput {
   targetIndex: number
 }
 
+export interface CreateChapterInput {
+  title?: string
+  summary?: string
+}
+
+export interface RenameChapterInput {
+  chapterId: string
+  title?: string
+  summary?: string
+}
+
+export interface CreateSceneInput {
+  chapterId: string
+  title?: string
+  summary?: string
+}
+
 export interface UpdateChapterSceneStructureInput {
   chapterId: string
   sceneId: string
@@ -101,6 +127,9 @@ export function createChapterClient({
   startNextChapterSceneRun = (input) => startNextMockChapterSceneRun(input, projectId),
   reorderChapterScene = reorderMockChapterScene,
   updateChapterSceneStructure = updateMockChapterSceneStructure,
+  createChapter = createMockChapter,
+  renameChapter = renameMockChapter,
+  createScene = createMockScene,
 }: CreateChapterClientOptions = {}): ChapterClient {
   const client: ChapterClient = {
     async getChapterStructureWorkspace({ chapterId }) {
@@ -133,6 +162,18 @@ export function createChapterClient({
     },
     async updateChapterSceneStructure(input) {
       const chapterRecord = updateChapterSceneStructure(input)
+      return chapterRecord ? clone(chapterRecord) : null
+    },
+    async createChapter(input) {
+      const chapterRecord = createChapter(input)
+      return clone(chapterRecord)
+    },
+    async renameChapter(input) {
+      const chapterRecord = renameChapter(input)
+      return chapterRecord ? clone(chapterRecord) : null
+    },
+    async createScene(input) {
+      const chapterRecord = createScene(input)
       return chapterRecord ? clone(chapterRecord) : null
     },
   }

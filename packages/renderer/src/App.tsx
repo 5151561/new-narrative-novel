@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 
 import { signalArcFixtureSeed } from '@narrative-novel/fixture-seed'
@@ -29,6 +30,7 @@ import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { WorkbenchEditorProvider } from '@/features/workbench/editor/WorkbenchEditorProvider'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
+import { useProjectFirstObjectIds } from '@/features/workbench/hooks/useProjectFirstObjectIds'
 import type {
   SceneRouteState,
   SceneLens,
@@ -209,17 +211,35 @@ function NavigatorPane({
   items,
   activeSceneId,
   onSelectScene,
+  onCreateScene,
+  isRealProject,
 }: {
   items: SceneNavigatorCard[]
   activeSceneId: string
   onSelectScene: (sceneId: string) => void
+  onCreateScene?: () => void
+  isRealProject?: boolean
 }) {
-  const { dictionary } = useI18n()
+  const { locale, dictionary } = useI18n()
 
   return (
     <>
       <PaneHeader title={dictionary.app.scenes} />
       <div className="grid gap-2 p-3">
+        {items.length === 0 && isRealProject ? (
+          <div className="rounded-md border border-line-soft bg-surface-2/80 px-4 py-6 text-center">
+            <p className="text-sm text-text-muted">{dictionary.app.noScenesYet ?? 'No scenes yet'}</p>
+            {onCreateScene ? (
+              <button
+                type="button"
+                onClick={onCreateScene}
+                className="mt-3 rounded-md border border-line-strong bg-surface-1 px-4 py-2 text-sm font-medium text-text-main hover:bg-surface-2"
+              >
+                {locale === 'zh-CN' ? '创建第一个场景' : 'Create First Scene'}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {items.map((item) => {
           const active = item.sceneId === activeSceneId
 
@@ -331,6 +351,32 @@ function SceneWorkbench({
   }).filter((item): item is SceneNavigatorCard => item !== undefined)
   const activeScene = activeSceneQuery.scene ?? navigatorQueries.find((query) => query.data?.id === sceneId)?.data
 
+  const realChapterId = navigatorChapterId ?? getCanonicalSeedChapterId(sceneId)
+  const isRealProjectForNavigator = runtime.info?.projectMode === 'real-project'
+
+  const handleCreateScene = useCallback(async () => {
+    if (!realChapterId || !isRealProjectForNavigator) {
+      return
+    }
+    try {
+      const updatedChapter = await runtime.chapterClient.createScene({ chapterId: realChapterId, title: undefined, summary: undefined })
+      if (updatedChapter && updatedChapter.scenes.length > 0) {
+        const newSceneId = updatedChapter.scenes[updatedChapter.scenes.length - 1]?.id
+        if (newSceneId) {
+          patchSceneRoute({
+            sceneId: newSceneId,
+            beatId: undefined,
+            proposalId: undefined,
+            modal: undefined,
+          })
+        }
+      }
+      navigatorChapterQuery.refetch()
+    } catch {
+      // silently handle; the UI will show the error via react-query state
+    }
+  }, [realChapterId, isRealProjectForNavigator, runtime.chapterClient, patchSceneRoute, navigatorChapterQuery])
+
   return (
     <SceneRunSessionProvider
       sceneId={sceneId}
@@ -372,6 +418,12 @@ function SceneWorkbench({
                 modal: undefined,
               })
             }}
+            onCreateScene={
+              isRealProjectForNavigator && navigatorItems.length === 0
+                ? handleCreateScene
+                : undefined
+            }
+            isRealProject={isRealProjectForNavigator}
           />
         }
         mainStage={<SceneWorkspace sceneId={sceneId} defaultTab="execution" />}
@@ -383,7 +435,12 @@ function SceneWorkbench({
 }
 
 export default function App() {
-  const { route, replaceRoute, patchSceneRoute } = useWorkbenchRouteState()
+  const { bookId, chapterId, sceneId } = useProjectFirstObjectIds()
+  const { route, replaceRoute, patchSceneRoute } = useWorkbenchRouteState({
+    sceneId,
+    chapterId,
+    bookId,
+  })
 
   return (
     <WorkbenchEditorProvider route={route} replaceRoute={replaceRoute}>

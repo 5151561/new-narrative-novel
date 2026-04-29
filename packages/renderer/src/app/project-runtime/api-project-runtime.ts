@@ -17,7 +17,10 @@ import type { ChapterDraftAssemblyRecord } from '@/features/chapter/api/chapter-
 import type {
   AcceptChapterBacklogProposalInput,
   ChapterClient,
+  CreateChapterInput,
+  CreateSceneInput,
   GenerateChapterBacklogProposalInput,
+  RenameChapterInput,
   ReorderChapterSceneInput,
   StartNextChapterSceneRunInput,
   UpdateChapterBacklogInput,
@@ -256,6 +259,27 @@ function createChapterClient(projectId: string, transport: ApiTransport): Chapte
         method: 'PATCH',
         path: apiRouteContract.chapterSceneStructure({ projectId, chapterId, sceneId }),
         body: { locale, patch },
+      })
+    },
+    async createChapter({ title, summary }) {
+      return transport.requestJson<ChapterStructureWorkspaceRecord, { title?: string; summary?: string }>({
+        method: 'POST',
+        path: apiRouteContract.chapters({ projectId }),
+        body: { title, summary },
+      })
+    },
+    async renameChapter({ chapterId, title, summary }) {
+      return transport.requestJson<ChapterStructureWorkspaceRecord | null, { title?: string; summary?: string }>({
+        method: 'PATCH',
+        path: apiRouteContract.chapterRename({ projectId, chapterId }),
+        body: { title, summary },
+      })
+    },
+    async createScene({ chapterId, title, summary }) {
+      return transport.requestJson<ChapterStructureWorkspaceRecord | null, { title?: string; summary?: string }>({
+        method: 'POST',
+        path: apiRouteContract.chapterScenes({ projectId, chapterId }),
+        body: { title, summary },
       })
     },
   }

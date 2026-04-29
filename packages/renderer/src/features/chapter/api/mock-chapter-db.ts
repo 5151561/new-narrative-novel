@@ -674,3 +674,95 @@ export function importMockChapterSnapshot(snapshot: Record<string, ChapterStruct
     ...clone(snapshot),
   }
 }
+
+interface CreateMockChapterInput {
+  title?: string
+  summary?: string
+}
+
+export function createMockChapter({ title, summary }: CreateMockChapterInput = {}): ChapterStructureWorkspaceRecord {
+  const chapterId = `chapter-${crypto.randomUUID()}`
+  const chapterTitle = title ?? 'Untitled Chapter'
+  const chapterSummary = summary ?? ''
+  const record: ChapterStructureWorkspaceRecord = {
+    chapterId,
+    title: text(chapterTitle, chapterTitle),
+    summary: text(chapterSummary, chapterSummary),
+    planning: {
+      goal: text('', ''),
+      constraints: [],
+      proposals: [],
+    },
+    scenes: [],
+    inspector: {
+      chapterNotes: [],
+      problemsSummary: [],
+      assemblyHints: [],
+    },
+    viewsMeta: {
+      availableViews: ['backlog', 'sequence', 'outliner', 'assembly'],
+    },
+  }
+  mutableMockChapterRecords[chapterId] = clone(record)
+  return clone(record)
+}
+
+interface RenameMockChapterInput {
+  chapterId: string
+  title?: string
+  summary?: string
+}
+
+export function renameMockChapter({ chapterId, title, summary }: RenameMockChapterInput): ChapterStructureWorkspaceRecord | null {
+  const record = mutableMockChapterRecords[chapterId]
+  if (!record) {
+    return null
+  }
+  if (title !== undefined) {
+    record.title = text(title, title)
+  }
+  if (summary !== undefined) {
+    record.summary = text(summary, summary)
+  }
+  mutableMockChapterRecords[chapterId] = record
+  return clone(record)
+}
+
+interface CreateMockSceneInput {
+  chapterId: string
+  title?: string
+  summary?: string
+}
+
+export function createMockScene({ chapterId, title, summary }: CreateMockSceneInput): ChapterStructureWorkspaceRecord | null {
+  const record = mutableMockChapterRecords[chapterId]
+  if (!record) {
+    return null
+  }
+  const sceneId = `scene-${crypto.randomUUID()}`
+  const sceneTitle = title ?? 'Untitled Scene'
+  const sceneSummary = summary ?? ''
+  const order = record.scenes.length + 1
+  record.scenes = [
+    ...record.scenes,
+    {
+      id: sceneId,
+      order,
+      title: text(sceneTitle, sceneTitle),
+      summary: text(sceneSummary, sceneSummary),
+      purpose: text('', ''),
+      pov: text('', ''),
+      location: text('', ''),
+      conflict: text('', ''),
+      reveal: text('', ''),
+      backlogStatus: 'planned',
+      statusLabel: text('New', '新建'),
+      proseStatusLabel: text('Needs draft', '需起草'),
+      runStatusLabel: text('Not started', '未开始'),
+      unresolvedCount: 0,
+      lastRunLabel: text('Not run', '未运行'),
+    },
+  ]
+  mutableMockChapterRecords[chapterId] = record
+  return clone(record)
+}

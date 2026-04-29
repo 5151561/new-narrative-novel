@@ -172,6 +172,18 @@ export const apiRouteContract = {
   }) {
     return `${chapterSceneBase(projectId, chapterId, sceneId)}/structure`
   },
+  chapters({ projectId }: { projectId: string }) {
+    return `${projectBase(projectId)}/chapters`
+  },
+  chapterRename({ projectId, chapterId }: { projectId: string; chapterId: string }) {
+    return `${chapterBase(projectId, chapterId)}`
+  },
+  chapterScenes({ projectId, chapterId }: { projectId: string; chapterId: string }) {
+    return `${chapterBase(projectId, chapterId)}/scenes`
+  },
+  sceneRename({ projectId, sceneId }: { projectId: string; sceneId: string }) {
+    return `${sceneBase(projectId, sceneId)}`
+  },
   assetKnowledge({ projectId, assetId }: { projectId: string; assetId: string }) {
     return `${assetBase(projectId, assetId)}/knowledge`
   },

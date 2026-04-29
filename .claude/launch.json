@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "API Server",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /Users/changlepan/new-narrative-novel && pnpm dev:api"],
+      "port": 4174
+    },
+    {
+      "name": "Renderer Dev",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /Users/changlepan/new-narrative-novel && pnpm dev:renderer"],
+      "port": 5173
+    },
+    {
+      "name": "Desktop (Electron)",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /Users/changlepan/new-narrative-novel && pnpm dev:desktop"],
+      "port": 4174
+    },
+    {
+      "name": "Storybook",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /Users/changlepan/new-narrative-novel && pnpm storybook"],
+      "port": 6006
+    }
+  ]
+}
