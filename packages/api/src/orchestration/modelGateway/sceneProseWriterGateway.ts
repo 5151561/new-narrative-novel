@@ -51,6 +51,7 @@ export type SceneProseWriterGatewayProvenance =
       modelId: string
       projectMode: 'demo-fixture' | 'real-project'
       fallbackReason?: SceneProseWriterGatewayFallbackReason
+      latencyMs?: number
     }
   | {
       fallbackUsed: boolean
@@ -60,6 +61,8 @@ export type SceneProseWriterGatewayProvenance =
       modelId: string
       projectMode: 'demo-fixture' | 'real-project'
       fallbackReason?: SceneProseWriterGatewayFallbackReason
+      latencyMs?: number
+      repairAttempted?: boolean
     }
 
 export interface SceneProseWriterGatewayResult {
@@ -133,49 +136,82 @@ export function createSceneProseWriterGateway(
         baseUrl: binding.baseUrl,
       })
 
+      const startedAt = Date.now()
       let payload: unknown
       try {
         payload = await openAiProvider.generate(request)
-      } catch {
+      } catch (error) {
+        const isRateLimit = error instanceof Error && (
+          error.message.includes('rate_limit') ||
+          error.message.includes('429')
+        )
         throw new ModelGatewayExecutionError({
-          failureClass: 'provider_error',
-          message: 'OpenAI-compatible provider request failed.',
+          failureClass: isRateLimit ? 'rate_limited' : 'provider_error',
+          message: isRateLimit
+            ? 'OpenAI-compatible provider returned a rate limit error.'
+            : 'OpenAI-compatible provider request failed.',
           modelId: binding.modelId,
           provider: 'openai-compatible',
           providerId: binding.providerId,
           providerLabel: binding.providerLabel,
           projectMode,
           fallbackUsed: false,
-          retryable: true,
+          retryable: isRateLimit,
           role,
         })
       }
+
+      const firstLatencyMs = Date.now() - startedAt
 
       try {
         return {
           output: parseSceneProseWriterOutput(payload),
           provenance: {
             fallbackUsed: false,
-            provider: 'openai-compatible',
+            provider: 'openai-compatible' as const,
             providerId: binding.providerId,
             providerLabel: binding.providerLabel,
             modelId: binding.modelId,
             projectMode,
+            latencyMs: firstLatencyMs,
           },
         }
       } catch {
-        throw new ModelGatewayExecutionError({
-          failureClass: 'invalid_output',
-          message: 'OpenAI-compatible provider returned invalid structured prose output.',
-          modelId: binding.modelId,
-          provider: 'openai-compatible',
-          providerId: binding.providerId,
-          providerLabel: binding.providerLabel,
-          projectMode,
-          fallbackUsed: false,
-          retryable: true,
-          role,
-        })
+        // Attempt one repair retry
+        try {
+          const repairPayload = await openAiProvider.generate({
+            ...request,
+            instructions: 'The previous output did not match the required JSON schema. Return only valid JSON matching the schema.',
+            input: 'Previous output was invalid. Return only valid JSON matching the required schema.',
+          })
+          const repairLatencyMs = Date.now() - startedAt
+          return {
+            output: parseSceneProseWriterOutput(repairPayload),
+            provenance: {
+              fallbackUsed: false,
+              provider: 'openai-compatible' as const,
+              providerId: binding.providerId,
+              providerLabel: binding.providerLabel,
+              modelId: binding.modelId,
+              projectMode,
+              latencyMs: repairLatencyMs,
+              repairAttempted: true,
+            },
+          }
+        } catch {
+          throw new ModelGatewayExecutionError({
+            failureClass: 'invalid_output',
+            message: 'OpenAI-compatible provider returned invalid structured prose output. Repair retry also failed.',
+            modelId: binding.modelId,
+            provider: 'openai-compatible',
+            providerId: binding.providerId,
+            providerLabel: binding.providerLabel,
+            projectMode,
+            fallbackUsed: false,
+            retryable: false,
+            role,
+          })
+        }
       }
     },
   }

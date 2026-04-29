@@ -29,6 +29,7 @@ import type { SceneTab, SceneWorkspaceViewModel } from '@/features/scene/types/s
 import { LocaleToggle } from '@/features/workbench/components/LocaleToggle'
 import { WorkbenchShell } from '@/features/workbench/components/WorkbenchShell'
 import { WorkbenchEditorProvider } from '@/features/workbench/editor/WorkbenchEditorProvider'
+import { WorkbenchFirstRunChecklist } from '@/features/workbench/components/WorkbenchFirstRunChecklist'
 import { useWorkbenchRouteState } from '@/features/workbench/hooks/useWorkbenchRouteState'
 import { useProjectFirstObjectIds } from '@/features/workbench/hooks/useProjectFirstObjectIds'
 import type {
@@ -377,6 +378,20 @@ function SceneWorkbench({
     }
   }, [realChapterId, isRealProjectForNavigator, runtime.chapterClient, patchSceneRoute, navigatorChapterQuery])
 
+  const handleCreateChapter = useCallback(async () => {
+    if (!isRealProjectForNavigator) {
+      return
+    }
+    try {
+      const newChapter = await runtime.chapterClient.createChapter({})
+      if (newChapter) {
+        replaceRoute({ scope: 'chapter', chapterId: newChapter.chapterId })
+      }
+    } catch {
+      // silently handle
+    }
+  }, [isRealProjectForNavigator, runtime.chapterClient, replaceRoute])
+
   return (
     <SceneRunSessionProvider
       sceneId={sceneId}
@@ -407,24 +422,30 @@ function SceneWorkbench({
           />
         }
         navigator={
-          <NavigatorPane
-            items={navigatorItems}
-            activeSceneId={sceneId}
-            onSelectScene={(nextSceneId) => {
-              patchSceneRoute({
-                sceneId: nextSceneId,
-                beatId: undefined,
-                proposalId: undefined,
-                modal: undefined,
-              })
-            }}
-            onCreateScene={
-              isRealProjectForNavigator && navigatorItems.length === 0
-                ? handleCreateScene
-                : undefined
-            }
-            isRealProject={isRealProjectForNavigator}
-          />
+          <div className="flex h-full flex-col gap-3">
+            <WorkbenchFirstRunChecklist
+              onCreateChapter={handleCreateChapter}
+              onCreateScene={handleCreateScene}
+            />
+            <NavigatorPane
+              items={navigatorItems}
+              activeSceneId={sceneId}
+              onSelectScene={(nextSceneId) => {
+                patchSceneRoute({
+                  sceneId: nextSceneId,
+                  beatId: undefined,
+                  proposalId: undefined,
+                  modal: undefined,
+                })
+              }}
+              onCreateScene={
+                isRealProjectForNavigator && navigatorItems.length === 0
+                  ? handleCreateScene
+                  : undefined
+              }
+              isRealProject={isRealProjectForNavigator}
+            />
+          </div>
         }
         mainStage={<SceneWorkspace sceneId={sceneId} defaultTab="execution" />}
         inspector={<SceneInspectorContainer sceneId={sceneId} />}
