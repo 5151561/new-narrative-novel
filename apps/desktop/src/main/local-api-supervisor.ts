@@ -202,9 +202,6 @@ export class LocalApiSupervisor {
     }
 
     const response = await this.fetchImpl(`${snapshot.runtimeConfig.apiBaseUrl}/model-settings/test-connection`, {
-      headers: {
-        'content-type': 'application/json',
-      },
       method: 'POST',
     })
     if (!response.ok) {

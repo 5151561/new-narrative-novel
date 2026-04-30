@@ -52,9 +52,10 @@ function createBindingsDraft(bindings?: DesktopModelBindings | null) {
 
 function createProviderDraft(profile?: OpenAiCompatibleProviderProfile) {
   return {
+    apiKey: '',
+    baseUrl: profile?.baseUrl ?? '',
     id: profile?.id ?? '',
     label: profile?.label ?? '',
-    baseUrl: profile?.baseUrl ?? '',
   }
 }
 
@@ -127,7 +128,7 @@ export function ModelSettingsDialog({ open, onOpenChange }: ModelSettingsDialogP
                   <p className="text-sm text-text-muted">{dictionary.shell.providerProfilesDescription}</p>
                 </div>
 
-                <div className="grid gap-3 rounded-md border border-dashed border-line-soft bg-surface-2 px-4 py-4 md:grid-cols-[1fr_1fr_1.4fr_auto]">
+                <div className="grid gap-3 rounded-md border border-dashed border-line-soft bg-surface-2 px-4 py-4 md:grid-cols-[1fr_1fr_1.4fr_1fr_auto]">
                   <label className="space-y-2">
                     <span className="text-sm text-text-main">{dictionary.shell.providerProfileIdLabel}</span>
                     <input
@@ -155,10 +156,31 @@ export function ModelSettingsDialog({ open, onOpenChange }: ModelSettingsDialogP
                       className="w-full rounded-md border border-line-soft bg-app px-3 py-2 text-sm text-text-main"
                     />
                   </label>
+                  <label className="space-y-2">
+                    <span className="text-sm text-text-main">{dictionary.shell.providerProfileApiKeyLabel}</span>
+                    <input
+                      aria-label={dictionary.shell.providerProfileApiKeyInput}
+                      type="password"
+                      value={newProviderDraft.apiKey}
+                      onChange={(event) => setNewProviderDraft((current) => ({ ...current, apiKey: event.target.value }))}
+                      className="w-full rounded-md border border-line-soft bg-app px-3 py-2 text-sm text-text-main"
+                    />
+                  </label>
                   <div className="flex items-end">
                     <button
                       type="button"
-                      onClick={() => void controller.saveProviderProfile(newProviderDraft)}
+                      onClick={() => {
+                        const draftId = newProviderDraft.id.trim()
+                        const draftLabel = newProviderDraft.label.trim()
+                        const draftBaseUrl = newProviderDraft.baseUrl.trim()
+                        const draftApiKey = newProviderDraft.apiKey.trim()
+                        void controller.saveProviderProfile({ id: draftId, label: draftLabel, baseUrl: draftBaseUrl })
+                          .then(() => {
+                            if (draftApiKey) {
+                              return controller.saveProviderCredential(draftId, draftApiKey)
+                            }
+                          })
+                      }}
                       disabled={!newProviderDraft.id.trim() || !newProviderDraft.label.trim() || !newProviderDraft.baseUrl.trim() || controller.saving}
                       className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
                     >
